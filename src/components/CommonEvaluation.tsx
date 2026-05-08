@@ -1,16 +1,21 @@
-import { type Component, createResource, createSignal, For, Show } from "solid-js";
+import { SquarePen } from "lucide-solid";
+import { type Component, createEffect, createResource, createSignal, For, Show } from "solid-js";
 import {
 	type CommonEvaluationItem,
 	createEvaluationSheet,
 	type DraftRow,
 	fetchCommonEvaluation,
 	fetchCommonEvaluationItems,
+	upsertCommonEvaluationResults,
 } from "./helpers/commonEvaluation";
+import type { Employee } from "./helpers/evaluationSheet";
+import { isPrimaryEvaluator, isSecondaryEvaluator } from "./helpers/evaluatorRole";
 
 interface CommonEvaluationProps {
 	sheetId: number | null;
 	periodId: number;
 	employeeId: number;
+	subject: Employee;
 	onCreated: () => void;
 }
 
@@ -67,9 +72,100 @@ const CommonEvaluation: Component<CommonEvaluationProps> = (props) => {
 
 	const isLoading = () => (props.sheetId ? evaluation.loading : items.loading);
 
+	// 評価者権限
+	const [canEditFirstScore, setCanEditFirstScore] = createSignal(false);
+	const [canEditSecondScore, setCanEditSecondScore] = createSignal(false);
+
+	createEffect(() => {
+		isPrimaryEvaluator(props.subject).then(setCanEditFirstScore);
+		isSecondaryEvaluator(props.subject).then(setCanEditSecondScore);
+	});
+
+	const hasUpdatePermission = () => canEditFirstScore() || canEditSecondScore();
+	const [isUpdating, setIsUpdating] = createSignal(false);
+	const [updateDrafts, setUpdateDrafts] = createSignal<
+		Record<number, { first_comment: string; first_score: string; second_score: string }>
+	>({});
+	const [updateError, setUpdateError] = createSignal<string | null>(null);
+	const [updateLoading, setUpdateLoading] = createSignal(false);
+	const startUpdate = () => {
+		const currentResults = evaluation()?.results ?? [];
+		setUpdateDrafts(
+			currentResults.reduce(
+				(acc, result) => {
+					if (result.id > 0) {
+						acc[result.id] = {
+							first_comment: result.first_comment,
+							first_score: String(result.first_score || ""),
+							second_score: String(result.second_score || ""),
+						};
+					}
+					return acc;
+				},
+				{} as Record<number, { first_comment: string; first_score: string; second_score: string }>,
+			),
+		);
+		setUpdateError(null);
+		setIsUpdating(true);
+	};
+
+	const cancelUpdate = () => {
+		setIsUpdating(false);
+		setUpdateDrafts({});
+		setUpdateError(null);
+	};
+
+	const applyUpdate = async () => {
+		setUpdateLoading(true);
+		setUpdateError(null);
+		try {
+			const currentResults = evaluation()?.results ?? [];
+
+			// 全ての結果をUPSERT用のデータに変換
+			const resultsToUpsert = currentResults.map((result) => {
+				const draft = updateDrafts()[result.id];
+				return {
+					id: result.id,
+					item_id: result.item_id,
+					first_comment: draft?.first_comment ?? result.first_comment,
+					first_score: draft?.first_score ?? String(result.first_score || ""),
+					second_score: draft?.second_score ?? String(result.second_score || ""),
+				};
+			});
+
+			console.log("Upserting results:", resultsToUpsert);
+
+			await upsertCommonEvaluationResults(
+				props.sheetId!,
+				resultsToUpsert,
+				canEditFirstScore(),
+				canEditSecondScore(),
+			);
+
+			props.onCreated();
+			setIsUpdating(false);
+			setUpdateDrafts({});
+		} catch (err) {
+			console.error("Update error:", err);
+			setUpdateError(err instanceof Error ? err.message : "更新に失敗しました");
+		} finally {
+			setUpdateLoading(false);
+		}
+	};
+
 	return (
 		<article class="common-evaluation-card">
-			<h2>共通評価</h2>
+			<div class="common-evaluation-card__header">
+				<h2>共通評価</h2>
+				<Show when={props.sheetId != null && !isLoading()}>
+					<Show when={hasUpdatePermission()}>
+						<button type="button" class="edit-toggle-button" onClick={startUpdate}>
+							<SquarePen class="edit-icon" />
+							評価更新
+						</button>
+					</Show>
+				</Show>
+			</div>
 			<Show when={!isLoading()} fallback={<p>共通評価情報を読み込み中です...</p>}>
 				<Show when={props.sheetId == null}>
 					<p class="new-sheet-notice">
@@ -93,17 +189,84 @@ const CommonEvaluation: Component<CommonEvaluationProps> = (props) => {
 							{/* シートあり：既存データを表示 */}
 							<Show when={props.sheetId != null}>
 								<For each={evaluation()?.results ?? []}>
-									{(result, index) => (
-										<tr>
-											<td>{index() + 1}</td>
-											<td>{result.item.title}</td>
-											<td>{result.item.description}</td>
-											<td>{result.first_comment || "—"}</td>
-											<td>{result.item.weight}</td>
-											<td>{result.first_score || "—"}</td>
-											<td>{result.second_score || "—"}</td>
-										</tr>
-									)}
+									{(result, index) => {
+										const draft = () => updateDrafts()[result.id];
+
+										return (
+											<tr>
+												<td>{index() + 1}</td>
+												<td>{result.item.title}</td>
+												<td>{result.item.description}</td>
+												<td>
+													<Show
+														when={isUpdating() && canEditFirstScore()}
+														fallback={result.first_comment || "—"}
+													>
+														<textarea
+															class="objective-input"
+															value={draft()?.first_comment || ""}
+															onInput={(e) =>
+																setUpdateDrafts((prev) => ({
+																	...prev,
+																	[result.id]: {
+																		...prev[result.id],
+																		first_comment: e.currentTarget.value,
+																	},
+																}))
+															}
+														/>
+													</Show>
+												</td>
+												<td>{result.item.weight}</td>
+												<td>
+													<Show
+														when={isUpdating() && canEditFirstScore()}
+														fallback={result.first_score || "—"}
+													>
+														<input
+															type="number"
+															class="score-input"
+															min="0"
+															max={result.item.weight}
+															value={draft()?.first_score || ""}
+															onInput={(e) =>
+																setUpdateDrafts((prev) => ({
+																	...prev,
+																	[result.id]: {
+																		...prev[result.id],
+																		first_score: e.currentTarget.value,
+																	},
+																}))
+															}
+														/>
+													</Show>
+												</td>
+												<td>
+													<Show
+														when={isUpdating() && canEditSecondScore()}
+														fallback={result.second_score || "—"}
+													>
+														<input
+															type="number"
+															class="score-input"
+															min="0"
+															max={result.item.weight}
+															value={draft()?.second_score || ""}
+															onInput={(e) =>
+																setUpdateDrafts((prev) => ({
+																	...prev,
+																	[result.id]: {
+																		...prev[result.id],
+																		second_score: e.currentTarget.value,
+																	},
+																}))
+															}
+														/>
+													</Show>
+												</td>
+											</tr>
+										);
+									}}
 								</For>
 							</Show>
 							{/* シートなし：入力フォーム */}
@@ -164,7 +327,24 @@ const CommonEvaluation: Component<CommonEvaluationProps> = (props) => {
 					</table>
 				</div>
 
-				{/* シートあり：集計表示 */}
+				<Show when={props.sheetId != null && isUpdating()}>
+					<div class="common-evaluation-actions common-evaluation-actions--footer">
+						<button
+							type="button"
+							class="primary-action"
+							onClick={applyUpdate}
+							disabled={updateLoading()}
+						>
+							{updateLoading() ? "保存中…" : "編集を完了"}
+						</button>
+						<button type="button" class="secondary-action" onClick={cancelUpdate}>
+							キャンセル
+						</button>
+					</div>
+				</Show>
+				<Show when={props.sheetId != null && updateError()}>
+					<p class="update-error">{updateError()}</p>
+				</Show>
 				<Show when={props.sheetId != null}>
 					<div class="evaluation-summary">
 						<div class="summary-item">

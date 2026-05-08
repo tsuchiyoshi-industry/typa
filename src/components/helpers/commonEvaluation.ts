@@ -70,7 +70,7 @@ export async function fetchCommonEvaluation(sheetId: number): Promise<CommonEval
 			return existing;
 		}
 		return {
-			id: 0,
+			id: -item.id,
 			sheet_id: sheetId,
 			item_id: item.id,
 			first_score: 0,
@@ -152,4 +152,81 @@ export async function createEvaluationSheet(
 	}
 
 	return sheetId;
+}
+
+/**
+ * common_evaluation_result を更新する。
+ * 一次評価者: first_score, first_comment を更新
+ * 二次評価者: second_score を更新
+ */
+export async function updateCommonEvaluationResult(
+	resultId: number,
+	updates: {
+		first_score?: number;
+		second_score?: number;
+		first_comment?: string;
+	},
+): Promise<void> {
+	const { error } = await supabase
+		.from("common_evaluation_results")
+		.update(updates)
+		.eq("id", resultId);
+
+	if (error) {
+		throw error;
+	}
+}
+
+/**
+ * 共通評価結果を一括でUPSERTする。
+ * 既存レコード（id > 0）はUPDATE、未存在レコード（id < 0）はINSERTする。
+ *
+ * @param sheetId - 評価シートID
+ * @param results - 更新する評価結果の配列
+ * @param canEditFirst - 一次評価を編集可能か
+ * @param canEditSecond - 二次評価を編集可能か
+ */
+export async function upsertCommonEvaluationResults(
+	sheetId: number,
+	results: Array<{
+		id: number;
+		item_id: number;
+		first_comment: string;
+		first_score: string;
+		second_score: string;
+	}>,
+	canEditFirst: boolean,
+	canEditSecond: boolean,
+): Promise<void> {
+	const rows = results.map((result) => {
+		const row: {
+			sheet_id: number;
+			item_id: number;
+			first_comment?: string;
+			first_score?: number;
+			second_score?: number;
+		} = {
+			sheet_id: sheetId,
+			item_id: result.item_id,
+		};
+
+		if (canEditFirst) {
+			row.first_comment = result.first_comment;
+			row.first_score = Number(result.first_score) || 0;
+		}
+
+		if (canEditSecond) {
+			row.second_score = Number(result.second_score) || 0;
+		}
+
+		return row;
+	});
+
+	const { error } = await supabase
+		.from("common_evaluation_results")
+		.upsert(rows, { onConflict: "sheet_id,item_id" });
+
+	if (error) {
+		throw error;
+	}
 }

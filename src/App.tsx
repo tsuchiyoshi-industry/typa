@@ -2,8 +2,9 @@ import { Navigate, Route, Router } from "@solidjs/router";
 import type { Session } from "@supabase/supabase-js";
 import { type Component, createSignal, type JSX, onMount, Show } from "solid-js";
 import { supabase } from "../utils/supabase";
-import Dashboard from "./components/Dashboard";
 import Login from "./components/Login";
+import SheetEditor from "./components/SheetEditor";
+import SheetList from "./components/SheetList";
 
 const AppLayout: Component<{ children?: JSX.Element | JSX.Element[] }> = (props) => (
 	<div class="app-shell">
@@ -67,7 +68,18 @@ const App: Component = () => {
 					component={() => (
 						<Show when={session()} fallback={<Navigate href="/login" />}>
 							<DashboardLayout>
-								<Dashboard />
+								<SheetList />
+							</DashboardLayout>
+						</Show>
+					)}
+				/>
+
+				<Route
+					path="/sheet/:id"
+					component={() => (
+						<Show when={session()} fallback={<Navigate href="/login" />}>
+							<DashboardLayout>
+								<SheetEditor />
 							</DashboardLayout>
 						</Show>
 					)}

@@ -4,7 +4,7 @@ import type { Employee } from "./helpers/evaluationSheet";
 
 interface ProfileCardsProps {
 	subject: Employee;
-	evaluationPeriodName: string | undefined;
+	evaluationPeriodName: string;
 	primaryEvaluator: string;
 	secondaryEvaluator: string;
 }

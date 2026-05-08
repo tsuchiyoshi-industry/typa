@@ -45,7 +45,102 @@ export interface EvaluationSheet {
 	objectives: Milestone[];
 }
 
-export const fetchEvaluationSheet = async (periodId: number | null): Promise<EvaluationSheet> => {
+export const fetchEvaluationSheetById = async (sheetId: number): Promise<EvaluationSheet> => {
+	// evaluation_sheets を取得
+	const { data: sheetRecord, error: sheetError } = await supabase
+		.from("evaluation_sheets")
+		.select("*")
+		.eq("id", sheetId)
+		.single();
+
+	if (sheetError) {
+		throw sheetError;
+	}
+
+	const sheet = sheetRecord as EvaluationSheetRecord;
+
+	// 評価期間を取得
+	const { data: selectedPeriod, error: periodError } = await supabase
+		.from("evaluation_periods")
+		.select("*")
+		.eq("id", sheet.period_id)
+		.maybeSingle();
+
+	if (periodError) {
+		console.warn("Evaluation period fetch failed:", periodError.message);
+	}
+
+	// 社員を取得
+	const { data: employeeData, error: employeeError } = await supabase
+		.from("employees")
+		.select("*")
+		.eq("id", sheet.employee_id)
+		.single();
+
+	if (employeeError) {
+		throw employeeError;
+	}
+
+	const subject = employeeData as Employee;
+
+	const evaluatorNames = await fetchEvaluatorNames(
+		subject.primary_evaluator_id ?? null,
+		subject.secondary_evaluator_id ?? null,
+	);
+	const { primaryEvaluator, secondaryEvaluator } = evaluatorNames;
+
+	// sheet_id でマイルストーンを取得
+	const { data: milestones, error: milestoneError } = await supabase
+		.from("milestones")
+		.select("*")
+		.eq("sheet_id", sheet.id)
+		.order("goal_number", { ascending: true });
+
+	if (milestoneError) {
+		console.warn("Milestones fetch failed:", milestoneError.message);
+	}
+
+	const objectives =
+		(milestones as Milestone[] | null)?.slice(0, 2).map((item) => ({
+			id: item.id,
+			sheet_id: item.sheet_id,
+			goal_number: item.goal_number,
+			challenge_goal: item.challenge_goal || "",
+			midterm_goal: item.midterm_goal || "",
+			achievement: item.achievement || "",
+			first_score: item.first_score ?? 0,
+			second_score: item.second_score ?? 0,
+			is_editable: item.is_editable ?? false,
+		})) ?? [];
+
+	const normalizedObjectives = objectives;
+	while (normalizedObjectives.length < 2) {
+		normalizedObjectives.push({
+			id: normalizedObjectives.length + 1,
+			sheet_id: sheet.id,
+			goal_number: normalizedObjectives.length + 1,
+			challenge_goal: "",
+			midterm_goal: "",
+			achievement: "",
+			first_score: 0,
+			second_score: 0,
+			is_editable: false,
+		});
+	}
+
+	return {
+		sheetId: sheet.id,
+		subject,
+		evaluationPeriod: selectedPeriod ?? null,
+		primaryEvaluator,
+		secondaryEvaluator,
+		objectives: normalizedObjectives,
+	};
+};
+
+export const fetchEvaluationSheetByPeriodId = async (
+	periodId: number | null,
+): Promise<EvaluationSheet> => {
 	if (!periodId) {
 		return {
 			sheetId: null,

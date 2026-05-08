@@ -19,7 +19,7 @@ const DashboardLayout: Component<{ children?: JSX.Element | JSX.Element[] }> = (
 			</div>
 			<nav class="sidebar-menu">
 				<a href="/" class="sidebar-link active">
-					ダッシュボード
+					評価シート
 				</a>
 				<a href="/reviews" class="sidebar-link">
 					評価履歴

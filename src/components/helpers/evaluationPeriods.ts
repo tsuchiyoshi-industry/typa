@@ -6,8 +6,6 @@ export interface EvaluationPeriod {
 	start_date: string;
 	end_date: string;
 	is_active: boolean;
-	primary_evaluator_id?: number;
-	secondary_evaluator_id?: number;
 }
 
 export interface EvaluatorNames {

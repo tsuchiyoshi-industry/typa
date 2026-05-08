@@ -117,6 +117,41 @@
 		line-height: 1.7;
 	}
 
+	/* タブ */
+	.challenge-tabs {
+		display: flex;
+		gap: 0.5rem;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+		padding-bottom: 0;
+	}
+
+	.challenge-tab {
+		padding: 0.6rem 1.4rem;
+		border-radius: 12px 12px 0 0;
+		border: 1px solid transparent;
+		border-bottom: none;
+		background: transparent;
+		color: var(--muted);
+		font-size: 0.9rem;
+		font-weight: 600;
+		cursor: pointer;
+		transition: all 0.15s ease;
+		position: relative;
+		bottom: -1px;
+	}
+
+	.challenge-tab:hover {
+		color: var(--text);
+		background: rgba(255, 255, 255, 0.04);
+	}
+
+	.challenge-tab[aria-selected="true"] {
+		color: var(--accent);
+		background: rgba(17, 26, 44, 0.96);
+		border-color: rgba(255, 255, 255, 0.1);
+		border-bottom-color: rgba(17, 26, 44, 0.96);
+	}
+
 	.objective-block {
 		display: grid;
 		gap: 1rem;
@@ -331,9 +366,105 @@
 		color: var(--text);
 	}
 
+	.common-evaluation-card {
+		padding: 1.75rem;
+		background: rgba(17, 26, 44, 0.95);
+		border: 1px solid rgba(255, 255, 255, 0.08);
+		border-radius: 28px;
+	}
+
+	.common-evaluation-card h2 {
+		margin: 0 0 1rem;
+		color: var(--accent);
+		font-size: 1.15rem;
+		letter-spacing: 0.02em;
+	}
+
+	.evaluation-table-container {
+		margin-bottom: 1.5rem;
+		overflow-x: auto;
+	}
+
+	.evaluation-table {
+		width: 100%;
+		border-collapse: collapse;
+		font-size: 0.9rem;
+	}
+
+	.evaluation-table th,
+	.evaluation-table td {
+		padding: 0.75rem 0.5rem;
+		text-align: left;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+	}
+
+	.evaluation-table th {
+		background: rgba(255, 255, 255, 0.04);
+		font-weight: 600;
+		color: var(--muted);
+		text-transform: uppercase;
+		letter-spacing: 0.03em;
+		font-size: 0.8rem;
+	}
+
+	.evaluation-table td {
+		color: var(--text);
+	}
+
+	.evaluation-table td:nth-child(1) {
+		font-weight: 600;
+		width: 3rem;
+		text-align: center;
+	}
+
+	.evaluation-table td:nth-child(5),
+	.evaluation-table td:nth-child(6),
+	.evaluation-table td:nth-child(7) {
+		text-align: center;
+		font-weight: 600;
+	}
+
+	.evaluation-summary {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+		gap: 1rem;
+		padding-top: 1rem;
+		border-top: 1px solid rgba(255, 255, 255, 0.08);
+	}
+
+	.summary-item {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.75rem 1rem;
+		background: rgba(255, 255, 255, 0.03);
+		border-radius: 12px;
+	}
+
+	.summary-label {
+		color: var(--muted);
+		font-size: 0.9rem;
+	}
+
+	.summary-value {
+		font-weight: 700;
+		color: var(--text);
+		font-size: 1.1rem;
+	}
+
+	.summary-rate {
+		color: var(--accent);
+		font-weight: 600;
+		font-size: 0.9rem;
+	}
+
 	@media (max-width: 900px) {
 		.sheet-grid,
 		.score-grid {
+			grid-template-columns: 1fr;
+		}
+
+		.evaluation-summary {
 			grid-template-columns: 1fr;
 		}
 	}

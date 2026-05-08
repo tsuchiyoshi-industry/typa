@@ -8,12 +8,13 @@ export interface Employee {
 	role_id: number;
 	career_course?: string;
 	grade?: string;
+	primary_evaluator_id?: number;
+	secondary_evaluator_id?: number;
 }
 
 export interface Milestone {
 	id: number;
-	employee_id: number;
-	period_id: number;
+	sheet_id: number;
 	goal_number: number;
 	challenge_goal: string;
 	midterm_goal: string;
@@ -23,7 +24,20 @@ export interface Milestone {
 	is_editable: boolean;
 }
 
+export interface EvaluationSheetRecord {
+	id: number;
+	period_id: number;
+	employee_id: number;
+	status: string;
+	first_overall_comment: string;
+	second_overall_comment: string;
+	total_score: number;
+	created_at: string;
+	updated_at: string;
+}
+
 export interface EvaluationSheet {
+	sheetId: number | null;
 	subject: Employee | null;
 	evaluationPeriod: EvaluationPeriod | null;
 	primaryEvaluator: string;
@@ -34,6 +48,7 @@ export interface EvaluationSheet {
 export const fetchEvaluationSheet = async (periodId: number | null): Promise<EvaluationSheet> => {
 	if (!periodId) {
 		return {
+			sheetId: null,
 			subject: null,
 			evaluationPeriod: null,
 			primaryEvaluator: "未設定",
@@ -42,6 +57,7 @@ export const fetchEvaluationSheet = async (periodId: number | null): Promise<Eva
 		};
 	}
 
+	// 評価期間を取得
 	const { data: selectedPeriod, error: periodError } = await supabase
 		.from("evaluation_periods")
 		.select("*")
@@ -52,6 +68,7 @@ export const fetchEvaluationSheet = async (periodId: number | null): Promise<Eva
 		console.warn("Evaluation period fetch failed:", periodError.message);
 	}
 
+	// ログインユーザーに紐づく社員を取得
 	const { data: employees, error: employeeError } = await supabase.from("employees").select("*");
 	if (employeeError) {
 		console.error("Error fetching employees:", employeeError.message);
@@ -59,19 +76,33 @@ export const fetchEvaluationSheet = async (periodId: number | null): Promise<Eva
 	}
 
 	const sheetEmployees = employees ?? [];
-	const subject = sheetEmployees[0] ?? null;
+	const subject = (sheetEmployees[0] as Employee) ?? null;
+
+	// evaluation_sheets から sheet_id を取得（period_id + employee_id の組み合わせ）
+	const { data: sheetRecord, error: sheetError } = await supabase
+		.from("evaluation_sheets")
+		.select("*")
+		.eq("period_id", periodId)
+		.eq("employee_id", subject?.id ?? 0)
+		.maybeSingle();
+
+	if (sheetError) {
+		console.warn("Evaluation sheet fetch failed:", sheetError.message);
+	}
+
+	const sheet = sheetRecord as EvaluationSheetRecord | null;
 
 	const evaluatorNames = await fetchEvaluatorNames(
-		(selectedPeriod as EvaluationPeriod | null)?.primary_evaluator_id ?? null,
-		(selectedPeriod as EvaluationPeriod | null)?.secondary_evaluator_id ?? null,
+		subject?.primary_evaluator_id ?? null,
+		subject?.secondary_evaluator_id ?? null,
 	);
 	const { primaryEvaluator, secondaryEvaluator } = evaluatorNames;
 
+	// sheet_id でマイルストーンを取得
 	const { data: milestones, error: milestoneError } = await supabase
 		.from("milestones")
 		.select("*")
-		.eq("employee_id", subject?.id ?? 0)
-		.eq("period_id", periodId)
+		.eq("sheet_id", sheet?.id ?? 0)
 		.order("goal_number", { ascending: true });
 
 	if (milestoneError) {
@@ -81,8 +112,7 @@ export const fetchEvaluationSheet = async (periodId: number | null): Promise<Eva
 	const objectives =
 		(milestones as Milestone[] | null)?.slice(0, 2).map((item) => ({
 			id: item.id,
-			employee_id: item.employee_id,
-			period_id: item.period_id,
+			sheet_id: item.sheet_id,
 			goal_number: item.goal_number,
 			challenge_goal: item.challenge_goal || "",
 			midterm_goal: item.midterm_goal || "",
@@ -96,8 +126,7 @@ export const fetchEvaluationSheet = async (periodId: number | null): Promise<Eva
 	while (normalizedObjectives.length < 2) {
 		normalizedObjectives.push({
 			id: normalizedObjectives.length + 1,
-			employee_id: subject?.id ?? 0,
-			period_id: periodId,
+			sheet_id: sheet?.id ?? 0,
 			goal_number: normalizedObjectives.length + 1,
 			challenge_goal: "",
 			midterm_goal: "",
@@ -109,8 +138,9 @@ export const fetchEvaluationSheet = async (periodId: number | null): Promise<Eva
 	}
 
 	return {
+		sheetId: sheet?.id ?? null,
 		subject,
-		evaluationPeriod: selectedPeriod ?? null,
+		evaluationPeriod: (selectedPeriod as EvaluationPeriod | null) ?? null,
 		primaryEvaluator,
 		secondaryEvaluator,
 		objectives: normalizedObjectives,
@@ -121,7 +151,7 @@ export const fetchEvaluationSheet = async (periodId: number | null): Promise<Eva
 
 // -- 特権モード(security definer)で評価関係をチェックする関数
 // create or replace function public.check_employee_access(target_employee_id bigint, current_user_uuid uuid)
-// returns boolean as $$
+// returns boolean as $
 // declare
 //   is_accessible boolean;
 // begin
@@ -148,7 +178,7 @@ export const fetchEvaluationSheet = async (periodId: number | null): Promise<Eva
 //   ) into is_accessible;
 //   return is_accessible;
 // end;
-// $$ language plpgsql security definer;
+// $ language plpgsql security definer;
 
 // drop policy if exists "Enable access for self and evaluators" on "public"."employees";
 

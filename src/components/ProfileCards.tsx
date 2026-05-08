@@ -1,5 +1,6 @@
 import { User, Users } from "lucide-solid";
-import type { Component } from "solid-js";
+import { type Component, createEffect, createSignal } from "solid-js";
+import { fetchGradeName } from "./helpers/employeeGrade";
 import type { Employee } from "./helpers/evaluationSheet";
 
 interface ProfileCardsProps {
@@ -10,6 +11,12 @@ interface ProfileCardsProps {
 }
 
 const ProfileCards: Component<ProfileCardsProps> = (props) => {
+	const [gradeName, setGradeName] = createSignal<string>("未設定");
+
+	createEffect(() => {
+		fetchGradeName(props.subject.grade_id ?? null).then(setGradeName);
+	});
+
 	return (
 		<div class="sheet-grid">
 			<article class="sheet-card">
@@ -24,7 +31,7 @@ const ProfileCards: Component<ProfileCardsProps> = (props) => {
 					</div>
 					<div class="profile-item">
 						<dt>等級</dt>
-						<dd>{props.subject.grade ?? "未設定"}</dd>
+						<dd>{gradeName()}</dd>
 					</div>
 					<div class="profile-item">
 						<dt>評価対象期間</dt>

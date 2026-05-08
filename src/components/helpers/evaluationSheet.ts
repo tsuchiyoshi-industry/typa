@@ -7,7 +7,7 @@ export interface Employee {
 	employee_no: string;
 	role_id: number;
 	career_course?: string;
-	grade?: string;
+	grade_id?: number;
 	primary_evaluator_id?: number;
 	secondary_evaluator_id?: number;
 }

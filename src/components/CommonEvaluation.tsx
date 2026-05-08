@@ -22,13 +22,17 @@ interface CommonEvaluationProps {
 const CommonEvaluation: Component<CommonEvaluationProps> = (props) => {
 	// シートあり → 既存データを取得、なし → 項目マスタのみ取得
 	const [evaluation] = createResource(
-		() => props.sheetId ?? undefined,
-		(sheetId) => fetchCommonEvaluation(sheetId),
+		() =>
+			props.sheetId != null
+				? { sheetId: props.sheetId, gradeId: props.subject.grade_id }
+				: undefined,
+		(params) => fetchCommonEvaluation(params.sheetId, params.gradeId),
 	);
 	// sheetId が null のときだけマスタを取得（true を返すことで常に有効なソースにする）
 	const [items] = createResource(
-		() => props.sheetId == null || undefined,
-		(shouldFetch) => (shouldFetch ? fetchCommonEvaluationItems() : Promise.resolve(null)),
+		() => (props.sheetId == null ? props.subject.grade_id : undefined),
+		(gradeId) =>
+			gradeId !== undefined ? fetchCommonEvaluationItems(gradeId) : Promise.resolve(null),
 	);
 
 	// 新規作成用の入力状態
@@ -61,7 +65,12 @@ const CommonEvaluation: Component<CommonEvaluationProps> = (props) => {
 		setSubmitting(true);
 		setSubmitError(null);
 		try {
-			await createEvaluationSheet(props.periodId, props.employeeId, drafts());
+			await createEvaluationSheet(
+				props.periodId,
+				props.employeeId,
+				props.subject.grade_id ?? null,
+				drafts(),
+			);
 			props.onCreated();
 		} catch (err) {
 			setSubmitError(err instanceof Error ? err.message : "登録に失敗しました");

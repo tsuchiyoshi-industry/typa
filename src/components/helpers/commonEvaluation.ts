@@ -5,6 +5,7 @@ export interface CommonEvaluationItem {
 	title: string;
 	description: string;
 	weight: number;
+	grade_id: number | null;
 }
 
 export interface CommonEvaluationResult {
@@ -28,8 +29,25 @@ export interface CommonEvaluationSummary {
 	secondRate: number;
 }
 
-export async function fetchCommonEvaluationItems(): Promise<CommonEvaluationItem[]> {
-	const { data, error } = await supabase.from("common_evaluation_items").select("*").order("id");
+/**
+ * 等級IDに基づいて共通評価項目を取得する
+ * grade_id が null の項目は全等級共通、指定された等級IDの項目はその等級専用
+ * @param gradeId - 従業員の等級ID
+ */
+export async function fetchCommonEvaluationItems(
+	gradeId?: number | null,
+): Promise<CommonEvaluationItem[]> {
+	let query = supabase.from("common_evaluation_items").select("*");
+
+	if (gradeId != null) {
+		// 指定された等級の項目 または 全等級共通の項目（grade_id が null）を取得
+		query = query.or(`grade_id.is.null,grade_id.eq.${gradeId}`);
+	} else {
+		// 等級IDが指定されていない場合は全等級共通の項目のみ取得
+		query = query.is("grade_id", null);
+	}
+
+	const { data, error } = await query.order("id");
 
 	if (error) {
 		throw error;
@@ -37,9 +55,18 @@ export async function fetchCommonEvaluationItems(): Promise<CommonEvaluationItem
 	return data as CommonEvaluationItem[];
 }
 
-export async function fetchCommonEvaluation(sheetId: number): Promise<CommonEvaluationSummary> {
-	// 全評価項目を取得
-	const items = await fetchCommonEvaluationItems();
+/**
+ * 評価シートに紐づく共通評価結果を取得する
+ * 従業員の等級に応じた評価項目のみを取得する
+ * @param sheetId - 評価シートID
+ * @param gradeId - 従業員の等級ID
+ */
+export async function fetchCommonEvaluation(
+	sheetId: number,
+	gradeId?: number | null,
+): Promise<CommonEvaluationSummary> {
+	// 等級に応じた評価項目を取得
+	const items = await fetchCommonEvaluationItems(gradeId);
 
 	// sheet_id で既存の評価結果を取得
 	const { data: resultsData, error: resultsError } = await supabase
@@ -110,10 +137,15 @@ export interface DraftRow {
  * evaluation_sheets を upsert し、common_evaluation_results を一括 upsert する。
  * drafts が渡された場合はその入力値を使い、なければデフォルト値（0）で挿入する。
  * 作成/取得した sheet_id を返す。
+ * @param periodId - 評価期間ID
+ * @param employeeId - 従業員ID
+ * @param gradeId - 従業員の等級ID
+ * @param drafts - 入力された評価データ（オプション）
  */
 export async function createEvaluationSheet(
 	periodId: number,
 	employeeId: number,
+	gradeId: number | null,
 	drafts?: DraftRow[],
 ): Promise<number> {
 	// 1. evaluation_sheets を upsert（period_id + employee_id が衝突したら既存レコードを返す）
@@ -133,7 +165,7 @@ export async function createEvaluationSheet(
 	const sheetId = (sheetData as { id: number }).id;
 
 	// 2. common_evaluation_results を一括 upsert（sheet_id + item_id が衝突したら上書き）
-	const items = drafts ? drafts.map((d) => d.item) : await fetchCommonEvaluationItems();
+	const items = drafts ? drafts.map((d) => d.item) : await fetchCommonEvaluationItems(gradeId);
 
 	const rows = items.map((item, i) => ({
 		sheet_id: sheetId,

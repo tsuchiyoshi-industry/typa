@@ -1,0 +1,193 @@
+/* TYPA 人事考課 — デザイントークン・リセット・ログイン・アプリ枠 */
+
+:root {
+	color-scheme: dark;
+	--hr-bg: #0c0e12;
+	--hr-bg-elevated: #12151c;
+	--hr-surface: #161a22;
+	--hr-surface-hover: #1c212c;
+	--hr-border: rgba(255, 255, 255, 0.08);
+	--hr-border-strong: rgba(255, 255, 255, 0.12);
+	--hr-text: #e6e8ec;
+	--hr-text-muted: #8a9199;
+	--hr-accent: #3d6a9e;
+	--hr-accent-hover: #4a7eb8;
+	--hr-accent-muted: rgba(61, 106, 158, 0.22);
+	--hr-success: #3d7a5c;
+	--hr-danger: #b85c5c;
+	--hr-radius-sm: 6px;
+	--hr-radius-md: 10px;
+	--hr-radius-lg: 14px;
+	--hr-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 12px 40px rgba(0, 0, 0, 0.35);
+	--hr-font:
+		"Segoe UI", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", system-ui, sans-serif;
+	--hr-tracking: 0.02em;
+}
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+html {
+	scroll-behavior: smooth;
+}
+
+body {
+	margin: 0;
+	min-height: 100vh;
+	font-family: var(--hr-font);
+	font-size: 15px;
+	line-height: 1.6;
+	color: var(--hr-text);
+	background: var(--hr-bg);
+	background-image:
+		radial-gradient(ellipse 80% 50% at 50% -20%, rgba(61, 106, 158, 0.12), transparent),
+		linear-gradient(180deg, var(--hr-bg) 0%, #0a0c0f 100%);
+	-webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+select,
+textarea {
+	font: inherit;
+	color: inherit;
+}
+
+button {
+	cursor: pointer;
+	border: none;
+	background: none;
+}
+
+a {
+	color: var(--hr-accent-hover);
+	text-decoration: none;
+}
+
+a:hover {
+	text-decoration: underline;
+}
+
+::selection {
+	background: rgba(61, 106, 158, 0.35);
+	color: var(--hr-text);
+}
+
+/* アプリ全体の薄い枠 */
+.app-shell {
+	min-height: 100vh;
+}
+
+.app-frame {
+	width: 100%;
+	max-width: 1440px;
+	margin: 0 auto;
+	min-height: 100vh;
+}
+
+/* ----- ログイン ----- */
+.login-cover {
+	min-height: 100vh;
+	display: grid;
+	place-items: center;
+	padding: 2rem 1.25rem;
+}
+
+.auth-card {
+	width: 100%;
+	max-width: 400px;
+	padding: 2.25rem 2rem;
+	background: var(--hr-surface);
+	border: 1px solid var(--hr-border);
+	border-radius: var(--hr-radius-lg);
+	box-shadow: var(--hr-shadow);
+}
+
+.auth-card h2 {
+	margin: 0 0 1.5rem;
+	font-size: 1.125rem;
+	font-weight: 600;
+	letter-spacing: var(--hr-tracking);
+	color: var(--hr-text);
+	border-bottom: 1px solid var(--hr-border);
+	padding-bottom: 0.75rem;
+}
+
+.login-form {
+	display: flex;
+	flex-direction: column;
+	gap: 1.25rem;
+}
+
+.login-fieldset {
+	display: flex;
+	flex-direction: column;
+	gap: 0.4rem;
+}
+
+.login-fieldset label {
+	font-size: 0.8rem;
+	font-weight: 500;
+	color: var(--hr-text-muted);
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+}
+
+.login-fieldset input {
+	padding: 0.65rem 0.85rem;
+	border-radius: var(--hr-radius-sm);
+	border: 1px solid var(--hr-border);
+	background: var(--hr-bg-elevated);
+	color: var(--hr-text);
+	transition:
+		border-color 0.15s ease,
+		box-shadow 0.15s ease;
+}
+
+.login-fieldset input::placeholder {
+	color: var(--hr-text-muted);
+	opacity: 0.7;
+}
+
+.login-fieldset input:focus {
+	outline: none;
+	border-color: var(--hr-accent);
+	box-shadow: 0 0 0 3px var(--hr-accent-muted);
+}
+
+.login-form button[type="submit"] {
+	margin-top: 0.5rem;
+	padding: 0.75rem 1rem;
+	border-radius: var(--hr-radius-sm);
+	background: var(--hr-accent);
+	color: #fff;
+	font-weight: 600;
+	font-size: 0.9rem;
+	letter-spacing: var(--hr-tracking);
+	transition:
+		background 0.15s ease,
+		opacity 0.15s ease;
+}
+
+.login-form button[type="submit"]:hover:not(:disabled) {
+	background: var(--hr-accent-hover);
+}
+
+.login-form button[type="submit"]:disabled {
+	opacity: 0.55;
+	cursor: not-allowed;
+}
+
+/* 共通エラー・ヒント */
+.error-message {
+	margin: 0.5rem 0 0;
+	padding: 0.65rem 0.85rem;
+	font-size: 0.875rem;
+	color: #f0d0d0;
+	background: rgba(184, 92, 92, 0.12);
+	border: 1px solid rgba(184, 92, 92, 0.35);
+	border-radius: var(--hr-radius-sm);
+}

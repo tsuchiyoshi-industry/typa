@@ -1,0 +1,63 @@
+.loading-container {
+	position: fixed;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background-color: #f9fafb; /* ほんのりグレーでモダンに */
+	z-index: 9999;
+}
+
+.loading-content {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 1.5rem;
+}
+
+/* スピナー：細めのラインとグラデーションで今風に */
+.loading-spinner {
+	width: 48px;
+	height: 48px;
+	border: 3px solid #e5e7eb;
+	border-top: 3px solid #3b82f6; /* メインカラー */
+	border-radius: 50%;
+	animation: spin 0.8s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+}
+
+/* ロゴ：少し太めで、文字間隔を広げてクリーンな印象に */
+.loading-logo {
+	font-size: 1.75rem;
+	font-weight: 800;
+	color: #111827;
+	letter-spacing: 0.2em;
+	margin: 0;
+	font-family: sans-serif;
+}
+
+/* テキスト：主張しすぎない色合い */
+.loading-text {
+	font-size: 0.875rem;
+	color: #6b7280;
+	margin: 0;
+	animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes spin {
+	from {
+		transform: rotate(0deg);
+	}
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+@keyframes pulse {
+	0%,
+	100% {
+		opacity: 1;
+	}
+	50% {
+		opacity: 0.5;
+	}
+}

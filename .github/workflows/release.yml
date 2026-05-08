@@ -1,0 +1,221 @@
+name: Release
+run-name: Release ${{ inputs.version || github.ref_name }} by @${{ github.actor }}
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (e.g. 0.1.1)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ inputs.version || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    timeout-minutes: 50
+    env:
+      VERSION_INPUT: ${{ inputs.version }}
+      REF_NAME: ${{ github.ref_name }}
+      EVENT_NAME: ${{ github.event_name }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Resolve version and tag
+        id: release_meta
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            VERSION="$VERSION_INPUT"
+            if [[ -z "$VERSION" ]]; then
+              echo "version input is required"
+              exit 1
+            fi
+          else
+            TAG_FROM_REF="$REF_NAME"
+            VERSION="${TAG_FROM_REF#v}"
+          fi
+
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid version: $VERSION"
+            exit 1
+          fi
+
+          TAG="v$VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Validate version input
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Version: ${{ steps.release_meta.outputs.version }}"
+          echo "Tag: ${{ steps.release_meta.outputs.tag }}"
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install frontend dependencies
+        shell: bash
+        run: bun install
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cargo cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: windows-tauri-release
+          save-if: "true"
+          workspaces: |
+            . -> target
+            src-tauri -> src-tauri/target
+
+      - name: Install
+        shell: bash
+        run: bun install
+
+      - name: Touch .env
+        run: echo -n 'VITE_SUPABASE_PUBLISHABLE_KEY=${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}' > .env && echo -n 'VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}' >> .env
+
+      - name: Build bundle
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+        run: bun run tauri build
+
+      - name: Create tag (workflow_dispatch only)
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOKEN="${{ secrets.RELEASE_TOKEN }}"
+          TAG="${{ steps.release_meta.outputs.tag }}"
+
+          if [[ -z "$TOKEN" ]]; then
+            echo "secrets.RELEASE_TOKEN is required for workflow_dispatch tag push."
+            echo "Create a PAT with repository contents write + workflows write, then set RELEASE_TOKEN."
+            exit 1
+          fi
+
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists on origin"
+          else
+            git tag "$TAG"
+            git push "https://x-access-token:${TOKEN}@github.com/${{ github.repository }}.git" "$TAG"
+          fi
+
+      - name: Ensure release assets exist
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          find src-tauri/target/release/bundle -type f \( \
+            -name "*.msi" -o \
+            -name "*.msi.sig" -o \
+            -name "*.exe" -o \
+            -name "*.exe.sig" -o \
+            -name "*.zip" -o \
+            -name "*.dmg" -o \
+            -name "*.deb" -o \
+            -name "*.AppImage" -o \
+            -name "*.AppImage.sig" \) > release-assets.txt
+
+          if [[ ! -s release-assets.txt ]]; then
+            echo "No bundle artifacts found"
+            exit 1
+          fi
+
+      - name: Generate latest.json
+        shell: bash
+        env:
+          GITHUB_SERVER_URL: ${{ github.server_url }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          VERSION="${{ steps.release_meta.outputs.version }}"
+          TAG="${{ steps.release_meta.outputs.tag }}"
+          BASE_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/download/${TAG}"
+          PUB_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+          # Read .sig files for each installer
+          NSIS_SIG=""
+          MSI_SIG=""
+          NSIS_SIG_FILE=$(find src-tauri/target/release/bundle -name "*-setup.exe.sig" | head -1)
+          MSI_SIG_FILE=$(find src-tauri/target/release/bundle -name "*.msi.sig" | head -1)
+          NSIS_FILE=$(find src-tauri/target/release/bundle -name "*-setup.exe" ! -name "*.sig" | head -1)
+          MSI_FILE=$(find src-tauri/target/release/bundle -name "*.msi" ! -name "*.sig" | head -1)
+
+          if [[ -n "$NSIS_SIG_FILE" ]]; then
+            NSIS_SIG=$(cat "$NSIS_SIG_FILE")
+          fi
+          if [[ -n "$MSI_SIG_FILE" ]]; then
+            MSI_SIG=$(cat "$MSI_SIG_FILE")
+          fi
+
+          NSIS_NAME=$(basename "$NSIS_FILE")
+          MSI_NAME=$(basename "$MSI_FILE")
+
+          cat > latest.json << EOF
+          {
+            "version": "${VERSION}",
+            "pub_date": "${PUB_DATE}",
+            "platforms": {
+              "windows-x86_64": {
+                "signature": "${NSIS_SIG}",
+                "url": "${BASE_URL}/${NSIS_NAME}"
+              }
+            }
+          }
+          EOF
+
+          # Remove leading whitespace from heredoc
+          python3 -c "
+          import json, sys
+          with open('latest.json') as f:
+              data = json.load(f)
+          with open('latest.json', 'w') as f:
+              json.dump(data, f, indent=2)
+          "
+
+          echo "Generated latest.json:"
+          cat latest.json
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release_meta.outputs.tag }}
+          name: ${{ steps.release_meta.outputs.tag }}
+          generate_release_notes: true
+          files: |
+            src-tauri/target/release/bundle/**/*.msi
+            src-tauri/target/release/bundle/**/*.msi.sig
+            src-tauri/target/release/bundle/**/*.exe
+            src-tauri/target/release/bundle/**/*.exe.sig
+            src-tauri/target/release/bundle/**/*.zip
+            src-tauri/target/release/bundle/**/*.dmg
+            src-tauri/target/release/bundle/**/*.deb
+            src-tauri/target/release/bundle/**/*.AppImage
+            src-tauri/target/release/bundle/**/*.AppImage.sig
+            latest.json

@@ -135,8 +135,12 @@ const CommonEvaluation: Component<CommonEvaluationProps> = (props) => {
 
 			console.log("Upserting results:", resultsToUpsert);
 
+			if (props.sheetId === null) {
+				throw new Error("Sheet ID is required");
+			}
+
 			await upsertCommonEvaluationResults(
-				props.sheetId!,
+				props.sheetId,
 				resultsToUpsert,
 				canEditFirstScore(),
 				canEditSecondScore(),

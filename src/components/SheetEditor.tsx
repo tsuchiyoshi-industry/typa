@@ -1,5 +1,5 @@
 import { useNavigate, useParams } from "@solidjs/router";
-import { CalendarDays, FileText, LogOut } from "lucide-solid";
+import { CalendarDays, FileText } from "lucide-solid";
 import { type Component, createEffect, createResource, createSignal, For, Show } from "solid-js";
 import { supabase } from "../../utils/supabase";
 import ChallengeEvaluation from "./ChallengeEvaluation";
@@ -12,13 +12,13 @@ import "../styles/dashboard.css";
 const SheetEditor: Component = () => {
 	const params = useParams();
 	const navigate = useNavigate();
-	const sheetId = () => params.id;
+	const sheetId = () => params.id ?? "";
 	const isNew = () => sheetId() === "new";
 
 	const [periodOptions] = createResource(fetchDistinctEvaluationPeriods);
 	const [selectedPeriodId, setSelectedPeriodId] = createSignal<number | null>(null);
 	const [sheet, { refetch }] = createResource(
-		() => (isNew() ? null : parseInt(sheetId(), 10)),
+		() => (isNew() ? null : Number.parseInt(sheetId(), 10)),
 		(id) => (id ? fetchEvaluationSheetById(id) : null),
 	);
 
@@ -94,10 +94,6 @@ const SheetEditor: Component = () => {
 		}
 	});
 
-	const handleLogout = async () => {
-		await supabase.auth.signOut();
-	};
-
 	return (
 		<div class="dashboard-page">
 			<header class="dashboard-header">
@@ -105,10 +101,6 @@ const SheetEditor: Component = () => {
 					<FileText class="header-icon" />
 					{isNew() ? "新規評価シート" : "評価シート"}
 				</h1>
-				<button type="button" class="logout-button" onClick={handleLogout}>
-					<LogOut class="button-icon" />
-					ログアウト
-				</button>
 			</header>
 
 			<Show when={!sheet.loading} fallback={<p>シート情報を読み込み中です...</p>}>

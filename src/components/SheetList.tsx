@@ -1,4 +1,5 @@
 import { A } from "@solidjs/router";
+import { Pencil, Plus } from "lucide-solid";
 import { type Component, createResource, For, Show } from "solid-js";
 import { supabase } from "../../utils/supabase";
 import { fetchDistinctEvaluationPeriods } from "./helpers/evaluationPeriods";
@@ -13,11 +14,11 @@ export interface EvaluationSheetSummary {
 	updated_at: string;
 	period: {
 		period_name: string;
-	};
+	} | null;
 	employee: {
 		name: string;
 		employee_no: string;
-	};
+	} | null;
 }
 
 export async function fetchEvaluationSheets(): Promise<EvaluationSheetSummary[]> {
@@ -31,8 +32,8 @@ export async function fetchEvaluationSheets(): Promise<EvaluationSheetSummary[]>
 			total_score,
 			created_at,
 			updated_at,
-			period:evaluation_periods(period_name),
-			employee:employees(name, employee_no)
+			period:evaluation_periods!inner(period_name),
+			employee:employees!inner(name, employee_no)
 		`)
 		.order("updated_at", { ascending: false });
 
@@ -40,7 +41,12 @@ export async function fetchEvaluationSheets(): Promise<EvaluationSheetSummary[]>
 		throw error;
 	}
 
-	return data as EvaluationSheetSummary[];
+	// Supabaseは関連データを配列で返すことがあるので、最初の要素を取得
+	return (data || []).map((item: any) => ({
+		...item,
+		period: Array.isArray(item.period) ? item.period[0] : item.period,
+		employee: Array.isArray(item.employee) ? item.employee[0] : item.employee,
+	})) as EvaluationSheetSummary[];
 }
 
 const SheetList: Component = () => {
@@ -52,7 +58,8 @@ const SheetList: Component = () => {
 			<header class="sheet-list-header">
 				<h1>評価シート一覧</h1>
 				<A href="/sheet/new" class="create-sheet-button">
-					新規作成
+					<Plus size={20} />
+					<span>新規作成</span>
 				</A>
 			</header>
 
@@ -67,18 +74,19 @@ const SheetList: Component = () => {
 								<article class="sheet-list-item">
 									<div class="sheet-list-item__header">
 										<h3>
-											{sheet.employee.name} ({sheet.employee.employee_no})
+											{sheet.employee?.name || "不明"} ({sheet.employee?.employee_no || "-"})
 										</h3>
 										<span class="sheet-status">{sheet.status}</span>
 									</div>
 									<div class="sheet-list-item__meta">
-										<span>期間: {sheet.period.period_name}</span>
+										<span>期間: {sheet.period?.period_name || "未設定"}</span>
 										<span>合計点: {sheet.total_score}</span>
 										<span>更新日: {new Date(sheet.updated_at).toLocaleDateString()}</span>
 									</div>
 									<div class="sheet-list-item__actions">
 										<A href={`/sheet/${sheet.id}`} class="edit-sheet-button">
-											編集
+											<Pencil size={16} />
+											<span>編集</span>
 										</A>
 									</div>
 								</article>

@@ -2,22 +2,27 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 use tauri::Manager;
+use typst::foundations::{Array, Dict, Value};
+
+// テンプレートファイルを埋め込み
+static TEMPLATE_FILE: &str = include_str!("./templates/template.typ");
+static FONT: &[u8] = include_bytes!("./templates/ZenAntiqueSoft-Regular.ttf");
 
 // 評価シートデータ構造
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct ObjectiveData {
     id: i32,
-    title: String,
-    description: String,
-    target_date: String,
-    status: String,
+    goal_number: i32,
+    challenge_goal: String,
+    midterm_goal: String,
+    achievement: String,
     self_score: Option<i32>,
     evaluator_score: Option<i32>,
-    self_comment: Option<String>,
-    evaluator_comment: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct CommonEvaluationData {
     item_name: String,
     self_score: Option<i32>,
@@ -27,6 +32,7 @@ struct CommonEvaluationData {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct SheetExportData {
     sheet_id: i32,
     employee_name: String,
@@ -42,311 +48,196 @@ struct SheetExportData {
     common_evaluations: Vec<CommonEvaluationData>,
 }
 
-// Typstテンプレートを生成
-fn create_typst_template(data: &SheetExportData) -> String {
-    let mut objectives_content = String::new();
-    for (idx, obj) in data.objectives.iter().enumerate() {
-        let self_score = obj
-            .self_score
-            .map_or("未評価".to_string(), |s| s.to_string());
-        let evaluator_score = obj
-            .evaluator_score
-            .map_or("未評価".to_string(), |s| s.to_string());
-        let self_comment = obj.self_comment.as_deref().unwrap_or("なし");
-        let evaluator_comment = obj.evaluator_comment.as_deref().unwrap_or("なし");
+// データをTypstのDict形式に変換
+fn convert_data_to_dict(data: &SheetExportData) -> Dict {
+    let mut dict = Dict::new();
 
-        objectives_content.push_str(&format!(
-            r#"
-== 目標 {}: {}
+    // 基本情報
+    dict.insert(
+        "employee_name".into(),
+        Value::Str(data.employee_name.clone().into()),
+    );
+    dict.insert(
+        "employee_no".into(),
+        Value::Str(data.employee_no.clone().into()),
+    );
+    dict.insert(
+        "period_name".into(),
+        Value::Str(data.period_name.clone().into()),
+    );
+    dict.insert(
+        "period_start".into(),
+        Value::Str(data.period_start.clone().into()),
+    );
+    dict.insert(
+        "period_end".into(),
+        Value::Str(data.period_end.clone().into()),
+    );
+    dict.insert(
+        "primary_evaluator".into(),
+        Value::Str(data.primary_evaluator.clone().into()),
+    );
+    dict.insert(
+        "secondary_evaluator".into(),
+        Value::Str(data.secondary_evaluator.clone().into()),
+    );
+    dict.insert("status".into(), Value::Str(data.status.clone().into()));
+    dict.insert("total_score".into(), Value::Int(data.total_score as i64));
 
-*説明:* {}
+    // 目標データを配列に変換
+    let objectives_array: Array = data
+        .objectives
+        .iter()
+        .map(|obj| {
+            let mut obj_dict = Dict::new();
+            obj_dict.insert("goal_number".into(), Value::Int(obj.goal_number as i64));
+            obj_dict.insert(
+                "challenge_goal".into(),
+                Value::Str(obj.challenge_goal.clone().into()),
+            );
+            obj_dict.insert(
+                "midterm_goal".into(),
+                Value::Str(obj.midterm_goal.clone().into()),
+            );
+            obj_dict.insert(
+                "achievement".into(),
+                Value::Str(obj.achievement.clone().into()),
+            );
+            obj_dict.insert(
+                "self_score".into(),
+                obj.self_score
+                    .map_or(Value::Str("未評価".into()), |s| Value::Int(s as i64)),
+            );
+            obj_dict.insert(
+                "evaluator_score".into(),
+                obj.evaluator_score
+                    .map_or(Value::Str("未評価".into()), |s| Value::Int(s as i64)),
+            );
+            Value::Dict(obj_dict)
+        })
+        .collect();
+    dict.insert("objectives".into(), Value::Array(objectives_array));
 
-*目標日:* {}
+    // 共通評価データを配列に変換
+    let common_eval_array: Array = data
+        .common_evaluations
+        .iter()
+        .map(|item| {
+            let mut item_dict = Dict::new();
+            item_dict.insert(
+                "item_name".into(),
+                Value::Str(item.item_name.clone().into()),
+            );
+            item_dict.insert(
+                "self_score".into(),
+                item.self_score
+                    .map_or(Value::Str("未評価".into()), |s| Value::Int(s as i64)),
+            );
+            item_dict.insert(
+                "evaluator_score".into(),
+                item.evaluator_score
+                    .map_or(Value::Str("未評価".into()), |s| Value::Int(s as i64)),
+            );
+            item_dict.insert(
+                "self_comment".into(),
+                Value::Str(item.self_comment.as_deref().unwrap_or("なし").into()),
+            );
+            item_dict.insert(
+                "evaluator_comment".into(),
+                Value::Str(item.evaluator_comment.as_deref().unwrap_or("なし").into()),
+            );
+            Value::Dict(item_dict)
+        })
+        .collect();
+    dict.insert("common_evaluations".into(), Value::Array(common_eval_array));
 
-*ステータス:* {}
-
-*自己評価スコア:* {}
-
-*評価者スコア:* {}
-
-*自己コメント:* {}
-
-*評価者コメント:* {}
-
-"#,
-            idx + 1,
-            escape_typst(&obj.title),
-            escape_typst(&obj.description),
-            escape_typst(&obj.target_date),
-            escape_typst(&obj.status),
-            self_score,
-            evaluator_score,
-            escape_typst(self_comment),
-            escape_typst(evaluator_comment)
-        ));
-    }
-
-    let mut common_eval_content = String::new();
-    for item in &data.common_evaluations {
-        let self_score = item
-            .self_score
-            .map_or("未評価".to_string(), |s| s.to_string());
-        let evaluator_score = item
-            .evaluator_score
-            .map_or("未評価".to_string(), |s| s.to_string());
-        let self_comment = item.self_comment.as_deref().unwrap_or("なし");
-        let evaluator_comment = item.evaluator_comment.as_deref().unwrap_or("なし");
-
-        common_eval_content.push_str(&format!(
-            r#"
-== {}
-
-*自己評価:* {}
-
-*評価者評価:* {}
-
-*自己コメント:* {}
-
-*評価者コメント:* {}
-
-"#,
-            escape_typst(&item.item_name),
-            self_score,
-            evaluator_score,
-            escape_typst(self_comment),
-            escape_typst(evaluator_comment)
-        ));
-    }
-
-    format!(
-        r#"#set page(paper: "a4", margin: 2cm)
-#set text(font: "Noto Sans CJK JP", size: 10pt, lang: "ja")
-#set par(justify: true)
-
-#align(center)[
-  #text(size: 18pt, weight: "bold")[評価シート]
-]
-
-#v(1.5em)
-
-#grid(
-  columns: (1fr, 1fr),
-  gutter: 1em,
-  [*氏名:* {}],
-  [*社員番号:* {}],
-  [*評価期間:* {}],
-  [*期間:* {} ～ {}],
-  [*主評価者:* {}],
-  [*副評価者:* {}],
-  [*ステータス:* {}],
-  [*総合スコア:* {}],
-)
-
-#v(1.5em)
-
-= 目標・マイルストーン
-
-{}
-
-#pagebreak()
-
-= 共通評価項目
-
-{}
-"#,
-        escape_typst(&data.employee_name),
-        escape_typst(&data.employee_no),
-        escape_typst(&data.period_name),
-        escape_typst(&data.period_start),
-        escape_typst(&data.period_end),
-        escape_typst(&data.primary_evaluator),
-        escape_typst(&data.secondary_evaluator),
-        escape_typst(&data.status),
-        data.total_score,
-        objectives_content,
-        common_eval_content
-    )
-}
-
-// Typstの特殊文字をエスケープ
-fn escape_typst(s: &str) -> String {
-    s.replace('\\', r"\\")
-        .replace('[', r"\[")
-        .replace(']', r"\]")
-        .replace('#', r"\#")
-        .replace('*', r"\*")
-        .replace('_', r"\_")
+    dict
 }
 
 // TypstでPDFを生成するTauriコマンド
 #[tauri::command]
 async fn generate_pdf_with_typst(
-    app_handle: tauri::AppHandle,
     data: SheetExportData,
+    output_path: String,
 ) -> Result<String, String> {
-    // Typstテンプレートを生成
-    let typst_content = create_typst_template(&data);
+    eprintln!("Starting PDF generation for: {}", data.employee_name);
 
-    // 一時ディレクトリにTypstファイルを保存
-    let app_data_dir = app_handle
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("Failed to get app data directory: {}", e))?;
+    let pdf_file_path = std::path::PathBuf::from(&output_path);
 
-    fs::create_dir_all(&app_data_dir)
-        .map_err(|e| format!("Failed to create app data directory: {}", e))?;
-
-    let typst_file_path = app_data_dir.join("temp_sheet.typ");
-    let pdf_file_path = app_data_dir.join(format!(
-        "評価シート_{}_{}.pdf",
-        data.employee_name, data.period_name
-    ));
-
-    // Typstファイルを書き込み
-    fs::write(&typst_file_path, typst_content)
-        .map_err(|e| format!("Failed to write Typst file: {}", e))?;
-
-    // Typstコンパイル
-    let result = compile_typst_to_pdf(&typst_file_path, &pdf_file_path);
-
-    // 一時Typstファイルを削除
-    let _ = fs::remove_file(&typst_file_path);
-
-    match result {
-        Ok(_) => Ok(pdf_file_path.to_string_lossy().to_string()),
-        Err(e) => Err(format!("Failed to compile Typst: {}", e)),
+    // 親ディレクトリが存在するか確認（念のため）
+    if let Some(parent) = pdf_file_path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
+
+    // Typstコンパイルを実行
+    compile_typst_to_pdf(&data, &pdf_file_path)?;
+
+    Ok(output_path)
 }
 
-// TypstをコンパイルしてPDFを生成
-fn compile_typst_to_pdf(typst_path: &PathBuf, pdf_path: &PathBuf) -> Result<(), String> {
-    use std::collections::HashMap;
-    use typst::diag::{FileResult, Severity};
-    use typst::foundations::{Bytes, Datetime};
-    use typst::syntax::{FileId, Source, VirtualPath};
-    use typst::text::{Font, FontBook};
-    use typst::utils::LazyHash;
-    use typst::{Library, World};
+fn compile_typst_to_pdf(data: &SheetExportData, pdf_path: &PathBuf) -> Result<(), String> {
+    use typst_as_lib::TypstEngine;
+    // 注: Dict, Value の import は convert_data_to_dict 内で使っていればここからは消してもOKです
 
-    // Typstワールドの実装
-    struct SimpleWorld {
-        library: LazyHash<Library>,
-        book: LazyHash<FontBook>,
-        fonts: Vec<Font>,
-        main_id: FileId,
-        sources: HashMap<FileId, Source>,
-    }
+    eprintln!("Converting data to dict...");
 
-    impl SimpleWorld {
-        fn new(source_text: String) -> Self {
-            // Typst 0.14.2の標準ライブラリを使用
-            // Libraryを空で初期化（最小限の実装）
-            let lib = unsafe { std::mem::zeroed::<Library>() };
+    // 1. 実際のデータが入った辞書を作成
+    // この data_content 自体が Typst の「sys.inputs」になります
+    let data_content = convert_data_to_dict(data);
 
-            let library_hash = LazyHash::new(lib);
-            let book = LazyHash::new(FontBook::new());
-            let fonts = vec![];
-            let main_id = FileId::new(None, VirtualPath::new("main.typ"));
-            let source = Source::new(main_id, source_text);
-            let mut sources = HashMap::new();
-            sources.insert(main_id, source);
+    eprintln!("Building Typst engine...");
 
-            Self {
-                library: library_hash,
-                book,
-                fonts,
-                main_id,
-                sources,
-            }
-        }
-    }
+    let template = TypstEngine::builder()
+        .main_file(TEMPLATE_FILE)
+        .fonts([FONT])
+        .with_file_system_resolver("./templates")
+        .build();
 
-    impl World for SimpleWorld {
-        fn library(&self) -> &LazyHash<Library> {
-            &self.library
-        }
+    eprintln!("Compiling Typst template...");
 
-        fn book(&self) -> &LazyHash<FontBook> {
-            &self.book
-        }
+    // 2. ラップせず、data_content をそのまま渡す！
+    // これにより、Typst 側で #import sys: inputs すると、
+    // inputs がそのまま data_content (employee_name等が入った辞書) になります
+    let result = template.compile_with_input(data_content);
 
-        fn main(&self) -> FileId {
-            self.main_id
-        }
+    eprintln!("Compilation result warnings: {:?}", result.warnings);
 
-        fn source(&self, id: FileId) -> FileResult<Source> {
-            self.sources.get(&id).cloned().ok_or_else(|| {
-                typst::diag::FileError::NotFound(id.vpath().as_rootless_path().into())
-            })
-        }
+    let doc = result.output.map_err(|e| {
+        let err_msg = format!("Typst compilation failed: {:?}", e);
+        eprintln!("{}", err_msg);
+        err_msg
+    })?;
 
-        fn file(&self, id: FileId) -> FileResult<Bytes> {
-            Err(typst::diag::FileError::NotFound(
-                id.vpath().as_rootless_path().into(),
-            ))
-        }
+    eprintln!("Generating PDF...");
 
-        fn font(&self, index: usize) -> Option<Font> {
-            self.fonts.get(index).cloned()
-        }
-
-        fn today(&self, _offset: Option<i64>) -> Option<Datetime> {
-            let now = time::OffsetDateTime::now_utc();
-            Datetime::from_ymd(now.year(), now.month().into(), now.day())
-        }
-    }
-
-    // Typstソースを読み込み
-    let source_text =
-        fs::read_to_string(typst_path).map_err(|e| format!("Failed to read Typst file: {}", e))?;
-
-    // ワールドを作成
-    let world = SimpleWorld::new(source_text);
-
-    // コンパイル
-    let result = typst::compile(&world);
-
-    let document = match result.output {
-        Ok(doc) => doc,
-        Err(_) => {
-            let errors: Vec<String> = result
-                .warnings
-                .iter()
-                .filter(|w| w.severity == Severity::Error)
-                .map(|w| format!("{:?}", w))
-                .collect();
-            return Err(format!("Typst compilation errors: {}", errors.join(", ")));
-        }
-    };
-
-    // PDFを生成
     let pdf_options = typst_pdf::PdfOptions::default();
+    let pdf_data = typst_pdf::pdf(&doc, &pdf_options).map_err(|e| {
+        let err_msg = format!("PDF generation failed: {:?}", e);
+        eprintln!("{}", err_msg);
+        err_msg
+    })?;
 
-    // typst_pdf::pdfの戻り値を処理
-    match typst_pdf::pdf(&document, &pdf_options) {
-        Ok(pdf_bytes) => {
-            // PDFファイルを書き込み
-            fs::write(pdf_path, pdf_bytes)
-                .map_err(|e| format!("Failed to write PDF file: {}", e))?;
-            Ok(())
-        }
-        Err(errors) => Err(format!("PDF generation errors: {:?}", errors)),
-    }
-}
+    eprintln!("Writing PDF to file: {:?}", pdf_path);
 
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
+    fs::write(pdf_path, pdf_data).map_err(|e| {
+        let err_msg = format!("Failed to write PDF file: {}", e);
+        eprintln!("{}", err_msg);
+        err_msg
+    })?;
+
+    eprintln!("PDF file written successfully");
+
+    Ok(())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_upload::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet, generate_pdf_with_typst])
+        .invoke_handler(tauri::generate_handler![generate_pdf_with_typst])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

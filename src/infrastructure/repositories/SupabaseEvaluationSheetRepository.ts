@@ -310,46 +310,63 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 		const objectives =
 			milestonesData?.map((item: MilestoneRow) => ({
 				id: item.id,
-				title: `目標${item.goal_number}`,
-				description: item.challenge_goal ?? "",
-				targetDate: item.midterm_goal ?? "",
-				status: item.achievement ?? "",
+				goalNumber: item.goal_number,
+				challengeGoal: item.challenge_goal ?? "",
+				midtermGoal: item.midterm_goal ?? "",
+				achievement: item.achievement ?? "",
 				selfScore: item.first_score,
 				evaluatorScore: item.second_score,
-				selfComment: null,
-				evaluatorComment: null,
 			})) ?? [];
 
 		// 共通評価項目を取得
-		const { data: commonEvalData } = await supabase
+		const { data: commonEvalData, error: commonEvalError } = await supabase
 			.from("common_evaluation_results")
-			.select(
-				`
-				self_score,
-				evaluator_score,
-				self_comment,
-				evaluator_comment,
-				item:common_evaluation_items!inner(item_name)
-			`,
-			)
+			.select("first_score, second_score, first_comment, item_id")
 			.eq("sheet_id", sheetId);
 
-		const commonEvaluations =
-			commonEvalData?.map(
-				(item: {
-					self_score: number | null;
-					evaluator_score: number | null;
-					self_comment: string | null;
-					evaluator_comment: string | null;
-					item: { item_name: string } | { item_name: string }[];
-				}) => ({
-					itemName: Array.isArray(item.item) ? item.item[0].item_name : item.item.item_name,
-					selfScore: item.self_score,
-					evaluatorScore: item.evaluator_score,
-					selfComment: item.self_comment,
-					evaluatorComment: item.evaluator_comment,
-				}),
-			) ?? [];
+		if (commonEvalError) {
+			console.error("Error fetching common evaluation data:", commonEvalError);
+			return {
+				sheetId: sheet.id,
+				employeeName: employee.name,
+				employeeNo: employee.employee_no,
+				periodName: period.period_name,
+				periodStart: period.start_date,
+				periodEnd: period.end_date,
+				primaryEvaluator: evaluatorNames.primaryEvaluator,
+				secondaryEvaluator: evaluatorNames.secondaryEvaluator,
+				status: sheet.status,
+				totalScore: sheet.total_score,
+				objectives,
+				commonEvaluations: [],
+			};
+		}
+
+		// 各評価項目の名前を取得
+		const commonEvaluations = await Promise.all(
+			(commonEvalData ?? []).map(
+				async (item: {
+					first_score: number | null;
+					second_score: number | null;
+					first_comment: string | null;
+					item_id: number;
+				}) => {
+					const { data: itemData } = await supabase
+						.from("common_evaluation_items")
+						.select("title")
+						.eq("id", item.item_id)
+						.single();
+
+					return {
+						itemName: itemData?.title ?? "",
+						selfScore: item.first_score,
+						evaluatorScore: item.second_score,
+						selfComment: item.first_comment,
+						evaluatorComment: null, // second_commentカラムが存在しないためnull
+					};
+				},
+			),
+		);
 
 		return {
 			sheetId: sheet.id,

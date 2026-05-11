@@ -1,6 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { exists } from "@tauri-apps/plugin-fs";
-import { download } from "@tauri-apps/plugin-upload";
+import { save } from "@tauri-apps/plugin-dialog";
 import type { EvaluationSheetRepository } from "../../domain/repositories/EvaluationSheetRepository";
 import type {
 	ExportSheetOutputDto,
@@ -33,29 +32,46 @@ export class ExportEvaluationSheetInteractor
 				return;
 			}
 
-			// ②Tauriコマンドを使用してTypstでPDFを生成
-			const pdfFilePath = await this.generatePdfWithTypst(exportData);
-			const fileName = `評価シート_${exportData.employeeName}_${exportData.periodName}.pdf`;
+			// ② 保存先を選択するダイアログを表示
+			const defaultName = `評価シート_${exportData.employeeName}_${exportData.periodName}.pdf`;
+			const filePath = await save({
+				title: "評価シートを保存",
+				defaultPath: defaultName,
+				filters: [
+					{
+						name: "PDFファイル",
+						extensions: ["pdf"],
+					},
+				],
+			});
 
-			// ③ファイルの存在チェック
-			const fileExists = await exists(pdfFilePath);
-			if (!fileExists) {
+			// キャンセルされた場合は何もしない
+			if (!filePath) {
+				return;
+			}
+
+			// ③ Tauriコマンドを使用してPDFを生成
+			// filePath（保存先）を引数に追加して渡す
+			try {
+				await this.generatePdfWithTypst(exportData, filePath);
+				console.log("PDF saved at:", filePath);
+			} catch (error) {
+				console.error("PDF generation error:", error);
 				presenter.present({
 					success: false,
-					message: "PDFファイルの生成に失敗しました",
+					message: `PDF生成エラー: ${error instanceof Error ? error.message : String(error)}`,
 				});
 				return;
 			}
 
-			// ④Tauriのdownload関数を使いPDFをダウンロード
-			await download(`file://${pdfFilePath}`, fileName);
-
+			// 成功通知
 			presenter.present({
 				success: true,
 				message: "PDFの出力に成功しました",
-				fileName,
+				fileName: filePath,
 			});
 		} catch (error) {
+			console.error("Export error:", error);
 			presenter.present({
 				success: false,
 				message: error instanceof Error ? error.message : "PDFの出力中にエラーが発生しました",
@@ -63,41 +79,13 @@ export class ExportEvaluationSheetInteractor
 		}
 	}
 
-	private async generatePdfWithTypst(data: SheetExportDataDto): Promise<string> {
-		// Rust側のTauriコマンドを呼び出してPDFを生成
-		const pdfPath = await invoke<string>("generate_pdf_with_typst", {
-			data: {
-				sheet_id: data.sheetId,
-				employee_name: data.employeeName,
-				employee_no: data.employeeNo,
-				period_name: data.periodName,
-				period_start: data.periodStart,
-				period_end: data.periodEnd,
-				primary_evaluator: data.primaryEvaluator,
-				secondary_evaluator: data.secondaryEvaluator,
-				status: data.status,
-				total_score: data.totalScore,
-				objectives: data.objectives.map((obj) => ({
-					id: obj.id,
-					title: obj.title,
-					description: obj.description,
-					target_date: obj.targetDate,
-					status: obj.status,
-					self_score: obj.selfScore,
-					evaluator_score: obj.evaluatorScore,
-					self_comment: obj.selfComment,
-					evaluator_comment: obj.evaluatorComment,
-				})),
-				common_evaluations: data.commonEvaluations.map((item) => ({
-					item_name: item.itemName,
-					self_score: item.selfScore,
-					evaluator_score: item.evaluatorScore,
-					self_comment: item.selfComment,
-					evaluator_comment: item.evaluatorComment,
-				})),
-			},
+	private async generatePdfWithTypst(
+		data: SheetExportDataDto,
+		outputPath: string,
+	): Promise<string> {
+		return await invoke<string>("generate_pdf_with_typst", {
+			data,
+			outputPath,
 		});
-
-		return pdfPath;
 	}
 }

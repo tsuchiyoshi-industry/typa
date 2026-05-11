@@ -28,14 +28,12 @@ export interface EvaluationSheetExportData {
 	totalScore: number;
 	objectives: {
 		id: number;
-		title: string;
-		description: string;
-		targetDate: string;
-		status: string;
+		goalNumber: number;
+		challengeGoal: string;
+		midtermGoal: string;
+		achievement: string;
 		selfScore: number | null;
 		evaluatorScore: number | null;
-		selfComment: string | null;
-		evaluatorComment: string | null;
 	}[];
 	commonEvaluations: {
 		itemName: string;

@@ -16,7 +16,9 @@ interface ChallengeEvaluationViewProps {
 }
 
 const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props) => {
-	const [activeTab, setActiveTab] = createSignal(props.objectives[0]?.goalNumber ?? 1);
+	const [activeTab, setActiveTab] = createSignal<number>(
+		Number(props.objectives[0]?.goalNumber ?? 1),
+	);
 	const [isTextEditing, setIsTextEditing] = createSignal(false);
 	const [isScoreEditing, setIsScoreEditing] = createSignal(false);
 	const [draftText, setDraftText] = createSignal({
@@ -29,7 +31,9 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 	const [scoreUpdating, setScoreUpdating] = createSignal(false);
 
 	const activeObjective = createMemo(
-		() => props.objectives.find((item) => item.goalNumber === activeTab()) ?? props.objectives[0],
+		() =>
+			props.objectives.find((item) => Number(item.goalNumber) === activeTab()) ??
+			props.objectives[0],
 	);
 
 	const startTextEditing = () => {
@@ -104,8 +108,6 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 		}
 	};
 
-	const objective = activeObjective();
-
 	return (
 		<section class="challenge-card">
 			<div class="challenge-card__title">
@@ -119,9 +121,11 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 						<button
 							type="button"
 							role="tab"
-							class={activeTab() === item.goalNumber ? "challenge-tab active" : "challenge-tab"}
+							class={
+								activeTab() === Number(item.goalNumber) ? "challenge-tab active" : "challenge-tab"
+							}
 							onClick={() => {
-								setActiveTab(item.goalNumber);
+								setActiveTab(Number(item.goalNumber));
 								setIsTextEditing(false);
 								setIsScoreEditing(false);
 							}}
@@ -132,168 +136,162 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 				</For>
 			</div>
 
-			<Show when={objective} fallback={<p>対象の目標が見つかりません。</p>}>
-				{(obj) => (
-					<article class="objective-block" role="tabpanel">
-						<div class="objective-meta">
-							<strong>目標 {obj().goalNumber}</strong>
-							<div class="objective-meta-actions">
-								<div class="score-grid">
-									<Show
-										when={isScoreEditing()}
-										fallback={
-											<>
-												<div class="score-pill">
-													<span class="score-label">一次評価</span>
-													<span class="score-value">{obj().firstScore || "—"}</span>
-												</div>
-												<div class="score-pill">
-													<span class="score-label">二次評価</span>
-													<span class="score-value">{obj().secondScore || "—"}</span>
-												</div>
-											</>
-										}
-									>
-										<Show when={props.canEditFirst}>
+			<Show when={activeObjective()} fallback={<p>対象の目標が見つかりません。</p>}>
+				<article class="objective-block" role="tabpanel">
+					<div class="objective-meta">
+						<strong>目標 {activeObjective()?.goalNumber}</strong>
+						<div class="objective-meta-actions">
+							<div class="score-grid">
+								<Show
+									when={isScoreEditing()}
+									fallback={
+										<>
 											<div class="score-pill">
 												<span class="score-label">一次評価</span>
-												<input
-													type="number"
-													class="score-input"
-													min="1"
-													max="4"
-													value={draftScore().firstScore}
-													onInput={(e) =>
-														setDraftScore({ ...draftScore(), firstScore: e.currentTarget.value })
-													}
-												/>
+												<span class="score-value">{activeObjective()?.firstScore || "—"}</span>
 											</div>
-										</Show>
-										<Show when={props.canEditSecond}>
 											<div class="score-pill">
 												<span class="score-label">二次評価</span>
-												<input
-													type="number"
-													class="score-input"
-													min="1"
-													max="4"
-													value={draftScore().secondScore}
-													onInput={(e) =>
-														setDraftScore({ ...draftScore(), secondScore: e.currentTarget.value })
-													}
-												/>
+												<span class="score-value">{activeObjective()?.secondScore || "—"}</span>
 											</div>
-										</Show>
-										<Show when={isScoreEditing()}>
-											<button
-												type="button"
-												class="primary-action"
-												onClick={applyScoreUpdate}
-												disabled={scoreUpdating()}
-											>
-												<Check class="action-icon" />
-												{scoreUpdating() ? "保存中..." : "保存"}
-											</button>
-											<button type="button" class="secondary-action" onClick={cancelScoreEditing}>
-												<X class="action-icon" />
-												キャンセル
-											</button>
-										</Show>
+										</>
+									}
+								>
+									<Show when={props.canEditFirst}>
+										<div class="score-pill">
+											<span class="score-label">一次評価</span>
+											<input
+												type="number"
+												class="score-input"
+												min="1"
+												max="4"
+												value={draftScore().firstScore}
+												onInput={(e) =>
+													setDraftScore({ ...draftScore(), firstScore: e.currentTarget.value })
+												}
+											/>
+										</div>
 									</Show>
-								</div>
-
-								<Show when={(props.canEditFirst || props.canEditSecond) && !isScoreEditing()}>
-									<button type="button" class="edit-toggle-button" onClick={startScoreEditing}>
-										<SquarePen class="edit-icon" />
-										評価更新
-									</button>
+									<Show when={props.canEditSecond}>
+										<div class="score-pill">
+											<span class="score-label">二次評価</span>
+											<input
+												type="number"
+												class="score-input"
+												min="1"
+												max="4"
+												value={draftScore().secondScore}
+												onInput={(e) =>
+													setDraftScore({ ...draftScore(), secondScore: e.currentTarget.value })
+												}
+											/>
+										</div>
+									</Show>
+									<Show when={isScoreEditing()}>
+										<button
+											type="button"
+											class="primary-action"
+											onClick={applyScoreUpdate}
+											disabled={scoreUpdating()}
+										>
+											<Check class="action-icon" />
+											{scoreUpdating() ? "保存中..." : "保存"}
+										</button>
+										<button type="button" class="secondary-action" onClick={cancelScoreEditing}>
+											<X class="action-icon" />
+											キャンセル
+										</button>
+									</Show>
 								</Show>
-								<Show when={obj().isEditable && !isTextEditing()}>
-									<button type="button" class="edit-toggle-button" onClick={startTextEditing}>
-										<SquarePen class="edit-icon" />
-										目標編集
-									</button>
-								</Show>
-								<Show when={isTextEditing()}>
-									<span class="editing-label">編集中</span>
-								</Show>
+							</div>
+							<Show when={(props.canEditFirst || props.canEditSecond) && !isScoreEditing()}>
+								<button type="button" class="edit-toggle-button" onClick={startScoreEditing}>
+									<SquarePen class="edit-icon" />
+									評価更新
+								</button>
+							</Show>
+							<Show when={activeObjective()?.isEditable && !isTextEditing()}>
+								<button type="button" class="edit-toggle-button" onClick={startTextEditing}>
+									<SquarePen class="edit-icon" />
+									目標編集
+								</button>
+							</Show>
+							<Show when={isTextEditing()}>
+								<span class="editing-label">編集中</span>
+							</Show>
+						</div>
+					</div>
+					<Show when={isTextEditing()}>
+						<div class="objective-fields editing">
+							<label>
+								<span>チャレンジ目標</span>
+								<textarea
+									value={draftText().challengeGoal}
+									onInput={(e) =>
+										setDraftText({ ...draftText(), challengeGoal: e.currentTarget.value })
+									}
+								/>
+							</label>
+							<label>
+								<span>中間目標</span>
+								<textarea
+									value={draftText().midtermGoal}
+									onInput={(e) =>
+										setDraftText({ ...draftText(), midtermGoal: e.currentTarget.value })
+									}
+								/>
+							</label>
+							<label>
+								<span>達成状況</span>
+								<textarea
+									value={draftText().achievement}
+									onInput={(e) =>
+										setDraftText({ ...draftText(), achievement: e.currentTarget.value })
+									}
+								/>
+							</label>
+							<div class="edit-actions">
+								<button
+									type="button"
+									class="primary-action"
+									onClick={applyTextUpdate}
+									disabled={textUpdating()}
+								>
+									<Check class="action-icon" />
+									{textUpdating() ? "保存中..." : "保存"}
+								</button>
+								<button
+									type="button"
+									class="secondary-action"
+									onClick={cancelTextEditing}
+									disabled={textUpdating()}
+								>
+									<X class="action-icon" />
+									キャンセル
+								</button>
 							</div>
 						</div>
-
-						<Show when={isTextEditing()}>
-							<div class="objective-fields editing">
-								<label>
-									<span>チャレンジ目標</span>
-									<textarea
-										value={draftText().challengeGoal}
-										onInput={(e) =>
-											setDraftText({ ...draftText(), challengeGoal: e.currentTarget.value })
-										}
-									/>
-								</label>
-								<label>
-									<span>中間目標</span>
-									<textarea
-										value={draftText().midtermGoal}
-										onInput={(e) =>
-											setDraftText({ ...draftText(), midtermGoal: e.currentTarget.value })
-										}
-									/>
-								</label>
-								<label>
-									<span>達成状況</span>
-									<textarea
-										value={draftText().achievement}
-										onInput={(e) =>
-											setDraftText({ ...draftText(), achievement: e.currentTarget.value })
-										}
-									/>
-								</label>
-								<div class="edit-actions">
-									<button
-										type="button"
-										class="primary-action"
-										onClick={applyTextUpdate}
-										disabled={textUpdating()}
-									>
-										<Check class="action-icon" />
-										{textUpdating() ? "保存中..." : "保存"}
-									</button>
-									<button
-										type="button"
-										class="secondary-action"
-										onClick={cancelTextEditing}
-										disabled={textUpdating()}
-									>
-										<X class="action-icon" />
-										キャンセル
-									</button>
-								</div>
+					</Show>
+					<Show when={!isTextEditing()}>
+						<div class="objective-fields">
+							<div class="objective-field">
+								<span class="objective-field__label">チャレンジ目標</span>
+								<p>{activeObjective()?.challengeGoal || "—"}</p>
 							</div>
-						</Show>
-
-						<Show when={!isTextEditing()}>
-							<div class="objective-fields">
-								<div class="objective-field">
-									<span class="objective-field__label">チャレンジ目標</span>
-									<p>{obj().challengeGoal || "—"}</p>
-								</div>
-								<div class="objective-field">
-									<span class="objective-field__label">中間目標</span>
-									<p>{obj().midtermGoal || "—"}</p>
-								</div>
-								<div class="objective-field">
-									<span class="objective-field__label">達成状況</span>
-									<p>{obj().achievement || "—"}</p>
-								</div>
+							<div class="objective-field">
+								<span class="objective-field__label">中間目標</span>
+								<p>{activeObjective()?.midtermGoal || "—"}</p>
 							</div>
-						</Show>
-
-						<Show when={props.viewModel().updateError}>
-							<p class="error-message">{props.viewModel().updateError}</p>
-						</Show>
-					</article>
-				)}
+							<div class="objective-field">
+								<span class="objective-field__label">達成状況</span>
+								<p>{activeObjective()?.achievement || "—"}</p>
+							</div>
+						</div>
+					</Show>
+					<Show when={props.viewModel().updateError}>
+						<p class="error-message">{props.viewModel().updateError}</p>
+					</Show>
+				</article>
 			</Show>
 		</section>
 	);

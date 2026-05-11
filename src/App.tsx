@@ -15,6 +15,7 @@ import SheetEditorView from "./adapter/views/SheetEditorView";
 import SheetListView from "./adapter/views/SheetListView";
 import { CheckEvaluatorRoleInteractor } from "./application/usecases/CheckEvaluatorRoleInteractor";
 import { CreateEvaluationSheetInteractor } from "./application/usecases/CreateEvaluationSheetInteractor";
+import { ExportEvaluationSheetInteractor } from "./application/usecases/ExportEvaluationSheetInteractor";
 import { FetchCategorizedSheetsInteractor } from "./application/usecases/FetchCategorizedSheetsInteractor";
 import { FetchDistinctPeriodsInteractor } from "./application/usecases/FetchDistinctPeriodsInteractor";
 import { FetchEvaluationSheetInteractor } from "./application/usecases/FetchEvaluationSheetInteractor";
@@ -56,6 +57,7 @@ const upsertCommonEvaluationUseCase = new UpsertCommonEvaluationInteractor(
 	commonEvaluationRepository,
 );
 const updateMilestoneUseCase = new UpdateMilestoneInteractor(milestoneRepository);
+const exportEvaluationSheetUseCase = new ExportEvaluationSheetInteractor(evaluationSheetRepository);
 
 const sheetListPresenter = createSheetListPresenter();
 const sheetEditorPresenter = createSheetEditorPresenter();
@@ -64,7 +66,9 @@ const challengeEvaluationPresenter = createChallengeEvaluationPresenter();
 
 const sheetListController = new SheetListController(
 	fetchCategorizedSheetsUseCase,
-	sheetListPresenter.outputPort,
+	sheetListPresenter.fetchOutputPort,
+	exportEvaluationSheetUseCase,
+	sheetListPresenter.exportOutputPort,
 	sheetListPresenter.presentError,
 );
 const sheetEditorController = new SheetEditorController(

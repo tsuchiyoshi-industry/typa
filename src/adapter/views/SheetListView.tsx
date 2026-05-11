@@ -1,5 +1,5 @@
 import { A } from "@solidjs/router";
-import { ArrowDownAZ, ArrowUpAZ, Plus } from "lucide-solid";
+import { ArrowDownAZ, ArrowUpAZ, Download, Plus } from "lucide-solid";
 import { type Component, createEffect, createMemo, createSignal, For, Show } from "solid-js";
 import type { SheetListController } from "../controllers/SheetListController";
 import type { SheetListViewModel } from "../presenters/SheetListPresenter";
@@ -21,6 +21,10 @@ const SheetListView: Component<SheetListViewProps> = (props) => {
 	createEffect(() => {
 		props.controller.load();
 	});
+
+	const handleExport = async (sheetId: number, employeeId: number, periodId: number) => {
+		await props.controller.exportSheet(sheetId, employeeId, periodId);
+	};
 
 	const sortSheets = (
 		sheets: SheetListViewModel["mySheets"],
@@ -115,6 +119,14 @@ const SheetListView: Component<SheetListViewProps> = (props) => {
 				</A>
 			</header>
 
+			<Show when={props.viewModel().exportStatus.message}>
+				<div
+					class={`export-notification ${props.viewModel().exportStatus.success ? "success" : "error"}`}
+				>
+					{props.viewModel().exportStatus.message}
+				</div>
+			</Show>
+
 			<Show when={!props.viewModel().loading} fallback={<p>シート情報を読み込み中です...</p>}>
 				<Show
 					when={props.viewModel().mySheets.length > 0}
@@ -199,10 +211,19 @@ const SheetListView: Component<SheetListViewProps> = (props) => {
 											<td>{sheet.status}</td>
 											<td>{sheet.employeeName}</td>
 											<td>{sheet.updatedAt}</td>
-											<td>
+											<td class="action-buttons">
 												<A href={`/sheet/${sheet.id}`} class="detail-link">
 													詳細
 												</A>
+												<button
+													type="button"
+													class="export-button"
+													onClick={() => handleExport(sheet.id, sheet.employeeId, sheet.periodId)}
+													disabled={props.viewModel().exportStatus.isExporting}
+												>
+													<Download size={16} />
+													<span>出力</span>
+												</button>
 											</td>
 										</tr>
 									)}
@@ -297,10 +318,19 @@ const SheetListView: Component<SheetListViewProps> = (props) => {
 											<td>{sheet.status}</td>
 											<td>{sheet.employeeName}</td>
 											<td>{sheet.updatedAt}</td>
-											<td>
+											<td class="action-buttons">
 												<A href={`/sheet/${sheet.id}`} class="detail-link">
 													詳細
 												</A>
+												<button
+													type="button"
+													class="export-button"
+													onClick={() => handleExport(sheet.id, sheet.employeeId, sheet.periodId)}
+													disabled={props.viewModel().exportStatus.isExporting}
+												>
+													<Download size={16} />
+													<span>出力</span>
+												</button>
 											</td>
 										</tr>
 									)}

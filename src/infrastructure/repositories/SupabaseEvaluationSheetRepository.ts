@@ -4,6 +4,7 @@ import { Milestone } from "../../domain/entities/Milestone";
 import type { CommonEvaluationRepository } from "../../domain/repositories/CommonEvaluationRepository";
 import type { EmployeeRepository } from "../../domain/repositories/EmployeeRepository";
 import type {
+	EvaluationSheetExportData,
 	EvaluationSheetRepository,
 	EvaluationSheetSummary,
 } from "../../domain/repositories/EvaluationSheetRepository";
@@ -253,5 +254,116 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 				? (item.employee[0]?.employee_no ?? "")
 				: (item.employee?.employee_no ?? ""),
 		}));
+	}
+
+	async findExportData(sheetId: number): Promise<EvaluationSheetExportData | null> {
+		// シート基本情報を取得
+		const { data: sheetData, error: sheetError } = await supabase
+			.from("evaluation_sheets")
+			.select(
+				`
+				id,
+				period_id,
+				employee_id,
+				status,
+				total_score,
+				period:evaluation_periods!inner(period_name, start_date, end_date),
+				employee:employees!inner(name, employee_no, primary_evaluator_id, secondary_evaluator_id)
+			`,
+			)
+			.eq("id", sheetId)
+			.single();
+
+		if (sheetError || !sheetData) {
+			return null;
+		}
+
+		const sheet = sheetData as {
+			id: number;
+			period_id: number;
+			employee_id: number;
+			status: string;
+			total_score: number;
+			period: PeriodJoinRow | PeriodJoinRow[];
+			employee: (EmployeeJoinRow & {
+				primary_evaluator_id: number | null;
+				secondary_evaluator_id: number | null;
+			})[];
+		};
+
+		const period = Array.isArray(sheet.period) ? sheet.period[0] : sheet.period;
+		const employee = Array.isArray(sheet.employee) ? sheet.employee[0] : sheet.employee;
+
+		// 評価者名を取得
+		const evaluatorNames = await this.employeeRepository.findEvaluatorNames(
+			employee.primary_evaluator_id,
+			employee.secondary_evaluator_id,
+		);
+
+		// マイルストーン情報を取得
+		const { data: milestonesData } = await supabase
+			.from("milestones")
+			.select("*")
+			.eq("sheet_id", sheetId)
+			.order("goal_number", { ascending: true });
+
+		const objectives =
+			milestonesData?.map((item: MilestoneRow) => ({
+				id: item.id,
+				title: `目標${item.goal_number}`,
+				description: item.challenge_goal ?? "",
+				targetDate: item.midterm_goal ?? "",
+				status: item.achievement ?? "",
+				selfScore: item.first_score,
+				evaluatorScore: item.second_score,
+				selfComment: null,
+				evaluatorComment: null,
+			})) ?? [];
+
+		// 共通評価項目を取得
+		const { data: commonEvalData } = await supabase
+			.from("common_evaluation_results")
+			.select(
+				`
+				self_score,
+				evaluator_score,
+				self_comment,
+				evaluator_comment,
+				item:common_evaluation_items!inner(item_name)
+			`,
+			)
+			.eq("sheet_id", sheetId);
+
+		const commonEvaluations =
+			commonEvalData?.map(
+				(item: {
+					self_score: number | null;
+					evaluator_score: number | null;
+					self_comment: string | null;
+					evaluator_comment: string | null;
+					item: { item_name: string } | { item_name: string }[];
+				}) => ({
+					itemName: Array.isArray(item.item) ? item.item[0].item_name : item.item.item_name,
+					selfScore: item.self_score,
+					evaluatorScore: item.evaluator_score,
+					selfComment: item.self_comment,
+					evaluatorComment: item.evaluator_comment,
+				}),
+			) ?? [];
+
+		return {
+			sheetId: sheet.id,
+			employeeName: employee.name,
+			employeeNo: employee.employee_no,
+			periodName: period.period_name,
+			periodStart: period.start_date,
+			periodEnd: period.end_date,
+			primaryEvaluator: evaluatorNames.primaryEvaluator,
+			secondaryEvaluator: evaluatorNames.secondaryEvaluator,
+			status: sheet.status,
+			totalScore: sheet.total_score,
+			objectives,
+			commonEvaluations,
+		};
 	}
 }

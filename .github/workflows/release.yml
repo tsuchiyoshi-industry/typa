@@ -66,6 +66,15 @@ jobs:
           set -euo pipefail
           echo "Version: ${{ steps.release_meta.outputs.version }}"
           echo "Tag: ${{ steps.release_meta.outputs.tag }}"
+      
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install frontend dependencies
+        shell: bash
+        run: bun install
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable

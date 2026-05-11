@@ -382,6 +382,72 @@
 	color: #fff;
 }
 
+.action-buttons {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+.export-button {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+	padding: 0.35rem 0.75rem;
+	font-size: 0.8rem;
+	font-weight: 600;
+	color: var(--hr-text);
+	background: var(--hr-bg-elevated);
+	border: 1px solid var(--hr-border);
+	border-radius: var(--hr-radius-sm);
+	transition:
+		color 0.15s ease,
+		border-color 0.15s ease,
+		background 0.15s ease;
+}
+
+.export-button:hover:not(:disabled) {
+	color: var(--hr-accent-hover);
+	border-color: var(--hr-accent);
+	background: var(--hr-accent-muted);
+}
+
+.export-button:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.export-notification {
+	padding: 0.85rem 1.25rem;
+	border-radius: var(--hr-radius-md);
+	font-size: 0.875rem;
+	font-weight: 500;
+	margin-bottom: 1rem;
+	animation: slideIn 0.3s ease;
+}
+
+.export-notification.success {
+	background: rgba(92, 184, 92, 0.12);
+	color: #5cb85c;
+	border: 1px solid rgba(92, 184, 92, 0.3);
+}
+
+.export-notification.error {
+	background: rgba(184, 92, 92, 0.12);
+	color: #b85c5c;
+	border: 1px solid rgba(184, 92, 92, 0.3);
+}
+
+@keyframes slideIn {
+	from {
+		opacity: 0;
+		transform: translateY(-10px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
 @media (max-width: 900px) {
 	.sheet-table {
 		display: block;

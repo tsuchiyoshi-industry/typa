@@ -139,12 +139,15 @@ jobs:
 
       - name: Generate latest.json
         shell: bash
+        env:
+          GITHUB_SERVER_URL: ${{ github.server_url }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
 
           VERSION="${{ steps.release_meta.outputs.version }}"
           TAG="${{ steps.release_meta.outputs.tag }}"
-          BASE_URL="https://github.com/ukihot/test-web-view/releases/download/${TAG}"
+          BASE_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/download/${TAG}"
           PUB_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
           # Read .sig files for each installer

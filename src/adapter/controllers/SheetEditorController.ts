@@ -8,6 +8,10 @@ import type {
 	CreateEvaluationSheetOutputPort,
 } from "../../application/usecases/CreateEvaluationSheetInteractor";
 import type {
+	FetchCategorizedSheetsInteractor,
+	FetchCategorizedSheetsOutputPort,
+} from "../../application/usecases/FetchCategorizedSheetsInteractor";
+import type {
 	FetchDistinctPeriodsInteractor,
 	FetchDistinctPeriodsOutputPort,
 } from "../../application/usecases/FetchDistinctPeriodsInteractor";
@@ -24,6 +28,7 @@ export class SheetEditorController {
 		private readonly fetchPeriodsUseCase: FetchDistinctPeriodsInteractor,
 		private readonly createSheetUseCase: CreateEvaluationSheetInteractor,
 		private readonly checkRoleUseCase: CheckEvaluatorRoleInteractor,
+		private readonly fetchAccessibleSheetsUseCase: FetchCategorizedSheetsInteractor,
 		private readonly presenter: {
 			viewModel: () => SheetEditorViewModel;
 			outputPort: {
@@ -31,26 +36,72 @@ export class SheetEditorController {
 				periods: FetchDistinctPeriodsOutputPort;
 				createSheet: CreateEvaluationSheetOutputPort;
 				role: CheckEvaluatorRoleOutputPort;
+				accessibleSheets: FetchCategorizedSheetsOutputPort;
 			};
 			beginSheetLoad: () => void;
+			beginAccessibleSheetsLoad: () => void;
 			prepareNewSheet: () => void;
 			setSelectedPeriodId: (id: number | null) => void;
 			presentSheetError: (message: string) => void;
+			presentAccessibleSheetsError: (message: string) => void;
 			presentPeriodsError: (message: string) => void;
 			presentCreateError: (message: string) => void;
 		},
 		private readonly employeeRepository: EmployeeRepository,
 	) {}
 
-	async loadSheet(sheetId: number): Promise<void> {
+	async loadSheet(sheetId: number, employeeNo?: string): Promise<number | null> {
+		const targetSheetId = employeeNo ? this.resolveAccessibleSheetId(sheetId, employeeNo) : sheetId;
+		if (targetSheetId == null) {
+			this.presenter.presentSheetError("選択した社員の評価シートが見つかりませんでした。");
+			return null;
+		}
+
 		this.presenter.beginSheetLoad();
 		try {
-			await this.fetchSheetUseCase.execute({ sheetId }, this.presenter.outputPort.sheet);
+			await this.fetchSheetUseCase.execute(
+				{ sheetId: targetSheetId },
+				this.presenter.outputPort.sheet,
+			);
+			return targetSheetId;
 		} catch (error) {
 			this.presenter.presentSheetError(
 				error instanceof Error ? error.message : "シートを読み込めませんでした",
 			);
+			return null;
 		}
+	}
+
+	async loadAccessibleSheets(): Promise<void> {
+		this.presenter.beginAccessibleSheetsLoad();
+		try {
+			await this.fetchAccessibleSheetsUseCase.execute(
+				{},
+				this.presenter.outputPort.accessibleSheets,
+			);
+		} catch (error) {
+			this.presenter.presentAccessibleSheetsError(
+				error instanceof Error ? error.message : "表示対象社員の取得に失敗しました",
+			);
+		}
+	}
+
+	private resolveAccessibleSheetId(currentSheetId: number, employeeNo: string): number | null {
+		const { sheet, accessibleSheets } = this.presenter.viewModel();
+		if (sheet?.subject?.employeeNo === employeeNo) {
+			return sheet.sheetId || currentSheetId;
+		}
+
+		const periodId = sheet?.evaluationPeriod?.id;
+		if (periodId == null) {
+			return null;
+		}
+
+		const targetSheet = [...accessibleSheets.mySheets, ...accessibleSheets.subordinateSheets].find(
+			(item) => item.employeeNo === employeeNo && item.periodId === periodId,
+		);
+
+		return targetSheet?.id ?? null;
 	}
 
 	prepareNewSheet(): void {

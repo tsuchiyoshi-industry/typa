@@ -78,6 +78,7 @@ const sheetEditorController = new SheetEditorController(
 	fetchDistinctPeriodsUseCase,
 	createEvaluationSheetUseCase,
 	checkEvaluatorRoleUseCase,
+	fetchCategorizedSheetsUseCase,
 	sheetEditorPresenter,
 	employeeRepository,
 );

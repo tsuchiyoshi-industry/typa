@@ -1,6 +1,7 @@
 import { useNavigate, useParams } from "@solidjs/router";
-import { CalendarDays, FileText } from "lucide-solid";
-import { type Component, createEffect, createMemo, Show } from "solid-js";
+import { CalendarDays, FileText, Users } from "lucide-solid";
+import { type Component, createEffect, createMemo, For, Show } from "solid-js";
+import type { SheetSummaryDto } from "../../application/dtos/SheetListDto";
 import type { ChallengeEvaluationController } from "../controllers/ChallengeEvaluationController";
 import type { CommonEvaluationController } from "../controllers/CommonEvaluationController";
 import type { SheetEditorController } from "../controllers/SheetEditorController";
@@ -30,6 +31,7 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 	const sheetId = createMemo(() => sheet()?.sheetId);
 	const canEditFirst = createMemo(() => viewModel().canEditFirst);
 	const canEditSecond = createMemo(() => viewModel().canEditSecond);
+	let skipNextRouteSheetId: number | null = null;
 
 	createEffect(() => {
 		if (isNew()) {
@@ -40,8 +42,13 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 
 		const sheetId = Number(idParam());
 		if (!Number.isNaN(sheetId)) {
-			props.controller.loadPeriods();
-			props.controller.loadSheet(sheetId);
+			if (skipNextRouteSheetId === sheetId) {
+				skipNextRouteSheetId = null;
+				return;
+			}
+			void props.controller.loadPeriods();
+			void props.controller.loadAccessibleSheets();
+			void props.controller.loadSheet(sheetId);
 		}
 	});
 
@@ -72,6 +79,108 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 			void props.controller.loadSheet(id);
 		}
 	};
+
+	const toSubjectOption = (sheet: SheetSummaryDto) => ({
+		sheetId: sheet.id,
+		periodId: sheet.periodId,
+		employeeId: sheet.employeeId,
+		employeeName: sheet.employeeName,
+		employeeNo: sheet.employeeNo,
+	});
+
+	const dedupeSubjectOptions = (sheets: SheetSummaryDto[]) => {
+		const seen = new Set<string>();
+		return sheets
+			.filter((item) => item.periodId === sheet()?.evaluationPeriod?.id)
+			.map(toSubjectOption)
+			.filter((item) => {
+				if (seen.has(item.employeeNo)) {
+					return false;
+				}
+				seen.add(item.employeeNo);
+				return true;
+			});
+	};
+
+	const mySubjectOptions = createMemo(() =>
+		dedupeSubjectOptions(viewModel().accessibleSheets.mySheets),
+	);
+
+	const subordinateSubjectOptions = createMemo(() =>
+		dedupeSubjectOptions(viewModel().accessibleSheets.subordinateSheets),
+	);
+
+	const formatSubjectOption = (name: string, employeeNo: string) => `${name}（${employeeNo}）`;
+
+	const handleSubjectChange = async (employeeNo: string) => {
+		const currentSheet = sheet();
+		if (!currentSheet?.subject || employeeNo === currentSheet.subject.employeeNo) {
+			return;
+		}
+
+		const loadedSheetId = await props.controller.loadSheet(currentSheet.sheetId, employeeNo);
+		if (loadedSheetId != null && loadedSheetId !== currentSheet.sheetId) {
+			skipNextRouteSheetId = loadedSheetId;
+			navigate(`/sheet/${loadedSheetId}`, { replace: true });
+		}
+	};
+
+	const EditorManagementHeader = () => (
+		<section class="editor-management-header">
+			<div class="editor-management-title">
+				<Users class="editor-management-icon" />
+				<div>
+					<h2>表示対象社員</h2>
+					<p>{sheet()?.evaluationPeriod?.periodName ?? "評価期間未設定"}</p>
+				</div>
+			</div>
+			<label class="subject-selector" for="subject-select">
+				<span>社員</span>
+				<select
+					id="subject-select"
+					value={sheet()?.subject?.employeeNo ?? ""}
+					disabled={viewModel().loadingAccessibleSheets}
+					onChange={(event) => void handleSubjectChange(event.currentTarget.value)}
+				>
+					<Show when={mySubjectOptions().length > 0}>
+						<option disabled>自分</option>
+						<For each={mySubjectOptions()}>
+							{(item) => (
+								<option value={item.employeeNo}>
+									{formatSubjectOption(item.employeeName, item.employeeNo)}
+								</option>
+							)}
+						</For>
+					</Show>
+					<Show when={subordinateSubjectOptions().length > 0}>
+						<option disabled>──────────</option>
+						<option disabled>部下</option>
+						<For each={subordinateSubjectOptions()}>
+							{(item) => (
+								<option value={item.employeeNo}>
+									{formatSubjectOption(item.employeeName, item.employeeNo)}
+								</option>
+							)}
+						</For>
+					</Show>
+					<Show
+						when={
+							mySubjectOptions().length === 0 &&
+							subordinateSubjectOptions().length === 0 &&
+							sheet()?.subject
+						}
+					>
+						<option value={sheet()?.subject?.employeeNo ?? ""}>
+							{formatSubjectOption(
+								sheet()?.subject?.name ?? "未設定",
+								sheet()?.subject?.employeeNo ?? "未設定",
+							)}
+						</option>
+					</Show>
+				</select>
+			</label>
+		</section>
+	);
 
 	const ProfileCards = () => (
 		<section class="profile-cards">
@@ -104,6 +213,7 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 
 		return (
 			<>
+				<EditorManagementHeader />
 				<ProfileCards />
 				<ChallengeEvaluationView
 					sheetId={sheetId() ?? null}
@@ -180,6 +290,9 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 						</div>
 					}
 				>
+					<Show when={viewModel().fetchError}>
+						<p class="error-message">{viewModel().fetchError}</p>
+					</Show>
 					{renderSheetContent()}
 				</Show>
 			</Show>

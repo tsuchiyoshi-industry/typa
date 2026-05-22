@@ -553,6 +553,85 @@
 	justify-content: center;
 }
 
+.editor-management-header {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+	padding: 1rem 1.1rem;
+	background: var(--hr-surface);
+	border: 1px solid var(--hr-border);
+	border-radius: var(--hr-radius-md);
+	box-shadow: var(--hr-shadow);
+}
+
+.editor-management-title {
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+	min-width: 220px;
+}
+
+.editor-management-icon {
+	width: 1.35rem;
+	height: 1.35rem;
+	flex-shrink: 0;
+	color: var(--hr-accent);
+}
+
+.editor-management-title h2 {
+	margin: 0;
+	font-size: 0.95rem;
+	font-weight: 600;
+	color: var(--hr-text);
+	letter-spacing: var(--hr-tracking);
+}
+
+.editor-management-title p {
+	margin: 0.15rem 0 0;
+	font-size: 0.78rem;
+	color: var(--hr-text-muted);
+}
+
+.subject-selector {
+	display: flex;
+	align-items: center;
+	gap: 0.65rem;
+	min-width: min(100%, 340px);
+}
+
+.subject-selector span {
+	flex-shrink: 0;
+	font-size: 0.75rem;
+	font-weight: 600;
+	color: var(--hr-text-muted);
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+}
+
+.subject-selector select {
+	width: 100%;
+	min-height: 2.45rem;
+	padding: 0.55rem 0.75rem;
+	border-radius: var(--hr-radius-sm);
+	border: 1px solid var(--hr-border);
+	background: var(--hr-bg-elevated);
+	color: var(--hr-text);
+	cursor: pointer;
+}
+
+.subject-selector select:focus {
+	outline: none;
+	border-color: var(--hr-accent);
+	box-shadow: 0 0 0 3px var(--hr-accent-muted);
+}
+
+.subject-selector select:disabled {
+	opacity: 0.6;
+	cursor: wait;
+}
+
 .profile-cards {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));

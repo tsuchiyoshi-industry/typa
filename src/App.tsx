@@ -261,7 +261,14 @@ const App: Component = () => {
 					path="/login"
 					component={() => (
 						<Show when={!session() || !isLinked()} fallback={<Navigate href="/" />}>
-							<LoginView />
+							<LoginView
+								onRegistrationLinked={async () => {
+									const {
+										data: { session: currentSession },
+									} = await supabase.auth.getSession();
+									await checkUserStatus(currentSession);
+								}}
+							/>
 						</Show>
 					)}
 				/>

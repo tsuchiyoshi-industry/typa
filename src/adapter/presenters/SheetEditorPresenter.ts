@@ -36,11 +36,11 @@ export function createSheetEditorPresenter(): {
 	viewModel: () => SheetEditorViewModel;
 	outputPort: {
 		sheet: FetchEvaluationSheetOutputPort;
-			periods: FetchDistinctPeriodsOutputPort;
-			createSheet: CreateEvaluationSheetOutputPort;
-			role: CheckEvaluatorRoleOutputPort;
-			accessibleSheets: FetchCategorizedSheetsOutputPort;
-		};
+		periods: FetchDistinctPeriodsOutputPort;
+		createSheet: CreateEvaluationSheetOutputPort;
+		role: CheckEvaluatorRoleOutputPort;
+		accessibleSheets: FetchCategorizedSheetsOutputPort;
+	};
 	beginSheetLoad: () => void;
 	beginAccessibleSheetsLoad: () => void;
 	prepareNewSheet: () => void;

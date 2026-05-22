@@ -210,12 +210,14 @@ export class SupabaseEmployeeRepository implements EmployeeRepository {
 	}
 
 	async linkUserToEmployee(employeeNo: string, authUserId: string): Promise<boolean> {
-		const { error } = await supabase
+		const { data, error } = await supabase
 			.from("employees")
 			.update({ user_id: authUserId })
 			.eq("employee_no", employeeNo)
-			.is("user_id", null);
+			.is("user_id", null)
+			.select("id")
+			.maybeSingle();
 
-		return !error;
+		return !error && !!data;
 	}
 }

@@ -2,10 +2,15 @@ import { useNavigate } from "@solidjs/router";
 import { createMemo, createSignal, Show } from "solid-js";
 import { supabase } from "../../infrastructure/db/supabase";
 import { SupabaseEmployeeRepository } from "../../infrastructure/repositories/SupabaseEmployeeRepository";
+import LoadingView from "./components/LoadingView";
 
 type ViewMode = "login" | "signup" | "otp-verify";
 
-const LoginView = () => {
+type LoginViewProps = {
+	onRegistrationLinked?: () => Promise<void> | void;
+};
+
+const LoginView = (props: LoginViewProps) => {
 	const navigate = useNavigate();
 	const [email, setEmail] = createSignal("");
 	const [password, setPassword] = createSignal("");
@@ -14,11 +19,11 @@ const LoginView = () => {
 	const [otp, setOtp] = createSignal("");
 
 	const [loading, setLoading] = createSignal(false);
+	const [linkingEmployee, setLinkingEmployee] = createSignal(false);
 	const [errorMessage, setErrorMessage] = createSignal<string | null>(null);
 	const [employeeNoError, setEmployeeNoError] = createSignal<string | null>(null);
 
 	const [viewMode, setViewMode] = createSignal<ViewMode>("login");
-	const [otpVerifyType, setOtpVerifyType] = createSignal<"signup" | "email">("signup");
 
 	const employeeRepository = new SupabaseEmployeeRepository();
 
@@ -82,6 +87,12 @@ const LoginView = () => {
 		event.preventDefault();
 		setLoading(true);
 		setErrorMessage(null);
+		setEmployeeNoError(null);
+
+		if (password() !== confirmPassword()) {
+			setLoading(false);
+			return;
+		}
 
 		const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
 			email: email(),
@@ -89,52 +100,19 @@ const LoginView = () => {
 			options: { data: { employee_no: employeeNo() } },
 		});
 
-		// シナリオ1: 正常な新規登録（identitiesが存在する場合＝新規ユーザー）
-		if (!signUpError && signUpData.user?.identities && signUpData.user.identities.length > 0) {
-			setOtpVerifyType("signup");
-			setViewMode("otp-verify");
+		if (signUpError) {
+			setErrorMessage("登録に失敗しました。入力内容を確認してください。");
 			setLoading(false);
 			return;
 		}
 
-		// --- 以下、既に登録されている（可能性がある）場合のエッジケース処理 ---
-
-		// 背後でパスワードログインを試行し、本人の確認とRLSの突破を図る
-		const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-			email: email(),
-			password: password(),
-		});
-
-		if (signInError || !signInData.user) {
-			// パスワードが違う＝別パスワードで登録済みの別ユーザー
+		if (signUpData.user?.identities?.length === 0) {
 			switchMode("login", "このメールアドレスは既に登録されています。ログインをお試しください。");
 			setLoading(false);
 			return;
 		}
 
-		// ログイン成功（本人確認＆RLS突破完了）
-		const userId = signInData.user.id;
-		const isLinked = await employeeRepository.checkUserLinked(userId);
-
-		if (isLinked) {
-			// シナリオ3: メール認証済み ＆ 社員番号紐づけ済み
-			await supabase.auth.signOut(); // 状態をリセット
-			switchMode("login", "既にアカウントが登録されています。こちらからログインしてください。");
-			setLoading(false);
-			return;
-		}
-
-		// シナリオ2: メール認証済み ＆ 社員番号【未紐づけ】（中断からの復旧など）
-		const empNo = employeeNo();
-		const linkedSuccessfully = await employeeRepository.linkUserToEmployee(empNo, userId);
-
-		if (linkedSuccessfully) {
-			navigate("/"); // 紐づけ成功、そのままログイン状態として扱う
-		} else {
-			await supabase.auth.signOut(); // 失敗した場合は一度ログアウト
-			setEmployeeNoError("社員番号が誤りです。入力内容を確認してください。");
-		}
-
+		setViewMode("otp-verify");
 		setLoading(false);
 	};
 
@@ -147,7 +125,7 @@ const LoginView = () => {
 		const { error, data } = await supabase.auth.verifyOtp({
 			email: email(),
 			token: otp(),
-			type: otpVerifyType(),
+			type: "signup",
 		});
 
 		if (error || !data.user) {
@@ -156,18 +134,20 @@ const LoginView = () => {
 			return;
 		}
 
-		// 認証成功・RLS突破後、社員番号の紐づけを実行
-		const empNo = (data.user.user_metadata?.employee_no as string) || employeeNo();
-		const linked = await employeeRepository.linkUserToEmployee(empNo, data.user.id);
+		setLoading(false);
+		setLinkingEmployee(true);
+
+		const linked = await employeeRepository.linkUserToEmployee(employeeNo(), data.user.id);
 
 		if (linked) {
+			await props.onRegistrationLinked?.();
 			navigate("/");
 		} else {
 			await supabase.auth.signOut();
+			setLinkingEmployee(false);
 			switchMode("signup");
 			setEmployeeNoError("社員番号が誤りです。入力内容を確認してください。");
 		}
-		setLoading(false);
 	};
 
 	// --- OTP再送処理 ------------------------------------------------
@@ -175,18 +155,17 @@ const LoginView = () => {
 		setLoading(true);
 		setErrorMessage(null);
 
-		const resendFn =
-			otpVerifyType() === "email"
-				? supabase.auth.signInWithOtp({ email: email() })
-				: supabase.auth.resend({ type: "signup", email: email() });
-
-		const { error } = await resendFn;
+		const { error } = await supabase.auth.resend({ type: "signup", email: email() });
 		if (error) {
 			setErrorMessage("認証コードの再送に失敗しました。しばらくしてから再度お試しください。");
 		}
 
 		setLoading(false);
 	};
+
+	if (linkingEmployee()) {
+		return <LoadingView />;
+	}
 
 	return (
 		<div class="login-cover">

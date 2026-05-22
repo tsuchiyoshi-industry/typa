@@ -4,17 +4,21 @@ import { LogOut, Menu, User, X } from "lucide-solid";
 import { type Component, createSignal, type JSX, onMount, Show } from "solid-js";
 import { ChallengeEvaluationController } from "./adapter/controllers/ChallengeEvaluationController";
 import { CommonEvaluationController } from "./adapter/controllers/CommonEvaluationController";
+import { EmployeeMasterController } from "./adapter/controllers/EmployeeMasterController";
 import { SheetEditorController } from "./adapter/controllers/SheetEditorController";
 import { SheetListController } from "./adapter/controllers/SheetListController";
 import { createChallengeEvaluationPresenter } from "./adapter/presenters/ChallengeEvaluationPresenter";
 import { createCommonEvaluationPresenter } from "./adapter/presenters/CommonEvaluationPresenter";
+import { createEmployeeMasterPresenter } from "./adapter/presenters/EmployeeMasterPresenter";
 import { createSheetEditorPresenter } from "./adapter/presenters/SheetEditorPresenter";
 import { createSheetListPresenter } from "./adapter/presenters/SheetListPresenter";
 import LoadingView from "./adapter/views/components/LoadingView";
 import { NotFound } from "./adapter/views/components/NotFound";
+import EmployeeMasterView from "./adapter/views/EmployeeMasterView";
 import LoginView from "./adapter/views/LoginView";
 import SheetEditorView from "./adapter/views/SheetEditorView";
 import SheetListView from "./adapter/views/SheetListView";
+import { AssignEvaluatorInteractor } from "./application/usecases/AssignEvaluatorInteractor";
 import { CheckEvaluatorRoleInteractor } from "./application/usecases/CheckEvaluatorRoleInteractor";
 import { CreateEvaluationSheetInteractor } from "./application/usecases/CreateEvaluationSheetInteractor";
 import { ExportEvaluationSheetInteractor } from "./application/usecases/ExportEvaluationSheetInteractor";
@@ -22,10 +26,13 @@ import { FetchCategorizedSheetsInteractor } from "./application/usecases/FetchCa
 import { FetchDistinctPeriodsInteractor } from "./application/usecases/FetchDistinctPeriodsInteractor";
 import { FetchEvaluationSheetInteractor } from "./application/usecases/FetchEvaluationSheetInteractor";
 import { LoadCommonEvaluationInteractor } from "./application/usecases/LoadCommonEvaluationInteractor";
+import { LoadEmployeeMasterInteractor } from "./application/usecases/LoadEmployeeMasterInteractor";
+import { UpdateEmployeeEvaluatorInteractor } from "./application/usecases/UpdateEmployeeEvaluatorInteractor";
 import { UpdateMilestoneInteractor } from "./application/usecases/UpdateMilestoneInteractor";
 import { UpsertCommonEvaluationInteractor } from "./application/usecases/UpsertCommonEvaluationInteractor";
 import { supabase } from "./infrastructure/db/supabase";
 import { SupabaseCommonEvaluationRepository } from "./infrastructure/repositories/SupabaseCommonEvaluationRepository";
+import { SupabaseEmployeeMasterRepository } from "./infrastructure/repositories/SupabaseEmployeeMasterRepository";
 import { SupabaseEmployeeRepository } from "./infrastructure/repositories/SupabaseEmployeeRepository";
 import { SupabaseEvaluationPeriodRepository } from "./infrastructure/repositories/SupabaseEvaluationPeriodRepository";
 import { SupabaseEvaluationSheetRepository } from "./infrastructure/repositories/SupabaseEvaluationSheetRepository";
@@ -39,6 +46,7 @@ const evaluationSheetRepository = new SupabaseEvaluationSheetRepository(
 );
 const evaluationPeriodRepository = new SupabaseEvaluationPeriodRepository();
 const milestoneRepository = new SupabaseMilestoneRepository();
+const employeeMasterRepository = new SupabaseEmployeeMasterRepository();
 
 const fetchCategorizedSheetsUseCase = new FetchCategorizedSheetsInteractor(
 	employeeRepository,
@@ -60,11 +68,17 @@ const upsertCommonEvaluationUseCase = new UpsertCommonEvaluationInteractor(
 );
 const updateMilestoneUseCase = new UpdateMilestoneInteractor(milestoneRepository);
 const exportEvaluationSheetUseCase = new ExportEvaluationSheetInteractor(evaluationSheetRepository);
+const loadEmployeeMasterUseCase = new LoadEmployeeMasterInteractor(employeeMasterRepository);
+const assignEvaluatorUseCase = new AssignEvaluatorInteractor(employeeMasterRepository);
+const updateEmployeeEvaluatorUseCase = new UpdateEmployeeEvaluatorInteractor(
+	employeeMasterRepository,
+);
 
 const sheetListPresenter = createSheetListPresenter();
 const sheetEditorPresenter = createSheetEditorPresenter();
 const commonEvaluationPresenter = createCommonEvaluationPresenter();
 const challengeEvaluationPresenter = createChallengeEvaluationPresenter();
+const employeeMasterPresenter = createEmployeeMasterPresenter();
 
 const sheetListController = new SheetListController(
 	fetchCategorizedSheetsUseCase,
@@ -93,6 +107,12 @@ const challengeEvaluationController = new ChallengeEvaluationController(
 	updateMilestoneUseCase,
 	challengeEvaluationPresenter.outputPort,
 	challengeEvaluationPresenter.presentUpdateError,
+);
+const employeeMasterController = new EmployeeMasterController(
+	loadEmployeeMasterUseCase,
+	assignEvaluatorUseCase,
+	updateEmployeeEvaluatorUseCase,
+	employeeMasterPresenter,
 );
 
 const AppLayout: Component<{ children?: JSX.Element | JSX.Element[] }> = (props) => (
@@ -151,6 +171,9 @@ const DashboardLayout: Component<{ children?: JSX.Element | JSX.Element[] }> = (
 					</A>
 					<A href="/sheet/new" class="nav-link" onClick={() => setMenuOpen(false)}>
 						新規作成
+					</A>
+					<A href="/employee-master" class="nav-link" onClick={() => setMenuOpen(false)}>
+						社員マスタ
 					</A>
 				</nav>
 				<div class="user-menu-container">
@@ -251,6 +274,20 @@ const App: Component = () => {
 									commonEvaluationViewModel={commonEvaluationPresenter.viewModel}
 									challengeEvaluationController={challengeEvaluationController}
 									challengeEvaluationViewModel={challengeEvaluationPresenter.viewModel}
+								/>
+							</DashboardLayout>
+						</Show>
+					)}
+				/>
+
+				<Route
+					path="/employee-master"
+					component={() => (
+						<Show when={session() && isLinked()} fallback={<Navigate href="/login" />}>
+							<DashboardLayout>
+								<EmployeeMasterView
+									controller={employeeMasterController}
+									viewModel={employeeMasterPresenter.viewModel}
 								/>
 							</DashboardLayout>
 						</Show>

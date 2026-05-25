@@ -72,6 +72,7 @@ const AutoUpdateNotification: Component = () => {
 			}
 		} catch (error) {
 			setStatus("error");
+			console.error("Failed to check for updates:", error);
 			setErrorMessage(error instanceof Error ? error.message : "更新情報の確認に失敗しました。");
 		}
 	});

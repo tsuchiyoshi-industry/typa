@@ -4,60 +4,116 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	background-color: #f9fafb; /* ほんのりグレーでモダンに */
+	background-color: #fcfcfd;
 	z-index: 9999;
+	overflow: hidden;
 }
 
 .loading-content {
 	display: flex;
 	flex-direction: column;
 	align-items: center;
-	gap: 1.5rem;
 }
 
-/* スピナー：細めのラインとグラデーションで今風に */
-.loading-spinner {
-	width: 48px;
-	height: 48px;
-	border: 3px solid #e5e7eb;
-	border-top: 3px solid #3b82f6; /* メインカラー */
-	border-radius: 50%;
-	animation: spin 0.8s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+/* ロゴ全体のコンテナ */
+.logo-wrapper {
+	height: 60px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	margin-bottom: 2rem;
 }
 
-/* ロゴ：少し太めで、文字間隔を広げてクリーンな印象に */
-.loading-logo {
-	font-size: 1.75rem;
-	font-weight: 800;
+.logo-full-text {
+	font-family: "Inter", sans-serif;
+	font-weight: 900;
+	font-size: 1.4rem;
+	letter-spacing: -0.02em;
+	display: flex;
+	align-items: baseline;
 	color: #111827;
-	letter-spacing: 0.2em;
-	margin: 0;
-	font-family: sans-serif;
 }
 
-/* テキスト：主張しすぎない色合い */
+/* TYPAの4文字（メイン） */
+.main-char {
+	display: inline-block;
+	color: #111827;
+	transform: scale(1.1);
+	font-weight: 900;
+}
+
+/* 隠れる文字 */
+.sub-text {
+	display: inline-block;
+	max-width: 500px; /* 十分な幅 */
+	opacity: 1;
+	font-weight: 400;
+	font-size: 1.2rem;
+	color: #94a3b8;
+	white-space: nowrap;
+	overflow: hidden;
+	/* 1.4秒の構成: 0~0.4sで見える、0.4~1.1sで縮小消去、1.1~1.4sは余韻 */
+	animation: shrinkText 1.4s cubic-bezier(0.65, 0, 0.35, 1) forwards;
+}
+
+/* 下部のバー */
+.loading-bar-container {
+	width: 120px;
+	height: 2px;
+	background: #f1f5f9;
+	border-radius: 2px;
+	position: relative;
+	overflow: hidden;
+	margin-bottom: 0.5rem;
+}
+
+.loading-bar-fill {
+	position: absolute;
+	height: 100%;
+	width: 0%;
+	background: #111827;
+	animation: progressFill 1.4s ease-in-out forwards;
+}
+
 .loading-text {
-	font-size: 0.875rem;
-	color: #6b7280;
+	font-size: 0.75rem;
+	text-transform: uppercase;
+	letter-spacing: 0.3em;
+	color: #94a3b8;
 	margin: 0;
-	animation: pulse 1.5s ease-in-out infinite;
 }
 
-@keyframes spin {
-	from {
-		transform: rotate(0deg);
+@keyframes shrinkText {
+	0% {
+		opacity: 0;
+		max-width: 0px;
+		filter: blur(8px);
 	}
-	to {
-		transform: rotate(360deg);
-	}
-}
-
-@keyframes pulse {
-	0%,
-	100% {
+	20% {
 		opacity: 1;
+		max-width: 500px;
+		filter: blur(0px);
 	}
-	50% {
-		opacity: 0.5;
+	60% {
+		opacity: 1;
+		max-width: 500px;
+		margin-right: 4px;
+	}
+	100% {
+		opacity: 0;
+		max-width: 0px;
+		margin-right: 0px;
+		filter: blur(4px);
+	}
+}
+
+@keyframes progressFill {
+	0% {
+		width: 0%;
+		left: 0;
+	}
+	100% {
+		width: 100%;
+		left: 0;
 	}
 }

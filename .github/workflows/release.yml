@@ -88,10 +88,6 @@ jobs:
             . -> target
             src-tauri -> src-tauri/target
 
-      - name: Install
-        shell: bash
-        run: bun install
-
       - name: Touch .env
         run: echo -n 'VITE_SUPABASE_PUBLISHABLE_KEY=${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}' > .env && echo -n 'VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}' >> .env
 

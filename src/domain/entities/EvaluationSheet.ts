@@ -10,6 +10,8 @@ export class EvaluationSheet {
 		public readonly evaluationPeriod: EvaluationPeriod,
 		public readonly primaryEvaluatorName: string,
 		public readonly secondaryEvaluatorName: string,
+		public readonly firstOverallComment: string,
+		public readonly secondOverallComment: string,
 		public readonly objectives: Milestone[],
 		public readonly commonEvaluationResults: CommonEvaluationResult[],
 	) {}
@@ -20,6 +22,8 @@ export class EvaluationSheet {
 		evaluationPeriod: EvaluationPeriod;
 		primaryEvaluatorName: string;
 		secondaryEvaluatorName: string;
+		firstOverallComment?: string;
+		secondOverallComment?: string;
 		objectives: Milestone[];
 		commonEvaluationResults?: CommonEvaluationResult[];
 	}): EvaluationSheet {
@@ -29,6 +33,8 @@ export class EvaluationSheet {
 			params.evaluationPeriod,
 			params.primaryEvaluatorName,
 			params.secondaryEvaluatorName,
+			params.firstOverallComment ?? "",
+			params.secondOverallComment ?? "",
 			params.objectives,
 			params.commonEvaluationResults ?? [],
 		);

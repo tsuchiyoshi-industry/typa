@@ -19,6 +19,11 @@ import type {
 	FetchEvaluationSheetInteractor,
 	FetchEvaluationSheetOutputPort,
 } from "../../application/usecases/FetchEvaluationSheetInteractor";
+import type {
+	OverallCommentTarget,
+	UpdateOverallCommentInteractor,
+	UpdateOverallCommentOutputPort,
+} from "../../application/usecases/UpdateOverallCommentInteractor";
 import type { EmployeeRepository } from "../../domain/repositories/EmployeeRepository";
 import type { SheetEditorViewModel } from "../presenters/SheetEditorPresenter";
 
@@ -29,6 +34,7 @@ export class SheetEditorController {
 		private readonly createSheetUseCase: CreateEvaluationSheetInteractor,
 		private readonly checkRoleUseCase: CheckEvaluatorRoleInteractor,
 		private readonly fetchAccessibleSheetsUseCase: FetchCategorizedSheetsInteractor,
+		private readonly updateOverallCommentUseCase: UpdateOverallCommentInteractor,
 		private readonly presenter: {
 			viewModel: () => SheetEditorViewModel;
 			outputPort: {
@@ -37,6 +43,7 @@ export class SheetEditorController {
 				createSheet: CreateEvaluationSheetOutputPort;
 				role: CheckEvaluatorRoleOutputPort;
 				accessibleSheets: FetchCategorizedSheetsOutputPort;
+				overallComment: UpdateOverallCommentOutputPort;
 			};
 			beginSheetLoad: () => void;
 			beginAccessibleSheetsLoad: () => void;
@@ -46,24 +53,17 @@ export class SheetEditorController {
 			presentAccessibleSheetsError: (message: string) => void;
 			presentPeriodsError: (message: string) => void;
 			presentCreateError: (message: string) => void;
+			beginOverallCommentUpdate: () => void;
+			presentOverallCommentUpdateError: (message: string) => void;
 		},
 		private readonly employeeRepository: EmployeeRepository,
 	) {}
 
-	async loadSheet(sheetId: number, employeeNo?: string): Promise<number | null> {
-		const targetSheetId = employeeNo ? this.resolveAccessibleSheetId(sheetId, employeeNo) : sheetId;
-		if (targetSheetId == null) {
-			this.presenter.presentSheetError("選択した社員の評価シートが見つかりませんでした。");
-			return null;
-		}
-
+	async loadSheet(sheetId: number): Promise<number | null> {
 		this.presenter.beginSheetLoad();
 		try {
-			await this.fetchSheetUseCase.execute(
-				{ sheetId: targetSheetId },
-				this.presenter.outputPort.sheet,
-			);
-			return targetSheetId;
+			await this.fetchSheetUseCase.execute({ sheetId }, this.presenter.outputPort.sheet);
+			return sheetId;
 		} catch (error) {
 			this.presenter.presentSheetError(
 				error instanceof Error ? error.message : "シートを読み込めませんでした",
@@ -84,24 +84,6 @@ export class SheetEditorController {
 				error instanceof Error ? error.message : "表示対象社員の取得に失敗しました",
 			);
 		}
-	}
-
-	private resolveAccessibleSheetId(currentSheetId: number, employeeNo: string): number | null {
-		const { sheet, accessibleSheets } = this.presenter.viewModel();
-		if (sheet?.subject?.employeeNo === employeeNo) {
-			return sheet.sheetId || currentSheetId;
-		}
-
-		const periodId = sheet?.evaluationPeriod?.id;
-		if (periodId == null) {
-			return null;
-		}
-
-		const targetSheet = [...accessibleSheets.mySheets, ...accessibleSheets.subordinateSheets].find(
-			(item) => item.employeeNo === employeeNo && item.periodId === periodId,
-		);
-
-		return targetSheet?.id ?? null;
 	}
 
 	prepareNewSheet(): void {
@@ -130,6 +112,36 @@ export class SheetEditorController {
 
 	setSelectedPeriod(id: number | null): void {
 		this.presenter.setSelectedPeriodId(id);
+	}
+
+	async updateOverallComment(target: OverallCommentTarget, comment: string): Promise<boolean> {
+		const { sheet, canEditFirst, canEditSecond } = this.presenter.viewModel();
+		if (!sheet?.sheetId) {
+			this.presenter.presentOverallCommentUpdateError(
+				"評価シートIDを取得できないため、総評を保存できません。",
+			);
+			return false;
+		}
+
+		this.presenter.beginOverallCommentUpdate();
+		try {
+			await this.updateOverallCommentUseCase.execute(
+				{
+					sheetId: sheet.sheetId,
+					target,
+					comment,
+					canEditFirst,
+					canEditSecond,
+				},
+				this.presenter.outputPort.overallComment,
+			);
+			return true;
+		} catch (error) {
+			this.presenter.presentOverallCommentUpdateError(
+				error instanceof Error ? error.message : "総評の保存に失敗しました",
+			);
+			return false;
+		}
 	}
 
 	async createSheet(

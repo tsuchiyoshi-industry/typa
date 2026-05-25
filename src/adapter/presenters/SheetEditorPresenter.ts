@@ -16,6 +16,10 @@ import type {
 	FetchEvaluationSheetOutputPort,
 	FetchEvaluationSheetResponse,
 } from "../../application/usecases/FetchEvaluationSheetInteractor";
+import type {
+	UpdateOverallCommentOutputPort,
+	UpdateOverallCommentResponse,
+} from "../../application/usecases/UpdateOverallCommentInteractor";
 
 export interface SheetEditorViewModel {
 	loadingSheet: boolean;
@@ -26,6 +30,8 @@ export interface SheetEditorViewModel {
 	selectedPeriodId: number | null;
 	canEditFirst: boolean;
 	canEditSecond: boolean;
+	updatingOverallComment: boolean;
+	overallCommentUpdateError: string | null;
 	creating: boolean;
 	createdSheetId: number | null;
 	createError: string | null;
@@ -40,6 +46,7 @@ export function createSheetEditorPresenter(): {
 		createSheet: CreateEvaluationSheetOutputPort;
 		role: CheckEvaluatorRoleOutputPort;
 		accessibleSheets: FetchCategorizedSheetsOutputPort;
+		overallComment: UpdateOverallCommentOutputPort;
 	};
 	beginSheetLoad: () => void;
 	beginAccessibleSheetsLoad: () => void;
@@ -50,6 +57,8 @@ export function createSheetEditorPresenter(): {
 	presentPeriodsError: (message: string) => void;
 	presentCreateError: (message: string) => void;
 	presentRoleError: (message: string) => void;
+	beginOverallCommentUpdate: () => void;
+	presentOverallCommentUpdateError: (message: string) => void;
 } {
 	const [viewModel, setViewModel] = createSignal<SheetEditorViewModel>({
 		loadingSheet: true,
@@ -63,6 +72,8 @@ export function createSheetEditorPresenter(): {
 		selectedPeriodId: null,
 		canEditFirst: false,
 		canEditSecond: false,
+		updatingOverallComment: false,
+		overallCommentUpdateError: null,
 		creating: false,
 		createdSheetId: null,
 		createError: null,
@@ -77,6 +88,7 @@ export function createSheetEditorPresenter(): {
 				sheet: response,
 				createdSheetId: null,
 				fetchError: null,
+				overallCommentUpdateError: null,
 			}));
 		},
 	};
@@ -125,6 +137,17 @@ export function createSheetEditorPresenter(): {
 		},
 	};
 
+	const overallCommentOutputPort: UpdateOverallCommentOutputPort = {
+		present(response: UpdateOverallCommentResponse) {
+			setViewModel((prev) => ({
+				...prev,
+				sheet: response.sheet,
+				updatingOverallComment: false,
+				overallCommentUpdateError: null,
+			}));
+		},
+	};
+
 	const presentSheetError = (message: string) => {
 		setViewModel((prev) => ({ ...prev, loadingSheet: false, fetchError: message }));
 	};
@@ -154,6 +177,22 @@ export function createSheetEditorPresenter(): {
 		setViewModel((prev) => ({ ...prev, fetchError: message }));
 	};
 
+	const beginOverallCommentUpdate = () => {
+		setViewModel((prev) => ({
+			...prev,
+			updatingOverallComment: true,
+			overallCommentUpdateError: null,
+		}));
+	};
+
+	const presentOverallCommentUpdateError = (message: string) => {
+		setViewModel((prev) => ({
+			...prev,
+			updatingOverallComment: false,
+			overallCommentUpdateError: message,
+		}));
+	};
+
 	const setSelectedPeriodId = (id: number | null) => {
 		setViewModel((prev) => ({ ...prev, selectedPeriodId: id }));
 	};
@@ -164,6 +203,7 @@ export function createSheetEditorPresenter(): {
 			loadingSheet: true,
 			sheet: null,
 			fetchError: null,
+			overallCommentUpdateError: null,
 		}));
 	};
 
@@ -193,6 +233,7 @@ export function createSheetEditorPresenter(): {
 			createSheet: createSheetOutputPort,
 			role: roleOutputPort,
 			accessibleSheets: accessibleSheetsOutputPort,
+			overallComment: overallCommentOutputPort,
 		},
 		beginSheetLoad,
 		beginAccessibleSheetsLoad,
@@ -203,5 +244,7 @@ export function createSheetEditorPresenter(): {
 		presentPeriodsError,
 		presentCreateError,
 		presentRoleError,
+		beginOverallCommentUpdate,
+		presentOverallCommentUpdateError,
 	};
 }

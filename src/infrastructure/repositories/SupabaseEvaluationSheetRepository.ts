@@ -87,6 +87,8 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 			employee_id: number;
 			status: string;
 			total_score: number;
+			first_overall_comment: string | null;
+			second_overall_comment: string | null;
 			created_at: string;
 			updated_at: string;
 		};
@@ -157,9 +159,34 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 			evaluationPeriod,
 			primaryEvaluatorName: evaluatorNames.primaryEvaluator,
 			secondaryEvaluatorName: evaluatorNames.secondaryEvaluator,
+			firstOverallComment: sheet.first_overall_comment ?? "",
+			secondOverallComment: sheet.second_overall_comment ?? "",
 			objectives,
 			commonEvaluationResults: results.results,
 		});
+	}
+
+	async updateOverallComment(
+		sheetId: number,
+		target: "first" | "second",
+		comment: string,
+	): Promise<EvaluationSheet> {
+		const column = target === "first" ? "first_overall_comment" : "second_overall_comment";
+		const { error } = await supabase
+			.from("evaluation_sheets")
+			.update({ [column]: comment })
+			.eq("id", sheetId);
+
+		if (error) {
+			throw error;
+		}
+
+		const updated = await this.findById(sheetId);
+		if (!updated) {
+			throw new Error("Failed to load updated evaluation sheet.");
+		}
+
+		return updated;
 	}
 
 	async findByOwner(employeeId: number): Promise<EvaluationSheetSummary[]> {

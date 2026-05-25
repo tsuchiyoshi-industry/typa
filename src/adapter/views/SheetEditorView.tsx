@@ -1,6 +1,6 @@
 import { useNavigate, useParams } from "@solidjs/router";
 import { CalendarDays, FileText, Users } from "lucide-solid";
-import { type Component, createEffect, createMemo, For, Show } from "solid-js";
+import { type Component, createEffect, createMemo, createSignal, For, Show } from "solid-js";
 import type { SheetSummaryDto } from "../../application/dtos/SheetListDto";
 import type { ChallengeEvaluationController } from "../controllers/ChallengeEvaluationController";
 import type { CommonEvaluationController } from "../controllers/CommonEvaluationController";
@@ -10,6 +10,7 @@ import type { CommonEvaluationViewModel } from "../presenters/CommonEvaluationPr
 import type { SheetEditorViewModel } from "../presenters/SheetEditorPresenter";
 import ChallengeEvaluationView from "./components/ChallengeEvaluationView";
 import CommonEvaluationView from "./components/CommonEvaluationView";
+import OverallCommentSection from "./components/OverallCommentSectionView";
 
 interface SheetEditorViewProps {
 	controller: SheetEditorController;
@@ -31,7 +32,8 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 	const sheetId = createMemo(() => sheet()?.sheetId);
 	const canEditFirst = createMemo(() => viewModel().canEditFirst);
 	const canEditSecond = createMemo(() => viewModel().canEditSecond);
-	let skipNextRouteSheetId: number | null = null;
+	const [firstOverallDraft, setFirstOverallDraft] = createSignal("");
+	const [secondOverallDraft, setSecondOverallDraft] = createSignal("");
 
 	createEffect(() => {
 		if (isNew()) {
@@ -42,10 +44,6 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 
 		const sheetId = Number(idParam());
 		if (!Number.isNaN(sheetId)) {
-			if (skipNextRouteSheetId === sheetId) {
-				skipNextRouteSheetId = null;
-				return;
-			}
 			void props.controller.loadPeriods();
 			void props.controller.loadAccessibleSheets();
 			void props.controller.loadSheet(sheetId);
@@ -60,10 +58,16 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 	});
 
 	createEffect(() => {
-		const sheet = viewModel().sheet;
-		if (sheet?.subject) {
-			props.controller.loadRoles(sheet.subject);
+		const currentSheet = sheet();
+		if (currentSheet?.subject) {
+			props.controller.loadRoles(currentSheet.subject);
 		}
+	});
+
+	createEffect(() => {
+		const currentSheet = sheet();
+		setFirstOverallDraft(currentSheet?.firstOverallComment ?? "");
+		setSecondOverallDraft(currentSheet?.secondOverallComment ?? "");
 	});
 
 	const handleCreateSheet = async () => {
@@ -112,17 +116,13 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 
 	const formatSubjectOption = (name: string, employeeNo: string) => `${name}（${employeeNo}）`;
 
-	const handleSubjectChange = async (employeeNo: string) => {
+	const handleSubjectChange = (selectedSheetId: number) => {
 		const currentSheet = sheet();
-		if (!currentSheet?.subject || employeeNo === currentSheet.subject.employeeNo) {
+		if (!currentSheet?.subject || selectedSheetId === currentSheet.sheetId) {
 			return;
 		}
 
-		const loadedSheetId = await props.controller.loadSheet(currentSheet.sheetId, employeeNo);
-		if (loadedSheetId != null && loadedSheetId !== currentSheet.sheetId) {
-			skipNextRouteSheetId = loadedSheetId;
-			navigate(`/sheet/${loadedSheetId}`, { replace: true });
-		}
+		navigate(`/sheet/${selectedSheetId}`);
 	};
 
 	const EditorManagementHeader = () => (
@@ -138,15 +138,15 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 				<span>社員</span>
 				<select
 					id="subject-select"
-					value={sheet()?.subject?.employeeNo ?? ""}
+					value={String(sheetId() ?? "")}
 					disabled={viewModel().loadingAccessibleSheets}
-					onChange={(event) => void handleSubjectChange(event.currentTarget.value)}
+					onChange={(event) => handleSubjectChange(Number(event.currentTarget.value))}
 				>
 					<Show when={mySubjectOptions().length > 0}>
 						<option disabled>自分</option>
 						<For each={mySubjectOptions()}>
 							{(item) => (
-								<option value={item.employeeNo}>
+								<option value={item.sheetId}>
 									{formatSubjectOption(item.employeeName, item.employeeNo)}
 								</option>
 							)}
@@ -157,7 +157,7 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 						<option disabled>部下</option>
 						<For each={subordinateSubjectOptions()}>
 							{(item) => (
-								<option value={item.employeeNo}>
+								<option value={item.sheetId}>
 									{formatSubjectOption(item.employeeName, item.employeeNo)}
 								</option>
 							)}
@@ -170,7 +170,7 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 							sheet()?.subject
 						}
 					>
-						<option value={sheet()?.subject?.employeeNo ?? ""}>
+						<option value={sheetId() ?? ""}>
 							{formatSubjectOption(
 								sheet()?.subject?.name ?? "未設定",
 								sheet()?.subject?.employeeNo ?? "未設定",
@@ -233,6 +233,22 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 					controller={props.commonEvaluationController}
 					viewModel={props.commonEvaluationViewModel}
 					onUpdated={reloadCurrentSheetFromRoute}
+				/>
+				<OverallCommentSection
+					canEditFirst={canEditFirst()}
+					canEditSecond={canEditSecond()}
+					firstOverallComment={firstOverallDraft()}
+					secondOverallComment={secondOverallDraft()}
+					onFirstOverallCommentChange={setFirstOverallDraft}
+					onSecondOverallCommentChange={setSecondOverallDraft}
+					onSaveFirstOverallComment={() =>
+						void props.controller.updateOverallComment("first", firstOverallDraft())
+					}
+					onSaveSecondOverallComment={() =>
+						void props.controller.updateOverallComment("second", secondOverallDraft())
+					}
+					updating={viewModel().updatingOverallComment}
+					updateError={viewModel().overallCommentUpdateError}
 				/>
 			</>
 		);

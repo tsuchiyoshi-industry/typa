@@ -53,6 +53,11 @@ export interface EvaluationSheetExportData {
 export interface EvaluationSheetRepository {
 	findById(sheetId: number): Promise<EvaluationSheet | null>;
 	createOrGetSheet(periodId: number, employeeId: number): Promise<number>;
+	updateOverallComment(
+		sheetId: number,
+		target: "first" | "second",
+		comment: string,
+	): Promise<EvaluationSheet>;
 	findByOwner(employeeId: number): Promise<EvaluationSheetSummary[]>;
 	findByEmployeeIds(employeeIds: number[]): Promise<EvaluationSheetSummary[]>;
 	findExportData(sheetId: number): Promise<EvaluationSheetExportData | null>;

@@ -32,6 +32,8 @@ export class FetchEvaluationSheetInteractor
 				evaluationPeriod: null,
 				primaryEvaluator: "未設定",
 				secondaryEvaluator: "未設定",
+				firstOverallComment: "",
+				secondOverallComment: "",
 				objectives: [],
 			});
 			return;
@@ -60,6 +62,8 @@ export class FetchEvaluationSheetInteractor
 			},
 			primaryEvaluator: sheet.primaryEvaluatorName,
 			secondaryEvaluator: sheet.secondaryEvaluatorName,
+			firstOverallComment: sheet.firstOverallComment,
+			secondOverallComment: sheet.secondOverallComment,
 			objectives: sheet.objectives.map((objective) => ({
 				id: objective.id,
 				sheetId: objective.sheetId,

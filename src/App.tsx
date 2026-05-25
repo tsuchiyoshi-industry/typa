@@ -29,6 +29,7 @@ import { LoadCommonEvaluationInteractor } from "./application/usecases/LoadCommo
 import { LoadEmployeeMasterInteractor } from "./application/usecases/LoadEmployeeMasterInteractor";
 import { UpdateEmployeeEvaluatorInteractor } from "./application/usecases/UpdateEmployeeEvaluatorInteractor";
 import { UpdateMilestoneInteractor } from "./application/usecases/UpdateMilestoneInteractor";
+import { UpdateOverallCommentInteractor } from "./application/usecases/UpdateOverallCommentInteractor";
 import { UpsertCommonEvaluationInteractor } from "./application/usecases/UpsertCommonEvaluationInteractor";
 import { supabase } from "./infrastructure/db/supabase";
 import { SupabaseCommonEvaluationRepository } from "./infrastructure/repositories/SupabaseCommonEvaluationRepository";
@@ -67,6 +68,10 @@ const upsertCommonEvaluationUseCase = new UpsertCommonEvaluationInteractor(
 	commonEvaluationRepository,
 );
 const updateMilestoneUseCase = new UpdateMilestoneInteractor(milestoneRepository);
+const updateOverallCommentUseCase = new UpdateOverallCommentInteractor(
+	evaluationSheetRepository,
+	employeeRepository,
+);
 const exportEvaluationSheetUseCase = new ExportEvaluationSheetInteractor(evaluationSheetRepository);
 const loadEmployeeMasterUseCase = new LoadEmployeeMasterInteractor(employeeMasterRepository);
 const assignEvaluatorUseCase = new AssignEvaluatorInteractor(employeeMasterRepository);
@@ -93,6 +98,7 @@ const sheetEditorController = new SheetEditorController(
 	createEvaluationSheetUseCase,
 	checkEvaluatorRoleUseCase,
 	fetchCategorizedSheetsUseCase,
+	updateOverallCommentUseCase,
 	sheetEditorPresenter,
 	employeeRepository,
 );

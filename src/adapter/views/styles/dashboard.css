@@ -1059,6 +1059,85 @@
 	margin: 0;
 }
 
+/* ----- 総評 ----- */
+.overall-comment-card {
+	background: var(--hr-surface);
+	border: 1px solid var(--hr-border);
+	border-radius: var(--hr-radius-lg);
+	box-shadow: var(--hr-shadow);
+	overflow: hidden;
+}
+
+.overall-comment-card__header {
+	padding: 1.1rem 1.25rem;
+	background: var(--hr-bg-elevated);
+	border-bottom: 1px solid var(--hr-border);
+}
+
+.overall-comment-card__header h2 {
+	display: flex;
+	align-items: center;
+	gap: 0.55rem;
+	margin: 0;
+	font-size: 1rem;
+	font-weight: 600;
+	color: var(--hr-text);
+	letter-spacing: var(--hr-tracking);
+}
+
+.section-icon {
+	width: 1.1rem;
+	height: 1.1rem;
+	color: var(--hr-accent);
+	flex-shrink: 0;
+}
+
+.overall-comment-fields {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+	gap: 1rem;
+	padding: 1.25rem;
+}
+
+.overall-comment-field {
+	display: flex;
+	flex-direction: column;
+	gap: 0.55rem;
+}
+
+.overall-comment-field span {
+	font-size: 0.75rem;
+	font-weight: 600;
+	color: var(--hr-text-muted);
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+}
+
+.overall-comment-field textarea {
+	min-height: 140px;
+	padding: 0.7rem 0.85rem;
+	border-radius: var(--hr-radius-sm);
+	border: 1px solid var(--hr-border);
+	background: var(--hr-bg-elevated);
+	color: var(--hr-text);
+	font-size: 0.9rem;
+	resize: vertical;
+}
+
+.overall-comment-field textarea:focus {
+	outline: none;
+	border-color: var(--hr-accent);
+	box-shadow: 0 0 0 3px var(--hr-accent-muted);
+}
+
+.overall-comment-field .primary-action {
+	align-self: flex-start;
+}
+
+.overall-comment-card > .error-message {
+	margin: 0 1.25rem 1.25rem;
+}
+
 @media (max-width: 1024px) {
 	.evaluation-table {
 		display: block;

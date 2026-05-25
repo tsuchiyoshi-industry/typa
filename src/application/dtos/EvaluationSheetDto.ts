@@ -8,5 +8,7 @@ export interface EvaluationSheetDto {
 	evaluationPeriod: EvaluationPeriodDto | null;
 	primaryEvaluator: string;
 	secondaryEvaluator: string;
+	firstOverallComment: string;
+	secondOverallComment: string;
 	objectives: MilestoneDto[];
 }

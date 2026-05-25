@@ -27,10 +27,34 @@ const LoginView = (props: LoginViewProps) => {
 
 	const employeeRepository = new SupabaseEmployeeRepository();
 
+	const requiredDomain = import.meta.env.REQUIRED_DOMAIN;
+
 	const passwordMismatch = createMemo(
 		() =>
 			viewMode() === "signup" && confirmPassword().length > 0 && password() !== confirmPassword(),
 	);
+
+	// メールアドレスが空でなく、かつ指定ドメインでない場合に true
+	const isInvalidDomain = createMemo(() => {
+		const currentEmail = email();
+		if (currentEmail.length === 0) {
+			return false;
+		}
+		return !currentEmail.endsWith(requiredDomain);
+	});
+
+	const isSubmitDisabled = createMemo(() => {
+		if (loading()) {
+			return true;
+		}
+		if (isInvalidDomain()) {
+			return true;
+		}
+		if (viewMode() === "signup" && passwordMismatch()) {
+			return true;
+		}
+		return false;
+	});
 
 	// --- モード切り替え（フォームリセット付き） ----------------------
 	const switchMode = (mode: ViewMode, customMessage: string | null = null) => {
@@ -295,7 +319,7 @@ const LoginView = (props: LoginViewProps) => {
 							</p>
 						</Show>
 
-						<button type="submit" disabled={loading() || passwordMismatch()}>
+						<button type="submit" disabled={isSubmitDisabled()}>
 							{loading()
 								? "処理中..."
 								: viewMode() === "signup"

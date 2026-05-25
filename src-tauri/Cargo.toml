@@ -30,6 +30,7 @@ typst-as-lib = "0.15.4"
 typst = "0.14.2"
 typst-pdf = "0.14.2"
 tauri-plugin-dialog = "2"
+tauri-plugin-process = "2.3.1"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-updater = "2"

@@ -38,10 +38,7 @@
 			"pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IENFNTRCMjNBN0M4QzIyOEIKUldTTElveDhPckpVemhxUGVsMXJSY3pocHNBbFc1dDNZQ3NsR2pEN2pYeXZZQ0JjWHpDVXFNbk8K",
 			"endpoints": [
 				"https://github.com/tsuchiyoshi-industry/typa/releases/latest/download/latest.json"
-			],
-			"windows": {
-				"installMode": "passive"
-			}
+			]
 		}
 	}
 }

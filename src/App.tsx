@@ -12,6 +12,7 @@ import { createCommonEvaluationPresenter } from "./adapter/presenters/CommonEval
 import { createEmployeeMasterPresenter } from "./adapter/presenters/EmployeeMasterPresenter";
 import { createSheetEditorPresenter } from "./adapter/presenters/SheetEditorPresenter";
 import { createSheetListPresenter } from "./adapter/presenters/SheetListPresenter";
+import AutoUpdateNotification from "./adapter/views/components/AutoUpdateNotification";
 import LoadingView from "./adapter/views/components/LoadingView";
 import { NotFound } from "./adapter/views/components/NotFound";
 import EmployeeMasterView from "./adapter/views/EmployeeMasterView";
@@ -124,6 +125,7 @@ const employeeMasterController = new EmployeeMasterController(
 const AppLayout: Component<{ children?: JSX.Element | JSX.Element[] }> = (props) => (
 	<div class="app-shell">
 		<div class="app-frame">{props.children}</div>
+		<AutoUpdateNotification />
 	</div>
 );
 

@@ -142,6 +142,27 @@ jobs:
             exit 1
           fi
 
+      - name: Generate release notes
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          TAG="${{ steps.release_meta.outputs.tag }}"
+
+          gh api \
+            --method POST \
+            "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
+            -f tag_name="$TAG" \
+            -f target_commitish="${{ github.sha }}" \
+            --jq '.body' > release-notes.md
+
+          if [[ ! -s release-notes.md ]]; then
+            echo "TYPA ${TAG} の更新です。" > release-notes.md
+          fi
+
       - name: Generate latest.json
         shell: bash
         env:
@@ -177,6 +198,7 @@ jobs:
           {
             "version": "${VERSION}",
             "pub_date": "${PUB_DATE}",
+            "notes": "",
             "platforms": {
               "windows-x86_64": {
                 "signature": "${NSIS_SIG}",
@@ -191,6 +213,8 @@ jobs:
           import json, sys
           with open('latest.json') as f:
               data = json.load(f)
+          with open('release-notes.md', encoding='utf-8') as f:
+              data['notes'] = f.read().strip()
           with open('latest.json', 'w') as f:
               json.dump(data, f, indent=2)
           "
@@ -204,7 +228,7 @@ jobs:
           tag_name: ${{ steps.release_meta.outputs.tag }}
           name: ${{ steps.release_meta.outputs.tag }}
           make_latest: true
-          generate_release_notes: true
+          body_path: release-notes.md
           files: |
             src-tauri/target/release/bundle/**/*.msi
             src-tauri/target/release/bundle/**/*.msi.sig

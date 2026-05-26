@@ -27,32 +27,47 @@ const LoginView = (props: LoginViewProps) => {
 
 	const employeeRepository = new SupabaseEmployeeRepository();
 
-	const requiredDomain = import.meta.env.REQUIRED_DOMAIN;
+	const requiredDomain = import.meta.env.VITE_REQUIRED_DOMAIN;
 
 	const passwordMismatch = createMemo(
 		() =>
 			viewMode() === "signup" && confirmPassword().length > 0 && password() !== confirmPassword(),
 	);
 
-	// メールアドレスが空でなく、かつ指定ドメインでない場合に true
-	const isInvalidDomain = createMemo(() => {
-		const currentEmail = email();
-		if (currentEmail.length === 0) {
-			return false;
-		}
-		return !currentEmail.endsWith(requiredDomain);
-	});
-
 	const isSubmitDisabled = createMemo(() => {
+		// 1. ローディング中は常に無効
 		if (loading()) {
 			return true;
 		}
-		if (isInvalidDomain()) {
+
+		const currentEmail = email().trim();
+		const currentPassword = password();
+		const domain = requiredDomain || "";
+
+		// 2. 基本バリデーション（メールとパスワードが空なら無効）
+		if (!currentEmail || !currentPassword) {
 			return true;
 		}
-		if (viewMode() === "signup" && passwordMismatch()) {
+
+		// 3. ドメインチェック（指定ドメインで終わっていない場合は無効）
+		// これにより、正しいドメインを打ち切るまでボタンは活性化しません
+		if (!currentEmail.endsWith(domain)) {
 			return true;
 		}
+
+		// 4. 新規登録（signup）時のみ適用する追加ルール
+		if (viewMode() === "signup") {
+			// パスワード一致チェック
+			if (passwordMismatch()) {
+				return true;
+			}
+			// 社員番号が空なら無効
+			if (!employeeNo().trim()) {
+				return true;
+			}
+		}
+
+		// すべての条件をクリアしたらボタンを有効化（false）
 		return false;
 	});
 

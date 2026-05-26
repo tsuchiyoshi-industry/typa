@@ -89,14 +89,14 @@ jobs:
             src-tauri -> src-tauri/target
 
       - name: Touch .env
-        run: echo -n 'VITE_SUPABASE_PUBLISHABLE_KEY=${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}' > .env && echo -n 'VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}' >> .env && echo -n 'REQUIRED_DOMAIN=${{ secrets.REQUIRED_DOMAIN }}' >> .env
+        run: echo -n 'VITE_SUPABASE_PUBLISHABLE_KEY=${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}' > .env && echo -n 'VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}' >> .env && echo -n 'VITE_REQUIRED_DOMAIN=${{ secrets.VITE_REQUIRED_DOMAIN }}' >> .env
 
       - name: Build bundle
         shell: bash
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          REQUIRED_DOMAIN: ${{ secrets.REQUIRED_DOMAIN }}
+          VITE_REQUIRED_DOMAIN: ${{ secrets.VITE_REQUIRED_DOMAIN }}
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
         run: bun run tauri build

@@ -19,6 +19,19 @@
   value
 }
 
+#let fixed(value, height, size: 5.15pt, fill: black) = block(
+  width: 100%,
+  height: height,
+  clip: true,
+)[
+  #set par(justify: true, leading: 0.34em)
+  #text(size: size, fill: fill)[#empty(value)]
+]
+
+#let fixed-center(value, height, size: 5.15pt, fill: black) = align(center + horizon)[
+  #fixed(value, height, size: size, fill: fill)
+]
+
 #let red-score(value) = text(fill: red)[#score(value)]
 #let point(value) = [#value 点]
 #let rate(value) = [#value%]
@@ -27,6 +40,18 @@
   #text(fill: white, size: 5.3pt, weight: "bold")[#body]
 ]
 #let green-cell(body) = table.cell(fill: sheet-green)[#body]
+#let fixed-cell(value, height, size: 5.15pt) = table.cell[#fixed(value, height, size: size)]
+#let fixed-green-cell(value, height, size: 5.15pt) = table.cell(fill: sheet-green)[
+  #fixed(value, height, size: size)
+]
+#let fixed-center-cell(value, height, size: 5.15pt, fill: black) = table.cell(
+  align: center + horizon,
+)[
+  #fixed-center(value, height, size: size, fill: fill)
+]
+#let fixed-green-score(value, height) = table.cell(fill: sheet-green, align: center + horizon)[
+  #fixed-center(score(value), height, size: 5.4pt, fill: red)
+]
 #let centered(body) = table.cell(align: center + horizon)[#body]
 #let final-rank(value) = if value == "" {
   text(fill: muted)[未決定]
@@ -115,13 +140,13 @@
     title-cell(text(size: 4.7pt)[【一次評価者】 #linebreak() 上司評価]),
     title-cell(text(size: 4.7pt)[【二次評価者】 #linebreak() 修正後評価]),
     ..inputs.objectives.map(obj => (
-      centered[#obj.goal_number],
-      green-cell[#empty(obj.challenge_goal)],
-      green-cell[#empty(obj.midterm_goal)],
-      green-cell[#empty(obj.achievement)],
-      centered[1],
-      table.cell(fill: sheet-green, align: center + horizon)[#red-score(obj.self_score)],
-      table.cell(fill: sheet-green, align: center + horizon)[#red-score(obj.evaluator_score)],
+      fixed-center-cell(obj.goal_number, 13mm),
+      fixed-green-cell(obj.challenge_goal, 13mm),
+      fixed-green-cell(obj.midterm_goal, 13mm),
+      fixed-green-cell(obj.achievement, 13mm),
+      fixed-center-cell(1, 13mm),
+      fixed-green-score(obj.self_score, 13mm),
+      fixed-green-score(obj.evaluator_score, 13mm),
     )).flatten()
   )
 }
@@ -157,13 +182,13 @@
     ..range(inputs.common_evaluations.len()).map(index => {
       let item = inputs.common_evaluations.at(index)
       (
-        centered[#(index + 1)],
-        [#item.item_name],
-        [#item.item_description],
-        green-cell[#empty(item.self_comment)],
-        centered[#item.weight],
-        table.cell(fill: sheet-green, align: center + horizon)[#red-score(item.self_score)],
-        table.cell(fill: sheet-green, align: center + horizon)[#red-score(item.evaluator_score)],
+        fixed-center-cell(index + 1, 8.8mm),
+        fixed-cell(item.item_name, 8.8mm, size: 5pt),
+        fixed-cell(item.item_description, 8.8mm, size: 4.8pt),
+        fixed-green-cell(item.self_comment, 8.8mm, size: 4.8pt),
+        fixed-center-cell(item.weight, 8.8mm),
+        fixed-green-score(item.self_score, 8.8mm),
+        fixed-green-score(item.evaluator_score, 8.8mm),
       )
     }).flatten()
   )
@@ -193,8 +218,8 @@
     inset: (x: 3pt, y: 3pt),
     title-cell[【一次評価者】コメント欄],
     title-cell[【二次評価者】コメント欄],
-    table.cell(fill: sheet-green)[#block(width: 100%, height: 22mm)[#empty(inputs.first_overall_comment)]],
-    table.cell(fill: sheet-green)[#block(width: 100%, height: 22mm)[#empty(inputs.second_overall_comment)]],
+    table.cell(fill: sheet-green)[#fixed(inputs.first_overall_comment, 18mm, size: 5pt)],
+    table.cell(fill: sheet-green)[#fixed(inputs.second_overall_comment, 18mm, size: 5pt)],
   ),
   align(bottom)[
     #table(

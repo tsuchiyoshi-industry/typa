@@ -81,6 +81,10 @@ export interface EvaluationSheetRepository {
 		target: "first" | "second",
 		comment: string,
 	): Promise<EvaluationSheet>;
+	updateStatus(
+		sheetId: number,
+		status: import("../valueObjects/EvaluationStatus").EvaluationStatus,
+	): Promise<EvaluationSheet>;
 	findByOwner(employeeId: number): Promise<EvaluationSheetSummary[]>;
 	findByEmployeeIds(employeeIds: number[]): Promise<EvaluationSheetSummary[]>;
 	findExportData(sheetId: number): Promise<EvaluationSheetExportData | null>;

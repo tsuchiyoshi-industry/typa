@@ -29,6 +29,7 @@ import { FetchEvaluationSheetInteractor } from "./application/usecases/FetchEval
 import { LoadCommonEvaluationInteractor } from "./application/usecases/LoadCommonEvaluationInteractor";
 import { LoadEmployeeMasterInteractor } from "./application/usecases/LoadEmployeeMasterInteractor";
 import { UpdateEmployeeEvaluatorInteractor } from "./application/usecases/UpdateEmployeeEvaluatorInteractor";
+import { UpdateEvaluationStatusInteractor } from "./application/usecases/UpdateEvaluationStatusInteractor";
 import { UpdateFinalEvaluationRankInteractor } from "./application/usecases/UpdateFinalEvaluationRankInteractor";
 import { UpdateMilestoneInteractor } from "./application/usecases/UpdateMilestoneInteractor";
 import { UpdateOverallCommentInteractor } from "./application/usecases/UpdateOverallCommentInteractor";
@@ -87,6 +88,10 @@ const updateFinalEvaluationRankUseCase = new UpdateFinalEvaluationRankInteractor
 	evaluationSheetRepository,
 	employeeRepository,
 );
+const updateEvaluationStatusUseCase = new UpdateEvaluationStatusInteractor(
+	evaluationSheetRepository,
+	employeeRepository,
+);
 const exportEvaluationSheetUseCase = new ExportEvaluationSheetInteractor(evaluationSheetRepository);
 const loadEmployeeMasterUseCase = new LoadEmployeeMasterInteractor(employeeMasterRepository);
 const assignEvaluatorUseCase = new AssignEvaluatorInteractor(employeeMasterRepository);
@@ -115,6 +120,7 @@ const sheetEditorController = new SheetEditorController(
 	fetchCategorizedSheetsUseCase,
 	updateOverallCommentUseCase,
 	updateFinalEvaluationRankUseCase,
+	updateEvaluationStatusUseCase,
 	sheetEditorPresenter,
 	employeeRepository,
 );

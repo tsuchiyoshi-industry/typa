@@ -10,7 +10,6 @@ export class Milestone {
 		public readonly achievement: string,
 		public readonly firstScore: Score,
 		public readonly secondScore: Score,
-		public readonly isEditable: boolean,
 	) {}
 
 	static create(params: {
@@ -22,7 +21,6 @@ export class Milestone {
 		achievement: string;
 		firstScore?: number;
 		secondScore?: number;
-		isEditable?: boolean;
 	}): Milestone {
 		return new Milestone(
 			params.id,
@@ -33,7 +31,6 @@ export class Milestone {
 			params.achievement ?? "",
 			Score.fromOptional(params.firstScore),
 			Score.fromOptional(params.secondScore),
-			params.isEditable ?? false,
 		);
 	}
 
@@ -51,7 +48,6 @@ export class Milestone {
 			params.achievement,
 			this.firstScore,
 			this.secondScore,
-			this.isEditable,
 		);
 	}
 
@@ -65,7 +61,6 @@ export class Milestone {
 			this.achievement,
 			params.firstScore !== undefined ? Score.from(params.firstScore) : this.firstScore,
 			params.secondScore !== undefined ? Score.from(params.secondScore) : this.secondScore,
-			this.isEditable,
 		);
 	}
 }

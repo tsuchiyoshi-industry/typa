@@ -1,5 +1,6 @@
 import { EvaluationAllocatedScores } from "../valueObjects/EvaluationAllocatedScores";
 import { EvaluationScoreTotals } from "../valueObjects/EvaluationScoreTotals";
+import { EvaluationStatus } from "../valueObjects/EvaluationStatus";
 import type { FinalEvaluationRank } from "../valueObjects/FinalEvaluationRank";
 import type { CommonEvaluationResult } from "./CommonEvaluationResult";
 import type { Employee } from "./Employee";
@@ -20,6 +21,7 @@ export class EvaluationSheet {
 		public readonly objectiveScoreTotals: EvaluationScoreTotals,
 		public readonly commonEvaluationScoreTotals: EvaluationScoreTotals,
 		public readonly allocatedScores: EvaluationAllocatedScores,
+		public readonly status: EvaluationStatus,
 		public readonly finalEvaluationRank?: FinalEvaluationRank,
 	) {}
 
@@ -36,6 +38,7 @@ export class EvaluationSheet {
 		objectiveScoreTotals?: EvaluationScoreTotals;
 		commonEvaluationScoreTotals?: EvaluationScoreTotals;
 		allocatedScores?: EvaluationAllocatedScores;
+		status?: EvaluationStatus;
 		finalEvaluationRank?: FinalEvaluationRank;
 	}): EvaluationSheet {
 		const commonEvaluationResults = params.commonEvaluationResults ?? [];
@@ -58,8 +61,13 @@ export class EvaluationSheet {
 			commonEvaluationScoreTotals,
 			params.allocatedScores ??
 				EvaluationAllocatedScores.fromTotals(objectiveScoreTotals, commonEvaluationScoreTotals),
+			params.status ?? EvaluationStatus.DRAFT,
 			params.finalEvaluationRank,
 		);
+	}
+
+	isEditable(): boolean {
+		return this.status.isDraft();
 	}
 
 	equals(other: EvaluationSheet): boolean {

@@ -37,5 +37,7 @@ export interface EvaluationSheetDto {
 	objectiveScoreTotals: EvaluationScoreTotalsDto;
 	commonEvaluationScoreTotals: EvaluationScoreTotalsDto;
 	allocatedScores: EvaluationAllocatedScoresDto;
+	status: string;
+	isEditable: boolean;
 	finalEvaluationRank?: FinalEvaluationRankDto;
 }

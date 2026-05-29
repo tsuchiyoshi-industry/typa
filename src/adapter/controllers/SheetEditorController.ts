@@ -20,11 +20,14 @@ import type {
 	FetchEvaluationSheetOutputPort,
 } from "../../application/usecases/FetchEvaluationSheetInteractor";
 import type {
+	UpdateEvaluationStatusInteractor,
+	UpdateEvaluationStatusOutputPort,
+} from "../../application/usecases/UpdateEvaluationStatusInteractor";
+import type {
 	UpdateFinalEvaluationRankInteractor,
 	UpdateFinalEvaluationRankOutputPort,
 } from "../../application/usecases/UpdateFinalEvaluationRankInteractor";
 import type {
-	OverallCommentTarget,
 	UpdateOverallCommentInteractor,
 	UpdateOverallCommentOutputPort,
 } from "../../application/usecases/UpdateOverallCommentInteractor";
@@ -40,6 +43,7 @@ export class SheetEditorController {
 		private readonly fetchAccessibleSheetsUseCase: FetchCategorizedSheetsInteractor,
 		private readonly updateOverallCommentUseCase: UpdateOverallCommentInteractor,
 		private readonly updateFinalEvaluationRankUseCase: UpdateFinalEvaluationRankInteractor,
+		private readonly updateStatusUseCase: UpdateEvaluationStatusInteractor,
 		private readonly presenter: {
 			viewModel: () => SheetEditorViewModel;
 			outputPort: {
@@ -50,6 +54,7 @@ export class SheetEditorController {
 				accessibleSheets: FetchCategorizedSheetsOutputPort;
 				overallComment: UpdateOverallCommentOutputPort;
 				finalEvaluationRank: UpdateFinalEvaluationRankOutputPort;
+				status: UpdateEvaluationStatusOutputPort;
 			};
 			beginSheetLoad: () => void;
 			beginAccessibleSheetsLoad: () => void;
@@ -63,6 +68,8 @@ export class SheetEditorController {
 			presentOverallCommentUpdateError: (message: string) => void;
 			beginFinalEvaluationRankUpdate: () => void;
 			presentFinalEvaluationRankUpdateError: (message: string) => void;
+			beginStatusUpdate: () => void;
+			presentStatusUpdateError: (message: string) => void;
 		},
 		private readonly employeeRepository: EmployeeRepository,
 	) {}
@@ -122,7 +129,7 @@ export class SheetEditorController {
 		this.presenter.setSelectedPeriodId(id);
 	}
 
-	async updateOverallComment(target: OverallCommentTarget, comment: string): Promise<boolean> {
+	async updateOverallComment(target: "first" | "second", comment: string): Promise<boolean> {
 		const { sheet, canEditFirst, canEditSecond } = this.presenter.viewModel();
 		if (!sheet?.sheetId) {
 			this.presenter.presentOverallCommentUpdateError(
@@ -147,6 +154,43 @@ export class SheetEditorController {
 		} catch (error) {
 			this.presenter.presentOverallCommentUpdateError(
 				error instanceof Error ? error.message : "総評の保存に失敗しました",
+			);
+			return false;
+		}
+	}
+
+	async updateStatus(status: "draft" | "submitted"): Promise<boolean> {
+		const { sheet } = this.presenter.viewModel();
+		if (!sheet?.sheetId) {
+			this.presenter.presentStatusUpdateError(
+				"評価シートIDを取得できないため、ステータスを変更できません。",
+			);
+			return false;
+		}
+
+		const { data: currentEmployeeId, error: authError } =
+			await this.employeeRepository.findCurrentEmployeeId();
+
+		if (authError || currentEmployeeId === null) {
+			const message = authError ? `認証エラー: ${authError.message}` : "ログインが必要です。";
+			this.presenter.presentStatusUpdateError(message);
+			return false;
+		}
+
+		this.presenter.beginStatusUpdate();
+		try {
+			await this.updateStatusUseCase.execute(
+				{
+					sheetId: sheet.sheetId,
+					status,
+					currentEmployeeId,
+				},
+				this.presenter.outputPort.status,
+			);
+			return true;
+		} catch (error) {
+			this.presenter.presentStatusUpdateError(
+				error instanceof Error ? error.message : "ステータスの変更に失敗しました",
 			);
 			return false;
 		}

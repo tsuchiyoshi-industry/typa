@@ -10,6 +10,7 @@ import type {
 } from "../../domain/repositories/EvaluationSheetRepository";
 import { EvaluationAllocatedScores } from "../../domain/valueObjects/EvaluationAllocatedScores";
 import { EvaluationScoreTotals } from "../../domain/valueObjects/EvaluationScoreTotals";
+import { EvaluationStatus } from "../../domain/valueObjects/EvaluationStatus";
 import { FinalEvaluationRank } from "../../domain/valueObjects/FinalEvaluationRank";
 import { supabase } from "../db/supabase";
 
@@ -22,7 +23,6 @@ interface MilestoneRow {
 	achievement: string | null;
 	first_score: number | null;
 	second_score: number | null;
-	is_editable: boolean | null;
 }
 
 interface PeriodJoinRow {
@@ -160,7 +160,6 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 						achievement: item.achievement ?? "",
 						firstScore: item.first_score ?? 0,
 						secondScore: item.second_score ?? 0,
-						isEditable: item.is_editable ?? false,
 					}),
 				) ?? [];
 
@@ -224,6 +223,7 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 						totalEvaluationScore: sheet.total_evaluation_score,
 					})
 				: undefined,
+			status: EvaluationStatus.from(sheet.status),
 			finalEvaluationRank: FinalEvaluationRank.fromOptional(
 				sheet.final_rank_letter,
 				sheet.final_rank_level,
@@ -307,6 +307,24 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 		const { error } = await supabase
 			.from("evaluation_sheets")
 			.update({ [column]: comment })
+			.eq("id", sheetId);
+
+		if (error) {
+			throw error;
+		}
+
+		const updated = await this.findById(sheetId);
+		if (!updated) {
+			throw new Error("Failed to load updated evaluation sheet.");
+		}
+
+		return updated;
+	}
+
+	async updateStatus(sheetId: number, status: EvaluationStatus): Promise<EvaluationSheet> {
+		const { error } = await supabase
+			.from("evaluation_sheets")
+			.update({ status: status.toString() })
 			.eq("id", sheetId);
 
 		if (error) {
@@ -484,7 +502,6 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 					achievement: item.achievement ?? "",
 					firstScore: item.first_score ?? 0,
 					secondScore: item.second_score ?? 0,
-					isEditable: item.is_editable ?? false,
 				}),
 			) ?? [];
 

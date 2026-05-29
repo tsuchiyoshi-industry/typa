@@ -11,6 +11,7 @@ interface ChallengeEvaluationViewProps {
 	subject: EmployeeDto;
 	canEditFirst: boolean;
 	canEditSecond: boolean;
+	isEditable: boolean;
 	controller: ChallengeEvaluationController;
 	viewModel: () => ChallengeEvaluationViewModel;
 	onUpdated: () => void;
@@ -44,7 +45,6 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 						achievement: "",
 						firstScore: 0,
 						secondScore: 0,
-						isEditable: true,
 					},
 				],
 	);
@@ -234,9 +234,10 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 							</div>
 							<Show
 								when={
-									activeObjective()?.id !== 0 &&
-									(props.canEditFirst || props.canEditSecond) &&
-									!isScoreEditing()
+									(activeObjective()?.id !== 0 &&
+										(props.canEditFirst || props.canEditSecond) &&
+										!isScoreEditing()) ||
+									(activeObjective()?.id === 0 && props.isEditable && !isScoreEditing())
 								}
 							>
 								<button type="button" class="edit-toggle-button" onClick={startScoreEditing}>
@@ -244,11 +245,7 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 									評価更新
 								</button>
 							</Show>
-							<Show
-								when={
-									(activeObjective()?.isEditable || activeObjective()?.id === 0) && !isTextEditing()
-								}
-							>
+							<Show when={props.isEditable && !isTextEditing()}>
 								<button type="button" class="edit-toggle-button" onClick={startTextEditing}>
 									<SquarePen class="edit-icon" />
 									目標編集

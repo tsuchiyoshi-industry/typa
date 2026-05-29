@@ -60,6 +60,8 @@ export class FetchEvaluationSheetInteractor
 					commonEvaluationEvaluationScore: 0,
 					totalEvaluationScore: 0,
 				},
+				status: "draft",
+				isEditable: true,
 			});
 			return;
 		}
@@ -98,7 +100,6 @@ export class FetchEvaluationSheetInteractor
 				achievement: objective.achievement,
 				firstScore: objective.firstScore.toNumber(),
 				secondScore: objective.secondScore.toNumber(),
-				isEditable: objective.isEditable,
 			})),
 			objectiveScoreTotals: {
 				firstTotalScore: sheet.objectiveScoreTotals.firstTotalScore,
@@ -121,6 +122,8 @@ export class FetchEvaluationSheetInteractor
 				commonEvaluationEvaluationScore: sheet.allocatedScores.commonEvaluationEvaluationScore,
 				totalEvaluationScore: sheet.allocatedScores.totalEvaluationScore,
 			},
+			status: sheet.status.toString(),
+			isEditable: sheet.isEditable(),
 			finalEvaluationRank: sheet.finalEvaluationRank
 				? {
 						letter: sheet.finalEvaluationRank.letter,

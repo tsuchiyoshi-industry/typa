@@ -83,7 +83,6 @@ export class UpdateMilestoneInteractor
 				achievement: updated.achievement,
 				firstScore: updated.firstScore.toNumber(),
 				secondScore: updated.secondScore.toNumber(),
-				isEditable: updated.isEditable,
 			},
 		});
 	}

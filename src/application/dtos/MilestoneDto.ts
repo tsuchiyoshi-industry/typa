@@ -7,5 +7,4 @@ export interface MilestoneDto {
 	achievement: string;
 	firstScore: number;
 	secondScore: number;
-	isEditable: boolean;
 }

@@ -79,7 +79,6 @@ export class UpdateFinalEvaluationRankInteractor
 					achievement: objective.achievement,
 					firstScore: objective.firstScore.toNumber(),
 					secondScore: objective.secondScore.toNumber(),
-					isEditable: objective.isEditable,
 				})),
 				objectiveScoreTotals: {
 					firstTotalScore: updated.objectiveScoreTotals.firstTotalScore,
@@ -102,6 +101,8 @@ export class UpdateFinalEvaluationRankInteractor
 					commonEvaluationEvaluationScore: updated.allocatedScores.commonEvaluationEvaluationScore,
 					totalEvaluationScore: updated.allocatedScores.totalEvaluationScore,
 				},
+				status: updated.status.toString(),
+				isEditable: updated.isEditable(),
 				finalEvaluationRank: updated.finalEvaluationRank
 					? {
 							letter: updated.finalEvaluationRank.letter,

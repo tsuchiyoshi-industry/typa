@@ -1,27 +1,25 @@
 import type { EmployeeRepository } from "../../domain/repositories/EmployeeRepository";
 import type { EvaluationSheetRepository } from "../../domain/repositories/EvaluationSheetRepository";
+import { EvaluationStatus } from "../../domain/valueObjects/EvaluationStatus";
 import type { EvaluationSheetDto } from "../dtos/EvaluationSheetDto";
 import type { OutputPort } from "../ports/OutputPort";
 import type { UseCase } from "../ports/UseCase";
 
-export type OverallCommentTarget = "first" | "second";
-
-export interface UpdateOverallCommentRequest {
+export interface UpdateEvaluationStatusRequest {
 	sheetId: number;
-	target: OverallCommentTarget;
-	comment: string;
-	canEditFirst: boolean;
-	canEditSecond: boolean;
+	status: "draft" | "submitted";
+	currentEmployeeId: number;
 }
 
-export interface UpdateOverallCommentResponse {
+export interface UpdateEvaluationStatusResponse {
 	sheet: EvaluationSheetDto;
 }
 
-export interface UpdateOverallCommentOutputPort extends OutputPort<UpdateOverallCommentResponse> {}
+export interface UpdateEvaluationStatusOutputPort
+	extends OutputPort<UpdateEvaluationStatusResponse> {}
 
-export class UpdateOverallCommentInteractor
-	implements UseCase<UpdateOverallCommentRequest, UpdateOverallCommentOutputPort>
+export class UpdateEvaluationStatusInteractor
+	implements UseCase<UpdateEvaluationStatusRequest, UpdateEvaluationStatusOutputPort>
 {
 	constructor(
 		private readonly evaluationSheetRepository: EvaluationSheetRepository,
@@ -29,21 +27,22 @@ export class UpdateOverallCommentInteractor
 	) {}
 
 	async execute(
-		request: UpdateOverallCommentRequest,
-		outputPort: UpdateOverallCommentOutputPort,
+		request: UpdateEvaluationStatusRequest,
+		outputPort: UpdateEvaluationStatusOutputPort,
 	): Promise<void> {
-		if (request.target === "first" && !request.canEditFirst) {
-			throw new Error("一次評価者の総評を更新する権限がありません。");
-		}
-		if (request.target === "second" && !request.canEditSecond) {
-			throw new Error("二次評価者の総評を更新する権限がありません。");
+		// シートを取得して権限チェック
+		const sheet = await this.evaluationSheetRepository.findById(request.sheetId);
+		if (!sheet) {
+			throw new Error("評価シートが見つかりません。");
 		}
 
-		const updated = await this.evaluationSheetRepository.updateOverallComment(
-			request.sheetId,
-			request.target,
-			request.comment,
-		);
+		// 本人のシートのみ変更可能
+		if (sheet.subject.id !== request.currentEmployeeId) {
+			throw new Error("自分の評価シートのみステータスを変更できます。");
+		}
+
+		const newStatus = EvaluationStatus.from(request.status);
+		const updated = await this.evaluationSheetRepository.updateStatus(request.sheetId, newStatus);
 		const gradeName = await this.employeeRepository.findGradeName(updated.subject.gradeId);
 
 		outputPort.present({

@@ -11,7 +11,6 @@ interface MilestoneRow {
 	achievement: string | null;
 	first_score: number | null;
 	second_score: number | null;
-	is_editable: boolean | null;
 }
 
 export class SupabaseMilestoneRepository implements MilestoneRepository {
@@ -25,7 +24,6 @@ export class SupabaseMilestoneRepository implements MilestoneRepository {
 			achievement: item.achievement ?? "",
 			firstScore: item.first_score ?? 0,
 			secondScore: item.second_score ?? 0,
-			isEditable: item.is_editable ?? false,
 		});
 	}
 
@@ -98,7 +96,6 @@ export class SupabaseMilestoneRepository implements MilestoneRepository {
 				challenge_goal: challengeGoal,
 				midterm_goal: midtermGoal,
 				achievement,
-				is_editable: true,
 			})
 			.select("*")
 			.single();

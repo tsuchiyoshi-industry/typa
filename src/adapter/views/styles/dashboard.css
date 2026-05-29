@@ -1,5 +1,3 @@
-/* TYPA 人事考課 — ダッシュボード・一覧・シート編集・評価ブロック */
-
 /* ----- シェル & トップバー ----- */
 .dashboard-shell {
 	min-height: 100vh;
@@ -711,110 +709,131 @@
 
 .editor-management-header {
 	display: flex;
-	flex-wrap: wrap;
 	align-items: center;
-	justify-content: space-between;
-	gap: 1rem;
-	padding: 1rem 1.1rem;
-	background: var(--hr-surface);
+	gap: 0.5rem;
+	padding: 0.5rem 0.85rem;
+	background: var(--hr-bg-elevated);
 	border: 1px solid var(--hr-border);
-	border-radius: var(--hr-radius-md);
-	box-shadow: var(--hr-shadow);
-}
-
-.editor-management-title {
-	display: flex;
-	align-items: center;
-	gap: 0.75rem;
-	min-width: 220px;
+	border-radius: var(--hr-radius-sm);
 }
 
 .editor-management-icon {
-	width: 1.35rem;
-	height: 1.35rem;
+	width: 1rem;
+	height: 1rem;
 	flex-shrink: 0;
-	color: var(--hr-accent);
-}
-
-.editor-management-title h2 {
-	margin: 0;
-	font-size: 0.95rem;
-	font-weight: 600;
-	color: var(--hr-text);
-	letter-spacing: var(--hr-tracking);
-}
-
-.editor-management-title p {
-	margin: 0.15rem 0 0;
-	font-size: 0.78rem;
 	color: var(--hr-text-muted);
 }
 
-.subject-selector {
-	display: flex;
-	align-items: center;
-	gap: 0.65rem;
-	min-width: min(100%, 340px);
-}
-
-.subject-selector span {
-	flex-shrink: 0;
-	font-size: 0.75rem;
-	font-weight: 600;
-	color: var(--hr-text-muted);
-	text-transform: uppercase;
-	letter-spacing: 0.05em;
-}
-
-.subject-selector select {
-	width: 100%;
-	min-height: 2.45rem;
-	padding: 0.55rem 0.75rem;
+.editor-management-header .subject-select {
+	min-width: 200px;
+	padding: 0.35rem 0.6rem;
 	border-radius: var(--hr-radius-sm);
 	border: 1px solid var(--hr-border);
-	background: var(--hr-bg-elevated);
+	background: var(--hr-surface);
 	color: var(--hr-text);
+	font-size: 0.875rem;
 	cursor: pointer;
+	transition: all 0.15s ease;
 }
 
-.subject-selector select:focus {
+.editor-management-header .subject-select:hover:not(:disabled) {
+	border-color: var(--hr-border-strong);
+}
+
+.editor-management-header .subject-select:focus {
 	outline: none;
 	border-color: var(--hr-accent);
-	box-shadow: 0 0 0 3px var(--hr-accent-muted);
+	box-shadow: 0 0 0 2px var(--hr-accent-muted);
 }
 
-.subject-selector select:disabled {
+.editor-management-header .subject-select:disabled {
 	opacity: 0.6;
 	cursor: wait;
 }
 
-.profile-cards {
-	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-	gap: 1rem;
-}
-
-.profile-card {
-	padding: 1.1rem 1.2rem;
+/* ----- シート情報カード ----- */
+.sheet-info-card {
 	background: var(--hr-surface);
 	border: 1px solid var(--hr-border);
 	border-radius: var(--hr-radius-md);
-	border-top: 3px solid var(--hr-accent);
+	padding: 1.5rem;
+	margin-bottom: 1.5rem;
 }
 
-.profile-card h3 {
-	margin: 0 0 0.65rem;
-	font-size: 0.7rem;
+.info-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+	gap: 2rem;
+}
+
+.info-item {
+	display: flex;
+	gap: 1rem;
+	align-items: flex-start;
+}
+
+.info-icon {
+	width: 1.25rem;
+	height: 1.25rem;
+	color: var(--hr-text-muted);
+	flex-shrink: 0;
+	margin-top: 0.125rem;
+}
+
+.info-content {
+	display: flex;
+	flex-direction: column;
+	gap: 0.25rem;
+	min-width: 0;
+}
+
+.info-label {
+	font-size: 0.6875rem;
 	font-weight: 600;
 	text-transform: uppercase;
-	letter-spacing: 0.08em;
+	letter-spacing: 0.05em;
 	color: var(--hr-text-muted);
 }
 
-.profile-card p {
-	margin: 0.25rem 0;
-	font-size: 0.875rem;
+.info-value {
+	font-size: 0.9375rem;
+	font-weight: 600;
 	color: var(--hr-text);
+	line-height: 1.4;
+}
+
+.info-meta {
+	font-size: 0.8125rem;
+	color: var(--hr-text-muted);
+	line-height: 1.4;
+}
+
+.evaluator-list {
+	display: flex;
+	gap: 1rem;
+	flex-wrap: wrap;
+}
+
+.evaluator-item {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.5rem;
+	font-size: 0.875rem;
+	font-weight: 500;
+	color: var(--hr-text);
+}
+
+.evaluator-badge {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0.125rem 0.5rem;
+	font-size: 0.6875rem;
+	font-weight: 600;
+	color: var(--hr-text-muted);
+	background: var(--hr-bg-elevated);
+	border: 1px solid var(--hr-border);
+	border-radius: 0.25rem;
 }
 
 .final-rank-panel {
@@ -1358,5 +1377,153 @@
 		display: block;
 		overflow-x: auto;
 		-webkit-overflow-scrolling: touch;
+	}
+}
+
+/* ----- ステータス切り替え（コンパクト版） ----- */
+.status-toggle-compact {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.5rem;
+	margin-left: auto;
+}
+
+.status-badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.375rem;
+	padding: 0.375rem 0.75rem;
+	border-radius: 9999px;
+	font-size: 0.8125rem;
+	font-weight: 500;
+	border: 1px solid;
+	transition: all 0.2s ease;
+}
+
+.status-badge.draft {
+	background: var(--hr-bg-elevated);
+	color: var(--hr-text-muted);
+	border-color: var(--hr-border);
+}
+
+.status-badge.submitted {
+	background: rgba(34, 197, 94, 0.1);
+	color: rgb(22, 163, 74);
+	border-color: rgba(34, 197, 94, 0.3);
+}
+
+.status-badge .status-icon {
+	width: 0.875rem;
+	height: 0.875rem;
+	flex-shrink: 0;
+}
+
+.status-badge .status-text {
+	line-height: 1;
+}
+
+.status-toggle-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.375rem;
+	padding: 0.375rem 0.875rem;
+	font-size: 0.8125rem;
+	font-weight: 500;
+	border-radius: var(--hr-radius-sm);
+	border: 1px solid;
+	cursor: pointer;
+	transition: all 0.2s ease;
+	line-height: 1;
+	white-space: nowrap;
+}
+
+.status-toggle-btn .btn-icon {
+	width: 0.875rem;
+	height: 0.875rem;
+	flex-shrink: 0;
+}
+
+.status-toggle-btn.submit {
+	background: var(--hr-primary);
+	color: white;
+	border-color: var(--hr-primary);
+}
+
+.status-toggle-btn.submit:hover:not(:disabled) {
+	background: var(--hr-primary-hover);
+	border-color: var(--hr-primary-hover);
+	transform: translateY(-1px);
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.status-toggle-btn.draft {
+	background: var(--hr-surface);
+	color: var(--hr-text);
+	border-color: var(--hr-border-strong);
+}
+
+.status-toggle-btn.draft:hover:not(:disabled) {
+	background: var(--hr-surface-hover);
+	border-color: var(--hr-border-strong);
+	transform: translateY(-1px);
+}
+
+.status-toggle-btn:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+	transform: none;
+}
+
+.status-error {
+	position: absolute;
+	top: 100%;
+	right: 0;
+	margin-top: 0.5rem;
+	padding: 0.5rem 0.75rem;
+	background: rgba(239, 68, 68, 0.1);
+	color: rgb(220, 38, 38);
+	border: 1px solid rgba(239, 68, 68, 0.3);
+	border-radius: var(--hr-radius-sm);
+	font-size: 0.75rem;
+	white-space: nowrap;
+	z-index: 10;
+}
+
+/* ヘッダー内のステータストグル配置調整 */
+.dashboard-header h1 {
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+	position: relative;
+	width: 100%;
+	flex-wrap: wrap;
+}
+
+/* ヘッダー内のEditorManagementHeader */
+.dashboard-header .editor-management-header {
+	flex: 1;
+	min-width: 300px;
+	margin: 0;
+	padding: 0.75rem 1rem;
+}
+
+.dashboard-header .editor-management-title {
+	min-width: auto;
+}
+
+.dashboard-header .subject-selector {
+	min-width: min(100%, 280px);
+}
+
+@media (max-width: 768px) {
+	.dashboard-header h1 {
+		gap: 0.5rem;
+	}
+
+	.dashboard-header .editor-management-header {
+		flex-basis: 100%;
+		order: 3;
+		margin-top: 0.5rem;
 	}
 }

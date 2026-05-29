@@ -1,5 +1,5 @@
 import { useNavigate, useParams } from "@solidjs/router";
-import { Award, CalendarDays, FileText, Users } from "lucide-solid";
+import { Award, CalendarDays, FileText, User, Users } from "lucide-solid";
 import { type Component, createEffect, createMemo, createSignal, For, Show } from "solid-js";
 import type { SheetSummaryDto } from "../../application/dtos/SheetListDto";
 import {
@@ -15,6 +15,7 @@ import type { CommonEvaluationViewModel } from "../presenters/CommonEvaluationPr
 import type { SheetEditorViewModel } from "../presenters/SheetEditorPresenter";
 import ChallengeEvaluationView from "./components/ChallengeEvaluationView";
 import CommonEvaluationView from "./components/CommonEvaluationView";
+import EvaluationStatusToggle from "./components/EvaluationStatusToggle";
 import OverallCommentSection from "./components/OverallCommentSectionView";
 
 interface SheetEditorViewProps {
@@ -106,6 +107,13 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 		}
 	};
 
+	const handleStatusChange = async (status: "draft" | "submitted") => {
+		const success = await props.controller.updateStatus(status);
+		if (success) {
+			reloadCurrentSheetFromRoute();
+		}
+	};
+
 	const toSubjectOption = (sheet: SheetSummaryDto) => ({
 		sheetId: sheet.id,
 		periodId: sheet.periodId,
@@ -136,93 +144,144 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 		dedupeSubjectOptions(viewModel().accessibleSheets.subordinateSheets),
 	);
 
+	const isOwner = createMemo(() => {
+		const currentSheet = sheet();
+		if (!currentSheet?.subject) {
+			return false;
+		}
+		// 自分のシートかどうかを判定（mySubjectOptionsに含まれているか）
+		return mySubjectOptions().some((option) => option.sheetId === currentSheet.sheetId);
+	});
+
 	const formatSubjectOption = (name: string, employeeNo: string) => `${name}（${employeeNo}）`;
 
+	// 数値版のIDを用意（比較やAPI呼び出しに利用）
+	const numericId = createMemo(() => Number(idParam()));
+
+	// --- handleSubjectChange の修正 ---
 	const handleSubjectChange = (selectedSheetId: number) => {
 		const currentSheet = sheet();
-		if (!currentSheet?.subject || selectedSheetId === currentSheet.sheetId) {
+		// 型が一致するのでエラーが出なくなり、ロジックも正確になります
+		if (!currentSheet?.subject || selectedSheetId === numericId()) {
 			return;
 		}
 
 		navigate(`/sheet/${selectedSheetId}`);
 	};
 
-	const EditorManagementHeader = () => (
-		<section class="editor-management-header">
-			<div class="editor-management-title">
+	const EditorManagementHeader = () => {
+		let selectRef: HTMLSelectElement | undefined;
+
+		const isCurrentIdInList = createMemo(() => {
+			const id = idParam();
+			return (
+				mySubjectOptions().some((o) => String(o.sheetId) === id) ||
+				subordinateSubjectOptions().some((o) => String(o.sheetId) === id)
+			);
+		});
+
+		// optionリストが変わった後、命令的にvalueを強制セット
+		createEffect(() => {
+			const id = idParam();
+			// isCurrentIdInList()を購読して、option追加後に再実行させる
+			isCurrentIdInList();
+			mySubjectOptions();
+			subordinateSubjectOptions();
+
+			if (selectRef) {
+				selectRef.value = id;
+			}
+		});
+
+		return (
+			<div class="editor-management-header">
 				<Users class="editor-management-icon" />
-				<div>
-					<h2>表示対象社員</h2>
-					<p>{sheet()?.evaluationPeriod?.periodName ?? "評価期間未設定"}</p>
-				</div>
-			</div>
-			<label class="subject-selector" for="subject-select">
-				<span>社員</span>
 				<select
+					ref={selectRef}
 					id="subject-select"
-					value={String(sheetId() ?? "")}
-					disabled={viewModel().loadingAccessibleSheets}
+					class="subject-select"
+					disabled={viewModel().loadingAccessibleSheets || viewModel().loadingSheet}
 					onChange={(event) => handleSubjectChange(Number(event.currentTarget.value))}
 				>
 					<Show when={mySubjectOptions().length > 0}>
 						<option disabled>自分</option>
 						<For each={mySubjectOptions()}>
 							{(item) => (
-								<option value={item.sheetId}>
+								<option value={String(item.sheetId)}>
 									{formatSubjectOption(item.employeeName, item.employeeNo)}
 								</option>
 							)}
 						</For>
 					</Show>
+
 					<Show when={subordinateSubjectOptions().length > 0}>
 						<option disabled>──────────</option>
 						<option disabled>部下</option>
 						<For each={subordinateSubjectOptions()}>
 							{(item) => (
-								<option value={item.sheetId}>
+								<option value={String(item.sheetId)}>
 									{formatSubjectOption(item.employeeName, item.employeeNo)}
 								</option>
 							)}
 						</For>
 					</Show>
-					<Show
-						when={
-							mySubjectOptions().length === 0 &&
-							subordinateSubjectOptions().length === 0 &&
-							sheet()?.subject
-						}
-					>
-						<option value={sheetId() ?? ""}>
-							{formatSubjectOption(
-								sheet()?.subject?.name ?? "未設定",
-								sheet()?.subject?.employeeNo ?? "未設定",
-							)}
+
+					<Show when={!isCurrentIdInList()}>
+						<option value={idParam()}>
+							{(() => {
+								const currentSheet = sheet();
+								const subject = currentSheet?.subject;
+								return subject
+									? formatSubjectOption(subject.name, subject.employeeNo)
+									: "読み込み中...";
+							})()}
 						</option>
 					</Show>
 				</select>
-			</label>
-		</section>
-	);
+			</div>
+		);
+	};
 
 	const ProfileCards = () => (
-		<section class="profile-cards">
-			<div class="profile-card">
-				<h3>評価対象者</h3>
-				<p>{sheet()?.subject?.name ?? "未設定"}</p>
-				<p>社員番号: {sheet()?.subject?.employeeNo ?? "未設定"}</p>
-				<p>等級: {sheet()?.subject?.gradeName ?? "未設定"}</p>
-			</div>
-			<div class="profile-card">
-				<h3>評価期間</h3>
-				<p>{sheet()?.evaluationPeriod?.periodName ?? "未設定"}</p>
-				<p>
-					{sheet()?.evaluationPeriod?.startDate ?? ""} - {sheet()?.evaluationPeriod?.endDate ?? ""}
-				</p>
-			</div>
-			<div class="profile-card">
-				<h3>評価者</h3>
-				<p>一次評価: {sheet()?.primaryEvaluator ?? "未設定"}</p>
-				<p>二次評価: {sheet()?.secondaryEvaluator ?? "未設定"}</p>
+		<section class="sheet-info-card">
+			<div class="info-grid">
+				<div class="info-item">
+					<User class="info-icon" />
+					<div class="info-content">
+						<span class="info-label">評価対象者</span>
+						<span class="info-value">{sheet()?.subject?.name ?? "—"}</span>
+						<span class="info-meta">
+							{sheet()?.subject?.employeeNo ?? "—"} / {sheet()?.subject?.gradeName ?? "—"}
+						</span>
+					</div>
+				</div>
+				<div class="info-item">
+					<CalendarDays class="info-icon" />
+					<div class="info-content">
+						<span class="info-label">評価期間</span>
+						<span class="info-value">{sheet()?.evaluationPeriod?.periodName ?? "—"}</span>
+						<span class="info-meta">
+							{sheet()?.evaluationPeriod?.startDate ?? "—"} 〜{" "}
+							{sheet()?.evaluationPeriod?.endDate ?? "—"}
+						</span>
+					</div>
+				</div>
+				<div class="info-item">
+					<Users class="info-icon" />
+					<div class="info-content">
+						<span class="info-label">評価者</span>
+						<div class="evaluator-list">
+							<span class="evaluator-item">
+								<span class="evaluator-badge">1次</span>
+								{sheet()?.primaryEvaluator ?? "—"}
+							</span>
+							<span class="evaluator-item">
+								<span class="evaluator-badge">2次</span>
+								{sheet()?.secondaryEvaluator ?? "—"}
+							</span>
+						</div>
+					</div>
+				</div>
 			</div>
 		</section>
 	);
@@ -272,7 +331,6 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 
 		return (
 			<>
-				<EditorManagementHeader />
 				<ProfileCards />
 				<FinalEvaluationRankSection />
 				<ChallengeEvaluationView
@@ -281,6 +339,7 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 					subject={currentSheet.subject}
 					canEditFirst={canEditFirst()}
 					canEditSecond={canEditSecond()}
+					isEditable={currentSheet.isEditable}
 					controller={props.challengeEvaluationController}
 					viewModel={props.challengeEvaluationViewModel}
 					onUpdated={reloadCurrentSheetFromRoute}
@@ -320,6 +379,16 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 				<h1>
 					<FileText class="header-icon" />
 					{isNew() ? "新規評価シート" : "評価シート"}
+					<Show when={!isNew() && sheet()}>
+						<EditorManagementHeader />
+						<EvaluationStatusToggle
+							status={sheet()?.status ?? "draft"}
+							isOwner={isOwner()}
+							updating={viewModel().updatingStatus}
+							updateError={viewModel().statusUpdateError}
+							onStatusChange={handleStatusChange}
+						/>
+					</Show>
 				</h1>
 			</header>
 

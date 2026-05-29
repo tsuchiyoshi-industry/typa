@@ -17,6 +17,10 @@ import type {
 	FetchEvaluationSheetResponse,
 } from "../../application/usecases/FetchEvaluationSheetInteractor";
 import type {
+	UpdateEvaluationStatusOutputPort,
+	UpdateEvaluationStatusResponse,
+} from "../../application/usecases/UpdateEvaluationStatusInteractor";
+import type {
 	UpdateFinalEvaluationRankOutputPort,
 	UpdateFinalEvaluationRankResponse,
 } from "../../application/usecases/UpdateFinalEvaluationRankInteractor";
@@ -38,6 +42,8 @@ export interface SheetEditorViewModel {
 	overallCommentUpdateError: string | null;
 	updatingFinalEvaluationRank: boolean;
 	finalEvaluationRankUpdateError: string | null;
+	updatingStatus: boolean;
+	statusUpdateError: string | null;
 	creating: boolean;
 	createdSheetId: number | null;
 	createError: string | null;
@@ -54,6 +60,7 @@ export function createSheetEditorPresenter(): {
 		accessibleSheets: FetchCategorizedSheetsOutputPort;
 		overallComment: UpdateOverallCommentOutputPort;
 		finalEvaluationRank: UpdateFinalEvaluationRankOutputPort;
+		status: UpdateEvaluationStatusOutputPort;
 	};
 	beginSheetLoad: () => void;
 	beginAccessibleSheetsLoad: () => void;
@@ -68,6 +75,8 @@ export function createSheetEditorPresenter(): {
 	presentOverallCommentUpdateError: (message: string) => void;
 	beginFinalEvaluationRankUpdate: () => void;
 	presentFinalEvaluationRankUpdateError: (message: string) => void;
+	beginStatusUpdate: () => void;
+	presentStatusUpdateError: (message: string) => void;
 } {
 	const [viewModel, setViewModel] = createSignal<SheetEditorViewModel>({
 		loadingSheet: true,
@@ -85,6 +94,8 @@ export function createSheetEditorPresenter(): {
 		overallCommentUpdateError: null,
 		updatingFinalEvaluationRank: false,
 		finalEvaluationRankUpdateError: null,
+		updatingStatus: false,
+		statusUpdateError: null,
 		creating: false,
 		createdSheetId: null,
 		createError: null,
@@ -171,6 +182,17 @@ export function createSheetEditorPresenter(): {
 		},
 	};
 
+	const statusOutputPort: UpdateEvaluationStatusOutputPort = {
+		present(response: UpdateEvaluationStatusResponse) {
+			setViewModel((prev) => ({
+				...prev,
+				sheet: response.sheet,
+				updatingStatus: false,
+				statusUpdateError: null,
+			}));
+		},
+	};
+
 	const presentSheetError = (message: string) => {
 		setViewModel((prev) => ({ ...prev, loadingSheet: false, fetchError: message }));
 	};
@@ -232,6 +254,22 @@ export function createSheetEditorPresenter(): {
 		}));
 	};
 
+	const beginStatusUpdate = () => {
+		setViewModel((prev) => ({
+			...prev,
+			updatingStatus: true,
+			statusUpdateError: null,
+		}));
+	};
+
+	const presentStatusUpdateError = (message: string) => {
+		setViewModel((prev) => ({
+			...prev,
+			updatingStatus: false,
+			statusUpdateError: message,
+		}));
+	};
+
 	const setSelectedPeriodId = (id: number | null) => {
 		setViewModel((prev) => ({ ...prev, selectedPeriodId: id }));
 	};
@@ -275,6 +313,7 @@ export function createSheetEditorPresenter(): {
 			accessibleSheets: accessibleSheetsOutputPort,
 			overallComment: overallCommentOutputPort,
 			finalEvaluationRank: finalEvaluationRankOutputPort,
+			status: statusOutputPort,
 		},
 		beginSheetLoad,
 		beginAccessibleSheetsLoad,
@@ -289,5 +328,7 @@ export function createSheetEditorPresenter(): {
 		presentOverallCommentUpdateError,
 		beginFinalEvaluationRankUpdate,
 		presentFinalEvaluationRankUpdateError,
+		beginStatusUpdate,
+		presentStatusUpdateError,
 	};
 }

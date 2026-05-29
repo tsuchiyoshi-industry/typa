@@ -10,6 +10,7 @@ type LoginViewProps = {
 	onRegistrationLinked?: () => Promise<void> | void;
 };
 
+//FIXME: パスワードが６文字以上大文字・小文字・数字を含むということをユーザーに伝える必要があるかも（サインアップの失敗理由がわからない）
 const LoginView = (props: LoginViewProps) => {
 	const navigate = useNavigate();
 	const [email, setEmail] = createSignal("");

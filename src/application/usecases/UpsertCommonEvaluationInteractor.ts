@@ -1,4 +1,4 @@
-import type { CommonEvaluationRepository } from "../../domain/repositories/CommonEvaluationRepository";
+import type { EvaluationScoreUpdateService } from "../../domain/services/EvaluationScoreUpdateService";
 import type { OutputPort } from "../ports/OutputPort";
 import type { UseCase } from "../ports/UseCase";
 
@@ -26,13 +26,13 @@ export interface UpsertCommonEvaluationOutputPort
 export class UpsertCommonEvaluationInteractor
 	implements UseCase<UpsertCommonEvaluationRequest, UpsertCommonEvaluationOutputPort>
 {
-	constructor(private readonly commonEvaluationRepository: CommonEvaluationRepository) {}
+	constructor(private readonly evaluationScoreUpdateService: EvaluationScoreUpdateService) {}
 
 	async execute(
 		request: UpsertCommonEvaluationRequest,
 		outputPort: UpsertCommonEvaluationOutputPort,
 	): Promise<void> {
-		await this.commonEvaluationRepository.upsertResults(
+		await this.evaluationScoreUpdateService.upsertCommonEvaluationResults(
 			request.sheetId,
 			request.results,
 			request.canEditFirst,

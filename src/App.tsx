@@ -29,9 +29,11 @@ import { FetchEvaluationSheetInteractor } from "./application/usecases/FetchEval
 import { LoadCommonEvaluationInteractor } from "./application/usecases/LoadCommonEvaluationInteractor";
 import { LoadEmployeeMasterInteractor } from "./application/usecases/LoadEmployeeMasterInteractor";
 import { UpdateEmployeeEvaluatorInteractor } from "./application/usecases/UpdateEmployeeEvaluatorInteractor";
+import { UpdateFinalEvaluationRankInteractor } from "./application/usecases/UpdateFinalEvaluationRankInteractor";
 import { UpdateMilestoneInteractor } from "./application/usecases/UpdateMilestoneInteractor";
 import { UpdateOverallCommentInteractor } from "./application/usecases/UpdateOverallCommentInteractor";
 import { UpsertCommonEvaluationInteractor } from "./application/usecases/UpsertCommonEvaluationInteractor";
+import { EvaluationScoreUpdateService } from "./domain/services/EvaluationScoreUpdateService";
 import { supabase } from "./infrastructure/db/supabase";
 import { SupabaseCommonEvaluationRepository } from "./infrastructure/repositories/SupabaseCommonEvaluationRepository";
 import { SupabaseEmployeeMasterRepository } from "./infrastructure/repositories/SupabaseEmployeeMasterRepository";
@@ -49,6 +51,11 @@ const evaluationSheetRepository = new SupabaseEvaluationSheetRepository(
 const evaluationPeriodRepository = new SupabaseEvaluationPeriodRepository();
 const milestoneRepository = new SupabaseMilestoneRepository();
 const employeeMasterRepository = new SupabaseEmployeeMasterRepository();
+const evaluationScoreUpdateService = new EvaluationScoreUpdateService(
+	evaluationSheetRepository,
+	milestoneRepository,
+	commonEvaluationRepository,
+);
 
 const fetchCategorizedSheetsUseCase = new FetchCategorizedSheetsInteractor(
 	employeeRepository,
@@ -66,10 +73,17 @@ const createEvaluationSheetUseCase = new CreateEvaluationSheetInteractor(
 const checkEvaluatorRoleUseCase = new CheckEvaluatorRoleInteractor(employeeRepository);
 const loadCommonEvaluationUseCase = new LoadCommonEvaluationInteractor(commonEvaluationRepository);
 const upsertCommonEvaluationUseCase = new UpsertCommonEvaluationInteractor(
-	commonEvaluationRepository,
+	evaluationScoreUpdateService,
 );
-const updateMilestoneUseCase = new UpdateMilestoneInteractor(milestoneRepository);
+const updateMilestoneUseCase = new UpdateMilestoneInteractor(
+	milestoneRepository,
+	evaluationScoreUpdateService,
+);
 const updateOverallCommentUseCase = new UpdateOverallCommentInteractor(
+	evaluationSheetRepository,
+	employeeRepository,
+);
+const updateFinalEvaluationRankUseCase = new UpdateFinalEvaluationRankInteractor(
 	evaluationSheetRepository,
 	employeeRepository,
 );
@@ -100,6 +114,7 @@ const sheetEditorController = new SheetEditorController(
 	checkEvaluatorRoleUseCase,
 	fetchCategorizedSheetsUseCase,
 	updateOverallCommentUseCase,
+	updateFinalEvaluationRankUseCase,
 	sheetEditorPresenter,
 	employeeRepository,
 );

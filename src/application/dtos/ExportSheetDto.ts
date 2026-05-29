@@ -23,6 +23,14 @@ export interface SheetExportDataDto {
 	secondaryEvaluator: string;
 	status: string;
 	totalScore: number;
+	finalEvaluationRank: string;
+	objectiveAllocationScore: number;
+	objectiveSecondRate: number;
+	objectiveEvaluationScore: number;
+	commonEvaluationAllocationScore: number;
+	commonEvaluationSecondRate: number;
+	commonEvaluationEvaluationScore: number;
+	totalEvaluationScore: number;
 	firstOverallComment: string;
 	secondOverallComment: string;
 	objectives: {

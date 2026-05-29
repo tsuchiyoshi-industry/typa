@@ -817,6 +817,65 @@
 	color: var(--hr-text);
 }
 
+.final-rank-panel {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+	padding: 1rem 1.1rem;
+	background: var(--hr-surface);
+	border: 1px solid var(--hr-border);
+	border-radius: var(--hr-radius-md);
+	box-shadow: var(--hr-shadow);
+}
+
+.final-rank-panel__title {
+	display: flex;
+	align-items: center;
+	gap: 0.7rem;
+}
+
+.final-rank-panel__title h2 {
+	margin: 0;
+	font-size: 0.95rem;
+	font-weight: 600;
+	color: var(--hr-text);
+	letter-spacing: var(--hr-tracking);
+}
+
+.final-rank-panel__title p {
+	margin: 0.1rem 0 0;
+	font-size: 0.76rem;
+	color: var(--hr-text-muted);
+}
+
+.final-rank-selector {
+	min-width: min(100%, 220px);
+}
+
+.final-rank-selector select {
+	width: 100%;
+	min-height: 2.45rem;
+	padding: 0.55rem 0.75rem;
+	border-radius: var(--hr-radius-sm);
+	border: 1px solid var(--hr-border);
+	background: var(--hr-bg-elevated);
+	color: var(--hr-text);
+	cursor: pointer;
+}
+
+.final-rank-selector select:focus {
+	outline: none;
+	border-color: var(--hr-accent);
+	box-shadow: 0 0 0 3px var(--hr-accent-muted);
+}
+
+.final-rank-panel > .error-message {
+	flex-basis: 100%;
+	margin: 0;
+}
+
 /* ----- チャレンジ目標評価 ----- */
 .challenge-card {
 	background: var(--hr-surface);

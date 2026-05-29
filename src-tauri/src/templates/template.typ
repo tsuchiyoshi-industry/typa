@@ -1,159 +1,240 @@
 #import sys: inputs
 
-#let line = luma(95)
-#let pale = luma(242)
-#let header = luma(226)
+#let black = luma(0)
+#let grid-line = luma(0)
+#let sheet-green = rgb("#e2efda")
 #let muted = luma(115)
+#let red = rgb("#ff0000")
 
+#let blank = text(fill: muted)[]
 #let empty(value) = if value == "" {
-  text(fill: muted)[未記入]
+  blank
 } else {
   value
 }
 
-#let score(value) = {
+#let score(value) = if value == "未評価" {
+  text(fill: muted)[-]
+} else {
   value
 }
 
-#let section(title) = [
-  #v(1.1em)
-  #block(
-    width: 100%,
-    fill: header,
-    stroke: 0.7pt + line,
-    inset: (x: 7pt, y: 5pt),
-  )[
-    #text(size: 10.5pt, weight: "bold")[#title]
-  ]
-  #v(0.55em)
+#let red-score(value) = text(fill: red)[#score(value)]
+#let point(value) = [#value 点]
+#let rate(value) = [#value%]
+#let label(title) = text(size: 6pt, weight: "bold")[#title]
+#let title-cell(body) = table.cell(fill: black, align: center + horizon)[
+  #text(fill: white, size: 5.3pt, weight: "bold")[#body]
 ]
-
-#let label-cell(body) = {
-  set text(weight: "bold")
-  body
+#let green-cell(body) = table.cell(fill: sheet-green)[#body]
+#let centered(body) = table.cell(align: center + horizon)[#body]
+#let final-rank(value) = if value == "" {
+  text(fill: muted)[未決定]
+} else {
+  text(size: 10pt, weight: "bold")[#value]
 }
 
-#let note-box(title, body) = [
-  #text(size: 9.5pt, weight: "bold")[#title]
-  #v(0.25em)
-  #block(width: 100%, stroke: 0.55pt + line, inset: 6pt)[
-    #empty(body)
-  ]
-]
+#let score-summary-table() = {
+  table(
+    columns: (28mm, 16mm, 18mm, 22mm),
+    stroke: 0.45pt + grid-line,
+    inset: (x: 2.6pt, y: 2.5pt),
+    align: center + horizon,
+    table.cell(colspan: 4, fill: black, align: left)[
+      #text(fill: white, size: 5.8pt, weight: "bold")[評価集計欄]
+    ],
+    table.cell(rowspan: 2)[評価区分],
+    table.cell(rowspan: 2)[配分],
+    table.cell(colspan: 2)[上司評価],
+    [#text(size: 5pt)[獲得率(%)]],
+    [#text(size: 5pt)[評価点] #linebreak() #text(size: 4.3pt)[配点×獲得率]],
+    [チャレンジ目標評価],
+    [#point(inputs.objective_allocation_score)],
+    [#rate(inputs.objective_second_rate)],
+    [#point(inputs.objective_evaluation_score)],
+    [共通評価],
+    [#point(inputs.common_evaluation_allocation_score)],
+    [#rate(inputs.common_evaluation_second_rate)],
+    [#point(inputs.common_evaluation_evaluation_score)],
+    table.cell(colspan: 2)[評価点],
+    table.cell(colspan: 2)[#point(inputs.total_evaluation_score)],
+    table.cell(colspan: 2)[【二次評価者】最終評価ランク],
+    table.cell(colspan: 2, fill: sheet-green)[#final-rank(inputs.final_evaluation_rank)],
+  )
+}
 
-#set page(
-  paper: "a4",
-  margin: (top: 18mm, bottom: 16mm, left: 17mm, right: 17mm),
-  header: align(right)[#text(size: 7.5pt, fill: muted)[Sheet ID: #inputs.sheet_id]],
-  footer: context align(center)[#text(size: 7.5pt, fill: muted)[Page #counter(page).display()]],
-)
-#set text(size: 9pt, lang: "ja", font: ("Zen Antique Soft"))
-#set par(justify: true, leading: 0.58em)
-
-#align(center)[
-  #text(size: 15pt, weight: "bold")[人事考課評価シート]
-  #v(0.25em)
-  #text(size: 8pt, fill: muted)[評価期間: #inputs.period_start ～ #inputs.period_end]
-]
-
-#v(0.8em)
-
-#table(
-  columns: (22mm, 1fr, 24mm, 1fr, 22mm, 1fr),
-  stroke: 0.55pt + line,
-  inset: (x: 6pt, y: 5pt),
-  fill: (x, y) => if calc.even(x) { pale },
-  [#label-cell[氏名]], [#inputs.employee_name],
-  [#label-cell[社員番号]], [#inputs.employee_no],
-  [#label-cell[等級]], [#empty(inputs.grade_name)],
-  [#label-cell[評価期]], [#inputs.period_name],
-  [#label-cell[コース]], [#empty(inputs.career_course)],
-  [#label-cell[状態]], [#inputs.status],
-  [#label-cell[一次評価者]], [#inputs.primary_evaluator],
-  [#label-cell[二次評価者]], [#inputs.secondary_evaluator],
-  [#label-cell[総合点]], [#text(weight: "bold")[#inputs.total_score]],
-)
-
-#v(0.75em)
-
-#table(
-  columns: (1fr, 1fr, 1fr),
-  stroke: 0.55pt + line,
-  inset: (x: 6pt, y: 8pt),
-  align: center,
-  fill: (x, y) => if y == 0 { header },
-  [本人確認], [一次評価確認], [二次評価確認],
-  [ ], [ ], [ ],
-)
-
-#section[チャレンジ目標・マイルストーン]
-
-#if inputs.objectives.len() == 0 [
-  #block(width: 100%, stroke: 0.55pt + line, inset: 8pt)[
-    #text(fill: muted)[登録された目標はありません。]
-  ]
-] else [
-  #for obj in inputs.objectives [
-    #block(
-      width: 100%,
-      stroke: 0.7pt + line,
-      inset: 0pt,
-      breakable: true,
-    )[
-      #block(fill: pale, inset: (x: 6pt, y: 4pt), width: 100%)[
-        #text(weight: "bold")[目標 #obj.goal_number]
-      ]
-      #table(
-        columns: (28mm, 1fr),
-        stroke: 0.45pt + line,
-        inset: (x: 6pt, y: 5pt),
-        [#label-cell[チャレンジ目標]], [#empty(obj.challenge_goal)],
-        [#label-cell[中間目標]], [#empty(obj.midterm_goal)],
-        [#label-cell[達成状況]], [#empty(obj.achievement)],
-      )
-      #table(
-        columns: (28mm, 1fr, 28mm, 1fr),
-        stroke: 0.45pt + line,
-        inset: (x: 6pt, y: 5pt),
-        fill: (x, y) => if calc.even(x) { pale },
-        [#label-cell[一次評価]], [#score(obj.self_score)],
-        [#label-cell[二次評価]], [#score(obj.evaluator_score)],
-      )
-    ]
-    #v(0.65em)
-  ]
-]
-
-#section[役職共通評価]
-
-#if inputs.common_evaluations.len() == 0 [
-  #block(width: 100%, stroke: 0.55pt + line, inset: 8pt)[
-    #text(fill: muted)[対象となる共通評価項目はありません。]
-  ]
-] else [
+#let profile-tables() = [
+  #text(size: 10pt, weight: "bold")[□評価シート]
+  #v(2pt)
   #table(
-    columns: (22mm, 1.35fr, 2fr, 13mm, 16mm, 16mm, 2fr),
-    stroke: 0.45pt + line,
-    inset: (x: 4pt, y: 4.5pt),
-    fill: (x, y) => if y == 0 { header } else if calc.odd(y) { luma(250) },
-    [区分], [評価項目], [評価観点], [配点], [一次], [二次], [一次評価者コメント],
-    ..inputs.common_evaluations.map(item => (
-      [共通],
-      [#item.item_name],
-      [#item.item_description],
-      [#item.weight],
-      [#score(item.self_score)],
-      [#score(item.evaluator_score)],
-      [#empty(item.self_comment)],
-    )).flatten()
+    columns: (18mm, 18mm, 32mm),
+    stroke: 0.45pt + grid-line,
+    inset: (x: 3pt, y: 2.4pt),
+    align: center + horizon,
+    title-cell[コース区分],
+    title-cell[等級],
+    title-cell[評価対象期間],
+    green-cell(text(fill: red, weight: "bold")[#empty(inputs.career_course)]),
+    green-cell(text(fill: red, weight: "bold")[#empty(inputs.grade_name)]),
+    green-cell(text(fill: red, weight: "bold")[#inputs.period_start ～ #inputs.period_end]),
+  )
+  #v(8pt)
+  #table(
+    columns: (24mm, 34mm),
+    stroke: 0.45pt + grid-line,
+    inset: (x: 3pt, y: 2.4pt),
+    align: center + horizon,
+    title-cell[],
+    title-cell[氏名],
+    title-cell[評価対象者],
+    green-cell[#inputs.employee_name],
+    title-cell[一次評価者],
+    green-cell[#inputs.primary_evaluator],
+    title-cell[二次評価者],
+    green-cell[#inputs.secondary_evaluator],
   )
 ]
 
-#section[総評]
+#let section-title(title) = [
+  #v(5pt)
+  #label(title)
+  #v(1.5pt)
+]
+
+#let challenge-table() = {
+  table(
+    columns: (5mm, 50mm, 52mm, 52mm, 13mm, 13mm, 14mm),
+    stroke: 0.43pt + grid-line,
+    inset: (x: 2pt, y: 3pt),
+    align: horizon,
+    title-cell[no],
+    title-cell[(本人)チャレンジ目標],
+    title-cell[【本人】期中目標],
+    title-cell[【本人】期中取組んだこと、実績],
+    title-cell[配点],
+    title-cell(text(size: 4.7pt)[【一次評価者】 #linebreak() 上司評価]),
+    title-cell(text(size: 4.7pt)[【二次評価者】 #linebreak() 修正後評価]),
+    ..inputs.objectives.map(obj => (
+      centered[#obj.goal_number],
+      green-cell[#empty(obj.challenge_goal)],
+      green-cell[#empty(obj.midterm_goal)],
+      green-cell[#empty(obj.achievement)],
+      centered[1],
+      table.cell(fill: sheet-green, align: center + horizon)[#red-score(obj.self_score)],
+      table.cell(fill: sheet-green, align: center + horizon)[#red-score(obj.evaluator_score)],
+    )).flatten()
+  )
+}
+
+#let challenge-summary() = align(right)[
+  #table(
+    columns: (37mm, 13mm, 14mm),
+    stroke: 0.43pt + grid-line,
+    inset: (x: 2.2pt, y: 2pt),
+    align: center + horizon,
+    table.cell(colspan: 1, stroke: none)[評価合計点],
+    [#point(inputs.objective_allocation_score)],
+    [#point(inputs.objective_evaluation_score)],
+    table.cell(colspan: 1, stroke: none)[獲得率（評価合計点÷満点）],
+    [100%],
+    [#rate(inputs.objective_second_rate)],
+  )
+]
+
+#let common-table() = {
+  table(
+    columns: (5mm, 23mm, 66mm, 66mm, 13mm, 13mm, 14mm),
+    stroke: 0.43pt + grid-line,
+    inset: (x: 2pt, y: 2.2pt),
+    align: horizon,
+    title-cell[no],
+    title-cell[評価項目],
+    title-cell[評価上の着眼点],
+    title-cell[【一次評価者】評価コメント],
+    title-cell[配点],
+    title-cell(text(size: 4.7pt)[【一次評価者】 #linebreak() 上司評価]),
+    title-cell(text(size: 4.7pt)[【二次評価者】 #linebreak() 修正後評価]),
+    ..range(inputs.common_evaluations.len()).map(index => {
+      let item = inputs.common_evaluations.at(index)
+      (
+        centered[#(index + 1)],
+        [#item.item_name],
+        [#item.item_description],
+        green-cell[#empty(item.self_comment)],
+        centered[#item.weight],
+        table.cell(fill: sheet-green, align: center + horizon)[#red-score(item.self_score)],
+        table.cell(fill: sheet-green, align: center + horizon)[#red-score(item.evaluator_score)],
+      )
+    }).flatten()
+  )
+}
+
+#let common-summary() = align(right)[
+  #table(
+    columns: (37mm, 13mm, 14mm),
+    stroke: 0.43pt + grid-line,
+    inset: (x: 2.2pt, y: 2pt),
+    align: center + horizon,
+    table.cell(colspan: 1, stroke: none)[評価合計点],
+    [#point(inputs.common_evaluation_allocation_score)],
+    [#point(inputs.common_evaluation_evaluation_score)],
+    table.cell(colspan: 1, stroke: none)[獲得率（評価合計点÷満点）],
+    [100%],
+    [#rate(inputs.common_evaluation_second_rate)],
+  )
+]
+
+#let comment-and-approval() = grid(
+  columns: (1fr, 28mm),
+  gutter: 10mm,
+  table(
+    columns: (1fr, 1fr),
+    stroke: 0.5pt + grid-line,
+    inset: (x: 3pt, y: 3pt),
+    title-cell[【一次評価者】コメント欄],
+    title-cell[【二次評価者】コメント欄],
+    table.cell(fill: sheet-green)[#block(width: 100%, height: 22mm)[#empty(inputs.first_overall_comment)]],
+    table.cell(fill: sheet-green)[#block(width: 100%, height: 22mm)[#empty(inputs.second_overall_comment)]],
+  ),
+  align(bottom)[
+    #table(
+      columns: (1fr, 1fr),
+      stroke: 0.45pt + grid-line,
+      inset: (x: 1.7pt, y: 1.6pt),
+      align: center + horizon,
+      table.cell(colspan: 2, fill: black)[
+        #text(fill: white, size: 5.3pt, weight: "bold")[承認欄]
+      ],
+      [一次評価者], [二次評価者],
+      [日　付], [日　付],
+      [月　日], [月　日],
+      table.cell(fill: sheet-green)[#block(width: 100%, height: 12mm)[]],
+      table.cell(fill: sheet-green)[#block(width: 100%, height: 12mm)[]],
+    )
+  ],
+)
+
+#set page(
+  paper: "a4",
+  margin: (top: 5mm, bottom: 5mm, left: 5mm, right: 5mm),
+)
+#set text(size: 5.7pt, lang: "ja", font: ("Zen Antique Soft"))
+#set par(justify: true, leading: 0.42em)
 
 #grid(
-  columns: (1fr, 1fr),
-  gutter: 8pt,
-  note-box("一次評価者 総評", inputs.first_overall_comment),
-  note-box("二次評価者 総評", inputs.second_overall_comment),
+  columns: (1fr, 84mm),
+  gutter: 8mm,
+  profile-tables(),
+  align(top + right)[#score-summary-table()],
 )
+
+#section-title[チャレンジ目標評価]
+#challenge-table()
+#challenge-summary()
+
+#section-title[共通評価]
+#common-table()
+#common-summary()
+
+#v(7pt)
+#comment-and-approval()

@@ -1,3 +1,6 @@
+import { EvaluationAllocatedScores } from "../valueObjects/EvaluationAllocatedScores";
+import { EvaluationScoreTotals } from "../valueObjects/EvaluationScoreTotals";
+import type { FinalEvaluationRank } from "../valueObjects/FinalEvaluationRank";
 import type { CommonEvaluationResult } from "./CommonEvaluationResult";
 import type { Employee } from "./Employee";
 import type { EvaluationPeriod } from "./EvaluationPeriod";
@@ -14,6 +17,10 @@ export class EvaluationSheet {
 		public readonly secondOverallComment: string,
 		public readonly objectives: Milestone[],
 		public readonly commonEvaluationResults: CommonEvaluationResult[],
+		public readonly objectiveScoreTotals: EvaluationScoreTotals,
+		public readonly commonEvaluationScoreTotals: EvaluationScoreTotals,
+		public readonly allocatedScores: EvaluationAllocatedScores,
+		public readonly finalEvaluationRank?: FinalEvaluationRank,
 	) {}
 
 	static create(params: {
@@ -26,7 +33,17 @@ export class EvaluationSheet {
 		secondOverallComment?: string;
 		objectives: Milestone[];
 		commonEvaluationResults?: CommonEvaluationResult[];
+		objectiveScoreTotals?: EvaluationScoreTotals;
+		commonEvaluationScoreTotals?: EvaluationScoreTotals;
+		allocatedScores?: EvaluationAllocatedScores;
+		finalEvaluationRank?: FinalEvaluationRank;
 	}): EvaluationSheet {
+		const commonEvaluationResults = params.commonEvaluationResults ?? [];
+		const objectiveScoreTotals =
+			params.objectiveScoreTotals ?? EvaluationScoreTotals.fromObjectives(params.objectives);
+		const commonEvaluationScoreTotals =
+			params.commonEvaluationScoreTotals ??
+			EvaluationScoreTotals.fromCommonEvaluationResults(commonEvaluationResults);
 		return new EvaluationSheet(
 			params.sheetId,
 			params.subject,
@@ -36,7 +53,12 @@ export class EvaluationSheet {
 			params.firstOverallComment ?? "",
 			params.secondOverallComment ?? "",
 			params.objectives,
-			params.commonEvaluationResults ?? [],
+			commonEvaluationResults,
+			objectiveScoreTotals,
+			commonEvaluationScoreTotals,
+			params.allocatedScores ??
+				EvaluationAllocatedScores.fromTotals(objectiveScoreTotals, commonEvaluationScoreTotals),
+			params.finalEvaluationRank,
 		);
 	}
 

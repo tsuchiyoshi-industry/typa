@@ -1,7 +1,12 @@
 import { useNavigate, useParams } from "@solidjs/router";
-import { CalendarDays, FileText, Users } from "lucide-solid";
+import { Award, CalendarDays, FileText, Users } from "lucide-solid";
 import { type Component, createEffect, createMemo, createSignal, For, Show } from "solid-js";
 import type { SheetSummaryDto } from "../../application/dtos/SheetListDto";
+import {
+	FINAL_EVALUATION_RANK_LETTERS,
+	FINAL_EVALUATION_RANK_LEVEL_SYMBOLS,
+	FINAL_EVALUATION_RANK_LEVELS,
+} from "../../domain/valueObjects/FinalEvaluationRank";
 import type { ChallengeEvaluationController } from "../controllers/ChallengeEvaluationController";
 import type { CommonEvaluationController } from "../controllers/CommonEvaluationController";
 import type { SheetEditorController } from "../controllers/SheetEditorController";
@@ -34,6 +39,23 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 	const canEditSecond = createMemo(() => viewModel().canEditSecond);
 	const [firstOverallDraft, setFirstOverallDraft] = createSignal("");
 	const [secondOverallDraft, setSecondOverallDraft] = createSignal("");
+	const finalRankOptions = createMemo(() =>
+		FINAL_EVALUATION_RANK_LETTERS.flatMap((letter) =>
+			FINAL_EVALUATION_RANK_LEVELS.map((level) => ({
+				letter,
+				level,
+				value: `${letter}|${level}`,
+				label: `${letter}${FINAL_EVALUATION_RANK_LEVEL_SYMBOLS[level]}`,
+			})),
+		),
+	);
+	const selectedFinalRankValue = createMemo(() => {
+		const finalEvaluationRank = sheet()?.finalEvaluationRank;
+		if (!finalEvaluationRank) {
+			return "";
+		}
+		return `${finalEvaluationRank.letter}|${finalEvaluationRank.level}`;
+	});
 
 	createEffect(() => {
 		if (isNew()) {
@@ -205,6 +227,43 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 		</section>
 	);
 
+	const FinalEvaluationRankSection = () => (
+		<Show when={canEditSecond()}>
+			<section class="final-rank-panel">
+				<div class="final-rank-panel__title">
+					<Award class="section-icon" />
+					<div>
+						<h2>最終評価ランク</h2>
+						<p>二次評価者決定</p>
+					</div>
+				</div>
+				<label class="final-rank-selector" for="final-rank-select">
+					<select
+						id="final-rank-select"
+						value={selectedFinalRankValue()}
+						disabled={viewModel().updatingFinalEvaluationRank}
+						onChange={(event) => {
+							const [letter, level] = event.currentTarget.value.split("|");
+							if (letter && level) {
+								void props.controller.decideFinalEvaluationRank(letter, level);
+							}
+						}}
+					>
+						<option value="" disabled>
+							未決定
+						</option>
+						<For each={finalRankOptions()}>
+							{(option) => <option value={option.value}>{option.label}</option>}
+						</For>
+					</select>
+				</label>
+				<Show when={viewModel().finalEvaluationRankUpdateError}>
+					<p class="error-message">{viewModel().finalEvaluationRankUpdateError}</p>
+				</Show>
+			</section>
+		</Show>
+	);
+
 	const renderSheetContent = () => {
 		const currentSheet = sheet();
 		if (currentSheet?.subject == null) {
@@ -215,6 +274,7 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 			<>
 				<EditorManagementHeader />
 				<ProfileCards />
+				<FinalEvaluationRankSection />
 				<ChallengeEvaluationView
 					sheetId={sheetId() ?? null}
 					objectives={currentSheet.objectives ?? []}

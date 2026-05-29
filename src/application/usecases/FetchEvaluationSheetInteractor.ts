@@ -1,5 +1,9 @@
 import type { EmployeeRepository } from "../../domain/repositories/EmployeeRepository";
 import type { EvaluationSheetRepository } from "../../domain/repositories/EvaluationSheetRepository";
+import {
+	COMMON_EVALUATION_ALLOCATION_SCORE,
+	OBJECTIVE_EVALUATION_ALLOCATION_SCORE,
+} from "../../domain/valueObjects/EvaluationAllocatedScores";
 import type { EvaluationSheetDto } from "../dtos/EvaluationSheetDto";
 import type { OutputPort } from "../ports/OutputPort";
 import type { UseCase } from "../ports/UseCase";
@@ -35,6 +39,27 @@ export class FetchEvaluationSheetInteractor
 				firstOverallComment: "",
 				secondOverallComment: "",
 				objectives: [],
+				objectiveScoreTotals: {
+					firstTotalScore: 0,
+					firstTotalRate: 0,
+					secondTotalScore: 0,
+					secondTotalRate: 0,
+				},
+				commonEvaluationScoreTotals: {
+					firstTotalScore: 0,
+					firstTotalRate: 0,
+					secondTotalScore: 0,
+					secondTotalRate: 0,
+				},
+				allocatedScores: {
+					objectiveAllocationScore: OBJECTIVE_EVALUATION_ALLOCATION_SCORE,
+					objectiveSecondRate: 0,
+					objectiveEvaluationScore: 0,
+					commonEvaluationAllocationScore: COMMON_EVALUATION_ALLOCATION_SCORE,
+					commonEvaluationSecondRate: 0,
+					commonEvaluationEvaluationScore: 0,
+					totalEvaluationScore: 0,
+				},
 			});
 			return;
 		}
@@ -75,6 +100,34 @@ export class FetchEvaluationSheetInteractor
 				secondScore: objective.secondScore.toNumber(),
 				isEditable: objective.isEditable,
 			})),
+			objectiveScoreTotals: {
+				firstTotalScore: sheet.objectiveScoreTotals.firstTotalScore,
+				firstTotalRate: sheet.objectiveScoreTotals.firstTotalRate,
+				secondTotalScore: sheet.objectiveScoreTotals.secondTotalScore,
+				secondTotalRate: sheet.objectiveScoreTotals.secondTotalRate,
+			},
+			commonEvaluationScoreTotals: {
+				firstTotalScore: sheet.commonEvaluationScoreTotals.firstTotalScore,
+				firstTotalRate: sheet.commonEvaluationScoreTotals.firstTotalRate,
+				secondTotalScore: sheet.commonEvaluationScoreTotals.secondTotalScore,
+				secondTotalRate: sheet.commonEvaluationScoreTotals.secondTotalRate,
+			},
+			allocatedScores: {
+				objectiveAllocationScore: sheet.allocatedScores.objectiveAllocationScore,
+				objectiveSecondRate: sheet.allocatedScores.objectiveSecondRate,
+				objectiveEvaluationScore: sheet.allocatedScores.objectiveEvaluationScore,
+				commonEvaluationAllocationScore: sheet.allocatedScores.commonEvaluationAllocationScore,
+				commonEvaluationSecondRate: sheet.allocatedScores.commonEvaluationSecondRate,
+				commonEvaluationEvaluationScore: sheet.allocatedScores.commonEvaluationEvaluationScore,
+				totalEvaluationScore: sheet.allocatedScores.totalEvaluationScore,
+			},
+			finalEvaluationRank: sheet.finalEvaluationRank
+				? {
+						letter: sheet.finalEvaluationRank.letter,
+						level: sheet.finalEvaluationRank.level,
+						displayText: sheet.finalEvaluationRank.toDisplayText(),
+					}
+				: undefined,
 		});
 	}
 }

@@ -8,6 +8,9 @@ import type {
 	EvaluationSheetRepository,
 	EvaluationSheetSummary,
 } from "../../domain/repositories/EvaluationSheetRepository";
+import { EvaluationAllocatedScores } from "../../domain/valueObjects/EvaluationAllocatedScores";
+import { EvaluationScoreTotals } from "../../domain/valueObjects/EvaluationScoreTotals";
+import { FinalEvaluationRank } from "../../domain/valueObjects/FinalEvaluationRank";
 import { supabase } from "../db/supabase";
 
 interface MilestoneRow {
@@ -89,6 +92,19 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 			total_score: number;
 			first_overall_comment: string | null;
 			second_overall_comment: string | null;
+			objectives_first_total_score?: number | null;
+			objectives_first_total_rate?: number | null;
+			objectives_second_total_score?: number | null;
+			objectives_second_total_rate?: number | null;
+			common_evaluation_first_total_score?: number | null;
+			common_evaluation_first_total_rate?: number | null;
+			common_evaluation_second_total_score?: number | null;
+			common_evaluation_second_total_rate?: number | null;
+			objectives_second_evaluation_score?: number | null;
+			common_evaluation_second_evaluation_score?: number | null;
+			total_evaluation_score?: number | null;
+			final_rank_letter?: string | null;
+			final_rank_level?: string | null;
 			created_at: string;
 			updated_at: string;
 		};
@@ -153,6 +169,40 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 			employee.gradeId ?? null,
 		);
 
+		const hasObjectiveTotals = [
+			sheet.objectives_first_total_score,
+			sheet.objectives_first_total_rate,
+			sheet.objectives_second_total_score,
+			sheet.objectives_second_total_rate,
+		].some((value) => value != null);
+		const hasCommonEvaluationTotals = [
+			sheet.common_evaluation_first_total_score,
+			sheet.common_evaluation_first_total_rate,
+			sheet.common_evaluation_second_total_score,
+			sheet.common_evaluation_second_total_rate,
+		].some((value) => value != null);
+		const hasAllocatedScores = [
+			sheet.objectives_second_evaluation_score,
+			sheet.common_evaluation_second_evaluation_score,
+			sheet.total_evaluation_score,
+		].some((value) => value != null);
+		const objectiveScoreTotals = hasObjectiveTotals
+			? EvaluationScoreTotals.fromValues({
+					firstTotalScore: sheet.objectives_first_total_score,
+					firstTotalRate: sheet.objectives_first_total_rate,
+					secondTotalScore: sheet.objectives_second_total_score,
+					secondTotalRate: sheet.objectives_second_total_rate,
+				})
+			: undefined;
+		const commonEvaluationScoreTotals = hasCommonEvaluationTotals
+			? EvaluationScoreTotals.fromValues({
+					firstTotalScore: sheet.common_evaluation_first_total_score,
+					firstTotalRate: sheet.common_evaluation_first_total_rate,
+					secondTotalScore: sheet.common_evaluation_second_total_score,
+					secondTotalRate: sheet.common_evaluation_second_total_rate,
+				})
+			: undefined;
+
 		return EvaluationSheet.create({
 			sheetId: sheet.id,
 			subject: employee,
@@ -163,7 +213,89 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 			secondOverallComment: sheet.second_overall_comment ?? "",
 			objectives,
 			commonEvaluationResults: results.results,
+			objectiveScoreTotals,
+			commonEvaluationScoreTotals,
+			allocatedScores: hasAllocatedScores
+				? EvaluationAllocatedScores.fromValues({
+						objectiveSecondRate: sheet.objectives_second_total_rate,
+						objectiveEvaluationScore: sheet.objectives_second_evaluation_score,
+						commonEvaluationSecondRate: sheet.common_evaluation_second_total_rate,
+						commonEvaluationEvaluationScore: sheet.common_evaluation_second_evaluation_score,
+						totalEvaluationScore: sheet.total_evaluation_score,
+					})
+				: undefined,
+			finalEvaluationRank: FinalEvaluationRank.fromOptional(
+				sheet.final_rank_letter,
+				sheet.final_rank_level,
+			),
 		});
+	}
+
+	async updateScoreTotals(
+		sheetId: number,
+		totals: {
+			objectives?: EvaluationScoreTotals;
+			commonEvaluationResults?: EvaluationScoreTotals;
+			allocatedScores?: EvaluationAllocatedScores;
+		},
+	): Promise<void> {
+		const payload: Record<string, number> = {};
+
+		if (totals.objectives) {
+			payload.objectives_first_total_score = totals.objectives.firstTotalScore;
+			payload.objectives_first_total_rate = totals.objectives.firstTotalRate;
+			payload.objectives_second_total_score = totals.objectives.secondTotalScore;
+			payload.objectives_second_total_rate = totals.objectives.secondTotalRate;
+		}
+
+		if (totals.commonEvaluationResults) {
+			payload.common_evaluation_first_total_score = totals.commonEvaluationResults.firstTotalScore;
+			payload.common_evaluation_first_total_rate = totals.commonEvaluationResults.firstTotalRate;
+			payload.common_evaluation_second_total_score =
+				totals.commonEvaluationResults.secondTotalScore;
+			payload.common_evaluation_second_total_rate = totals.commonEvaluationResults.secondTotalRate;
+		}
+
+		if (totals.allocatedScores) {
+			payload.objectives_second_evaluation_score = totals.allocatedScores.objectiveEvaluationScore;
+			payload.common_evaluation_second_evaluation_score =
+				totals.allocatedScores.commonEvaluationEvaluationScore;
+			payload.total_evaluation_score = totals.allocatedScores.totalEvaluationScore;
+		}
+
+		if (Object.keys(payload).length === 0) {
+			return;
+		}
+
+		const { error } = await supabase.from("evaluation_sheets").update(payload).eq("id", sheetId);
+
+		if (error) {
+			throw error;
+		}
+	}
+
+	async updateFinalEvaluationRank(
+		sheetId: number,
+		finalEvaluationRank: FinalEvaluationRank | undefined,
+	): Promise<EvaluationSheet> {
+		const { error } = await supabase
+			.from("evaluation_sheets")
+			.update({
+				final_rank_letter: finalEvaluationRank?.letter ?? null,
+				final_rank_level: finalEvaluationRank?.level ?? null,
+			})
+			.eq("id", sheetId);
+
+		if (error) {
+			throw error;
+		}
+
+		const updated = await this.findById(sheetId);
+		if (!updated) {
+			throw new Error("Failed to load updated evaluation sheet.");
+		}
+
+		return updated;
 	}
 
 	async updateOverallComment(
@@ -282,6 +414,13 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 				total_score,
 				first_overall_comment,
 				second_overall_comment,
+				objectives_second_total_rate,
+				common_evaluation_second_total_rate,
+				objectives_second_evaluation_score,
+				common_evaluation_second_evaluation_score,
+				total_evaluation_score,
+				final_rank_letter,
+				final_rank_level,
 				period:evaluation_periods!inner(period_name, start_date, end_date),
 				employee:employees!inner(name, employee_no, career_course, grade_id, primary_evaluator_id, secondary_evaluator_id)
 			`,
@@ -301,6 +440,13 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 			total_score: number;
 			first_overall_comment: string | null;
 			second_overall_comment: string | null;
+			objectives_second_total_rate?: number | null;
+			common_evaluation_second_total_rate?: number | null;
+			objectives_second_evaluation_score?: number | null;
+			common_evaluation_second_evaluation_score?: number | null;
+			total_evaluation_score?: number | null;
+			final_rank_letter?: string | null;
+			final_rank_level?: string | null;
 			period: PeriodJoinRow | PeriodJoinRow[];
 			employee: (EmployeeJoinRow & {
 				career_course: string | null;
@@ -327,16 +473,30 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 			.eq("sheet_id", sheetId)
 			.order("goal_number", { ascending: true });
 
-		const objectives =
-			milestonesData?.map((item: MilestoneRow) => ({
-				id: item.id,
-				goalNumber: item.goal_number,
-				challengeGoal: item.challenge_goal ?? "",
-				midtermGoal: item.midterm_goal ?? "",
-				achievement: item.achievement ?? "",
-				selfScore: item.first_score,
-				evaluatorScore: item.second_score,
-			})) ?? [];
+		const milestoneEntities =
+			(milestonesData as MilestoneRow[] | null)?.map((item) =>
+				Milestone.create({
+					id: item.id,
+					sheetId: item.sheet_id,
+					goalNumber: item.goal_number,
+					challengeGoal: item.challenge_goal ?? "",
+					midtermGoal: item.midterm_goal ?? "",
+					achievement: item.achievement ?? "",
+					firstScore: item.first_score ?? 0,
+					secondScore: item.second_score ?? 0,
+					isEditable: item.is_editable ?? false,
+				}),
+			) ?? [];
+
+		const objectives = milestoneEntities.map((item) => ({
+			id: item.id,
+			goalNumber: item.goalNumber,
+			challengeGoal: item.challengeGoal,
+			midtermGoal: item.midtermGoal,
+			achievement: item.achievement,
+			selfScore: item.firstScore.toNumber(),
+			evaluatorScore: item.secondScore.toNumber(),
+		}));
 
 		const commonEvaluationSummary = await this.commonEvaluationRepository.findResultsBySheetId(
 			sheetId,
@@ -351,6 +511,22 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 			selfComment: result.firstComment.toString(),
 			evaluatorComment: null,
 		}));
+		const objectiveTotals = EvaluationScoreTotals.fromObjectives(milestoneEntities);
+		const commonEvaluationTotals = EvaluationScoreTotals.fromCommonEvaluationResults(
+			commonEvaluationSummary.results,
+		);
+		const allocatedScores = EvaluationAllocatedScores.fromValues({
+			objectiveSecondRate: sheet.objectives_second_total_rate ?? objectiveTotals.secondTotalRate,
+			objectiveEvaluationScore: sheet.objectives_second_evaluation_score,
+			commonEvaluationSecondRate:
+				sheet.common_evaluation_second_total_rate ?? commonEvaluationTotals.secondTotalRate,
+			commonEvaluationEvaluationScore: sheet.common_evaluation_second_evaluation_score,
+			totalEvaluationScore: sheet.total_evaluation_score,
+		});
+		const finalEvaluationRank = FinalEvaluationRank.fromOptional(
+			sheet.final_rank_letter,
+			sheet.final_rank_level,
+		);
 
 		return {
 			sheetId: sheet.id,
@@ -365,6 +541,14 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 			secondaryEvaluator: evaluatorNames.secondaryEvaluator,
 			status: sheet.status,
 			totalScore: sheet.total_score,
+			finalEvaluationRank: finalEvaluationRank?.toDisplayText() ?? "",
+			objectiveAllocationScore: allocatedScores.objectiveAllocationScore,
+			objectiveSecondRate: allocatedScores.objectiveSecondRate,
+			objectiveEvaluationScore: allocatedScores.objectiveEvaluationScore,
+			commonEvaluationAllocationScore: allocatedScores.commonEvaluationAllocationScore,
+			commonEvaluationSecondRate: allocatedScores.commonEvaluationSecondRate,
+			commonEvaluationEvaluationScore: allocatedScores.commonEvaluationEvaluationScore,
+			totalEvaluationScore: allocatedScores.totalEvaluationScore,
 			firstOverallComment: sheet.first_overall_comment ?? "",
 			secondOverallComment: sheet.second_overall_comment ?? "",
 			objectives,

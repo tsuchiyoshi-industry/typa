@@ -1,4 +1,7 @@
 import type { EvaluationSheet } from "../entities/EvaluationSheet";
+import type { EvaluationAllocatedScores } from "../valueObjects/EvaluationAllocatedScores";
+import type { EvaluationScoreTotals } from "../valueObjects/EvaluationScoreTotals";
+import type { FinalEvaluationRank } from "../valueObjects/FinalEvaluationRank";
 
 export interface EvaluationSheetSummary {
 	id: number;
@@ -28,6 +31,14 @@ export interface EvaluationSheetExportData {
 	secondaryEvaluator: string;
 	status: string;
 	totalScore: number;
+	finalEvaluationRank: string;
+	objectiveAllocationScore: number;
+	objectiveSecondRate: number;
+	objectiveEvaluationScore: number;
+	commonEvaluationAllocationScore: number;
+	commonEvaluationSecondRate: number;
+	commonEvaluationEvaluationScore: number;
+	totalEvaluationScore: number;
 	firstOverallComment: string;
 	secondOverallComment: string;
 	objectives: {
@@ -53,6 +64,18 @@ export interface EvaluationSheetExportData {
 export interface EvaluationSheetRepository {
 	findById(sheetId: number): Promise<EvaluationSheet | null>;
 	createOrGetSheet(periodId: number, employeeId: number): Promise<number>;
+	updateScoreTotals(
+		sheetId: number,
+		totals: {
+			objectives?: EvaluationScoreTotals;
+			commonEvaluationResults?: EvaluationScoreTotals;
+			allocatedScores?: EvaluationAllocatedScores;
+		},
+	): Promise<void>;
+	updateFinalEvaluationRank(
+		sheetId: number,
+		finalEvaluationRank: FinalEvaluationRank | undefined,
+	): Promise<EvaluationSheet>;
 	updateOverallComment(
 		sheetId: number,
 		target: "first" | "second",

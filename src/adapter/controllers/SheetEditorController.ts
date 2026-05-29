@@ -20,6 +20,10 @@ import type {
 	FetchEvaluationSheetOutputPort,
 } from "../../application/usecases/FetchEvaluationSheetInteractor";
 import type {
+	UpdateFinalEvaluationRankInteractor,
+	UpdateFinalEvaluationRankOutputPort,
+} from "../../application/usecases/UpdateFinalEvaluationRankInteractor";
+import type {
 	OverallCommentTarget,
 	UpdateOverallCommentInteractor,
 	UpdateOverallCommentOutputPort,
@@ -35,6 +39,7 @@ export class SheetEditorController {
 		private readonly checkRoleUseCase: CheckEvaluatorRoleInteractor,
 		private readonly fetchAccessibleSheetsUseCase: FetchCategorizedSheetsInteractor,
 		private readonly updateOverallCommentUseCase: UpdateOverallCommentInteractor,
+		private readonly updateFinalEvaluationRankUseCase: UpdateFinalEvaluationRankInteractor,
 		private readonly presenter: {
 			viewModel: () => SheetEditorViewModel;
 			outputPort: {
@@ -44,6 +49,7 @@ export class SheetEditorController {
 				role: CheckEvaluatorRoleOutputPort;
 				accessibleSheets: FetchCategorizedSheetsOutputPort;
 				overallComment: UpdateOverallCommentOutputPort;
+				finalEvaluationRank: UpdateFinalEvaluationRankOutputPort;
 			};
 			beginSheetLoad: () => void;
 			beginAccessibleSheetsLoad: () => void;
@@ -55,6 +61,8 @@ export class SheetEditorController {
 			presentCreateError: (message: string) => void;
 			beginOverallCommentUpdate: () => void;
 			presentOverallCommentUpdateError: (message: string) => void;
+			beginFinalEvaluationRankUpdate: () => void;
+			presentFinalEvaluationRankUpdateError: (message: string) => void;
 		},
 		private readonly employeeRepository: EmployeeRepository,
 	) {}
@@ -139,6 +147,35 @@ export class SheetEditorController {
 		} catch (error) {
 			this.presenter.presentOverallCommentUpdateError(
 				error instanceof Error ? error.message : "総評の保存に失敗しました",
+			);
+			return false;
+		}
+	}
+
+	async decideFinalEvaluationRank(letter: string, level: string): Promise<boolean> {
+		const { sheet, canEditSecond } = this.presenter.viewModel();
+		if (!sheet?.sheetId) {
+			this.presenter.presentFinalEvaluationRankUpdateError(
+				"評価シートIDを取得できないため、最終評価ランクを保存できません。",
+			);
+			return false;
+		}
+
+		this.presenter.beginFinalEvaluationRankUpdate();
+		try {
+			await this.updateFinalEvaluationRankUseCase.execute(
+				{
+					sheetId: sheet.sheetId,
+					letter,
+					level,
+					canEditSecond,
+				},
+				this.presenter.outputPort.finalEvaluationRank,
+			);
+			return true;
+		} catch (error) {
+			this.presenter.presentFinalEvaluationRankUpdateError(
+				error instanceof Error ? error.message : "最終評価ランクの保存に失敗しました",
 			);
 			return false;
 		}

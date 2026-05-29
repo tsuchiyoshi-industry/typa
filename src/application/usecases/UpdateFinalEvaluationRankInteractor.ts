@@ -1,27 +1,26 @@
 import type { EmployeeRepository } from "../../domain/repositories/EmployeeRepository";
 import type { EvaluationSheetRepository } from "../../domain/repositories/EvaluationSheetRepository";
+import { FinalEvaluationRank } from "../../domain/valueObjects/FinalEvaluationRank";
 import type { EvaluationSheetDto } from "../dtos/EvaluationSheetDto";
 import type { OutputPort } from "../ports/OutputPort";
 import type { UseCase } from "../ports/UseCase";
 
-export type OverallCommentTarget = "first" | "second";
-
-export interface UpdateOverallCommentRequest {
+export interface UpdateFinalEvaluationRankRequest {
 	sheetId: number;
-	target: OverallCommentTarget;
-	comment: string;
-	canEditFirst: boolean;
+	letter?: string;
+	level?: string;
 	canEditSecond: boolean;
 }
 
-export interface UpdateOverallCommentResponse {
+export interface UpdateFinalEvaluationRankResponse {
 	sheet: EvaluationSheetDto;
 }
 
-export interface UpdateOverallCommentOutputPort extends OutputPort<UpdateOverallCommentResponse> {}
+export interface UpdateFinalEvaluationRankOutputPort
+	extends OutputPort<UpdateFinalEvaluationRankResponse> {}
 
-export class UpdateOverallCommentInteractor
-	implements UseCase<UpdateOverallCommentRequest, UpdateOverallCommentOutputPort>
+export class UpdateFinalEvaluationRankInteractor
+	implements UseCase<UpdateFinalEvaluationRankRequest, UpdateFinalEvaluationRankOutputPort>
 {
 	constructor(
 		private readonly evaluationSheetRepository: EvaluationSheetRepository,
@@ -29,20 +28,20 @@ export class UpdateOverallCommentInteractor
 	) {}
 
 	async execute(
-		request: UpdateOverallCommentRequest,
-		outputPort: UpdateOverallCommentOutputPort,
+		request: UpdateFinalEvaluationRankRequest,
+		outputPort: UpdateFinalEvaluationRankOutputPort,
 	): Promise<void> {
-		if (request.target === "first" && !request.canEditFirst) {
-			throw new Error("一次評価者の総評を更新する権限がありません。");
-		}
-		if (request.target === "second" && !request.canEditSecond) {
-			throw new Error("二次評価者の総評を更新する権限がありません。");
+		if (!request.canEditSecond) {
+			throw new Error("二次評価者のみ最終評価ランクを決定できます。");
 		}
 
-		const updated = await this.evaluationSheetRepository.updateOverallComment(
+		const finalEvaluationRank =
+			request.letter && request.level
+				? FinalEvaluationRank.fromOptional(request.letter, request.level)
+				: undefined;
+		const updated = await this.evaluationSheetRepository.updateFinalEvaluationRank(
 			request.sheetId,
-			request.target,
-			request.comment,
+			finalEvaluationRank,
 		);
 		const gradeName = await this.employeeRepository.findGradeName(updated.subject.gradeId);
 

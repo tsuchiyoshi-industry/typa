@@ -5,6 +5,7 @@ import type {
 	CommonEvaluationRepository,
 	CommonEvaluationResultPayload,
 } from "../../domain/repositories/CommonEvaluationRepository";
+import { EvaluationScoreTotals } from "../../domain/valueObjects/EvaluationScoreTotals";
 import { supabase } from "../db/supabase";
 
 interface CommonEvaluationItemRow {
@@ -161,16 +162,15 @@ export class SupabaseCommonEvaluationRepository implements CommonEvaluationRepos
 		const totalFirstScore = results.reduce((sum, r) => sum + r.firstScore.toNumber(), 0);
 		const totalSecondScore = results.reduce((sum, r) => sum + r.secondScore.toNumber(), 0);
 		const totalWeight = results.reduce((sum, r) => sum + r.item.weight, 0);
-		const firstRate = totalWeight > 0 ? (totalFirstScore / totalWeight) * 100 : 0;
-		const secondRate = totalWeight > 0 ? (totalSecondScore / totalWeight) * 100 : 0;
+		const totals = EvaluationScoreTotals.fromCommonEvaluationResults(results);
 
 		return {
 			results,
 			totalFirstScore,
 			totalSecondScore,
 			totalWeight,
-			firstRate,
-			secondRate,
+			firstRate: totals.firstTotalRate,
+			secondRate: totals.secondTotalRate,
 		};
 	}
 

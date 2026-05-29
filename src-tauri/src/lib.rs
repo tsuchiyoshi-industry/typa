@@ -47,6 +47,14 @@ struct SheetExportData {
     secondary_evaluator: String,
     status: String,
     total_score: i32,
+    final_evaluation_rank: String,
+    objective_allocation_score: i32,
+    objective_second_rate: i32,
+    objective_evaluation_score: i32,
+    common_evaluation_allocation_score: i32,
+    common_evaluation_second_rate: i32,
+    common_evaluation_evaluation_score: i32,
+    total_evaluation_score: i32,
     first_overall_comment: String,
     second_overall_comment: String,
     objectives: Vec<ObjectiveData>,
@@ -97,6 +105,38 @@ fn convert_data_to_dict(data: &SheetExportData) -> Dict {
     );
     dict.insert("status".into(), Value::Str(data.status.clone().into()));
     dict.insert("total_score".into(), Value::Int(data.total_score as i64));
+    dict.insert(
+        "final_evaluation_rank".into(),
+        Value::Str(data.final_evaluation_rank.clone().into()),
+    );
+    dict.insert(
+        "objective_allocation_score".into(),
+        Value::Int(data.objective_allocation_score as i64),
+    );
+    dict.insert(
+        "objective_second_rate".into(),
+        Value::Int(data.objective_second_rate as i64),
+    );
+    dict.insert(
+        "objective_evaluation_score".into(),
+        Value::Int(data.objective_evaluation_score as i64),
+    );
+    dict.insert(
+        "common_evaluation_allocation_score".into(),
+        Value::Int(data.common_evaluation_allocation_score as i64),
+    );
+    dict.insert(
+        "common_evaluation_second_rate".into(),
+        Value::Int(data.common_evaluation_second_rate as i64),
+    );
+    dict.insert(
+        "common_evaluation_evaluation_score".into(),
+        Value::Int(data.common_evaluation_evaluation_score as i64),
+    );
+    dict.insert(
+        "total_evaluation_score".into(),
+        Value::Int(data.total_evaluation_score as i64),
+    );
     dict.insert(
         "first_overall_comment".into(),
         Value::Str(data.first_overall_comment.clone().into()),

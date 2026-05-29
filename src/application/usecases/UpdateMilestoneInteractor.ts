@@ -1,4 +1,5 @@
 import type { MilestoneRepository } from "../../domain/repositories/MilestoneRepository";
+import type { EvaluationScoreUpdateService } from "../../domain/services/EvaluationScoreUpdateService";
 import type { MilestoneDto } from "../dtos/MilestoneDto";
 import type { OutputPort } from "../ports/OutputPort";
 import type { UseCase } from "../ports/UseCase";
@@ -23,7 +24,10 @@ export interface UpdateMilestoneOutputPort extends OutputPort<UpdateMilestoneRes
 export class UpdateMilestoneInteractor
 	implements UseCase<UpdateMilestoneRequest, UpdateMilestoneOutputPort>
 {
-	constructor(private readonly milestoneRepository: MilestoneRepository) {}
+	constructor(
+		private readonly milestoneRepository: MilestoneRepository,
+		private readonly evaluationScoreUpdateService: EvaluationScoreUpdateService,
+	) {}
 
 	async execute(
 		request: UpdateMilestoneRequest,
@@ -58,7 +62,7 @@ export class UpdateMilestoneInteractor
 			if (request.milestoneId === undefined) {
 				throw new Error("Milestone ID is required to update milestone score.");
 			}
-			updated = await this.milestoneRepository.updateScore(
+			updated = await this.evaluationScoreUpdateService.updateObjectiveScore(
 				request.milestoneId,
 				request.firstScore,
 				request.secondScore,

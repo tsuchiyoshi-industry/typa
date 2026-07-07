@@ -23,7 +23,6 @@ export class TauriEmailNotificationRepository implements EmailNotificationReposi
 					`${notification.employeeName}（${notification.employeeNo}）の評価シートが確定しました。`,
 					"",
 					`評価期間: ${notification.periodName}`,
-					`合計評価点: ${notification.totalScore}`,
 					`シートID: ${notification.sheetId}`,
 				].join("\n"),
 			},

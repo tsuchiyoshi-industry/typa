@@ -66,7 +66,6 @@ export class UpdateEvaluationStatusInteractor
 				employeeName: sheet.subject.name,
 				employeeNo: sheet.subject.employeeNo,
 				periodName: sheet.evaluationPeriod.periodName,
-				totalScore: sheet.allocatedScores.totalEvaluationScore,
 			});
 		} catch (error) {
 			console.error("評価確定メールの送信に失敗しました:", error);

@@ -82,8 +82,8 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 
 	createEffect(() => {
 		const currentSheet = sheet();
-		if (currentSheet?.subject) {
-			props.controller.loadRoles(currentSheet.subject);
+		if (currentSheet?.sheetId) {
+			props.controller.loadRoles(currentSheet.sheetId);
 		}
 	});
 
@@ -109,6 +109,13 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 
 	const handleStatusChange = async (status: "draft" | "submitted") => {
 		const success = await props.controller.updateStatus(status);
+		if (success) {
+			reloadCurrentSheetFromRoute();
+		}
+	};
+
+	const handleFinalize = async () => {
+		const success = await props.controller.updateStatus("submitted", true);
 		if (success) {
 			reloadCurrentSheetFromRoute();
 		}
@@ -143,15 +150,6 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 	const subordinateSubjectOptions = createMemo(() =>
 		dedupeSubjectOptions(viewModel().accessibleSheets.subordinateSheets),
 	);
-
-	const isOwner = createMemo(() => {
-		const currentSheet = sheet();
-		if (!currentSheet?.subject) {
-			return false;
-		}
-		// 自分のシートかどうかを判定（mySubjectOptionsに含まれているか）
-		return mySubjectOptions().some((option) => option.sheetId === currentSheet.sheetId);
-	});
 
 	const formatSubjectOption = (name: string, employeeNo: string) => `${name}（${employeeNo}）`;
 
@@ -339,20 +337,25 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 					subject={currentSheet.subject}
 					canEditFirst={canEditFirst()}
 					canEditSecond={canEditSecond()}
+					canEditMilestoneGoal={viewModel().canEditMilestoneGoal}
+					canViewSecondEvaluation={viewModel().canViewSecondEvaluation}
 					isEditable={currentSheet.isEditable}
 					controller={props.challengeEvaluationController}
 					viewModel={props.challengeEvaluationViewModel}
 					onUpdated={reloadCurrentSheetFromRoute}
 				/>
-				<CommonEvaluationView
-					sheetId={sheetId() ?? null}
-					gradeId={currentSheet.subject.gradeId}
-					canEditFirst={canEditFirst()}
-					canEditSecond={canEditSecond()}
-					controller={props.commonEvaluationController}
-					viewModel={props.commonEvaluationViewModel}
-					onUpdated={reloadCurrentSheetFromRoute}
-				/>
+				<Show when={viewModel().canViewCommonEvaluation}>
+					<CommonEvaluationView
+						sheetId={sheetId() ?? null}
+						gradeId={currentSheet.subject.gradeId}
+						canEditFirst={canEditFirst()}
+						canEditSecond={canEditSecond()}
+						canViewSecondEvaluation={viewModel().canViewSecondEvaluation}
+						controller={props.commonEvaluationController}
+						viewModel={props.commonEvaluationViewModel}
+						onUpdated={reloadCurrentSheetFromRoute}
+					/>
+				</Show>
 				<OverallCommentSection
 					canEditFirst={canEditFirst()}
 					canEditSecond={canEditSecond()}
@@ -383,10 +386,12 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 						<EditorManagementHeader />
 						<EvaluationStatusToggle
 							status={sheet()?.status ?? "draft"}
-							isOwner={isOwner()}
+							isOwner={viewModel().isSubject}
+							canFinalize={viewModel().canFinalizeAsSecondaryEvaluator}
 							updating={viewModel().updatingStatus}
 							updateError={viewModel().statusUpdateError}
 							onStatusChange={handleStatusChange}
+							onFinalize={handleFinalize}
 						/>
 					</Show>
 				</h1>

@@ -36,8 +36,15 @@ export interface SheetEditorViewModel {
 	accessibleSheets: CategorizedSheetsDto;
 	periods: EvaluationPeriodDto[];
 	selectedPeriodId: number | null;
+	isSubject: boolean;
 	canEditFirst: boolean;
 	canEditSecond: boolean;
+	canEditMilestoneGoal: boolean;
+	canViewCommonEvaluation: boolean;
+	canViewSecondEvaluation: boolean;
+	canSubmitOwnSheet: boolean;
+	canRevertOwnSheetToDraft: boolean;
+	canFinalizeAsSecondaryEvaluator: boolean;
 	updatingOverallComment: boolean;
 	overallCommentUpdateError: string | null;
 	updatingFinalEvaluationRank: boolean;
@@ -88,8 +95,15 @@ export function createSheetEditorPresenter(): {
 		},
 		periods: [],
 		selectedPeriodId: null,
+		isSubject: false,
 		canEditFirst: false,
 		canEditSecond: false,
+		canEditMilestoneGoal: false,
+		canViewCommonEvaluation: false,
+		canViewSecondEvaluation: false,
+		canSubmitOwnSheet: false,
+		canRevertOwnSheetToDraft: false,
+		canFinalizeAsSecondaryEvaluator: false,
 		updatingOverallComment: false,
 		overallCommentUpdateError: null,
 		updatingFinalEvaluationRank: false,
@@ -154,8 +168,15 @@ export function createSheetEditorPresenter(): {
 		present(response) {
 			setViewModel((prev) => ({
 				...prev,
+				isSubject: response.isSubject,
 				canEditFirst: response.canEditFirst,
 				canEditSecond: response.canEditSecond,
+				canEditMilestoneGoal: response.canEditMilestoneGoal,
+				canViewCommonEvaluation: response.canViewCommonEvaluation,
+				canViewSecondEvaluation: response.canViewSecondEvaluation,
+				canSubmitOwnSheet: response.canSubmitOwnSheet,
+				canRevertOwnSheetToDraft: response.canRevertOwnSheetToDraft,
+				canFinalizeAsSecondaryEvaluator: response.canFinalizeAsSecondaryEvaluator,
 			}));
 		},
 	};

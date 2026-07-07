@@ -24,6 +24,7 @@ export class CommonEvaluationController {
 				load: LoadCommonEvaluationOutputPort;
 				upsert: UpsertCommonEvaluationOutputPort;
 			};
+			beginLoad: () => void;
 			presentLoadError: (message: string) => void;
 			presentUpsertError: (message: string) => void;
 		},
@@ -31,8 +32,22 @@ export class CommonEvaluationController {
 	) {}
 
 	async load(sheetId: number, gradeId: number | null): Promise<void> {
+		this.presenter.beginLoad();
+
+		const { data: currentEmployeeId, error: authError } =
+			await this.employeeRepository.findCurrentEmployeeId();
+		if (authError || currentEmployeeId === null) {
+			this.presenter.presentLoadError(
+				authError ? `認証エラー: ${authError.message}` : "ログインが必要です。",
+			);
+			return;
+		}
+
 		try {
-			await this.loadUseCase.execute({ sheetId, gradeId }, this.presenter.outputPort.load);
+			await this.loadUseCase.execute(
+				{ sheetId, gradeId, currentEmployeeId },
+				this.presenter.outputPort.load,
+			);
 		} catch (error) {
 			this.presenter.presentLoadError(
 				error instanceof Error ? error.message : "共通評価の取得に失敗しました",
@@ -49,12 +64,19 @@ export class CommonEvaluationController {
 			firstScore: number;
 			secondScore: number;
 		}>,
-		canEditFirst: boolean,
-		canEditSecond: boolean,
 	): Promise<boolean> {
+		const { data: currentEmployeeId, error: authError } =
+			await this.employeeRepository.findCurrentEmployeeId();
+		if (authError || currentEmployeeId === null) {
+			this.presenter.presentUpsertError(
+				authError ? `認証エラー: ${authError.message}` : "ログインが必要です。",
+			);
+			return false;
+		}
+
 		try {
 			await this.upsertUseCase.execute(
-				{ sheetId, results, canEditFirst, canEditSecond },
+				{ sheetId, results, currentEmployeeId },
 				this.presenter.outputPort.upsert,
 			);
 			return true;

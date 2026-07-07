@@ -11,6 +11,8 @@ interface ChallengeEvaluationViewProps {
 	subject: EmployeeDto;
 	canEditFirst: boolean;
 	canEditSecond: boolean;
+	canEditMilestoneGoal: boolean;
+	canViewSecondEvaluation: boolean;
 	isEditable: boolean;
 	controller: ChallengeEvaluationController;
 	viewModel: () => ChallengeEvaluationViewModel;
@@ -82,6 +84,7 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 		const success =
 			objective.id > 0
 				? await props.controller.updateText(
+						props.sheetId ?? objective.sheetId,
 						objective.id,
 						draftText().challengeGoal,
 						draftText().midtermGoal,
@@ -125,6 +128,7 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 		}
 		setScoreUpdating(true);
 		const success = await props.controller.updateScore(
+			props.sheetId ?? objective.sheetId,
 			objective.id,
 			props.canEditFirst ? Number(draftScore().firstScore) : undefined,
 			props.canEditSecond ? Number(draftScore().secondScore) : undefined,
@@ -178,10 +182,12 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 												<span class="score-label">一次評価</span>
 												<span class="score-value">{activeObjective()?.firstScore || "—"}</span>
 											</div>
-											<div class="score-pill">
-												<span class="score-label">二次評価</span>
-												<span class="score-value">{activeObjective()?.secondScore || "—"}</span>
-											</div>
+											<Show when={props.canViewSecondEvaluation}>
+												<div class="score-pill">
+													<span class="score-label">二次評価</span>
+													<span class="score-value">{activeObjective()?.secondScore || "—"}</span>
+												</div>
+											</Show>
 										</>
 									}
 								>
@@ -245,7 +251,7 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 									評価更新
 								</button>
 							</Show>
-							<Show when={props.isEditable && !isTextEditing()}>
+							<Show when={props.canEditMilestoneGoal && !isTextEditing()}>
 								<button type="button" class="edit-toggle-button" onClick={startTextEditing}>
 									<SquarePen class="edit-icon" />
 									目標編集

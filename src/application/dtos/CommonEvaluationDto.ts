@@ -11,7 +11,8 @@ export interface CommonEvaluationResultDto {
 	sheetId: number;
 	itemId: number;
 	firstScore: number;
-	secondScore: number;
+	/** 一次評価者からは伏せられるため null になり得る。 */
+	secondScore: number | null;
 	firstComment: string;
 	item: CommonEvaluationItemDto;
 }
@@ -19,8 +20,10 @@ export interface CommonEvaluationResultDto {
 export interface CommonEvaluationSummaryDto {
 	results: CommonEvaluationResultDto[];
 	totalFirstScore: number;
-	totalSecondScore: number;
+	/** 一次評価者からは伏せられるため null になり得る。 */
+	totalSecondScore: number | null;
 	totalWeight: number;
 	firstRate: number;
-	secondRate: number;
+	/** 一次評価者からは伏せられるため null になり得る。 */
+	secondRate: number | null;
 }

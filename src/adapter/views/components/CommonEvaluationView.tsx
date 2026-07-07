@@ -9,6 +9,7 @@ interface CommonEvaluationViewProps {
 	viewModel: () => CommonEvaluationViewModel;
 	canEditFirst: boolean;
 	canEditSecond: boolean;
+	canViewSecondEvaluation: boolean;
 	onUpdated: () => void;
 }
 
@@ -86,12 +87,7 @@ export default function CommonEvaluationView(props: CommonEvaluationViewProps) {
 			};
 		});
 
-		const success = await props.controller.upsert(
-			props.sheetId,
-			results,
-			props.canEditFirst,
-			props.canEditSecond,
-		);
+		const success = await props.controller.upsert(props.sheetId, results);
 
 		if (success) {
 			props.onUpdated();
@@ -192,28 +188,31 @@ export default function CommonEvaluationView(props: CommonEvaluationViewProps) {
 											</Show>
 										</td>
 										<td>
-											<Show
-												when={isEditing() && props.canEditSecond}
-												fallback={<span>{result.secondScore || "—"}</span>}
-											>
-												<input
-													class="score-input"
-													type="number"
-													min="0"
-													value={drafts()[result.id]?.secondScore ?? String(result.secondScore)}
-													onInput={(e) =>
-														setDrafts((prev) => ({
-															...prev,
-															[result.id]: {
-																...prev[result.id],
-																firstComment: prev[result.id]?.firstComment ?? result.firstComment,
-																firstScore:
-																	prev[result.id]?.firstScore ?? String(result.firstScore),
-																secondScore: e.currentTarget.value,
-															},
-														}))
-													}
-												/>
+											<Show when={props.canViewSecondEvaluation} fallback={<span>非表示</span>}>
+												<Show
+													when={isEditing() && props.canEditSecond}
+													fallback={<span>{result.secondScore || "—"}</span>}
+												>
+													<input
+														class="score-input"
+														type="number"
+														min="0"
+														value={drafts()[result.id]?.secondScore ?? String(result.secondScore)}
+														onInput={(e) =>
+															setDrafts((prev) => ({
+																...prev,
+																[result.id]: {
+																	...prev[result.id],
+																	firstComment:
+																		prev[result.id]?.firstComment ?? result.firstComment,
+																	firstScore:
+																		prev[result.id]?.firstScore ?? String(result.firstScore),
+																	secondScore: e.currentTarget.value,
+																},
+															}))
+														}
+													/>
+												</Show>
 											</Show>
 										</td>
 									</tr>
@@ -224,7 +223,9 @@ export default function CommonEvaluationView(props: CommonEvaluationViewProps) {
 					<div class="summary-row">
 						<p>合計配点: {summary()?.totalWeight ?? 0}</p>
 						<p>一次評価合計: {summary()?.totalFirstScore ?? 0}</p>
-						<p>二次評価合計: {summary()?.totalSecondScore ?? 0}</p>
+						<Show when={props.canViewSecondEvaluation}>
+							<p>二次評価合計: {summary()?.totalSecondScore ?? 0}</p>
+						</Show>
 					</div>
 					<Show when={isEditing()}>
 						<div class="edit-actions">

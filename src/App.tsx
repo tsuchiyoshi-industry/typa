@@ -71,13 +71,21 @@ const createEvaluationSheetUseCase = new CreateEvaluationSheetInteractor(
 	evaluationSheetRepository,
 	commonEvaluationRepository,
 );
-const checkEvaluatorRoleUseCase = new CheckEvaluatorRoleInteractor(employeeRepository);
-const loadCommonEvaluationUseCase = new LoadCommonEvaluationInteractor(commonEvaluationRepository);
+const checkEvaluatorRoleUseCase = new CheckEvaluatorRoleInteractor(
+	employeeRepository,
+	evaluationSheetRepository,
+);
+const loadCommonEvaluationUseCase = new LoadCommonEvaluationInteractor(
+	commonEvaluationRepository,
+	evaluationSheetRepository,
+);
 const upsertCommonEvaluationUseCase = new UpsertCommonEvaluationInteractor(
+	evaluationSheetRepository,
 	evaluationScoreUpdateService,
 );
 const updateMilestoneUseCase = new UpdateMilestoneInteractor(
 	milestoneRepository,
+	evaluationSheetRepository,
 	evaluationScoreUpdateService,
 );
 const updateOverallCommentUseCase = new UpdateOverallCommentInteractor(
@@ -111,6 +119,7 @@ const sheetListController = new SheetListController(
 	exportEvaluationSheetUseCase,
 	sheetListPresenter.exportOutputPort,
 	sheetListPresenter.presentError,
+	employeeRepository,
 );
 const sheetEditorController = new SheetEditorController(
 	fetchEvaluationSheetUseCase,
@@ -135,6 +144,7 @@ const challengeEvaluationController = new ChallengeEvaluationController(
 	updateMilestoneUseCase,
 	challengeEvaluationPresenter.outputPort,
 	challengeEvaluationPresenter.presentUpdateError,
+	employeeRepository,
 );
 const employeeMasterController = new EmployeeMasterController(
 	loadEmployeeMasterUseCase,

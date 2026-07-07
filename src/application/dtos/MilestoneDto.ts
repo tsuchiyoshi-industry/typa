@@ -6,5 +6,6 @@ export interface MilestoneDto {
 	midtermGoal: string;
 	achievement: string;
 	firstScore: number;
-	secondScore: number;
+	/** 一次評価者からは伏せられるため null になり得る。 */
+	secondScore: number | null;
 }

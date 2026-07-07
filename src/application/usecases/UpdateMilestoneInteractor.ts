@@ -1,12 +1,15 @@
+import type { EvaluationSheetRepository } from "../../domain/repositories/EvaluationSheetRepository";
 import type { MilestoneRepository } from "../../domain/repositories/MilestoneRepository";
 import type { EvaluationScoreUpdateService } from "../../domain/services/EvaluationScoreUpdateService";
+import { EvaluationSheetAccessPolicy } from "../../domain/services/EvaluationSheetAccessPolicy";
 import type { MilestoneDto } from "../dtos/MilestoneDto";
 import type { OutputPort } from "../ports/OutputPort";
 import type { UseCase } from "../ports/UseCase";
 
 export interface UpdateMilestoneRequest {
+	sheetId: number;
+	currentEmployeeId: number;
 	milestoneId?: number;
-	sheetId?: number;
 	goalNumber?: number;
 	challengeGoal?: string;
 	midtermGoal?: string;
@@ -26,6 +29,7 @@ export class UpdateMilestoneInteractor
 {
 	constructor(
 		private readonly milestoneRepository: MilestoneRepository,
+		private readonly evaluationSheetRepository: EvaluationSheetRepository,
 		private readonly evaluationScoreUpdateService: EvaluationScoreUpdateService,
 	) {}
 
@@ -33,6 +37,12 @@ export class UpdateMilestoneInteractor
 		request: UpdateMilestoneRequest,
 		outputPort: UpdateMilestoneOutputPort,
 	): Promise<void> {
+		const sheet = await this.evaluationSheetRepository.findById(request.sheetId);
+		if (!sheet) {
+			throw new Error("評価シートが見つかりません。");
+		}
+		const policy = EvaluationSheetAccessPolicy.for(request.currentEmployeeId, sheet);
+
 		let updated = null;
 
 		if (
@@ -40,6 +50,10 @@ export class UpdateMilestoneInteractor
 			request.midtermGoal !== undefined ||
 			request.achievement !== undefined
 		) {
+			if (!policy.canEditMilestoneGoal()) {
+				throw new Error("自分の評価シートの目標のみ編集できます。");
+			}
+
 			if (request.milestoneId !== undefined) {
 				updated = await this.milestoneRepository.updateText(
 					request.milestoneId,
@@ -47,7 +61,7 @@ export class UpdateMilestoneInteractor
 					request.midtermGoal ?? "",
 					request.achievement ?? "",
 				);
-			} else if (request.sheetId !== undefined && request.goalNumber !== undefined) {
+			} else if (request.goalNumber !== undefined) {
 				updated = await this.milestoneRepository.upsertText(
 					request.sheetId,
 					request.goalNumber,
@@ -62,6 +76,12 @@ export class UpdateMilestoneInteractor
 			if (request.milestoneId === undefined) {
 				throw new Error("Milestone ID is required to update milestone score.");
 			}
+			if (request.firstScore !== undefined && !policy.canEditMilestoneFirstScore()) {
+				throw new Error("一次評価者のみ一次評価を編集できます。");
+			}
+			if (request.secondScore !== undefined && !policy.canEditMilestoneSecondScore()) {
+				throw new Error("二次評価者のみ二次評価を編集できます。");
+			}
 			updated = await this.evaluationScoreUpdateService.updateObjectiveScore(
 				request.milestoneId,
 				request.firstScore,
@@ -73,6 +93,7 @@ export class UpdateMilestoneInteractor
 			throw new Error("No milestone changes were provided.");
 		}
 
+		const canViewSecondScore = policy.canViewMilestoneSecondScore();
 		outputPort.present({
 			milestone: {
 				id: updated.id,
@@ -82,7 +103,7 @@ export class UpdateMilestoneInteractor
 				midtermGoal: updated.midtermGoal,
 				achievement: updated.achievement,
 				firstScore: updated.firstScore.toNumber(),
-				secondScore: updated.secondScore.toNumber(),
+				secondScore: canViewSecondScore ? updated.secondScore.toNumber() : null,
 			},
 		});
 	}

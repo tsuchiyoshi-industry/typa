@@ -1,4 +1,3 @@
-import type { EmployeeDto } from "../../application/dtos/EmployeeDto";
 import type {
 	CheckEvaluatorRoleInteractor,
 	CheckEvaluatorRoleOutputPort,
@@ -74,10 +73,26 @@ export class SheetEditorController {
 		private readonly employeeRepository: EmployeeRepository,
 	) {}
 
+	private async requireCurrentEmployeeId(
+		presentError: (message: string) => void,
+	): Promise<number | null> {
+		const { data: currentEmployeeId, error } =
+			await this.employeeRepository.findCurrentEmployeeId();
+		if (error || currentEmployeeId === null) {
+			presentError(error ? `認証エラー: ${error.message}` : "ログインが必要です。");
+			return null;
+		}
+		return currentEmployeeId;
+	}
+
 	async loadSheet(sheetId: number): Promise<number | null> {
 		this.presenter.beginSheetLoad();
 		try {
-			await this.fetchSheetUseCase.execute({ sheetId }, this.presenter.outputPort.sheet);
+			const { data: currentEmployeeId } = await this.employeeRepository.findCurrentEmployeeId();
+			await this.fetchSheetUseCase.execute(
+				{ sheetId, currentEmployeeId },
+				this.presenter.outputPort.sheet,
+			);
 			return sheetId;
 		} catch (error) {
 			this.presenter.presentSheetError(
@@ -115,9 +130,9 @@ export class SheetEditorController {
 		}
 	}
 
-	async loadRoles(subject: EmployeeDto | null): Promise<void> {
+	async loadRoles(sheetId: number | null): Promise<void> {
 		try {
-			await this.checkRoleUseCase.execute({ subject }, this.presenter.outputPort.role);
+			await this.checkRoleUseCase.execute({ sheetId }, this.presenter.outputPort.role);
 		} catch (error) {
 			this.presenter.presentSheetError(
 				error instanceof Error ? error.message : "権限情報の取得に失敗しました",
@@ -130,11 +145,18 @@ export class SheetEditorController {
 	}
 
 	async updateOverallComment(target: "first" | "second", comment: string): Promise<boolean> {
-		const { sheet, canEditFirst, canEditSecond } = this.presenter.viewModel();
+		const { sheet } = this.presenter.viewModel();
 		if (!sheet?.sheetId) {
 			this.presenter.presentOverallCommentUpdateError(
 				"評価シートIDを取得できないため、総評を保存できません。",
 			);
+			return false;
+		}
+
+		const currentEmployeeId = await this.requireCurrentEmployeeId(
+			this.presenter.presentOverallCommentUpdateError,
+		);
+		if (currentEmployeeId === null) {
 			return false;
 		}
 
@@ -145,8 +167,7 @@ export class SheetEditorController {
 					sheetId: sheet.sheetId,
 					target,
 					comment,
-					canEditFirst,
-					canEditSecond,
+					currentEmployeeId,
 				},
 				this.presenter.outputPort.overallComment,
 			);
@@ -159,7 +180,7 @@ export class SheetEditorController {
 		}
 	}
 
-	async updateStatus(status: "draft" | "submitted"): Promise<boolean> {
+	async updateStatus(status: "draft" | "submitted", asFinalization = false): Promise<boolean> {
 		const { sheet } = this.presenter.viewModel();
 		if (!sheet?.sheetId) {
 			this.presenter.presentStatusUpdateError(
@@ -168,12 +189,10 @@ export class SheetEditorController {
 			return false;
 		}
 
-		const { data: currentEmployeeId, error: authError } =
-			await this.employeeRepository.findCurrentEmployeeId();
-
-		if (authError || currentEmployeeId === null) {
-			const message = authError ? `認証エラー: ${authError.message}` : "ログインが必要です。";
-			this.presenter.presentStatusUpdateError(message);
+		const currentEmployeeId = await this.requireCurrentEmployeeId(
+			this.presenter.presentStatusUpdateError,
+		);
+		if (currentEmployeeId === null) {
 			return false;
 		}
 
@@ -183,6 +202,7 @@ export class SheetEditorController {
 				{
 					sheetId: sheet.sheetId,
 					status,
+					asFinalization,
 					currentEmployeeId,
 				},
 				this.presenter.outputPort.status,
@@ -197,11 +217,18 @@ export class SheetEditorController {
 	}
 
 	async decideFinalEvaluationRank(letter: string, level: string): Promise<boolean> {
-		const { sheet, canEditSecond } = this.presenter.viewModel();
+		const { sheet } = this.presenter.viewModel();
 		if (!sheet?.sheetId) {
 			this.presenter.presentFinalEvaluationRankUpdateError(
 				"評価シートIDを取得できないため、最終評価ランクを保存できません。",
 			);
+			return false;
+		}
+
+		const currentEmployeeId = await this.requireCurrentEmployeeId(
+			this.presenter.presentFinalEvaluationRankUpdateError,
+		);
+		if (currentEmployeeId === null) {
 			return false;
 		}
 
@@ -212,7 +239,7 @@ export class SheetEditorController {
 					sheetId: sheet.sheetId,
 					letter,
 					level,
-					canEditSecond,
+					currentEmployeeId,
 				},
 				this.presenter.outputPort.finalEvaluationRank,
 			);
@@ -233,14 +260,10 @@ export class SheetEditorController {
 			secondScore: number;
 		}>,
 	): Promise<number | null> {
-		// 1. 分割代入でデータとエラーを取得
-		const { data: currentEmployeeId, error: authError } =
-			await this.employeeRepository.findCurrentEmployeeId();
-
-		// 2. 認証・社員紐付けチェック
-		if (authError || currentEmployeeId === null) {
-			const message = authError ? `認証エラー: ${authError.message}` : "ログインが必要です。";
-			this.presenter.presentCreateError(message);
+		const currentEmployeeId = await this.requireCurrentEmployeeId(
+			this.presenter.presentCreateError,
+		);
+		if (currentEmployeeId === null) {
 			return null;
 		}
 
@@ -254,7 +277,7 @@ export class SheetEditorController {
 			await this.createSheetUseCase.execute(
 				{
 					periodId: selectedPeriodId,
-					employeeId: currentEmployeeId, // ここに正しい number が渡る
+					employeeId: currentEmployeeId,
 					drafts,
 				},
 				this.presenter.outputPort.createSheet,

@@ -17,7 +17,8 @@ struct ObjectiveData {
     midterm_goal: String,
     achievement: String,
     self_score: Option<i32>,
-    evaluator_score: Option<i32>,
+    // 一次評価者以外が出力する場合、TypeScript側で "*" に置き換え済みの文字列。
+    evaluator_score: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -27,7 +28,8 @@ struct CommonEvaluationData {
     item_description: String,
     weight: i32,
     self_score: Option<i32>,
-    evaluator_score: Option<i32>,
+    // 一次評価者以外が出力する場合、TypeScript側で "*" に置き換え済みの文字列。
+    evaluator_score: String,
     self_comment: Option<String>,
     evaluator_comment: Option<String>,
 }
@@ -47,15 +49,18 @@ struct SheetExportData {
     secondary_evaluator: String,
     status: String,
     total_score: i32,
+    // 二次評価者以外が出力する場合、TypeScript側で "*" に置き換え済みの文字列。
     final_evaluation_rank: String,
     objective_allocation_score: i32,
-    objective_second_rate: i32,
-    objective_evaluation_score: i32,
+    // 二次評価の点数から算出されるため、二次評価者以外が出力する場合は "*" に置き換え済み。
+    objective_second_rate: String,
+    objective_evaluation_score: String,
     common_evaluation_allocation_score: i32,
-    common_evaluation_second_rate: i32,
-    common_evaluation_evaluation_score: i32,
-    total_evaluation_score: i32,
+    common_evaluation_second_rate: String,
+    common_evaluation_evaluation_score: String,
+    total_evaluation_score: String,
     first_overall_comment: String,
+    // 二次評価者以外が出力する場合、TypeScript側で "*" に置き換え済みの文字列。
     second_overall_comment: String,
     objectives: Vec<ObjectiveData>,
     common_evaluations: Vec<CommonEvaluationData>,
@@ -115,11 +120,11 @@ fn convert_data_to_dict(data: &SheetExportData) -> Dict {
     );
     dict.insert(
         "objective_second_rate".into(),
-        Value::Int(data.objective_second_rate as i64),
+        Value::Str(data.objective_second_rate.clone().into()),
     );
     dict.insert(
         "objective_evaluation_score".into(),
-        Value::Int(data.objective_evaluation_score as i64),
+        Value::Str(data.objective_evaluation_score.clone().into()),
     );
     dict.insert(
         "common_evaluation_allocation_score".into(),
@@ -127,15 +132,15 @@ fn convert_data_to_dict(data: &SheetExportData) -> Dict {
     );
     dict.insert(
         "common_evaluation_second_rate".into(),
-        Value::Int(data.common_evaluation_second_rate as i64),
+        Value::Str(data.common_evaluation_second_rate.clone().into()),
     );
     dict.insert(
         "common_evaluation_evaluation_score".into(),
-        Value::Int(data.common_evaluation_evaluation_score as i64),
+        Value::Str(data.common_evaluation_evaluation_score.clone().into()),
     );
     dict.insert(
         "total_evaluation_score".into(),
-        Value::Int(data.total_evaluation_score as i64),
+        Value::Str(data.total_evaluation_score.clone().into()),
     );
     dict.insert(
         "first_overall_comment".into(),
@@ -172,8 +177,7 @@ fn convert_data_to_dict(data: &SheetExportData) -> Dict {
             );
             obj_dict.insert(
                 "evaluator_score".into(),
-                obj.evaluator_score
-                    .map_or(Value::Str("未評価".into()), |s| Value::Int(s as i64)),
+                Value::Str(obj.evaluator_score.clone().into()),
             );
             Value::Dict(obj_dict)
         })
@@ -202,8 +206,7 @@ fn convert_data_to_dict(data: &SheetExportData) -> Dict {
             );
             item_dict.insert(
                 "evaluator_score".into(),
-                item.evaluator_score
-                    .map_or(Value::Str("未評価".into()), |s| Value::Int(s as i64)),
+                Value::Str(item.evaluator_score.clone().into()),
             );
             item_dict.insert(
                 "self_comment".into(),

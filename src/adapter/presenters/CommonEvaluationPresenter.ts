@@ -18,6 +18,7 @@ export function createCommonEvaluationPresenter(): {
 		load: LoadCommonEvaluationOutputPort;
 		upsert: UpsertCommonEvaluationOutputPort;
 	};
+	beginLoad: () => void;
 	presentLoadError: (message: string) => void;
 	presentUpsertError: (message: string) => void;
 } {
@@ -54,6 +55,10 @@ export function createCommonEvaluationPresenter(): {
 		},
 	};
 
+	const beginLoad = () => {
+		setViewModel((prev) => ({ ...prev, loading: true, loadError: null }));
+	};
+
 	const presentLoadError = (message: string) => {
 		setViewModel((prev) => ({ ...prev, loading: false, loadError: message }));
 	};
@@ -68,6 +73,7 @@ export function createCommonEvaluationPresenter(): {
 			load: outputPort,
 			upsert: upsertOutputPort,
 		},
+		beginLoad,
 		presentLoadError,
 		presentUpsertError,
 	};

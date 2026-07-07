@@ -215,15 +215,6 @@ const SheetListView: Component<SheetListViewProps> = (props) => {
 												<A href={`/sheet/${sheet.id}`} class="detail-link">
 													詳細
 												</A>
-												<button
-													type="button"
-													class="export-button"
-													onClick={() => handleExport(sheet.id, sheet.employeeId, sheet.periodId)}
-													disabled={props.viewModel().exportStatus.isExporting}
-												>
-													<Download size={16} />
-													<span>出力</span>
-												</button>
 											</td>
 										</tr>
 									)}

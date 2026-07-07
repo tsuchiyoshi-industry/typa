@@ -1475,6 +1475,19 @@
 	transform: none;
 }
 
+.status-toggle-btn.finalize {
+	background: rgb(180, 83, 9);
+	color: white;
+	border-color: rgb(180, 83, 9);
+}
+
+.status-toggle-btn.finalize:hover:not(:disabled) {
+	background: rgb(146, 64, 14);
+	border-color: rgb(146, 64, 14);
+	transform: translateY(-1px);
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
 .status-error {
 	position: absolute;
 	top: 100%;

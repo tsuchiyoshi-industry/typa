@@ -13,6 +13,7 @@ import { createEmployeeMasterPresenter } from "./adapter/presenters/EmployeeMast
 import { createSheetEditorPresenter } from "./adapter/presenters/SheetEditorPresenter";
 import { createSheetListPresenter } from "./adapter/presenters/SheetListPresenter";
 import AutoUpdateNotification from "./adapter/views/components/AutoUpdateNotification";
+import ExitConfirmDialog from "./adapter/views/components/ExitConfirmDialog";
 import LoadingView from "./adapter/views/components/LoadingView";
 import { NotFound } from "./adapter/views/components/NotFound";
 import ThemeToggleButton from "./adapter/views/components/ThemeToggleButton";
@@ -158,6 +159,7 @@ const AppLayout: Component<{ children?: JSX.Element | JSX.Element[] }> = (props)
 	<div class="app-shell">
 		<div class="app-frame">{props.children}</div>
 		<AutoUpdateNotification />
+		<ExitConfirmDialog />
 	</div>
 );
 

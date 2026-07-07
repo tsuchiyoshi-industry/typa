@@ -6,6 +6,16 @@
     <meta name="theme-color" content="#000000" />
     <link rel="icon" type="image/svg+xml" href="/src/assets/logo.svg" />
     <title>TYPA</title>
+    <script>
+      (() => {
+        try {
+          const stored = localStorage.getItem("typa:theme");
+          if (stored === "light" || stored === "dark") {
+            document.documentElement.setAttribute("data-theme", stored);
+          }
+        } catch {}
+      })();
+    </script>
   </head>
 
   <body>

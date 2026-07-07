@@ -15,6 +15,7 @@ import { createSheetListPresenter } from "./adapter/presenters/SheetListPresente
 import AutoUpdateNotification from "./adapter/views/components/AutoUpdateNotification";
 import LoadingView from "./adapter/views/components/LoadingView";
 import { NotFound } from "./adapter/views/components/NotFound";
+import ThemeToggleButton from "./adapter/views/components/ThemeToggleButton";
 import EmployeeMasterView from "./adapter/views/EmployeeMasterView";
 import LoginView from "./adapter/views/LoginView";
 import SheetEditorView from "./adapter/views/SheetEditorView";
@@ -215,6 +216,7 @@ const DashboardLayout: Component<{ children?: JSX.Element | JSX.Element[] }> = (
 						社員マスタ
 					</A>
 				</nav>
+				<ThemeToggleButton />
 				<div class="user-menu-container">
 					<button
 						type="button"

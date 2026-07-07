@@ -13,8 +13,13 @@
 	--hr-accent: #3d6a9e;
 	--hr-accent-hover: #4a7eb8;
 	--hr-accent-muted: rgba(61, 106, 158, 0.22);
+	--hr-primary: var(--hr-accent);
+	--hr-primary-hover: var(--hr-accent-hover);
 	--hr-success: #3d7a5c;
 	--hr-danger: #b85c5c;
+	--hr-danger-text: #f0d0d0;
+	--hr-bg-glow: rgba(61, 106, 158, 0.12);
+	--hr-bg-end: #0a0c0f;
 	--hr-radius-sm: 6px;
 	--hr-radius-md: 10px;
 	--hr-radius-lg: 14px;
@@ -22,6 +27,56 @@
 	--hr-font:
 		"Segoe UI", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", system-ui, sans-serif;
 	--hr-tracking: 0.02em;
+}
+
+/* ライトテーマ: 明示指定(data-theme="light")、または未指定時は OS 設定(prefers-color-scheme: light)に従う。
+   目に優しいよう、白/黒ではなくオフホワイト×ソフトな濃灰色で低コントラストに寄せている。 */
+:root[data-theme="light"] {
+	color-scheme: light;
+	--hr-bg: #f3f2ee;
+	--hr-bg-elevated: #ebe9e1;
+	--hr-surface: #ffffff;
+	--hr-surface-hover: #f6f5f0;
+	--hr-border: rgba(35, 32, 25, 0.08);
+	--hr-border-strong: rgba(35, 32, 25, 0.16);
+	--hr-text: #33322d;
+	--hr-text-muted: #7b776d;
+	--hr-accent: #3d6a9e;
+	--hr-accent-hover: #335e8c;
+	--hr-accent-muted: rgba(61, 106, 158, 0.14);
+	--hr-primary: var(--hr-accent);
+	--hr-primary-hover: var(--hr-accent-hover);
+	--hr-success: #3d7a5c;
+	--hr-danger: #b85c5c;
+	--hr-danger-text: #8a3a3a;
+	--hr-bg-glow: rgba(61, 106, 158, 0.06);
+	--hr-bg-end: #e7e5dc;
+	--hr-shadow: 0 1px 0 rgba(255, 255, 255, 0.7) inset, 0 10px 30px rgba(35, 32, 25, 0.08);
+}
+
+@media (prefers-color-scheme: light) {
+	:root:not([data-theme="dark"]) {
+		color-scheme: light;
+		--hr-bg: #f3f2ee;
+		--hr-bg-elevated: #ebe9e1;
+		--hr-surface: #ffffff;
+		--hr-surface-hover: #f6f5f0;
+		--hr-border: rgba(35, 32, 25, 0.08);
+		--hr-border-strong: rgba(35, 32, 25, 0.16);
+		--hr-text: #33322d;
+		--hr-text-muted: #7b776d;
+		--hr-accent: #3d6a9e;
+		--hr-accent-hover: #335e8c;
+		--hr-accent-muted: rgba(61, 106, 158, 0.14);
+		--hr-primary: var(--hr-accent);
+		--hr-primary-hover: var(--hr-accent-hover);
+		--hr-success: #3d7a5c;
+		--hr-danger: #b85c5c;
+		--hr-danger-text: #8a3a3a;
+		--hr-bg-glow: rgba(61, 106, 158, 0.06);
+		--hr-bg-end: #e7e5dc;
+		--hr-shadow: 0 1px 0 rgba(255, 255, 255, 0.7) inset, 0 10px 30px rgba(35, 32, 25, 0.08);
+	}
 }
 
 *,
@@ -43,8 +98,8 @@ body {
 	color: var(--hr-text);
 	background: var(--hr-bg);
 	background-image:
-		radial-gradient(ellipse 80% 50% at 50% -20%, rgba(61, 106, 158, 0.12), transparent),
-		linear-gradient(180deg, var(--hr-bg) 0%, #0a0c0f 100%);
+		radial-gradient(ellipse 80% 50% at 50% -20%, var(--hr-bg-glow), transparent),
+		linear-gradient(180deg, var(--hr-bg) 0%, var(--hr-bg-end) 100%);
 	-webkit-font-smoothing: antialiased;
 }
 
@@ -72,7 +127,7 @@ a:hover {
 }
 
 ::selection {
-	background: rgba(61, 106, 158, 0.35);
+	background: var(--hr-accent-muted);
 	color: var(--hr-text);
 }
 
@@ -186,7 +241,7 @@ a:hover {
 	margin: 0.5rem 0 0;
 	padding: 0.65rem 0.85rem;
 	font-size: 0.875rem;
-	color: #f0d0d0;
+	color: var(--hr-danger-text);
 	background: rgba(184, 92, 92, 0.12);
 	border: 1px solid rgba(184, 92, 92, 0.35);
 	border-radius: var(--hr-radius-sm);

@@ -74,6 +74,29 @@
 	text-decoration: none;
 }
 
+.theme-toggle-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	width: 2.1rem;
+	height: 2.1rem;
+	color: var(--hr-text-muted);
+	border-radius: var(--hr-radius-sm);
+	border: 1px solid var(--hr-border);
+	background: var(--hr-bg-elevated);
+	transition:
+		color 0.15s ease,
+		background 0.15s ease,
+		border-color 0.15s ease;
+}
+
+.theme-toggle-button:hover {
+	color: var(--hr-text);
+	background: var(--hr-surface-hover);
+	border-color: var(--hr-border-strong);
+}
+
 .user-menu-container {
 	position: relative;
 	flex-shrink: 0;

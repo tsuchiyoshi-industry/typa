@@ -44,6 +44,7 @@ import { SupabaseEmployeeRepository } from "./infrastructure/repositories/Supaba
 import { SupabaseEvaluationPeriodRepository } from "./infrastructure/repositories/SupabaseEvaluationPeriodRepository";
 import { SupabaseEvaluationSheetRepository } from "./infrastructure/repositories/SupabaseEvaluationSheetRepository";
 import { SupabaseMilestoneRepository } from "./infrastructure/repositories/SupabaseMilestoneRepository";
+import { TauriEmailNotificationRepository } from "./infrastructure/repositories/TauriEmailNotificationRepository";
 
 const employeeRepository = new SupabaseEmployeeRepository();
 const commonEvaluationRepository = new SupabaseCommonEvaluationRepository();
@@ -54,6 +55,7 @@ const evaluationSheetRepository = new SupabaseEvaluationSheetRepository(
 const evaluationPeriodRepository = new SupabaseEvaluationPeriodRepository();
 const milestoneRepository = new SupabaseMilestoneRepository();
 const employeeMasterRepository = new SupabaseEmployeeMasterRepository();
+const emailNotificationRepository = new TauriEmailNotificationRepository();
 const evaluationScoreUpdateService = new EvaluationScoreUpdateService(
 	evaluationSheetRepository,
 	milestoneRepository,
@@ -101,6 +103,7 @@ const updateFinalEvaluationRankUseCase = new UpdateFinalEvaluationRankInteractor
 const updateEvaluationStatusUseCase = new UpdateEvaluationStatusInteractor(
 	evaluationSheetRepository,
 	employeeRepository,
+	emailNotificationRepository,
 );
 const exportEvaluationSheetUseCase = new ExportEvaluationSheetInteractor(evaluationSheetRepository);
 const loadEmployeeMasterUseCase = new LoadEmployeeMasterInteractor(employeeMasterRepository);

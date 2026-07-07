@@ -300,6 +300,59 @@ fn compile_typst_to_pdf(data: &SheetExportData, pdf_path: &PathBuf) -> Result<()
     Ok(())
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SendEmailRequest {
+    smtp_host: String,
+    smtp_port: u16,
+    smtp_user: String,
+    smtp_password: String,
+    to: String,
+    subject: String,
+    body: String,
+}
+
+// SMTP経由でメールを送信するTauriコマンド
+#[tauri::command]
+async fn send_email(request: SendEmailRequest) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        use lettre::message::Message;
+        use lettre::transport::smtp::authentication::Credentials;
+        use lettre::{SmtpTransport, Transport};
+
+        let email = Message::builder()
+            .from(
+                request
+                    .smtp_user
+                    .parse()
+                    .map_err(|e| format!("送信元メールアドレスが不正です: {}", e))?,
+            )
+            .to(request
+                .to
+                .parse()
+                .map_err(|e| format!("宛先メールアドレスが不正です: {}", e))?)
+            .subject(request.subject)
+            .body(request.body)
+            .map_err(|e| format!("メール本文の生成に失敗しました: {}", e))?;
+
+        let credentials = Credentials::new(request.smtp_user, request.smtp_password);
+
+        let mailer = SmtpTransport::starttls_relay(&request.smtp_host)
+            .map_err(|e| format!("SMTPサーバーへの接続設定に失敗しました: {}", e))?
+            .port(request.smtp_port)
+            .credentials(credentials)
+            .build();
+
+        mailer
+            .send(&email)
+            .map_err(|e| format!("メール送信に失敗しました: {}", e))?;
+
+        Ok(())
+    })
+    .await
+    .map_err(|e| format!("メール送信タスクの実行に失敗しました: {}", e))?
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -309,7 +362,7 @@ pub fn run() {
         .plugin(tauri_plugin_upload::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![generate_pdf_with_typst])
+        .invoke_handler(tauri::generate_handler![generate_pdf_with_typst, send_email])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

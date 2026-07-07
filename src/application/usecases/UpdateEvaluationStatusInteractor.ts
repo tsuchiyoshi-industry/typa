@@ -1,3 +1,5 @@
+import type { EvaluationSheet } from "../../domain/entities/EvaluationSheet";
+import type { EmailNotificationRepository } from "../../domain/repositories/EmailNotificationRepository";
 import type { EmployeeRepository } from "../../domain/repositories/EmployeeRepository";
 import type { EvaluationSheetRepository } from "../../domain/repositories/EvaluationSheetRepository";
 import { EvaluationSheetAccessPolicy } from "../../domain/services/EvaluationSheetAccessPolicy";
@@ -28,6 +30,7 @@ export class UpdateEvaluationStatusInteractor
 	constructor(
 		private readonly evaluationSheetRepository: EvaluationSheetRepository,
 		private readonly employeeRepository: EmployeeRepository,
+		private readonly emailNotificationRepository?: EmailNotificationRepository,
 	) {}
 
 	async execute(
@@ -45,7 +48,29 @@ export class UpdateEvaluationStatusInteractor
 		const updated = await this.evaluationSheetRepository.updateStatus(request.sheetId, newStatus);
 		const gradeName = await this.employeeRepository.findGradeName(updated.subject.gradeId);
 
+		if (newStatus.isFinalizedBySecondEvaluator()) {
+			await this.notifySheetFinalized(updated);
+		}
+
 		outputPort.present({ sheet: toEvaluationSheetDto(updated, gradeName, policy) });
+	}
+
+	private async notifySheetFinalized(sheet: EvaluationSheet): Promise<void> {
+		if (!this.emailNotificationRepository) {
+			return;
+		}
+
+		try {
+			await this.emailNotificationRepository.notifySheetFinalized({
+				sheetId: sheet.sheetId,
+				employeeName: sheet.subject.name,
+				employeeNo: sheet.subject.employeeNo,
+				periodName: sheet.evaluationPeriod.periodName,
+				totalScore: sheet.allocatedScores.totalEvaluationScore,
+			});
+		} catch (error) {
+			console.error("評価確定メールの送信に失敗しました:", error);
+		}
 	}
 
 	private resolveNewStatus(

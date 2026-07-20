@@ -27,5 +27,7 @@ export class TauriEmailNotificationRepository implements EmailNotificationReposi
 				].join("\n"),
 			},
 		});
+
+		console.debug("評価確定メールを送信しました:", { to, sheetId: notification.sheetId });
 	}
 }

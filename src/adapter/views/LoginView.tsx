@@ -1,10 +1,10 @@
 import { useNavigate } from "@solidjs/router";
 import { createMemo, createSignal, Show } from "solid-js";
-import { supabase } from "../../infrastructure/db/supabase";
+import { SupabaseAuthRepository } from "../../infrastructure/auth/SupabaseAuthRepository";
 import { SupabaseEmployeeRepository } from "../../infrastructure/repositories/SupabaseEmployeeRepository";
 import LoadingView from "./components/LoadingView";
 
-type ViewMode = "login" | "signup" | "otp-verify";
+type ViewMode = "login" | "signup" | "otp-verify" | "forgot-password" | "reset-password";
 
 type LoginViewProps = {
 	onRegistrationLinked?: () => Promise<void> | void;
@@ -27,12 +27,15 @@ const LoginView = (props: LoginViewProps) => {
 	const [viewMode, setViewMode] = createSignal<ViewMode>("login");
 
 	const employeeRepository = new SupabaseEmployeeRepository();
+	const authRepository = new SupabaseAuthRepository();
 
 	const requiredDomain = import.meta.env.VITE_REQUIRED_DOMAIN;
 
 	const passwordMismatch = createMemo(
 		() =>
-			viewMode() === "signup" && confirmPassword().length > 0 && password() !== confirmPassword(),
+			(viewMode() === "signup" || viewMode() === "reset-password") &&
+			confirmPassword().length > 0 &&
+			password() !== confirmPassword(),
 	);
 
 	const isSubmitDisabled = createMemo(() => {
@@ -78,8 +81,11 @@ const LoginView = (props: LoginViewProps) => {
 		setErrorMessage(customMessage);
 		setEmployeeNoError(null);
 		setOtp("");
-		if (mode === "login") {
+		if (mode === "login" || mode === "forgot-password" || mode === "reset-password") {
 			setConfirmPassword("");
+		}
+		if (mode === "forgot-password" || mode === "reset-password") {
+			setPassword("");
 		}
 	};
 
@@ -89,10 +95,7 @@ const LoginView = (props: LoginViewProps) => {
 		setLoading(true);
 		setErrorMessage(null);
 
-		const { data, error } = await supabase.auth.signInWithPassword({
-			email: email(),
-			password: password(),
-		});
+		const { userId, error } = await authRepository.signInWithPassword(email(), password());
 
 		if (error) {
 			setErrorMessage("メールアドレスまたはパスワードが正しくありません。");
@@ -100,7 +103,7 @@ const LoginView = (props: LoginViewProps) => {
 			return;
 		}
 
-		if (!data.user) {
+		if (!userId) {
 			setErrorMessage("予期せぬエラーが発生しました。");
 			setLoading(false);
 			return;
@@ -108,11 +111,11 @@ const LoginView = (props: LoginViewProps) => {
 
 		// RLS突破後：社員情報の紐づけ状況を確認
 		// ※ Repositoryに checkUserLinked(userId: string): Promise<boolean> が実装されている想定
-		const isLinked = await employeeRepository.checkUserLinked(data.user.id);
+		const isLinked = await employeeRepository.checkUserLinked(userId);
 
 		if (!isLinked) {
 			// シナリオ2への対応: 認証済みだが社員番号が未紐づけの場合
-			await supabase.auth.signOut();
+			await authRepository.signOut();
 			switchMode("signup", "社員番号の設定が未完了です。再度入力して登録を完了させてください。");
 			setLoading(false);
 			return;
@@ -134,19 +137,15 @@ const LoginView = (props: LoginViewProps) => {
 			return;
 		}
 
-		const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-			email: email(),
-			password: password(),
-			options: { data: { employee_no: employeeNo() } },
-		});
+		const result = await authRepository.signUp(email(), password(), employeeNo());
 
-		if (signUpError) {
+		if (result.status === "error") {
 			setErrorMessage("登録に失敗しました。入力内容を確認してください。");
 			setLoading(false);
 			return;
 		}
 
-		if (signUpData.user?.identities?.length === 0) {
+		if (result.status === "already_registered") {
 			switchMode("login", "このメールアドレスは既に登録されています。ログインをお試しください。");
 			setLoading(false);
 			return;
@@ -162,13 +161,9 @@ const LoginView = (props: LoginViewProps) => {
 		setLoading(true);
 		setErrorMessage(null);
 
-		const { error, data } = await supabase.auth.verifyOtp({
-			email: email(),
-			token: otp(),
-			type: "signup",
-		});
+		const { userId, error } = await authRepository.verifySignupOtp(email(), otp());
 
-		if (error || !data.user) {
+		if (error || !userId) {
 			setErrorMessage("認証コードが正しくないか、有効期限が切れています。");
 			setLoading(false);
 			return;
@@ -177,13 +172,13 @@ const LoginView = (props: LoginViewProps) => {
 		setLoading(false);
 		setLinkingEmployee(true);
 
-		const linked = await employeeRepository.linkUserToEmployee(employeeNo(), data.user.id);
+		const linked = await employeeRepository.linkUserToEmployee(employeeNo(), userId);
 
 		if (linked) {
 			await props.onRegistrationLinked?.();
 			navigate("/");
 		} else {
-			await supabase.auth.signOut();
+			await authRepository.signOut();
 			setLinkingEmployee(false);
 			switchMode("signup");
 			setEmployeeNoError("社員番号が誤りです。入力内容を確認してください。");
@@ -195,11 +190,71 @@ const LoginView = (props: LoginViewProps) => {
 		setLoading(true);
 		setErrorMessage(null);
 
-		const { error } = await supabase.auth.resend({ type: "signup", email: email() });
+		const { error } = await authRepository.resendSignupOtp(email());
 		if (error) {
 			setErrorMessage("認証コードの再送に失敗しました。しばらくしてから再度お試しください。");
 		}
 
+		setLoading(false);
+	};
+
+	// --- 【パスワード再設定リクエスト】 -------------------------------------------
+	const handleRequestPasswordReset = async (event: Event) => {
+		event.preventDefault();
+		setLoading(true);
+		setErrorMessage(null);
+
+		const { error } = await authRepository.requestPasswordReset(email());
+
+		if (error) {
+			setErrorMessage("確認コードの送信に失敗しました。しばらくしてから再度お試しください。");
+			setLoading(false);
+			return;
+		}
+
+		setLoading(false);
+		switchMode("reset-password");
+	};
+
+	// --- 確認コード再送処理（パスワード再設定） ----------------------------------
+	const handleResendPasswordResetOtp = async () => {
+		setLoading(true);
+		setErrorMessage(null);
+
+		const { error } = await authRepository.requestPasswordReset(email());
+		if (error) {
+			setErrorMessage("確認コードの再送に失敗しました。しばらくしてから再度お試しください。");
+		}
+
+		setLoading(false);
+	};
+
+	// --- 【パスワード再設定】 -------------------------------------------------
+	const handleResetPassword = async (event: Event) => {
+		event.preventDefault();
+		setLoading(true);
+		setErrorMessage(null);
+
+		if (password() !== confirmPassword()) {
+			setLoading(false);
+			return;
+		}
+
+		const result = await authRepository.confirmPasswordReset(email(), otp(), password());
+
+		if (result.status === "invalid_code") {
+			setErrorMessage("確認コードが正しくないか、有効期限が切れています。");
+			setLoading(false);
+			return;
+		}
+
+		if (result.status === "update_failed") {
+			setErrorMessage("パスワードの更新に失敗しました。入力内容を確認してください。");
+			setLoading(false);
+			return;
+		}
+
+		navigate("/");
 		setLoading(false);
 	};
 
@@ -261,7 +316,7 @@ const LoginView = (props: LoginViewProps) => {
 				</Show>
 
 				{/* ログイン・新規登録画面 */}
-				<Show when={viewMode() !== "otp-verify"}>
+				<Show when={viewMode() === "login" || viewMode() === "signup"}>
 					<h2>{viewMode() === "signup" ? "新規登録" : "ログイン"}</h2>
 
 					<form class="login-form" onSubmit={viewMode() === "signup" ? handleSignup : handleLogin}>
@@ -287,6 +342,15 @@ const LoginView = (props: LoginViewProps) => {
 								onInput={(e) => setPassword(e.currentTarget.value)}
 								required
 							/>
+							<Show when={viewMode() === "login"}>
+								<button
+									type="button"
+									class="link-button forgot-password-link"
+									onClick={() => switchMode("forgot-password")}
+								>
+									パスワードをお忘れですか？
+								</button>
+							</Show>
 						</div>
 
 						<Show when={viewMode() === "signup"}>
@@ -357,6 +421,132 @@ const LoginView = (props: LoginViewProps) => {
 								{viewMode() === "signup" ? "ログイン" : "新規登録"}
 							</button>
 						</p>
+					</div>
+				</Show>
+
+				{/* パスワード再設定リクエスト画面 */}
+				<Show when={viewMode() === "forgot-password"}>
+					<h2>パスワード再設定</h2>
+					<p class="info-text">
+						登録済みのメールアドレスを入力してください。確認コードを送信します。
+					</p>
+
+					<form class="login-form" onSubmit={handleRequestPasswordReset}>
+						<div class="login-fieldset">
+							<label for="reset-email">メールアドレス</label>
+							<input
+								id="reset-email"
+								type="email"
+								autocomplete="email"
+								value={email()}
+								onInput={(e) => setEmail(e.currentTarget.value)}
+								required
+							/>
+						</div>
+
+						<Show when={errorMessage()}>
+							<p class="error-message" role="alert">
+								{errorMessage()}
+							</p>
+						</Show>
+
+						<button type="submit" disabled={loading() || !email().trim()}>
+							{loading() ? "送信中..." : "確認コードを送信"}
+						</button>
+					</form>
+
+					<div class="auth-toggle">
+						<button type="button" class="link-button" onClick={() => switchMode("login")}>
+							ログインに戻る
+						</button>
+					</div>
+				</Show>
+
+				{/* パスワード再設定画面 */}
+				<Show when={viewMode() === "reset-password"}>
+					<h2>パスワード再設定</h2>
+					<p class="info-text">
+						<strong>{email()}</strong> 宛に確認コードを送信しました。
+					</p>
+
+					<form class="login-form" onSubmit={handleResetPassword}>
+						<div class="login-fieldset">
+							<label for="reset-otp">確認コード</label>
+							<input
+								id="reset-otp"
+								type="text"
+								inputMode="numeric"
+								autocomplete="one-time-code"
+								placeholder="00000000"
+								maxLength={8}
+								value={otp()}
+								onInput={(e) => setOtp(e.currentTarget.value)}
+								required
+							/>
+						</div>
+
+						<div class="login-fieldset">
+							<label for="new-password">新しいパスワード</label>
+							<input
+								id="new-password"
+								type="password"
+								autocomplete="new-password"
+								value={password()}
+								onInput={(e) => setPassword(e.currentTarget.value)}
+								required
+							/>
+						</div>
+
+						<div class="login-fieldset">
+							<label for="confirm-new-password">新しいパスワード（確認）</label>
+							<input
+								id="confirm-new-password"
+								type="password"
+								autocomplete="new-password"
+								value={confirmPassword()}
+								onInput={(e) => setConfirmPassword(e.currentTarget.value)}
+								required
+							/>
+							<Show when={passwordMismatch()}>
+								<p class="field-error" role="alert">
+									パスワードが一致しません
+								</p>
+							</Show>
+						</div>
+
+						<Show when={errorMessage()}>
+							<p class="error-message" role="alert">
+								{errorMessage()}
+							</p>
+						</Show>
+
+						<button
+							type="submit"
+							disabled={
+								loading() ||
+								!otp().trim() ||
+								!password() ||
+								!confirmPassword() ||
+								passwordMismatch()
+							}
+						>
+							{loading() ? "更新中..." : "パスワードを更新する"}
+						</button>
+					</form>
+
+					<div class="auth-toggle">
+						<button
+							type="button"
+							class="link-button"
+							disabled={loading()}
+							onClick={handleResendPasswordResetOtp}
+						>
+							確認コードを再送する
+						</button>
+						<span class="separator">|</span>
+						<button type="button" class="link-button" onClick={() => switchMode("login")}>
+							ログインに戻る
+						</button>
 					</div>
 				</Show>
 			</div>

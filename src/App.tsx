@@ -1,5 +1,4 @@
 import { A, Navigate, Route, Router } from "@solidjs/router";
-import type { Session } from "@supabase/supabase-js";
 import { LogOut, Menu, User, X } from "lucide-solid";
 import { type Component, createSignal, type JSX, onMount, Show } from "solid-js";
 import { ChallengeEvaluationController } from "./adapter/controllers/ChallengeEvaluationController";
@@ -36,8 +35,9 @@ import { UpdateFinalEvaluationRankInteractor } from "./application/usecases/Upda
 import { UpdateMilestoneInteractor } from "./application/usecases/UpdateMilestoneInteractor";
 import { UpdateOverallCommentInteractor } from "./application/usecases/UpdateOverallCommentInteractor";
 import { UpsertCommonEvaluationInteractor } from "./application/usecases/UpsertCommonEvaluationInteractor";
+import type { AuthSession } from "./domain/repositories/AuthRepository";
 import { EvaluationScoreUpdateService } from "./domain/services/EvaluationScoreUpdateService";
-import { supabase } from "./infrastructure/db/supabase";
+import { SupabaseAuthRepository } from "./infrastructure/auth/SupabaseAuthRepository";
 import { SupabaseCommonEvaluationRepository } from "./infrastructure/repositories/SupabaseCommonEvaluationRepository";
 import { SupabaseEmployeeMasterRepository } from "./infrastructure/repositories/SupabaseEmployeeMasterRepository";
 import { SupabaseEmployeeRepository } from "./infrastructure/repositories/SupabaseEmployeeRepository";
@@ -46,6 +46,7 @@ import { SupabaseEvaluationSheetRepository } from "./infrastructure/repositories
 import { SupabaseMilestoneRepository } from "./infrastructure/repositories/SupabaseMilestoneRepository";
 import { TauriEmailNotificationRepository } from "./infrastructure/repositories/TauriEmailNotificationRepository";
 
+const authRepository = new SupabaseAuthRepository();
 const employeeRepository = new SupabaseEmployeeRepository();
 const commonEvaluationRepository = new SupabaseCommonEvaluationRepository();
 const evaluationSheetRepository = new SupabaseEvaluationSheetRepository(
@@ -172,11 +173,9 @@ const DashboardLayout: Component<{ children?: JSX.Element | JSX.Element[] }> = (
 	const [userEmail, setUserEmail] = createSignal<string>("");
 
 	onMount(async () => {
-		const {
-			data: { user },
-		} = await supabase.auth.getUser();
-		if (user?.email) {
-			setUserEmail(user.email);
+		const email = await authRepository.getCurrentUserEmail();
+		if (email) {
+			setUserEmail(email);
 		}
 
 		const handleClickOutside = (e: MouseEvent) => {
@@ -190,7 +189,7 @@ const DashboardLayout: Component<{ children?: JSX.Element | JSX.Element[] }> = (
 	});
 
 	const handleLogout = async () => {
-		await supabase.auth.signOut();
+		await authRepository.signOut();
 		setUserMenuOpen(false);
 	};
 
@@ -248,17 +247,17 @@ const DashboardLayout: Component<{ children?: JSX.Element | JSX.Element[] }> = (
 };
 
 const App: Component = () => {
-	const [session, setSession] = createSignal<Session | null>(null);
+	const [session, setSession] = createSignal<AuthSession | null>(null);
 	const [isLinked, setIsLinked] = createSignal<boolean | null>(null);
 	const [initialized, setInitialized] = createSignal(false);
 
 	// ユーザーの状態（セッションとDB紐付け）を同期するコアロジック
-	const checkUserStatus = async (currentSession: Session | null) => {
+	const checkUserStatus = async (currentSession: AuthSession | null) => {
 		setSession(currentSession);
 
-		if (currentSession?.user) {
+		if (currentSession) {
 			const { data: employeeId } = await employeeRepository.findEmployeeIdByAuthId(
-				currentSession.user.id,
+				currentSession.userId,
 			);
 			setIsLinked(employeeId !== null);
 		} else {
@@ -268,27 +267,18 @@ const App: Component = () => {
 
 	onMount(async () => {
 		// 1. まず現在のセッションを一度だけ取得する（Authの初期化を待つ）
-		const {
-			data: { session: initialSession },
-		} = await supabase.auth.getSession();
+		const initialSession = await authRepository.getSession();
 		await checkUserStatus(initialSession);
 
 		// 2. ここで初めて「初期化完了」とする（これでチラつきを防ぐ）
 		setInitialized(true);
 
 		// 3. その後の状態変化（ログアウトなど）を監視する
-		const {
-			data: { subscription },
-		} = supabase.auth.onAuthStateChange(async (event, newSession) => {
-			if (event === "SIGNED_OUT") {
-				setSession(null);
-				setIsLinked(false);
-			} else if (newSession) {
-				await checkUserStatus(newSession);
-			}
+		const unsubscribe = authRepository.onAuthStateChange((newSession) => {
+			checkUserStatus(newSession);
 		});
 
-		return () => subscription.unsubscribe();
+		return unsubscribe;
 	});
 
 	return (
@@ -346,9 +336,7 @@ const App: Component = () => {
 						<Show when={!session() || !isLinked()} fallback={<Navigate href="/" />}>
 							<LoginView
 								onRegistrationLinked={async () => {
-									const {
-										data: { session: currentSession },
-									} = await supabase.auth.getSession();
+									const currentSession = await authRepository.getSession();
 									await checkUserStatus(currentSession);
 								}}
 							/>

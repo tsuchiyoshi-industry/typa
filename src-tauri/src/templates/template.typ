@@ -40,7 +40,6 @@
   #text(fill: white, size: 5.3pt, weight: "bold")[#body]
 ]
 #let green-cell(body) = table.cell(fill: sheet-green)[#body]
-#let fixed-cell(value, height, size: 5.15pt) = table.cell[#fixed(value, height, size: size)]
 #let fixed-green-cell(value, height, size: 5.15pt) = table.cell(fill: sheet-green)[
   #fixed(value, height, size: size)
 ]
@@ -63,7 +62,7 @@
   table(
     columns: (28mm, 16mm, 18mm, 22mm),
     stroke: 0.45pt + grid-line,
-    inset: (x: 2.6pt, y: 2.5pt),
+    inset: (x: 2.6pt, y: 1.5pt),
     align: center + horizon,
     table.cell(colspan: 4, fill: black, align: left)[
       #text(fill: white, size: 5.8pt, weight: "bold")[評価集計欄]
@@ -90,11 +89,11 @@
 
 #let profile-tables() = [
   #text(size: 10pt, weight: "bold")[□評価シート]
-  #v(2pt)
+  #v(1pt)
   #table(
     columns: (18mm, 18mm, 32mm),
     stroke: 0.45pt + grid-line,
-    inset: (x: 3pt, y: 2.4pt),
+    inset: (x: 3pt, y: 1.5pt),
     align: center + horizon,
     title-cell[コース区分],
     title-cell[等級],
@@ -103,11 +102,11 @@
     green-cell(text(fill: red, weight: "bold")[#empty(inputs.grade_name)]),
     green-cell(text(fill: red, weight: "bold")[#inputs.period_start ～ #inputs.period_end]),
   )
-  #v(8pt)
+  #v(3pt)
   #table(
     columns: (24mm, 34mm),
     stroke: 0.45pt + grid-line,
-    inset: (x: 3pt, y: 2.4pt),
+    inset: (x: 3pt, y: 1.5pt),
     align: center + horizon,
     title-cell[],
     title-cell[氏名],
@@ -121,16 +120,16 @@
 ]
 
 #let section-title(title) = [
-  #v(5pt)
+  #v(2pt)
   #label(title)
-  #v(1.5pt)
+  #v(0.5pt)
 ]
 
 #let challenge-table() = {
   table(
     columns: (5mm, 50mm, 52mm, 52mm, 13mm, 13mm, 14mm),
     stroke: 0.43pt + grid-line,
-    inset: (x: 2pt, y: 3pt),
+    inset: (x: 2pt, y: 1.5pt),
     align: horizon,
     title-cell[no],
     title-cell[(本人)チャレンジ目標],
@@ -155,7 +154,7 @@
   #table(
     columns: (37mm, 13mm, 14mm),
     stroke: 0.43pt + grid-line,
-    inset: (x: 2.2pt, y: 2pt),
+    inset: (x: 2.2pt, y: 0.8pt),
     align: center + horizon,
     table.cell(colspan: 1, stroke: none)[評価合計点],
     [#point(inputs.objective_allocation_score)],
@@ -168,29 +167,30 @@
 
 #let common-table() = {
   table(
-    columns: (5mm, 23mm, 66mm, 66mm, 13mm, 13mm, 14mm),
+    columns: (auto, 1fr, 1fr, auto, auto, auto),
     stroke: 0.43pt + grid-line,
-    inset: (x: 2pt, y: 2.2pt),
+    inset: (x: 2pt, y: 1.2pt),
     align: horizon,
-    title-cell[no],
     title-cell[評価項目],
     title-cell[評価上の着眼点],
     title-cell[【一次評価者】評価コメント],
     title-cell[配点],
-    title-cell(text(size: 4.7pt)[【一次評価者】 #linebreak() 上司評価]),
-    title-cell(text(size: 4.7pt)[【二次評価者】 #linebreak() 修正後評価]),
-    ..range(inputs.common_evaluations.len()).map(index => {
-      let item = inputs.common_evaluations.at(index)
-      (
-        fixed-center-cell(index + 1, 8.8mm),
-        fixed-cell(item.item_name, 8.8mm, size: 5pt),
-        fixed-cell(item.item_description, 8.8mm, size: 4.8pt),
-        fixed-green-cell(item.self_comment, 8.8mm, size: 4.8pt),
-        fixed-center-cell(item.weight, 8.8mm),
-        fixed-green-score(item.self_score, 8.8mm),
-        fixed-green-score(item.evaluator_score, 8.8mm),
-      )
-    }).flatten()
+    title-cell[一次],
+    title-cell[二次],
+    ..inputs.common_evaluations.map(item => (
+      centered(text(size: 5pt)[#empty(item.item_name)]),
+      table.cell[
+        #set par(leading: 0.25em)
+        #text(size: 4.3pt)[#empty(item.item_description)]
+      ],
+      table.cell(fill: sheet-green)[
+        #set par(leading: 0.3em)
+        #text(size: 4.8pt)[#empty(item.self_comment)]
+      ],
+      centered[#item.weight],
+      table.cell(fill: sheet-green, align: center + horizon)[#red-score(item.self_score)],
+      table.cell(fill: sheet-green, align: center + horizon)[#red-score(item.evaluator_score)],
+    )).flatten()
   )
 }
 
@@ -198,7 +198,7 @@
   #table(
     columns: (37mm, 13mm, 14mm),
     stroke: 0.43pt + grid-line,
-    inset: (x: 2.2pt, y: 2pt),
+    inset: (x: 2.2pt, y: 0.8pt),
     align: center + horizon,
     table.cell(colspan: 1, stroke: none)[評価合計点],
     [#point(inputs.common_evaluation_allocation_score)],
@@ -215,7 +215,7 @@
   table(
     columns: (1fr, 1fr),
     stroke: 0.5pt + grid-line,
-    inset: (x: 3pt, y: 3pt),
+    inset: (x: 3pt, y: 1.5pt),
     title-cell[【一次評価者】コメント欄],
     title-cell[【二次評価者】コメント欄],
     table.cell(fill: sheet-green)[#fixed(inputs.first_overall_comment, 18mm, size: 5pt)],
@@ -225,7 +225,7 @@
     #table(
       columns: (1fr, 1fr),
       stroke: 0.45pt + grid-line,
-      inset: (x: 1.7pt, y: 1.6pt),
+      inset: (x: 1.7pt, y: 0.8pt),
       align: center + horizon,
       table.cell(colspan: 2, fill: black)[
         #text(fill: white, size: 5.3pt, weight: "bold")[承認欄]
@@ -261,5 +261,5 @@
 #common-table()
 #common-summary()
 
-#v(7pt)
+#v(2pt)
 #comment-and-approval()

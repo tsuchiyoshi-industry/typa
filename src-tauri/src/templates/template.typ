@@ -5,6 +5,7 @@
 #let sheet-green = rgb("#e2efda")
 #let muted = luma(115)
 #let red = rgb("#ff0000")
+#let page-margin = 5mm
 
 #let blank = text(fill: muted)[]
 #let empty(value) = if value == "" {
@@ -62,7 +63,7 @@
   table(
     columns: (28mm, 16mm, 18mm, 22mm),
     stroke: 0.45pt + grid-line,
-    inset: (x: 2.6pt, y: 1.5pt),
+    inset: (x: 2.6pt, y: 2pt),
     align: center + horizon,
     table.cell(colspan: 4, fill: black, align: left)[
       #text(fill: white, size: 5.8pt, weight: "bold")[評価集計欄]
@@ -88,12 +89,12 @@
 }
 
 #let profile-tables() = [
-  #text(size: 10pt, weight: "bold")[□評価シート]
-  #v(1pt)
+  #text(size: 10pt, weight: "bold")[□人事評価シート]
+  #v(2pt)
   #table(
     columns: (18mm, 18mm, 32mm),
     stroke: 0.45pt + grid-line,
-    inset: (x: 3pt, y: 1.5pt),
+    inset: (x: 3pt, y: 2pt),
     align: center + horizon,
     title-cell[コース区分],
     title-cell[等級],
@@ -102,11 +103,11 @@
     green-cell(text(fill: red, weight: "bold")[#empty(inputs.grade_name)]),
     green-cell(text(fill: red, weight: "bold")[#inputs.period_start ～ #inputs.period_end]),
   )
-  #v(3pt)
+  #v(5pt)
   #table(
     columns: (24mm, 34mm),
     stroke: 0.45pt + grid-line,
-    inset: (x: 3pt, y: 1.5pt),
+    inset: (x: 3pt, y: 2pt),
     align: center + horizon,
     title-cell[],
     title-cell[氏名],
@@ -120,16 +121,16 @@
 ]
 
 #let section-title(title) = [
-  #v(2pt)
+  #v(4pt)
   #label(title)
-  #v(0.5pt)
+  #v(1pt)
 ]
 
 #let challenge-table() = {
   table(
     columns: (5mm, 50mm, 52mm, 52mm, 13mm, 13mm, 14mm),
     stroke: 0.43pt + grid-line,
-    inset: (x: 2pt, y: 1.5pt),
+    inset: (x: 2pt, y: 2.5pt),
     align: horizon,
     title-cell[no],
     title-cell[(本人)チャレンジ目標],
@@ -154,7 +155,7 @@
   #table(
     columns: (37mm, 13mm, 14mm),
     stroke: 0.43pt + grid-line,
-    inset: (x: 2.2pt, y: 0.8pt),
+    inset: (x: 2.2pt, y: 1.5pt),
     align: center + horizon,
     table.cell(colspan: 1, stroke: none)[評価合計点],
     [#point(inputs.objective_allocation_score)],
@@ -165,11 +166,12 @@
   )
 ]
 
-#let common-table() = {
+// pad: 余白に応じて各行へ足す上下パディング（下部の #context で算出）
+#let common-table(pad) = {
   table(
     columns: (auto, 1fr, 1fr, auto, auto, auto),
     stroke: 0.43pt + grid-line,
-    inset: (x: 2pt, y: 1.2pt),
+    inset: (_, y) => (x: 2pt, y: if y == 0 { 2pt } else { 2pt + pad }),
     align: horizon,
     title-cell[評価項目],
     title-cell[評価上の着眼点],
@@ -178,14 +180,14 @@
     title-cell[一次],
     title-cell[二次],
     ..inputs.common_evaluations.map(item => (
-      centered(text(size: 5pt)[#empty(item.item_name)]),
+      centered(text(size: 5.2pt)[#empty(item.item_name)]),
       table.cell[
-        #set par(leading: 0.25em)
-        #text(size: 4.3pt)[#empty(item.item_description)]
+        #set par(leading: 0.34em)
+        #text(size: 4.8pt)[#empty(item.item_description)]
       ],
       table.cell(fill: sheet-green)[
-        #set par(leading: 0.3em)
-        #text(size: 4.8pt)[#empty(item.self_comment)]
+        #set par(leading: 0.34em)
+        #text(size: 5pt)[#empty(item.self_comment)]
       ],
       centered[#item.weight],
       table.cell(fill: sheet-green, align: center + horizon)[#red-score(item.self_score)],
@@ -198,7 +200,7 @@
   #table(
     columns: (37mm, 13mm, 14mm),
     stroke: 0.43pt + grid-line,
-    inset: (x: 2.2pt, y: 0.8pt),
+    inset: (x: 2.2pt, y: 1.5pt),
     align: center + horizon,
     table.cell(colspan: 1, stroke: none)[評価合計点],
     [#point(inputs.common_evaluation_allocation_score)],
@@ -215,7 +217,7 @@
   table(
     columns: (1fr, 1fr),
     stroke: 0.5pt + grid-line,
-    inset: (x: 3pt, y: 1.5pt),
+    inset: (x: 3pt, y: 2.5pt),
     title-cell[【一次評価者】コメント欄],
     title-cell[【二次評価者】コメント欄],
     table.cell(fill: sheet-green)[#fixed(inputs.first_overall_comment, 18mm, size: 5pt)],
@@ -225,7 +227,7 @@
     #table(
       columns: (1fr, 1fr),
       stroke: 0.45pt + grid-line,
-      inset: (x: 1.7pt, y: 0.8pt),
+      inset: (x: 1.7pt, y: 1.4pt),
       align: center + horizon,
       table.cell(colspan: 2, fill: black)[
         #text(fill: white, size: 5.3pt, weight: "bold")[承認欄]
@@ -241,7 +243,7 @@
 
 #set page(
   paper: "a4",
-  margin: (top: 5mm, bottom: 5mm, left: 5mm, right: 5mm),
+  margin: page-margin,
 )
 #set text(size: 5.7pt, lang: "ja", font: ("Zen Antique Soft"))
 #set par(justify: true, leading: 0.42em)
@@ -258,8 +260,17 @@
 #challenge-summary()
 
 #section-title[共通評価]
-#common-table()
-#common-summary()
-
-#v(2pt)
-#comment-and-approval()
+// 共通評価表の行を、ページ下端まで残った余白ぶん均等に広げる（1行あたり最大6mm）
+#context {
+  let rest(pad) = [
+    #common-table(pad)
+    #common-summary()
+    #v(5pt)
+    #comment-and-approval()
+  ]
+  let n = calc.max(inputs.common_evaluations.len(), 1)
+  let width = page.width - 2 * page-margin
+  let avail = page.height - page-margin - here().position().y
+  let spare = avail - measure(width: width, rest(0pt)).height - 3pt // 丸め誤差で2ページ目に溢れないよう余裕を残す
+  rest(calc.max(0pt, calc.min(spare / n / 2, 3mm)))
+}

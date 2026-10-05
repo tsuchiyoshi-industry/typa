@@ -403,7 +403,10 @@ describe("comments, final rank, status and notifications", () => {
 			out,
 		);
 		expect(out.present).toHaveBeenCalledWith(
-			expect.objectContaining({ sheet: expect.objectContaining({ status: "finalized" }) }),
+			expect.objectContaining({
+				sheet: expect.objectContaining({ status: "finalized" }),
+				notificationWarning: expect.stringContaining("評価は確定しました"),
+			}),
 		);
 	});
 	it.each(["comment", "rank", "status", "milestone", "common", "loadCommon"])(

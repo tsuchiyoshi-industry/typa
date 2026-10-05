@@ -209,7 +209,7 @@ export function createSheetEditorPresenter(): {
 				...prev,
 				sheet: response.sheet,
 				updatingStatus: false,
-				statusUpdateError: null,
+				statusUpdateError: response.notificationWarning ?? null,
 			}));
 		},
 	};

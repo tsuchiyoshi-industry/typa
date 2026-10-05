@@ -19,6 +19,7 @@ export interface UpdateEvaluationStatusRequest {
 
 export interface UpdateEvaluationStatusResponse {
 	sheet: EvaluationSheetDto;
+	notificationWarning?: string;
 }
 
 export interface UpdateEvaluationStatusOutputPort
@@ -48,14 +49,17 @@ export class UpdateEvaluationStatusInteractor
 		const updated = await this.evaluationSheetRepository.updateStatus(request.sheetId, newStatus);
 		const gradeName = await this.employeeRepository.findGradeName(updated.subject.gradeId);
 
-		if (newStatus.isFinalizedBySecondEvaluator()) {
-			await this.notifySheetFinalized(updated);
-		}
+		const notificationWarning = newStatus.isFinalizedBySecondEvaluator()
+			? await this.notifySheetFinalized(updated)
+			: undefined;
 
-		outputPort.present({ sheet: toEvaluationSheetDto(updated, gradeName, policy) });
+		outputPort.present({
+			sheet: toEvaluationSheetDto(updated, gradeName, policy),
+			...(notificationWarning ? { notificationWarning } : {}),
+		});
 	}
 
-	private async notifySheetFinalized(sheet: EvaluationSheet): Promise<void> {
+	private async notifySheetFinalized(sheet: EvaluationSheet): Promise<string | undefined> {
 		if (!this.emailNotificationRepository) {
 			return;
 		}
@@ -69,6 +73,7 @@ export class UpdateEvaluationStatusInteractor
 			});
 		} catch (error) {
 			console.error("評価確定メールの送信に失敗しました:", error);
+			return "評価は確定しましたが、通知メールを送信できなかった評価者がいます。登録メールとSMTP設定を確認してください。";
 		}
 	}
 

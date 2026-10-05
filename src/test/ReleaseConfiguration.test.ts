@@ -19,7 +19,6 @@ describe("release security configuration", () => {
 		);
 	});
 	it.each([
-		"VITE_SMTP_PASSWORD",
 		"VITE_SERVICE_ROLE",
 		"VITE_SIGNING_PRIVATE_KEY",
 		"VITE_CLIENT_SECRET",
@@ -31,6 +30,11 @@ describe("release security configuration", () => {
 		} catch (error) {
 			expect(String(error)).not.toContain("synthetic-secret");
 		}
+	});
+	it("allows the risk-accepted notification SMTP password", () => {
+		expect(() =>
+			assertPublicBuildEnvironment({ VITE_SMTP_PASSWORD: "synthetic-password" }, ""),
+		).not.toThrow();
 	});
 	it("rejects Supabase service keys", () => {
 		expect(() =>

@@ -41,6 +41,7 @@ import { SupabaseAuthRepository } from "./infrastructure/auth/SupabaseAuthReposi
 import { SupabaseCommonEvaluationRepository } from "./infrastructure/repositories/SupabaseCommonEvaluationRepository";
 import { SupabaseEmployeeMasterRepository } from "./infrastructure/repositories/SupabaseEmployeeMasterRepository";
 import { SupabaseEmployeeRepository } from "./infrastructure/repositories/SupabaseEmployeeRepository";
+import { SupabaseEvaluationNotificationRecipientRepository } from "./infrastructure/repositories/SupabaseEvaluationNotificationRecipientRepository";
 import { SupabaseEvaluationPeriodRepository } from "./infrastructure/repositories/SupabaseEvaluationPeriodRepository";
 import { SupabaseEvaluationSheetRepository } from "./infrastructure/repositories/SupabaseEvaluationSheetRepository";
 import { SupabaseMilestoneRepository } from "./infrastructure/repositories/SupabaseMilestoneRepository";
@@ -57,7 +58,9 @@ const evaluationSheetRepository = new SupabaseEvaluationSheetRepository(
 const evaluationPeriodRepository = new SupabaseEvaluationPeriodRepository();
 const milestoneRepository = new SupabaseMilestoneRepository();
 const employeeMasterRepository = new SupabaseEmployeeMasterRepository();
-const emailNotificationRepository = new TauriEmailNotificationRepository();
+const emailNotificationRepository = new TauriEmailNotificationRepository(
+	new SupabaseEvaluationNotificationRecipientRepository(),
+);
 const evaluationScoreUpdateService = new EvaluationScoreUpdateService(
 	evaluationSheetRepository,
 	milestoneRepository,

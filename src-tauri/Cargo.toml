@@ -38,3 +38,7 @@ tauri-plugin-updater = "2.13.1"
 
 [dev-dependencies]
 tauri = { version = "^2.11.5", features = ["test"] }
+
+# Upstream quick-xml >=0.41 fix, pending a citationberg crates.io release.
+[patch.crates-io]
+citationberg = { git = "https://github.com/typst/citationberg", rev = "8966cf7c178b38b621d297c9eb6d0bb81e14be5e" }

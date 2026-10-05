@@ -1,6 +1,6 @@
 [package]
 name = "typa"
-version = "0.5.5"
+version = "0.6.0"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2024"
@@ -15,26 +15,26 @@ name = "typa_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2.6.3", features = [] }
+tauri-build = { version = "2.7.1", features = [] }
 
 [dependencies]
-tauri = { version = "^2.11.5", features = [] }
-tauri-plugin-opener = "2"
-tauri-plugin-fs = "2"
+tauri = { version = "^2.12.1", features = [] }
+tauri-plugin-opener = "^2.7.0"
+tauri-plugin-fs = "2.6.0"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tauri-plugin-upload = "2.4.0"
+tauri-plugin-upload = "2.5.0"
 time = { version = "^0.3.53", features = ["macros"] }
 chrono = "0.4.45"
 typst-as-lib = "0.16.0"
 typst = "0.15.0"
 typst-pdf = "0.15.0"
-tauri-plugin-dialog = "2"
-tauri-plugin-process = "2.3.1"
+tauri-plugin-dialog = "^2.8.1"
+tauri-plugin-process = "2.4.0"
 lettre = { version = "0.11", default-features = false, features = ["builder", "smtp-transport", "rustls-tls", "hostname"] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
-tauri-plugin-updater = "2"
+tauri-plugin-updater = "2.13.1"
 
 [dev-dependencies]
 tauri = { version = "^2.11.5", features = ["test"] }

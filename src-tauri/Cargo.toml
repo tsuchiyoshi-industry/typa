@@ -18,7 +18,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2.7.1", features = [] }
 
 [dependencies]
-tauri = { version = "^2.12.1", features = [] }
+tauri = { version = "~2.12.1", features = [] }
 tauri-plugin-opener = "^2.7.0"
 tauri-plugin-fs = "2.6.0"
 serde = { version = "1", features = ["derive"] }
@@ -37,7 +37,7 @@ lettre = { version = "0.11", default-features = false, features = ["builder", "s
 tauri-plugin-updater = "2.13.1"
 
 [dev-dependencies]
-tauri = { version = "^2.11.5", features = ["test"] }
+tauri = { version = "~2.12.1", features = ["test"] }
 
 # Upstream quick-xml >=0.41 fix, pending a citationberg crates.io release.
 [patch.crates-io]

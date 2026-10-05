@@ -42,6 +42,42 @@ export class UpdateMilestoneInteractor
 			throw new Error("評価シートが見つかりません。");
 		}
 		const policy = EvaluationSheetAccessPolicy.for(request.currentEmployeeId, sheet);
+		const currentObjective = sheet.objectives.find((objective) =>
+			request.milestoneId !== undefined
+				? objective.id === request.milestoneId
+				: objective.goalNumber === request.goalNumber,
+		);
+		// Validate the entire request before the first write, including the child resource binding.
+		if (
+			request.milestoneId !== undefined &&
+			!sheet.objectives.some(
+				(objective) => objective.id === request.milestoneId && objective.sheetId === sheet.sheetId,
+			)
+		) {
+			throw new Error("対象の目標はこの評価シートに属していません。");
+		}
+		if (
+			request.goalNumber !== undefined &&
+			(!Number.isSafeInteger(request.goalNumber) || request.goalNumber < 1)
+		) {
+			throw new Error("目標番号が不正です。");
+		}
+		for (const score of [request.firstScore, request.secondScore]) {
+			if (score !== undefined && (!Number.isInteger(score) || score < 0 || score > 4)) {
+				throw new Error("目標の評価点は0から4の整数で指定してください。");
+			}
+		}
+		if (request.firstScore !== undefined || request.secondScore !== undefined) {
+			if (request.milestoneId === undefined) {
+				throw new Error("Milestone ID is required to update milestone score.");
+			}
+			if (request.firstScore !== undefined && !policy.canEditMilestoneFirstScore()) {
+				throw new Error("一次評価者のみ一次評価を編集できます。");
+			}
+			if (request.secondScore !== undefined && !policy.canEditMilestoneSecondScore()) {
+				throw new Error("二次評価者のみ二次評価を編集できます。");
+			}
+		}
 
 		let updated = null;
 
@@ -57,33 +93,24 @@ export class UpdateMilestoneInteractor
 			if (request.milestoneId !== undefined) {
 				updated = await this.milestoneRepository.updateText(
 					request.milestoneId,
-					request.challengeGoal ?? "",
-					request.midtermGoal ?? "",
-					request.achievement ?? "",
+					request.challengeGoal ?? currentObjective?.challengeGoal ?? "",
+					request.midtermGoal ?? currentObjective?.midtermGoal ?? "",
+					request.achievement ?? currentObjective?.achievement ?? "",
 				);
 			} else if (request.goalNumber !== undefined) {
 				updated = await this.milestoneRepository.upsertText(
 					request.sheetId,
 					request.goalNumber,
-					request.challengeGoal ?? "",
-					request.midtermGoal ?? "",
-					request.achievement ?? "",
+					request.challengeGoal ?? currentObjective?.challengeGoal ?? "",
+					request.midtermGoal ?? currentObjective?.midtermGoal ?? "",
+					request.achievement ?? currentObjective?.achievement ?? "",
 				);
 			}
 		}
 
 		if (request.firstScore !== undefined || request.secondScore !== undefined) {
-			if (request.milestoneId === undefined) {
-				throw new Error("Milestone ID is required to update milestone score.");
-			}
-			if (request.firstScore !== undefined && !policy.canEditMilestoneFirstScore()) {
-				throw new Error("一次評価者のみ一次評価を編集できます。");
-			}
-			if (request.secondScore !== undefined && !policy.canEditMilestoneSecondScore()) {
-				throw new Error("二次評価者のみ二次評価を編集できます。");
-			}
 			updated = await this.evaluationScoreUpdateService.updateObjectiveScore(
-				request.milestoneId,
+				request.milestoneId as number,
 				request.firstScore,
 				request.secondScore,
 			);

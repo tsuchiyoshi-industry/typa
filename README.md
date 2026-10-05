@@ -90,6 +90,8 @@ PDF出力は以下の流れです。
 
 ## 実装メモ
 
+リリース前の問題一覧・単体テスト・DB/認証の追加検証は [セキュリティ監査](security/RELEASE-AUDIT.md) を参照してください。`bun run test:coverage`、`bun run typecheck`、`bun run test:rust` を配布前に実行します。SMTP資格情報などを `VITE_*` に含めるビルドは拒否します。
+
 - `milestones` と `common_evaluation_results` は、DB側に複合ユニーク制約がない前提で実装しています。
 - そのため保存処理では Supabase の `upsert(... onConflict)` に依存せず、既存行検索から `update` / `insert` を分岐します。
 - 共通評価は `common_evaluation_results` が0件でも、`common_evaluation_items` を基準に未入力行を表示します。

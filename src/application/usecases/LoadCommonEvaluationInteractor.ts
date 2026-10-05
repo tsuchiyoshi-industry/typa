@@ -39,7 +39,7 @@ export class LoadCommonEvaluationInteractor
 
 		const summary = await this.commonEvaluationRepository.findResultsBySheetId(
 			request.sheetId,
-			request.gradeId,
+			sheet.subject.gradeId,
 		);
 		const response: LoadCommonEvaluationResponse = {
 			results: summary.results.map((result) => ({

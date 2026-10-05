@@ -23,7 +23,6 @@ export interface SheetExportDataDto {
 	primaryEvaluator: string;
 	secondaryEvaluator: string;
 	status: string;
-	totalScore: number;
 	/** 二次評価者以外が出力する場合、伏せ字("*")になる。 */
 	finalEvaluationRank: string;
 	objectiveAllocationScore: number;

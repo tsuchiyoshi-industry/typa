@@ -3,7 +3,8 @@ export interface SheetSummaryDto {
 	periodId: number;
 	employeeId: number;
 	status: string;
-	totalScore: number;
+	/** List rows do not resolve per-sheet secondary permissions. Do not expose a derived score. */
+	totalScore: null;
 	createdAt: string;
 	updatedAt: string;
 	periodName: string;

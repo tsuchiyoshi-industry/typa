@@ -13,7 +13,10 @@ export class EvaluationStatus {
 		if (value === "submitted") {
 			return EvaluationStatus.SUBMITTED;
 		}
-		return EvaluationStatus.DRAFT;
+		if (value === "draft") {
+			return EvaluationStatus.DRAFT;
+		}
+		throw new Error("Invalid evaluation status.");
 	}
 
 	isDraft(): boolean {

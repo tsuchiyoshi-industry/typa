@@ -20,6 +20,9 @@ export class FinalEvaluationRank {
 		letter: FinalEvaluationRankLetter,
 		level: FinalEvaluationRankLevel,
 	): FinalEvaluationRank {
+		if (!FinalEvaluationRank.isLetter(letter) || !FinalEvaluationRank.isLevel(level)) {
+			throw new Error("Invalid final evaluation rank.");
+		}
 		return new FinalEvaluationRank(letter, level);
 	}
 

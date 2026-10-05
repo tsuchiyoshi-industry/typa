@@ -37,7 +37,6 @@ export function toSheetExportDataDto(
 		primaryEvaluator: data.primaryEvaluator,
 		secondaryEvaluator: data.secondaryEvaluator,
 		status: data.status,
-		totalScore: data.totalScore,
 		finalEvaluationRank: maskText(data.finalEvaluationRank, canViewSecondEvaluation),
 		objectiveAllocationScore: data.objectiveAllocationScore,
 		objectiveSecondRate: maskText(String(data.objectiveSecondRate), canViewSecondEvaluation),

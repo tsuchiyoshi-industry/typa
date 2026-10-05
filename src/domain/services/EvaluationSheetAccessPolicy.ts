@@ -34,6 +34,10 @@ export class EvaluationSheetAccessPolicy {
 		return this.viewerIsSubject;
 	}
 
+	canViewSheet(): boolean {
+		return this.viewerIsSubject || this.viewerIsPrimaryEvaluator || this.viewerIsSecondaryEvaluator;
+	}
+
 	// --- チャレンジ目標(Milestone) ---
 
 	/** 目標文言(チャレンジ目標・中間目標・達成状況)を編集できるのは本人のみ。 */
@@ -43,11 +47,19 @@ export class EvaluationSheetAccessPolicy {
 
 	/** 評価者は下書き中は閲覧のみで、本人が提出してから評価を編集できる。 */
 	canEditMilestoneFirstScore(): boolean {
-		return this.viewerIsPrimaryEvaluator && this.sheet.status.isUnderEvaluation();
+		return (
+			!this.viewerIsSubject &&
+			this.viewerIsPrimaryEvaluator &&
+			this.sheet.status.isUnderEvaluation()
+		);
 	}
 
 	canEditMilestoneSecondScore(): boolean {
-		return this.viewerIsSecondaryEvaluator && this.sheet.status.isUnderEvaluation();
+		return (
+			!this.viewerIsSubject &&
+			this.viewerIsSecondaryEvaluator &&
+			this.sheet.status.isUnderEvaluation()
+		);
 	}
 
 	/** 一次評価者は二次評価者の評価を見ることができない。 */
@@ -66,16 +78,24 @@ export class EvaluationSheetAccessPolicy {
 
 	/** 評価者は下書き中は閲覧のみで、本人が提出してから評価を編集できる。 */
 	canEditCommonEvaluationFirst(): boolean {
-		return this.viewerIsPrimaryEvaluator && this.sheet.status.isUnderEvaluation();
+		return (
+			!this.viewerIsSubject &&
+			this.viewerIsPrimaryEvaluator &&
+			this.sheet.status.isUnderEvaluation()
+		);
 	}
 
 	canEditCommonEvaluationSecond(): boolean {
-		return this.viewerIsSecondaryEvaluator && this.sheet.status.isUnderEvaluation();
+		return (
+			!this.viewerIsSubject &&
+			this.viewerIsSecondaryEvaluator &&
+			this.sheet.status.isUnderEvaluation()
+		);
 	}
 
 	/** 一次評価者は二次評価の内容を見ることができない(自分の一次評価の出力は可能)。 */
 	canViewCommonEvaluationSecond(): boolean {
-		return this.viewerIsSecondaryEvaluator;
+		return !this.viewerIsSubject && this.viewerIsSecondaryEvaluator;
 	}
 
 	// --- 総評・最終評価ランク ---
@@ -104,7 +124,11 @@ export class EvaluationSheetAccessPolicy {
 
 	/** 二次評価者は評価入力段階(提出済み・未確定)のシートを確定し、不可逆にロックできる。 */
 	canFinalizeAsSecondaryEvaluator(): boolean {
-		return this.viewerIsSecondaryEvaluator && this.sheet.status.isUnderEvaluation();
+		return (
+			!this.viewerIsSubject &&
+			this.viewerIsSecondaryEvaluator &&
+			this.sheet.status.isUnderEvaluation()
+		);
 	}
 
 	canChangeStatusTo(targetSubmitted: boolean): boolean {
@@ -124,6 +148,6 @@ export class EvaluationSheetAccessPolicy {
 
 	/** 一次評価者向けの出力では、二次評価の内容をすべて伏せる。 */
 	canExportSecondEvaluation(): boolean {
-		return this.viewerIsSecondaryEvaluator;
+		return !this.viewerIsSubject && this.viewerIsSecondaryEvaluator;
 	}
 }

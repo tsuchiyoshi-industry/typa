@@ -76,6 +76,12 @@ export class UpdateEvaluationStatusInteractor
 		request: UpdateEvaluationStatusRequest,
 		policy: EvaluationSheetAccessPolicy,
 	): EvaluationStatus {
+		if (request.status !== "draft" && request.status !== "submitted") {
+			throw new Error("評価シートの状態が不正です。");
+		}
+		if (request.asFinalization && request.status !== "submitted") {
+			throw new Error("確定時の状態が不正です。");
+		}
 		if (request.status === "draft") {
 			if (!policy.canRevertOwnSheetToDraft()) {
 				throw new Error("この評価シートを下書きに戻す権限がありません。");

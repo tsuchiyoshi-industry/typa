@@ -47,6 +47,28 @@ export class UpsertCommonEvaluationInteractor
 		if (!canEditFirst && !canEditSecond) {
 			throw new Error("共通評価を更新する権限がありません。");
 		}
+		const seen = new Set<number>();
+		for (const result of request.results) {
+			const existing = sheet.commonEvaluationResults.find(
+				(entry) => entry.itemId === result.itemId,
+			);
+			if (!existing || seen.has(result.itemId)) {
+				throw new Error("共通評価項目が不正または重複しています。");
+			}
+			seen.add(result.itemId);
+			const scores: number[] = [];
+			if (canEditFirst) {
+				scores.push(result.firstScore);
+			}
+			if (canEditSecond) {
+				scores.push(result.secondScore);
+			}
+			for (const score of scores) {
+				if (!Number.isInteger(score) || score < 0 || score > existing.item.weight) {
+					throw new Error("共通評価の評価点が範囲外です。");
+				}
+			}
+		}
 
 		await this.evaluationScoreUpdateService.upsertCommonEvaluationResults(
 			request.sheetId,

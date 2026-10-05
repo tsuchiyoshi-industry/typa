@@ -3,12 +3,5 @@
 	"identifier": "default",
 	"description": "Capability for the main window",
 	"windows": ["main"],
-	"permissions": [
-		"core:default",
-		"core:window:allow-destroy",
-		"opener:default",
-		"upload:default",
-		"fs:default",
-		"dialog:default"
-	]
+	"permissions": ["core:default", "core:window:allow-destroy", "dialog:allow-save"]
 }

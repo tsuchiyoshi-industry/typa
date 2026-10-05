@@ -1,16 +1,25 @@
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv, type ResolvedConfig } from "vite";
 import solid from "vite-plugin-solid";
+import { assertPublicBuildEnvironment } from "./scripts/releaseEnvironment.ts";
+import tauriConfig from "./src-tauri/tauri.conf.json" with { type: "json" };
 
-// @ts-expect-error process is a nodejs global
 const host = process.env.TAURI_DEV_HOST;
 
 // https://vitejs.dev/config/
-export default defineConfig(async () => ({
-	plugins: [solid()],
-
-	test: {
-		environment: "node",
-	},
+export default defineConfig(async ({ mode }) => ({
+	plugins: [
+		solid(),
+		{
+			name: "public-build-environment",
+			apply: "build",
+			configResolved(config: ResolvedConfig) {
+				assertPublicBuildEnvironment(
+					loadEnv(mode, config.root, "VITE_"),
+					tauriConfig.app.security.csp,
+				);
+			},
+		},
+	],
 
 	// Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
 	//

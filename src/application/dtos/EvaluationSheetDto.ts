@@ -3,20 +3,20 @@ import type { EvaluationPeriodDto } from "./EvaluationPeriodDto";
 import type { MilestoneDto } from "./MilestoneDto";
 
 export interface EvaluationScoreTotalsDto {
-	firstTotalScore: number;
-	firstTotalRate: number;
-	secondTotalScore: number;
-	secondTotalRate: number;
+	firstTotalScore: number | null;
+	firstTotalRate: number | null;
+	secondTotalScore: number | null;
+	secondTotalRate: number | null;
 }
 
 export interface EvaluationAllocatedScoresDto {
 	objectiveAllocationScore: number;
-	objectiveSecondRate: number;
-	objectiveEvaluationScore: number;
+	objectiveSecondRate: number | null;
+	objectiveEvaluationScore: number | null;
 	commonEvaluationAllocationScore: number;
-	commonEvaluationSecondRate: number;
-	commonEvaluationEvaluationScore: number;
-	totalEvaluationScore: number;
+	commonEvaluationSecondRate: number | null;
+	commonEvaluationEvaluationScore: number | null;
+	totalEvaluationScore: number | null;
 }
 
 export interface FinalEvaluationRankDto {

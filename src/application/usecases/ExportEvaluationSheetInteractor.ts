@@ -1,14 +1,9 @@
-import { invoke } from "@tauri-apps/api/core";
-import { save } from "@tauri-apps/plugin-dialog";
 import type { EvaluationSheetRepository } from "../../domain/repositories/EvaluationSheetRepository";
 import { EvaluationSheetAccessPolicy } from "../../domain/services/EvaluationSheetAccessPolicy";
-import type {
-	ExportSheetOutputDto,
-	ExportSheetRequestDto,
-	SheetExportDataDto,
-} from "../dtos/ExportSheetDto";
+import type { ExportSheetOutputDto, ExportSheetRequestDto } from "../dtos/ExportSheetDto";
 import { toSheetExportDataDto } from "../dtos/ExportSheetMapper";
 import type { OutputPort } from "../ports/OutputPort";
+import type { SheetPdfGateway } from "../ports/SheetPdfGateway";
 import type { UseCase } from "../ports/UseCase";
 
 export type ExportEvaluationSheetOutputPort = OutputPort<ExportSheetOutputDto>;
@@ -16,7 +11,10 @@ export type ExportEvaluationSheetOutputPort = OutputPort<ExportSheetOutputDto>;
 export class ExportEvaluationSheetInteractor
 	implements UseCase<ExportSheetRequestDto, ExportEvaluationSheetOutputPort>
 {
-	constructor(private readonly sheetRepository: EvaluationSheetRepository) {}
+	constructor(
+		private readonly sheetRepository: EvaluationSheetRepository,
+		private readonly pdfGateway: SheetPdfGateway,
+	) {}
 
 	async execute(
 		request: ExportSheetRequestDto,
@@ -56,17 +54,13 @@ export class ExportEvaluationSheetInteractor
 			const exportData = toSheetExportDataDto(rawExportData, policy.canExportSecondEvaluation());
 
 			// ③ 保存先を選択するダイアログを表示
-			const defaultName = `評価シート_${exportData.employeeName}_${exportData.periodName}.pdf`;
-			const filePath = await save({
-				title: "評価シートを保存",
-				defaultPath: defaultName,
-				filters: [
-					{
-						name: "PDFファイル",
-						extensions: ["pdf"],
-					},
-				],
-			});
+			const safePart = (value: string) =>
+				value
+					.replace(/[<>:"/\\|?*]/g, "_")
+					.replace(/\p{Cc}/gu, "_")
+					.slice(0, 80);
+			const defaultName = `評価シート_${safePart(exportData.employeeName)}_${safePart(exportData.periodName)}.pdf`;
+			const filePath = await this.pdfGateway.selectDestination(defaultName);
 
 			// キャンセルされた場合は何もしない
 			if (!filePath) {
@@ -76,8 +70,7 @@ export class ExportEvaluationSheetInteractor
 			// ④ Tauriコマンドを使用してPDFを生成
 			// filePath（保存先）を引数に追加して渡す
 			try {
-				await this.generatePdfWithTypst(exportData, filePath);
-				console.log("PDF saved at:", filePath);
+				await this.pdfGateway.generate(exportData, filePath);
 			} catch (error) {
 				console.error("PDF generation error:", error);
 				presenter.present({
@@ -100,15 +93,5 @@ export class ExportEvaluationSheetInteractor
 				message: error instanceof Error ? error.message : "PDFの出力中にエラーが発生しました",
 			});
 		}
-	}
-
-	private async generatePdfWithTypst(
-		data: SheetExportDataDto,
-		outputPath: string,
-	): Promise<string> {
-		return await invoke<string>("generate_pdf_with_typst", {
-			data,
-			outputPath,
-		});
 	}
 }

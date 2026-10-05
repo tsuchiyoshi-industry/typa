@@ -10,28 +10,39 @@
 		"serve": "vite preview",
 		"tauri": "tauri",
 		"fix": "biome check --write .",
-		"test": "vitest run"
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"test:coverage": "vitest run --coverage",
+		"typecheck": "tsc --noEmit && tsc --project tsconfig.node.json --noEmit",
+		"test:rust": "cargo test --manifest-path src-tauri/Cargo.toml --locked"
 	},
 	"license": "MIT",
 	"dependencies": {
-		"@solidjs/router": "^0.16.2",
-		"@supabase/supabase-js": "^2.110.7",
+		"@solidjs/router": "^1.0.0",
+		"@supabase/supabase-js": "^2.117.2",
 		"@tauri-apps/api": "^2",
-		"@tauri-apps/plugin-dialog": "~2.7.2",
-		"@tauri-apps/plugin-fs": "~2.5.1",
-		"@tauri-apps/plugin-opener": "^2.5.4",
-		"@tauri-apps/plugin-process": "^2.3.1",
-		"@tauri-apps/plugin-updater": "~2.12.0",
-		"@tauri-apps/plugin-upload": "~2.4.0",
-		"lucide-solid": "^1.25.0",
-		"solid-js": "^1.9.14"
+		"@tauri-apps/plugin-dialog": "~2.8.1",
+		"@tauri-apps/plugin-fs": "~2.6.0",
+		"@tauri-apps/plugin-opener": "^2.7.0",
+		"@tauri-apps/plugin-process": "^2.4.0",
+		"@tauri-apps/plugin-updater": "~2.13.1",
+		"@tauri-apps/plugin-upload": "~2.5.0",
+		"lucide-solid": "^1.52.0",
+		"solid-js": "^1.9.15"
+	},
+	"overrides": {
+		"@babel/core": "7.29.6",
+		"browserslist": "4.29.3",
+		"baseline-browser-mapping": "2.11.27"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "2.5.4",
-		"@tauri-apps/cli": "^2.11.4",
+		"@biomejs/biome": "2.5.15",
+		"@tauri-apps/cli": "^2.12.1",
+		"@types/node": "^26.6.4",
+		"@vitest/coverage-v8": "5.0.3",
 		"typescript": "~7.0.2",
-		"vite": "^8.1.5",
-		"vite-plugin-solid": "^2.11.13",
-		"vitest": "^4.1.10"
+		"vite": "^8.3.2",
+		"vite-plugin-solid": "^2.11.14",
+		"vitest": "^5.0.3"
 	}
 }

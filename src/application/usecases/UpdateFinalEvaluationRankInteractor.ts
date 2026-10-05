@@ -42,6 +42,9 @@ export class UpdateFinalEvaluationRankInteractor
 			throw new Error("二次評価者のみ最終評価ランクを決定できます。");
 		}
 
+		if (Boolean(request.letter) !== Boolean(request.level)) {
+			throw new Error("最終評価ランクと補正を両方指定してください。");
+		}
 		const finalEvaluationRank =
 			request.letter && request.level
 				? FinalEvaluationRank.fromOptional(request.letter, request.level)

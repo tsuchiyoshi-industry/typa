@@ -74,7 +74,14 @@ jobs:
 
       - name: Install frontend dependencies
         shell: bash
-        run: bun install
+        run: bun install --frozen-lockfile
+
+      - name: Frontend release checks
+        shell: bash
+        run: |
+          bun run typecheck
+          bun run test:coverage
+          bun audit
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -88,8 +95,12 @@ jobs:
             . -> target
             src-tauri -> src-tauri/target
 
-      - name: Touch .env
-        run: echo -n 'VITE_SUPABASE_PUBLISHABLE_KEY=${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}' > .env && echo -n 'VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}' >> .env && echo -n 'VITE_REQUIRED_DOMAIN=${{ secrets.VITE_REQUIRED_DOMAIN }}' >> .env
+      - name: Rust release checks
+        shell: bash
+        run: |
+          bun run test:rust
+          cargo install cargo-audit --locked --version 0.22.2
+          cargo audit --file src-tauri/Cargo.lock
 
       - name: Build bundle
         shell: bash

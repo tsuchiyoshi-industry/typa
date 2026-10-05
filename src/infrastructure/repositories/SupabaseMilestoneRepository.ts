@@ -34,11 +34,11 @@ export class SupabaseMilestoneRepository implements MilestoneRepository {
 			.eq("sheet_id", sheetId)
 			.order("goal_number", { ascending: true });
 
-		if (error || !data) {
-			return [];
+		if (error) {
+			throw error;
 		}
 
-		return (data as MilestoneRow[]).map((item) => this.toEntity(item));
+		return ((data as MilestoneRow[] | null) ?? []).map((item) => this.toEntity(item));
 	}
 
 	async updateText(

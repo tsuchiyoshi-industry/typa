@@ -8,6 +8,11 @@ export function toEvaluationSheetDto(
 	policy: EvaluationSheetAccessPolicy,
 ): EvaluationSheetDto {
 	const canViewSecondMilestoneScore = policy.canViewMilestoneSecondScore();
+	if (!policy.canViewSheet()) {
+		throw new Error("評価シートを閲覧する権限がありません。");
+	}
+	const canViewCommon = policy.canViewCommonEvaluation();
+	const canViewSecond = canViewCommon && policy.canViewCommonEvaluationSecond();
 
 	return {
 		sheetId: sheet.sheetId,
@@ -31,8 +36,8 @@ export function toEvaluationSheetDto(
 		},
 		primaryEvaluator: sheet.primaryEvaluatorName,
 		secondaryEvaluator: sheet.secondaryEvaluatorName,
-		firstOverallComment: sheet.firstOverallComment,
-		secondOverallComment: sheet.secondOverallComment,
+		firstOverallComment: canViewCommon ? sheet.firstOverallComment : "",
+		secondOverallComment: canViewSecond ? sheet.secondOverallComment : "",
 		objectives: sheet.objectives.map((objective) => ({
 			id: objective.id,
 			sheetId: objective.sheetId,
@@ -46,32 +51,45 @@ export function toEvaluationSheetDto(
 		objectiveScoreTotals: {
 			firstTotalScore: sheet.objectiveScoreTotals.firstTotalScore,
 			firstTotalRate: sheet.objectiveScoreTotals.firstTotalRate,
-			secondTotalScore: sheet.objectiveScoreTotals.secondTotalScore,
-			secondTotalRate: sheet.objectiveScoreTotals.secondTotalRate,
+			secondTotalScore: canViewSecondMilestoneScore
+				? sheet.objectiveScoreTotals.secondTotalScore
+				: null,
+			secondTotalRate: canViewSecondMilestoneScore
+				? sheet.objectiveScoreTotals.secondTotalRate
+				: null,
 		},
 		commonEvaluationScoreTotals: {
-			firstTotalScore: sheet.commonEvaluationScoreTotals.firstTotalScore,
-			firstTotalRate: sheet.commonEvaluationScoreTotals.firstTotalRate,
-			secondTotalScore: sheet.commonEvaluationScoreTotals.secondTotalScore,
-			secondTotalRate: sheet.commonEvaluationScoreTotals.secondTotalRate,
+			firstTotalScore: canViewCommon ? sheet.commonEvaluationScoreTotals.firstTotalScore : null,
+			firstTotalRate: canViewCommon ? sheet.commonEvaluationScoreTotals.firstTotalRate : null,
+			secondTotalScore: canViewSecond ? sheet.commonEvaluationScoreTotals.secondTotalScore : null,
+			secondTotalRate: canViewSecond ? sheet.commonEvaluationScoreTotals.secondTotalRate : null,
 		},
 		allocatedScores: {
 			objectiveAllocationScore: sheet.allocatedScores.objectiveAllocationScore,
-			objectiveSecondRate: sheet.allocatedScores.objectiveSecondRate,
-			objectiveEvaluationScore: sheet.allocatedScores.objectiveEvaluationScore,
+			objectiveSecondRate: canViewSecondMilestoneScore
+				? sheet.allocatedScores.objectiveSecondRate
+				: null,
+			objectiveEvaluationScore: canViewSecondMilestoneScore
+				? sheet.allocatedScores.objectiveEvaluationScore
+				: null,
 			commonEvaluationAllocationScore: sheet.allocatedScores.commonEvaluationAllocationScore,
-			commonEvaluationSecondRate: sheet.allocatedScores.commonEvaluationSecondRate,
-			commonEvaluationEvaluationScore: sheet.allocatedScores.commonEvaluationEvaluationScore,
-			totalEvaluationScore: sheet.allocatedScores.totalEvaluationScore,
+			commonEvaluationSecondRate: canViewSecond
+				? sheet.allocatedScores.commonEvaluationSecondRate
+				: null,
+			commonEvaluationEvaluationScore: canViewSecond
+				? sheet.allocatedScores.commonEvaluationEvaluationScore
+				: null,
+			totalEvaluationScore: canViewSecond ? sheet.allocatedScores.totalEvaluationScore : null,
 		},
 		status: sheet.status.toString(),
 		isEditable: sheet.isEditable(),
-		finalEvaluationRank: sheet.finalEvaluationRank
-			? {
-					letter: sheet.finalEvaluationRank.letter,
-					level: sheet.finalEvaluationRank.level,
-					displayText: sheet.finalEvaluationRank.toDisplayText(),
-				}
-			: undefined,
+		finalEvaluationRank:
+			canViewSecond && sheet.finalEvaluationRank
+				? {
+						letter: sheet.finalEvaluationRank.letter,
+						level: sheet.finalEvaluationRank.level,
+						displayText: sheet.finalEvaluationRank.toDisplayText(),
+					}
+				: undefined,
 	};
 }

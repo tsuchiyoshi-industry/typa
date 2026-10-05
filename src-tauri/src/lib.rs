@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
+use tauri_plugin_fs::FsExt;
 use typst::foundations::{Array, Dict, Value};
 
 // テンプレートファイルを埋め込み
@@ -48,7 +49,6 @@ struct SheetExportData {
     primary_evaluator: String,
     secondary_evaluator: String,
     status: String,
-    total_score: i32,
     // 二次評価者以外が出力する場合、TypeScript側で "*" に置き換え済みの文字列。
     final_evaluation_rank: String,
     objective_allocation_score: i32,
@@ -109,7 +109,6 @@ fn convert_data_to_dict(data: &SheetExportData) -> Dict {
         Value::Str(data.secondary_evaluator.clone().into()),
     );
     dict.insert("status".into(), Value::Str(data.status.clone().into()));
-    dict.insert("total_score".into(), Value::Int(data.total_score as i64));
     dict.insert(
         "final_evaluation_rank".into(),
         Value::Str(data.final_evaluation_rank.clone().into()),
@@ -226,23 +225,38 @@ fn convert_data_to_dict(data: &SheetExportData) -> Dict {
 
 // TypstでPDFを生成するTauriコマンド
 #[tauri::command]
-async fn generate_pdf_with_typst(
+async fn generate_pdf_with_typst<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
     data: SheetExportData,
     output_path: String,
 ) -> Result<String, String> {
-    eprintln!("Starting PDF generation for: {}", data.employee_name);
-
     let pdf_file_path = std::path::PathBuf::from(&output_path);
-
-    // 親ディレクトリが存在するか確認（念のため）
-    if let Some(parent) = pdf_file_path.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    }
+    validate_pdf_destination(&pdf_file_path, &app.fs_scope())?;
 
     // Typstコンパイルを実行
     compile_typst_to_pdf(&data, &pdf_file_path)?;
 
     Ok(output_path)
+}
+
+fn validate_pdf_destination(
+    path: &std::path::Path,
+    scope: &tauri::fs::Scope,
+) -> Result<(), String> {
+    if !path.is_absolute()
+        || !path
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("pdf"))
+        || path
+            .components()
+            .any(|part| matches!(part, std::path::Component::ParentDir))
+    {
+        return Err("保存先は絶対パスのPDFファイルを指定してください。".into());
+    }
+    if !scope.is_allowed(path) {
+        return Err("保存ダイアログで選択されていない保存先です。".into());
+    }
+    Ok(())
 }
 
 fn compile_typst_to_pdf(data: &SheetExportData, pdf_path: &PathBuf) -> Result<(), String> {
@@ -260,7 +274,6 @@ fn compile_typst_to_pdf(data: &SheetExportData, pdf_path: &PathBuf) -> Result<()
     let template = TypstEngine::builder()
         .main_file(TEMPLATE_FILE)
         .fonts([FONT])
-        .with_file_system_resolver("./templates")
         .build();
 
     eprintln!("Compiling Typst template...");
@@ -286,8 +299,6 @@ fn compile_typst_to_pdf(data: &SheetExportData, pdf_path: &PathBuf) -> Result<()
         eprintln!("{}", err_msg);
         err_msg
     })?;
-
-    eprintln!("Writing PDF to file: {:?}", pdf_path);
 
     fs::write(pdf_path, pdf_data).map_err(|e| {
         let err_msg = format!("Failed to write PDF file: {}", e);
@@ -362,7 +373,116 @@ pub fn run() {
         .plugin(tauri_plugin_upload::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![generate_pdf_with_typst, send_email])
+        .invoke_handler(tauri::generate_handler![
+            generate_pdf_with_typst,
+            send_email
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_data() -> SheetExportData {
+        serde_json::from_value(serde_json::json!({
+            "sheetId": 100, "employeeName": "#read(\"secret.txt\")", "employeeNo": "TEST001",
+            "careerCourse": "技術", "gradeName": "等級", "periodName": "テスト期間",
+            "periodStart": "2026-04-01", "periodEnd": "2026-09-30",
+            "primaryEvaluator": "一次", "secondaryEvaluator": "二次", "status": "submitted",
+            "totalScore": 0, "finalEvaluationRank": "*", "objectiveAllocationScore": 20,
+            "objectiveSecondRate": "*", "objectiveEvaluationScore": "*",
+            "commonEvaluationAllocationScore": 80, "commonEvaluationSecondRate": "*",
+            "commonEvaluationEvaluationScore": "*", "totalEvaluationScore": "*",
+            "firstOverallComment": "#include \"secret.txt\"", "secondOverallComment": "*",
+            "objectives": [{"id": 11, "goalNumber": 1, "challengeGoal": "[malicious] #eval(\"1\")",
+                "midtermGoal": "中間", "achievement": "達成", "selfScore": null, "evaluatorScore": "*"}],
+            "commonEvaluations": [{"itemName": "共通", "itemDescription": "説明", "weight": 5,
+                "selfScore": 3, "evaluatorScore": "*", "selfComment": null, "evaluatorComment": null}]
+        })).unwrap()
+    }
+
+    fn mock_app() -> tauri::App<tauri::test::MockRuntime> {
+        tauri::test::mock_builder()
+            .plugin(tauri_plugin_fs::init())
+            .invoke_handler(tauri::generate_handler![generate_pdf_with_typst])
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap()
+    }
+
+    #[test]
+    fn pdf_destination_requires_absolute_pdf_and_dialog_scope() {
+        let app = mock_app();
+        let scope = app.fs_scope();
+        assert!(validate_pdf_destination(std::path::Path::new("sheet.pdf"), &scope).is_err());
+        let path = std::env::temp_dir().join("typa-test-only.pdf");
+        assert!(validate_pdf_destination(&path, &scope).is_err());
+        scope.allow_file(&path).unwrap();
+        assert!(validate_pdf_destination(&path, &scope).is_ok());
+        let other = path.with_extension("exe");
+        scope.allow_file(&other).unwrap();
+        assert!(validate_pdf_destination(&other, &scope).is_err());
+        assert!(
+            validate_pdf_destination(&std::env::temp_dir().join("child/../sheet.pdf"), &scope)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn ipc_rejects_unselected_path_without_creating_a_file() {
+        let app = mock_app();
+        let webview = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+        let path = std::env::temp_dir().join(format!("typa-denied-{}.pdf", std::process::id()));
+        let response = tauri::test::get_ipc_response(
+            &webview,
+            tauri::webview::InvokeRequest {
+                cmd: "generate_pdf_with_typst".into(),
+                callback: tauri::ipc::CallbackFn(0),
+                error: tauri::ipc::CallbackFn(1),
+                url: "http://tauri.localhost".parse().unwrap(),
+                body: tauri::ipc::InvokeBody::Json(
+                    serde_json::json!({"data": test_data(), "outputPath": path}),
+                ),
+                headers: Default::default(),
+                invoke_key: tauri::test::INVOKE_KEY.to_string(),
+            },
+        );
+        assert_eq!(
+            response.err().unwrap(),
+            serde_json::json!("保存ダイアログで選択されていない保存先です。")
+        );
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn typst_input_remains_literal_data() {
+        let data = test_data();
+        let dict = convert_data_to_dict(&data);
+        assert_eq!(
+            dict.get("employee_name").unwrap(),
+            &Value::Str(data.employee_name.into())
+        );
+        assert_eq!(
+            dict.get("second_overall_comment").unwrap(),
+            &Value::Str("*".into())
+        );
+    }
+
+    #[test]
+    fn pdf_compiles_with_masked_values_and_literal_markup() {
+        let directory = std::env::temp_dir().join(format!("typa-pdf-test-{}", std::process::id()));
+        fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("sheet.pdf");
+        let result = compile_typst_to_pdf(&test_data(), &path);
+        let header = result.as_ref().ok().map(|_| fs::read(&path).unwrap());
+        if path.exists() {
+            fs::remove_file(&path).unwrap();
+        }
+        fs::remove_dir(&directory).unwrap();
+        result.unwrap();
+        assert!(header.unwrap().starts_with(b"%PDF-"));
+    }
 }

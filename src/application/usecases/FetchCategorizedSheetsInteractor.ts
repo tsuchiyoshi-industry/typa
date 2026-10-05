@@ -24,7 +24,7 @@ function toSheetSummaryDto(summary: EvaluationSheetSummary): SheetSummaryDto {
 		periodId: summary.periodId,
 		employeeId: summary.employeeId,
 		status: summary.status,
-		totalScore: summary.totalScore,
+		totalScore: null,
 		createdAt: summary.createdAt,
 		updatedAt: summary.updatedAt,
 		periodName: summary.periodName,

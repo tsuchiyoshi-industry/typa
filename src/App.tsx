@@ -45,6 +45,7 @@ import { SupabaseEvaluationPeriodRepository } from "./infrastructure/repositorie
 import { SupabaseEvaluationSheetRepository } from "./infrastructure/repositories/SupabaseEvaluationSheetRepository";
 import { SupabaseMilestoneRepository } from "./infrastructure/repositories/SupabaseMilestoneRepository";
 import { TauriEmailNotificationRepository } from "./infrastructure/repositories/TauriEmailNotificationRepository";
+import { TauriSheetPdfGateway } from "./infrastructure/repositories/TauriSheetPdfGateway";
 
 const authRepository = new SupabaseAuthRepository();
 const employeeRepository = new SupabaseEmployeeRepository();
@@ -106,7 +107,10 @@ const updateEvaluationStatusUseCase = new UpdateEvaluationStatusInteractor(
 	employeeRepository,
 	emailNotificationRepository,
 );
-const exportEvaluationSheetUseCase = new ExportEvaluationSheetInteractor(evaluationSheetRepository);
+const exportEvaluationSheetUseCase = new ExportEvaluationSheetInteractor(
+	evaluationSheetRepository,
+	new TauriSheetPdfGateway(),
+);
 const loadEmployeeMasterUseCase = new LoadEmployeeMasterInteractor(employeeMasterRepository);
 const assignEvaluatorUseCase = new AssignEvaluatorInteractor(employeeMasterRepository);
 const updateEmployeeEvaluatorUseCase = new UpdateEmployeeEvaluatorInteractor(

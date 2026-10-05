@@ -4,7 +4,7 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	background-color: #fcfcfd;
+	background-color: var(--hr-bg);
 	z-index: 9999;
 	overflow: hidden;
 }
@@ -31,13 +31,13 @@
 	letter-spacing: -0.02em;
 	display: flex;
 	align-items: baseline;
-	color: #111827;
+	color: var(--hr-text);
 }
 
 /* TYPAの4文字（メイン） */
 .main-char {
 	display: inline-block;
-	color: #111827;
+	color: var(--hr-text);
 	transform: scale(1.1);
 	font-weight: 900;
 }
@@ -49,7 +49,7 @@
 	opacity: 1;
 	font-weight: 400;
 	font-size: 1.2rem;
-	color: #94a3b8;
+	color: var(--hr-text-muted);
 	white-space: nowrap;
 	overflow: hidden;
 	/* 1.4秒の構成: 0~0.4sで見える、0.4~1.1sで縮小消去、1.1~1.4sは余韻 */
@@ -60,7 +60,7 @@
 .loading-bar-container {
 	width: 120px;
 	height: 2px;
-	background: #f1f5f9;
+	background: var(--hr-border-strong);
 	border-radius: 2px;
 	position: relative;
 	overflow: hidden;
@@ -71,7 +71,7 @@
 	position: absolute;
 	height: 100%;
 	width: 0%;
-	background: #111827;
+	background: var(--hr-text);
 	animation: progressFill 1.4s ease-in-out forwards;
 }
 
@@ -79,7 +79,7 @@
 	font-size: 0.75rem;
 	text-transform: uppercase;
 	letter-spacing: 0.3em;
-	color: #94a3b8;
+	color: var(--hr-text-muted);
 	margin: 0;
 }
 

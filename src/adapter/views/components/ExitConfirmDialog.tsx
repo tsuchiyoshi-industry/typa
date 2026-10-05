@@ -1,8 +1,9 @@
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { ask } from "@tauri-apps/plugin-dialog";
 import { type Component, onCleanup, onMount } from "solid-js";
+import { confirmAction, hasUnsavedChanges } from "../feedback";
 
+/** 保存していない入力があるときだけ、ウィンドウを閉じる前に確認する。 */
 const ExitConfirmDialog: Component = () => {
 	onMount(() => {
 		if (!isTauri()) {
@@ -19,12 +20,15 @@ const ExitConfirmDialog: Component = () => {
 				// 確認OK時にウィンドウが閉じない実装差があるため、明示的にdestroy()する。
 				event.preventDefault();
 
-				const confirmed = await ask("本当に終了しますか？", {
-					title: "typaを終了",
-					kind: "warning",
-					okLabel: "終了する",
-					cancelLabel: "キャンセル",
-				});
+				const confirmed =
+					!hasUnsavedChanges() ||
+					(await confirmAction({
+						title: "保存していない変更があります",
+						message: "このまま終了すると、入力中の内容は失われます。",
+						confirmLabel: "保存せずに終了",
+						cancelLabel: "編集を続ける",
+						tone: "danger",
+					}));
 				if (confirmed) {
 					await appWindow.destroy();
 				}

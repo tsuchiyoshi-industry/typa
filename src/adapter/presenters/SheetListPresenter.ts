@@ -13,6 +13,7 @@ export interface SheetListViewModel {
 		isExporting: boolean;
 		message: string | null;
 		success: boolean | null;
+		fileName: string | null;
 	};
 }
 
@@ -31,6 +32,7 @@ export function createSheetListPresenter(): {
 			isExporting: false,
 			message: null,
 			success: null,
+			fileName: null,
 		},
 	});
 
@@ -45,6 +47,7 @@ export function createSheetListPresenter(): {
 					isExporting: false,
 					message: null,
 					success: null,
+					fileName: null,
 				},
 			});
 		},
@@ -58,20 +61,9 @@ export function createSheetListPresenter(): {
 					isExporting: false,
 					message: response.message,
 					success: response.success,
+					fileName: response.fileName ?? null,
 				},
 			}));
-
-			// 3秒後にメッセージをクリア
-			setTimeout(() => {
-				setViewModel((prev) => ({
-					...prev,
-					exportStatus: {
-						isExporting: false,
-						message: null,
-						success: null,
-					},
-				}));
-			}, 3000);
 		},
 	};
 

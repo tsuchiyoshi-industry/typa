@@ -213,67 +213,6 @@
 	box-shadow: 0 0 0 3px var(--hr-accent-muted);
 }
 
-.master-toast-stack {
-	position: fixed;
-	right: 1.25rem;
-	bottom: 1.25rem;
-	z-index: 300;
-	display: flex;
-	flex-direction: column;
-	align-items: flex-end;
-	gap: 0.65rem;
-	width: min(360px, calc(100vw - 2rem));
-	pointer-events: none;
-}
-
-.master-toast {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 0.75rem;
-	width: 100%;
-	padding: 0.75rem 1rem;
-	border-radius: var(--hr-radius-md);
-	font-size: 0.875rem;
-	border: 1px solid transparent;
-	box-shadow: var(--hr-shadow);
-	pointer-events: auto;
-	animation: masterToastIn 0.18s ease-out;
-}
-
-.master-toast.success {
-	color: #c7ead6;
-	background: #173525;
-	border-color: rgba(61, 122, 92, 0.38);
-}
-
-.master-toast.error {
-	color: #f0d0d0;
-	background: #3a1c20;
-	border-color: rgba(184, 92, 92, 0.35);
-}
-
-.master-toast button {
-	flex-shrink: 0;
-	padding: 0.25rem 0.55rem;
-	border-radius: var(--hr-radius-sm);
-	color: inherit;
-	border: 1px solid currentColor;
-	font-size: 0.75rem;
-	opacity: 0.82;
-}
-
-@keyframes masterToastIn {
-	from {
-		opacity: 0;
-		transform: translateY(8px);
-	}
-	to {
-		opacity: 1;
-		transform: translateY(0);
-	}
-}
-
 .master-table {
 	width: 100%;
 	border-collapse: collapse;
@@ -288,9 +227,8 @@
 	padding: 0.72rem 0.95rem;
 	text-align: left;
 	font-weight: 600;
-	font-size: 0.7rem;
-	text-transform: uppercase;
-	letter-spacing: 0.06em;
+	font-size: 0.75rem;
+	letter-spacing: 0.04em;
 	color: var(--hr-text-muted);
 	border-bottom: 1px solid var(--hr-border);
 	white-space: nowrap;
@@ -358,8 +296,13 @@
 	border-radius: var(--hr-radius-sm);
 }
 
-.icon-action:hover {
+.icon-action:hover:not(:disabled) {
 	background: var(--hr-accent-hover);
+}
+
+.icon-action:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
 }
 
 .master-relations-panel > p {
@@ -379,17 +322,5 @@
 
 	.master-role-badge {
 		align-self: flex-start;
-	}
-
-	.master-table {
-		display: block;
-		overflow-x: auto;
-		-webkit-overflow-scrolling: touch;
-	}
-
-	.master-toast-stack {
-		right: 1rem;
-		bottom: 1rem;
-		width: calc(100vw - 2rem);
 	}
 }

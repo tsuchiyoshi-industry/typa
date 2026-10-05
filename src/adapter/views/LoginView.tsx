@@ -10,7 +10,8 @@ type LoginViewProps = {
 	onRegistrationLinked?: () => Promise<void> | void;
 };
 
-//FIXME: パスワードが６文字以上大文字・小文字・数字を含むということをユーザーに伝える必要があるかも（サインアップの失敗理由がわからない）
+const PASSWORD_RULE = "6文字以上で、大文字・小文字・数字をすべて含めてください。";
+
 const LoginView = (props: LoginViewProps) => {
 	const navigate = useNavigate();
 	const [email, setEmail] = createSignal("");
@@ -22,6 +23,7 @@ const LoginView = (props: LoginViewProps) => {
 	const [loading, setLoading] = createSignal(false);
 	const [linkingEmployee, setLinkingEmployee] = createSignal(false);
 	const [errorMessage, setErrorMessage] = createSignal<string | null>(null);
+	const [infoMessage, setInfoMessage] = createSignal<string | null>(null);
 	const [employeeNoError, setEmployeeNoError] = createSignal<string | null>(null);
 
 	const [viewMode, setViewMode] = createSignal<ViewMode>("login");
@@ -37,6 +39,15 @@ const LoginView = (props: LoginViewProps) => {
 			confirmPassword().length > 0 &&
 			password() !== confirmPassword(),
 	);
+
+	/** ドメイン違いでボタンが押せない理由を、入力欄の下に出すための判定。 */
+	const emailDomainError = createMemo(() => {
+		const currentEmail = email().trim();
+		if (!requiredDomain || !currentEmail.includes("@") || currentEmail.endsWith(requiredDomain)) {
+			return null;
+		}
+		return `${requiredDomain} で終わる会社のメールアドレスを入力してください。`;
+	});
 
 	const isSubmitDisabled = createMemo(() => {
 		// 1. ローディング中は常に無効
@@ -79,6 +90,7 @@ const LoginView = (props: LoginViewProps) => {
 	const switchMode = (mode: ViewMode, customMessage: string | null = null) => {
 		setViewMode(mode);
 		setErrorMessage(customMessage);
+		setInfoMessage(null);
 		setEmployeeNoError(null);
 		setOtp("");
 		if (mode === "login" || mode === "forgot-password" || mode === "reset-password") {
@@ -140,7 +152,11 @@ const LoginView = (props: LoginViewProps) => {
 		const result = await authRepository.signUp(email(), password(), employeeNo());
 
 		if (result.status === "error") {
-			setErrorMessage("登録に失敗しました。入力内容を確認してください。");
+			setErrorMessage(
+				(result.error as { code?: string }).code === "weak_password"
+					? `パスワードが要件を満たしていません。${PASSWORD_RULE}`
+					: `登録できませんでした。メールアドレスとパスワードを確認してください。パスワードは${PASSWORD_RULE}`,
+			);
 			setLoading(false);
 			return;
 		}
@@ -169,10 +185,10 @@ const LoginView = (props: LoginViewProps) => {
 			return;
 		}
 
-		setLoading(false);
 		setLinkingEmployee(true);
 
 		const linked = await employeeRepository.linkUserToEmployee(employeeNo(), userId);
+		setLoading(false);
 
 		if (linked) {
 			await props.onRegistrationLinked?.();
@@ -189,10 +205,13 @@ const LoginView = (props: LoginViewProps) => {
 	const handleResendOtp = async () => {
 		setLoading(true);
 		setErrorMessage(null);
+		setInfoMessage(null);
 
 		const { error } = await authRepository.resendSignupOtp(email());
 		if (error) {
 			setErrorMessage("認証コードの再送に失敗しました。しばらくしてから再度お試しください。");
+		} else {
+			setInfoMessage("認証コードを再送しました。メールをご確認ください。");
 		}
 
 		setLoading(false);
@@ -220,10 +239,13 @@ const LoginView = (props: LoginViewProps) => {
 	const handleResendPasswordResetOtp = async () => {
 		setLoading(true);
 		setErrorMessage(null);
+		setInfoMessage(null);
 
 		const { error } = await authRepository.requestPasswordReset(email());
 		if (error) {
 			setErrorMessage("確認コードの再送に失敗しました。しばらくしてから再度お試しください。");
+		} else {
+			setInfoMessage("確認コードを再送しました。メールをご確認ください。");
 		}
 
 		setLoading(false);
@@ -249,7 +271,7 @@ const LoginView = (props: LoginViewProps) => {
 		}
 
 		if (result.status === "update_failed") {
-			setErrorMessage("パスワードの更新に失敗しました。入力内容を確認してください。");
+			setErrorMessage(`パスワードを更新できませんでした。${PASSWORD_RULE}`);
 			setLoading(false);
 			return;
 		}
@@ -258,106 +280,270 @@ const LoginView = (props: LoginViewProps) => {
 		setLoading(false);
 	};
 
-	if (linkingEmployee()) {
-		return <LoadingView />;
-	}
-
 	return (
-		<div class="login-cover">
-			<div class="auth-card">
-				{/* OTP入力画面 */}
-				<Show when={viewMode() === "otp-verify"}>
-					<h2>認証コード入力</h2>
-					<p class="info-text">
-						<strong>{email()}</strong> 宛に認証コードを送信しました。
-					</p>
-
-					<form class="login-form" onSubmit={handleVerifyOtp}>
-						<div class="login-fieldset">
-							<label for="otp">認証コード</label>
-							<input
-								id="otp"
-								type="text"
-								inputMode="numeric"
-								autocomplete="one-time-code"
-								placeholder="00000000"
-								maxLength={8}
-								value={otp()}
-								onInput={(e) => setOtp(e.currentTarget.value)}
-								required
-							/>
-						</div>
-
-						<Show when={errorMessage()}>
-							<p class="error-message" role="alert">
-								{errorMessage()}
-							</p>
-						</Show>
-
-						<button type="submit" disabled={loading()}>
-							{loading() ? "検証中..." : "認証する"}
-						</button>
-					</form>
-
-					<div class="auth-toggle">
-						<button
-							type="button"
-							class="link-button"
-							disabled={loading()}
-							onClick={handleResendOtp}
-						>
-							認証コードを再送する
-						</button>
-						<span class="separator">|</span>
-						<button type="button" class="link-button" onClick={() => switchMode("signup")}>
-							登録画面に戻る
-						</button>
+		<Show when={!linkingEmployee()} fallback={<LoadingView />}>
+			<div class="login-cover">
+				<div class="auth-card">
+					<div class="auth-brand">
+						<span class="brand-logo">TYPA</span>
+						<span>人事考課シート</span>
 					</div>
-				</Show>
+					{/* OTP入力画面 */}
+					<Show when={viewMode() === "otp-verify"}>
+						<h2>認証コード入力</h2>
+						<p class="info-text">
+							<strong>{email()}</strong> 宛に認証コードを送信しました。
+						</p>
 
-				{/* ログイン・新規登録画面 */}
-				<Show when={viewMode() === "login" || viewMode() === "signup"}>
-					<h2>{viewMode() === "signup" ? "新規登録" : "ログイン"}</h2>
+						<form class="login-form" onSubmit={handleVerifyOtp}>
+							<div class="login-fieldset">
+								<label for="otp">認証コード</label>
+								<input
+									id="otp"
+									type="text"
+									inputMode="numeric"
+									autocomplete="one-time-code"
+									placeholder="00000000"
+									maxLength={8}
+									value={otp()}
+									onInput={(e) => setOtp(e.currentTarget.value)}
+									required
+								/>
+							</div>
 
-					<form class="login-form" onSubmit={viewMode() === "signup" ? handleSignup : handleLogin}>
-						<div class="login-fieldset">
-							<label for="email">メールアドレス</label>
-							<input
-								id="email"
-								type="email"
-								autocomplete="email"
-								value={email()}
-								onInput={(e) => setEmail(e.currentTarget.value)}
-								required
-							/>
+							<Show when={errorMessage()}>
+								<p class="error-message" role="alert">
+									{errorMessage()}
+								</p>
+							</Show>
+
+							<Show when={infoMessage()}>
+								<p class="info-message" role="status">
+									{infoMessage()}
+								</p>
+							</Show>
+
+							<button type="submit" disabled={loading()}>
+								{loading() ? "検証中..." : "認証する"}
+							</button>
+						</form>
+
+						<div class="auth-toggle">
+							<button
+								type="button"
+								class="link-button"
+								disabled={loading()}
+								onClick={handleResendOtp}
+							>
+								認証コードを再送する
+							</button>
+							<span class="separator">|</span>
+							<button type="button" class="link-button" onClick={() => switchMode("signup")}>
+								登録画面に戻る
+							</button>
 						</div>
+					</Show>
 
-						<div class="login-fieldset">
-							<label for="password">パスワード</label>
-							<input
-								id="password"
-								type="password"
-								autocomplete={viewMode() === "signup" ? "new-password" : "current-password"}
-								value={password()}
-								onInput={(e) => setPassword(e.currentTarget.value)}
-								required
-							/>
-							<Show when={viewMode() === "login"}>
+					{/* ログイン・新規登録画面 */}
+					<Show when={viewMode() === "login" || viewMode() === "signup"}>
+						<h2>{viewMode() === "signup" ? "新規登録" : "ログイン"}</h2>
+
+						<form
+							class="login-form"
+							onSubmit={viewMode() === "signup" ? handleSignup : handleLogin}
+						>
+							<div class="login-fieldset">
+								<label for="email">メールアドレス</label>
+								<input
+									id="email"
+									type="email"
+									autocomplete="email"
+									value={email()}
+									onInput={(e) => setEmail(e.currentTarget.value)}
+									placeholder={requiredDomain ? `name${requiredDomain}` : undefined}
+									aria-invalid={emailDomainError() !== null}
+									required
+								/>
+								<Show when={emailDomainError()}>
+									<p class="field-error" role="alert">
+										{emailDomainError()}
+									</p>
+								</Show>
+							</div>
+
+							<div class="login-fieldset">
+								<label for="password">パスワード</label>
+								<input
+									id="password"
+									type="password"
+									autocomplete={viewMode() === "signup" ? "new-password" : "current-password"}
+									value={password()}
+									onInput={(e) => setPassword(e.currentTarget.value)}
+									required
+								/>
+								<Show when={viewMode() === "signup"}>
+									<p class="field-hint">{PASSWORD_RULE}</p>
+								</Show>
+								<Show when={viewMode() === "login"}>
+									<button
+										type="button"
+										class="link-button forgot-password-link"
+										onClick={() => switchMode("forgot-password")}
+									>
+										パスワードをお忘れですか？
+									</button>
+								</Show>
+							</div>
+
+							<Show when={viewMode() === "signup"}>
+								<div class="login-fieldset">
+									<label for="confirm-password">パスワード（確認）</label>
+									<input
+										id="confirm-password"
+										type="password"
+										autocomplete="new-password"
+										value={confirmPassword()}
+										onInput={(e) => setConfirmPassword(e.currentTarget.value)}
+										required
+									/>
+									<Show when={passwordMismatch()}>
+										<p class="field-error" role="alert">
+											パスワードが一致しません
+										</p>
+									</Show>
+								</div>
+
+								<div class="login-fieldset">
+									<label for="employee-no">社員番号</label>
+									<input
+										id="employee-no"
+										type="text"
+										autocomplete="off"
+										value={employeeNo()}
+										onInput={(e) => {
+											// 全角半角の混在や末尾のスペースによるエラーを防ぐためトリム処理を推奨
+											setEmployeeNo(e.currentTarget.value.trim());
+											setEmployeeNoError(null);
+										}}
+										required
+									/>
+									<Show when={employeeNoError()}>
+										<p class="field-error" role="alert">
+											{employeeNoError()}
+										</p>
+									</Show>
+								</div>
+							</Show>
+
+							<Show when={errorMessage()}>
+								<p class="error-message" role="alert">
+									{errorMessage()}
+								</p>
+							</Show>
+
+							<button type="submit" disabled={isSubmitDisabled()}>
+								{loading()
+									? "処理中..."
+									: viewMode() === "signup"
+										? "登録して認証コードを受け取る"
+										: "ログイン"}
+							</button>
+						</form>
+
+						<div class="auth-toggle">
+							<p>
+								{viewMode() === "signup"
+									? "既にアカウントをお持ちですか？"
+									: "アカウントをお持ちでないですか？"}
 								<button
 									type="button"
-									class="link-button forgot-password-link"
-									onClick={() => switchMode("forgot-password")}
+									class="link-button"
+									onClick={() => switchMode(viewMode() === "signup" ? "login" : "signup")}
 								>
-									パスワードをお忘れですか？
+									{viewMode() === "signup" ? "ログイン" : "新規登録"}
 								</button>
-							</Show>
+							</p>
 						</div>
+					</Show>
 
-						<Show when={viewMode() === "signup"}>
+					{/* パスワード再設定リクエスト画面 */}
+					<Show when={viewMode() === "forgot-password"}>
+						<h2>パスワード再設定</h2>
+						<p class="info-text">
+							登録済みのメールアドレスを入力してください。確認コードを送信します。
+						</p>
+
+						<form class="login-form" onSubmit={handleRequestPasswordReset}>
 							<div class="login-fieldset">
-								<label for="confirm-password">パスワード（確認）</label>
+								<label for="reset-email">メールアドレス</label>
 								<input
-									id="confirm-password"
+									id="reset-email"
+									type="email"
+									autocomplete="email"
+									value={email()}
+									onInput={(e) => setEmail(e.currentTarget.value)}
+									required
+								/>
+							</div>
+
+							<Show when={errorMessage()}>
+								<p class="error-message" role="alert">
+									{errorMessage()}
+								</p>
+							</Show>
+
+							<button type="submit" disabled={loading() || !email().trim()}>
+								{loading() ? "送信中..." : "確認コードを送信"}
+							</button>
+						</form>
+
+						<div class="auth-toggle">
+							<button type="button" class="link-button" onClick={() => switchMode("login")}>
+								ログインに戻る
+							</button>
+						</div>
+					</Show>
+
+					{/* パスワード再設定画面 */}
+					<Show when={viewMode() === "reset-password"}>
+						<h2>パスワード再設定</h2>
+						<p class="info-text">
+							<strong>{email()}</strong> 宛に確認コードを送信しました。
+						</p>
+
+						<form class="login-form" onSubmit={handleResetPassword}>
+							<div class="login-fieldset">
+								<label for="reset-otp">確認コード</label>
+								<input
+									id="reset-otp"
+									type="text"
+									inputMode="numeric"
+									autocomplete="one-time-code"
+									placeholder="00000000"
+									maxLength={8}
+									value={otp()}
+									onInput={(e) => setOtp(e.currentTarget.value)}
+									required
+								/>
+							</div>
+
+							<div class="login-fieldset">
+								<label for="new-password">新しいパスワード</label>
+								<input
+									id="new-password"
+									type="password"
+									autocomplete="new-password"
+									value={password()}
+									onInput={(e) => setPassword(e.currentTarget.value)}
+									required
+								/>
+								<p class="field-hint">{PASSWORD_RULE}</p>
+							</div>
+
+							<div class="login-fieldset">
+								<label for="confirm-new-password">新しいパスワード（確認）</label>
+								<input
+									id="confirm-new-password"
 									type="password"
 									autocomplete="new-password"
 									value={confirmPassword()}
@@ -371,186 +557,50 @@ const LoginView = (props: LoginViewProps) => {
 								</Show>
 							</div>
 
-							<div class="login-fieldset">
-								<label for="employee-no">社員番号</label>
-								<input
-									id="employee-no"
-									type="text"
-									autocomplete="off"
-									value={employeeNo()}
-									onInput={(e) => {
-										// 全角半角の混在や末尾のスペースによるエラーを防ぐためトリム処理を推奨
-										setEmployeeNo(e.currentTarget.value.trim());
-										setEmployeeNoError(null);
-									}}
-									required
-								/>
-								<Show when={employeeNoError()}>
-									<p class="field-error" role="alert">
-										{employeeNoError()}
-									</p>
-								</Show>
-							</div>
-						</Show>
+							<Show when={errorMessage()}>
+								<p class="error-message" role="alert">
+									{errorMessage()}
+								</p>
+							</Show>
 
-						<Show when={errorMessage()}>
-							<p class="error-message" role="alert">
-								{errorMessage()}
-							</p>
-						</Show>
+							<Show when={infoMessage()}>
+								<p class="info-message" role="status">
+									{infoMessage()}
+								</p>
+							</Show>
 
-						<button type="submit" disabled={isSubmitDisabled()}>
-							{loading()
-								? "処理中..."
-								: viewMode() === "signup"
-									? "登録して認証コードを受け取る"
-									: "ログイン"}
-						</button>
-					</form>
+							<button
+								type="submit"
+								disabled={
+									loading() ||
+									!otp().trim() ||
+									!password() ||
+									!confirmPassword() ||
+									passwordMismatch()
+								}
+							>
+								{loading() ? "更新中..." : "パスワードを更新する"}
+							</button>
+						</form>
 
-					<div class="auth-toggle">
-						<p>
-							{viewMode() === "signup"
-								? "既にアカウントをお持ちですか？"
-								: "アカウントをお持ちでないですか？"}
+						<div class="auth-toggle">
 							<button
 								type="button"
 								class="link-button"
-								onClick={() => switchMode(viewMode() === "signup" ? "login" : "signup")}
+								disabled={loading()}
+								onClick={handleResendPasswordResetOtp}
 							>
-								{viewMode() === "signup" ? "ログイン" : "新規登録"}
+								確認コードを再送する
 							</button>
-						</p>
-					</div>
-				</Show>
-
-				{/* パスワード再設定リクエスト画面 */}
-				<Show when={viewMode() === "forgot-password"}>
-					<h2>パスワード再設定</h2>
-					<p class="info-text">
-						登録済みのメールアドレスを入力してください。確認コードを送信します。
-					</p>
-
-					<form class="login-form" onSubmit={handleRequestPasswordReset}>
-						<div class="login-fieldset">
-							<label for="reset-email">メールアドレス</label>
-							<input
-								id="reset-email"
-								type="email"
-								autocomplete="email"
-								value={email()}
-								onInput={(e) => setEmail(e.currentTarget.value)}
-								required
-							/>
+							<span class="separator">|</span>
+							<button type="button" class="link-button" onClick={() => switchMode("login")}>
+								ログインに戻る
+							</button>
 						</div>
-
-						<Show when={errorMessage()}>
-							<p class="error-message" role="alert">
-								{errorMessage()}
-							</p>
-						</Show>
-
-						<button type="submit" disabled={loading() || !email().trim()}>
-							{loading() ? "送信中..." : "確認コードを送信"}
-						</button>
-					</form>
-
-					<div class="auth-toggle">
-						<button type="button" class="link-button" onClick={() => switchMode("login")}>
-							ログインに戻る
-						</button>
-					</div>
-				</Show>
-
-				{/* パスワード再設定画面 */}
-				<Show when={viewMode() === "reset-password"}>
-					<h2>パスワード再設定</h2>
-					<p class="info-text">
-						<strong>{email()}</strong> 宛に確認コードを送信しました。
-					</p>
-
-					<form class="login-form" onSubmit={handleResetPassword}>
-						<div class="login-fieldset">
-							<label for="reset-otp">確認コード</label>
-							<input
-								id="reset-otp"
-								type="text"
-								inputMode="numeric"
-								autocomplete="one-time-code"
-								placeholder="00000000"
-								maxLength={8}
-								value={otp()}
-								onInput={(e) => setOtp(e.currentTarget.value)}
-								required
-							/>
-						</div>
-
-						<div class="login-fieldset">
-							<label for="new-password">新しいパスワード</label>
-							<input
-								id="new-password"
-								type="password"
-								autocomplete="new-password"
-								value={password()}
-								onInput={(e) => setPassword(e.currentTarget.value)}
-								required
-							/>
-						</div>
-
-						<div class="login-fieldset">
-							<label for="confirm-new-password">新しいパスワード（確認）</label>
-							<input
-								id="confirm-new-password"
-								type="password"
-								autocomplete="new-password"
-								value={confirmPassword()}
-								onInput={(e) => setConfirmPassword(e.currentTarget.value)}
-								required
-							/>
-							<Show when={passwordMismatch()}>
-								<p class="field-error" role="alert">
-									パスワードが一致しません
-								</p>
-							</Show>
-						</div>
-
-						<Show when={errorMessage()}>
-							<p class="error-message" role="alert">
-								{errorMessage()}
-							</p>
-						</Show>
-
-						<button
-							type="submit"
-							disabled={
-								loading() ||
-								!otp().trim() ||
-								!password() ||
-								!confirmPassword() ||
-								passwordMismatch()
-							}
-						>
-							{loading() ? "更新中..." : "パスワードを更新する"}
-						</button>
-					</form>
-
-					<div class="auth-toggle">
-						<button
-							type="button"
-							class="link-button"
-							disabled={loading()}
-							onClick={handleResendPasswordResetOtp}
-						>
-							確認コードを再送する
-						</button>
-						<span class="separator">|</span>
-						<button type="button" class="link-button" onClick={() => switchMode("login")}>
-							ログインに戻る
-						</button>
-					</div>
-				</Show>
+					</Show>
+				</div>
 			</div>
-		</div>
+		</Show>
 	);
 };
 

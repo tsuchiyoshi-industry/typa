@@ -69,7 +69,7 @@ export function createSheetEditorPresenter(): {
 		finalEvaluationRank: UpdateFinalEvaluationRankOutputPort;
 		status: UpdateEvaluationStatusOutputPort;
 	};
-	beginSheetLoad: () => void;
+	beginSheetLoad: (silent?: boolean) => void;
 	beginAccessibleSheetsLoad: () => void;
 	prepareNewSheet: () => void;
 	setSelectedPeriodId: (id: number | null) => void;
@@ -295,11 +295,11 @@ export function createSheetEditorPresenter(): {
 		setViewModel((prev) => ({ ...prev, selectedPeriodId: id }));
 	};
 
-	const beginSheetLoad = () => {
+	/** silent: 保存後の再取得。表示中のシートを残したまま裏で読み直す(画面を消さない)。 */
+	const beginSheetLoad = (silent = false) => {
 		setViewModel((prev) => ({
 			...prev,
-			loadingSheet: true,
-			sheet: null,
+			...(silent ? {} : { loadingSheet: true, sheet: null }),
 			fetchError: null,
 			overallCommentUpdateError: null,
 			finalEvaluationRankUpdateError: null,

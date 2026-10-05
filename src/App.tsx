@@ -1,6 +1,6 @@
 import { A, Navigate, Route, Router } from "@solidjs/router";
 import { LogOut, Menu, User, X } from "lucide-solid";
-import { type Component, createSignal, type JSX, onMount, Show } from "solid-js";
+import { type Component, createSignal, type JSX, onCleanup, onMount, Show } from "solid-js";
 import { ChallengeEvaluationController } from "./adapter/controllers/ChallengeEvaluationController";
 import { CommonEvaluationController } from "./adapter/controllers/CommonEvaluationController";
 import { EmployeeMasterController } from "./adapter/controllers/EmployeeMasterController";
@@ -13,10 +13,12 @@ import { createSheetEditorPresenter } from "./adapter/presenters/SheetEditorPres
 import { createSheetListPresenter } from "./adapter/presenters/SheetListPresenter";
 import AutoUpdateNotification from "./adapter/views/components/AutoUpdateNotification";
 import ExitConfirmDialog from "./adapter/views/components/ExitConfirmDialog";
+import FeedbackHost from "./adapter/views/components/FeedbackHost";
 import LoadingView from "./adapter/views/components/LoadingView";
 import { NotFound } from "./adapter/views/components/NotFound";
 import ThemeToggleButton from "./adapter/views/components/ThemeToggleButton";
 import EmployeeMasterView from "./adapter/views/EmployeeMasterView";
+import { clearUnsavedChanges, confirmDiscard } from "./adapter/views/feedback";
 import LoginView from "./adapter/views/LoginView";
 import SheetEditorView from "./adapter/views/SheetEditorView";
 import SheetListView from "./adapter/views/SheetListView";
@@ -170,6 +172,7 @@ const AppLayout: Component<{ children?: JSX.Element | JSX.Element[] }> = (props)
 	<div class="app-shell">
 		<div class="app-frame">{props.children}</div>
 		<AutoUpdateNotification />
+		<FeedbackHost />
 		<ExitConfirmDialog />
 	</div>
 );
@@ -179,45 +182,56 @@ const DashboardLayout: Component<{ children?: JSX.Element | JSX.Element[] }> = (
 	const [userMenuOpen, setUserMenuOpen] = createSignal(false);
 	const [userEmail, setUserEmail] = createSignal<string>("");
 
-	onMount(async () => {
-		const email = await authRepository.getCurrentUserEmail();
-		if (email) {
-			setUserEmail(email);
+	const handleClickOutside = (e: MouseEvent) => {
+		if (!(e.target as HTMLElement).closest(".user-menu-container")) {
+			setUserMenuOpen(false);
 		}
+	};
+	const handleKeyDown = (e: KeyboardEvent) => {
+		if (e.key === "Escape") {
+			setUserMenuOpen(false);
+			setMenuOpen(false);
+		}
+	};
 
-		const handleClickOutside = (e: MouseEvent) => {
-			const target = e.target as HTMLElement;
-			if (!target.closest(".user-menu-container")) {
-				setUserMenuOpen(false);
-			}
-		};
+	onMount(() => {
 		document.addEventListener("click", handleClickOutside);
-		return () => document.removeEventListener("click", handleClickOutside);
+		document.addEventListener("keydown", handleKeyDown);
+		void authRepository.getCurrentUserEmail().then((email) => setUserEmail(email ?? ""));
+	});
+	onCleanup(() => {
+		document.removeEventListener("click", handleClickOutside);
+		document.removeEventListener("keydown", handleKeyDown);
 	});
 
 	const handleLogout = async () => {
-		await authRepository.signOut();
 		setUserMenuOpen(false);
+		if (!(await confirmDiscard())) {
+			return;
+		}
+		clearUnsavedChanges();
+		await authRepository.signOut();
 	};
 
 	return (
 		<div class="dashboard-shell">
 			<header class="dashboard-topbar">
-				<div class="topbar-brand">
+				<A href="/" class="topbar-brand" aria-label="TYPA 評価シート一覧へ">
 					<span class="brand-logo">TYPA</span>
-				</div>
+				</A>
 				<button
 					type="button"
 					class="menu-toggle"
 					onClick={() => setMenuOpen(!menuOpen())}
 					aria-label="メニュー"
+					aria-expanded={menuOpen()}
 				>
 					<Show when={menuOpen()} fallback={<Menu size={24} />}>
 						<X size={24} />
 					</Show>
 				</button>
 				<nav class="topbar-nav" classList={{ "nav-open": menuOpen() }}>
-					<A href="/" class="nav-link" onClick={() => setMenuOpen(false)}>
+					<A href="/" end class="nav-link" onClick={() => setMenuOpen(false)}>
 						評価シート一覧
 					</A>
 					<A href="/sheet/new" class="nav-link" onClick={() => setMenuOpen(false)}>
@@ -234,13 +248,20 @@ const DashboardLayout: Component<{ children?: JSX.Element | JSX.Element[] }> = (
 						class="user-menu-trigger"
 						onClick={() => setUserMenuOpen(!userMenuOpen())}
 						aria-label="ユーザーメニュー"
+						aria-haspopup="menu"
+						aria-expanded={userMenuOpen()}
 					>
 						<User size={20} />
 						<span class="user-email">{userEmail()}</span>
 					</button>
 					<Show when={userMenuOpen()}>
-						<div class="user-menu-dropdown">
-							<button type="button" class="user-menu-item logout-item" onClick={handleLogout}>
+						<div class="user-menu-dropdown" role="menu">
+							<button
+								type="button"
+								role="menuitem"
+								class="user-menu-item logout-item"
+								onClick={handleLogout}
+							>
 								<LogOut size={18} />
 								<span>ログアウト</span>
 							</button>
@@ -272,6 +293,8 @@ const App: Component = () => {
 		}
 	};
 
+	let unsubscribeAuth: (() => void) | undefined;
+
 	onMount(async () => {
 		// 1. まず現在のセッションを一度だけ取得する（Authの初期化を待つ）
 		const initialSession = await authRepository.getSession();
@@ -281,62 +304,22 @@ const App: Component = () => {
 		setInitialized(true);
 
 		// 3. その後の状態変化（ログアウトなど）を監視する
-		const unsubscribe = authRepository.onAuthStateChange((newSession) => {
+		unsubscribeAuth = authRepository.onAuthStateChange((newSession) => {
 			checkUserStatus(newSession);
 		});
-
-		return unsubscribe;
 	});
+	onCleanup(() => unsubscribeAuth?.());
+
+	// ログイン済みの画面はトップバーを共有する。ページ移動のたびに作り直さない。
+	const ProtectedLayout: Component<{ children?: JSX.Element }> = (props) => (
+		<Show when={session() && isLinked()} fallback={<Navigate href="/login" />}>
+			<DashboardLayout>{props.children}</DashboardLayout>
+		</Show>
+	);
 
 	return (
 		<Show when={initialized() && isLinked() !== null} fallback={<LoadingView />}>
 			<Router root={AppLayout}>
-				<Route
-					path="/"
-					component={() => (
-						<Show when={session() && isLinked()} fallback={<Navigate href="/login" />}>
-							<DashboardLayout>
-								<SheetListView
-									controller={sheetListController}
-									viewModel={sheetListPresenter.viewModel}
-								/>
-							</DashboardLayout>
-						</Show>
-					)}
-				/>
-
-				<Route
-					path="/sheet/:id"
-					component={() => (
-						<Show when={session() && isLinked()} fallback={<Navigate href="/login" />}>
-							<DashboardLayout>
-								<SheetEditorView
-									controller={sheetEditorController}
-									viewModel={sheetEditorPresenter.viewModel}
-									commonEvaluationController={commonEvaluationController}
-									commonEvaluationViewModel={commonEvaluationPresenter.viewModel}
-									challengeEvaluationController={challengeEvaluationController}
-									challengeEvaluationViewModel={challengeEvaluationPresenter.viewModel}
-								/>
-							</DashboardLayout>
-						</Show>
-					)}
-				/>
-
-				<Route
-					path="/employee-master"
-					component={() => (
-						<Show when={session() && isLinked()} fallback={<Navigate href="/login" />}>
-							<DashboardLayout>
-								<EmployeeMasterView
-									controller={employeeMasterController}
-									viewModel={employeeMasterPresenter.viewModel}
-								/>
-							</DashboardLayout>
-						</Show>
-					)}
-				/>
-
 				<Route
 					path="/login"
 					component={() => (
@@ -351,16 +334,40 @@ const App: Component = () => {
 					)}
 				/>
 
-				<Route
-					path="*404"
-					component={() => (
-						<Show when={session() && isLinked()} fallback={<Navigate href="/login" />}>
-							<DashboardLayout>
-								<NotFound />
-							</DashboardLayout>
-						</Show>
-					)}
-				/>
+				<Route path="/" component={ProtectedLayout}>
+					<Route
+						path="/"
+						component={() => (
+							<SheetListView
+								controller={sheetListController}
+								viewModel={sheetListPresenter.viewModel}
+							/>
+						)}
+					/>
+					<Route
+						path="/sheet/:id"
+						component={() => (
+							<SheetEditorView
+								controller={sheetEditorController}
+								viewModel={sheetEditorPresenter.viewModel}
+								commonEvaluationController={commonEvaluationController}
+								commonEvaluationViewModel={commonEvaluationPresenter.viewModel}
+								challengeEvaluationController={challengeEvaluationController}
+								challengeEvaluationViewModel={challengeEvaluationPresenter.viewModel}
+							/>
+						)}
+					/>
+					<Route
+						path="/employee-master"
+						component={() => (
+							<EmployeeMasterView
+								controller={employeeMasterController}
+								viewModel={employeeMasterPresenter.viewModel}
+							/>
+						)}
+					/>
+					<Route path="*404" component={NotFound} />
+				</Route>
 			</Router>
 		</Show>
 	);

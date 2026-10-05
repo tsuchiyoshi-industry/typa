@@ -55,7 +55,7 @@ export class SheetEditorController {
 				finalEvaluationRank: UpdateFinalEvaluationRankOutputPort;
 				status: UpdateEvaluationStatusOutputPort;
 			};
-			beginSheetLoad: () => void;
+			beginSheetLoad: (silent?: boolean) => void;
 			beginAccessibleSheetsLoad: () => void;
 			prepareNewSheet: () => void;
 			setSelectedPeriodId: (id: number | null) => void;
@@ -85,8 +85,8 @@ export class SheetEditorController {
 		return currentEmployeeId;
 	}
 
-	async loadSheet(sheetId: number): Promise<number | null> {
-		this.presenter.beginSheetLoad();
+	async loadSheet(sheetId: number, silent = false): Promise<number | null> {
+		this.presenter.beginSheetLoad(silent);
 		try {
 			const { data: currentEmployeeId } = await this.employeeRepository.findCurrentEmployeeId();
 			await this.fetchSheetUseCase.execute(

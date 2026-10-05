@@ -3,7 +3,7 @@ import "../styles/loading.css";
 
 const LoadingView: Component = () => {
 	return (
-		<div class="loading-container" role="alert" aria-busy="true">
+		<div class="loading-container" role="status" aria-busy="true">
 			<div class="loading-content">
 				{/* ロゴアニメ */}
 				<div class="logo-wrapper">
@@ -21,7 +21,7 @@ const LoadingView: Component = () => {
 				<div class="loading-bar-container">
 					<div class="loading-bar-fill"></div>
 				</div>
-				<p class="loading-text">Authenticating...</p>
+				<p class="loading-text">読み込み中</p>
 			</div>
 		</div>
 	);

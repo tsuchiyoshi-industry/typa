@@ -4,6 +4,8 @@ import type { EmployeeDto } from "../../../application/dtos/EmployeeDto";
 import type { MilestoneDto } from "../../../application/dtos/MilestoneDto";
 import type { ChallengeEvaluationController } from "../../controllers/ChallengeEvaluationController";
 import type { ChallengeEvaluationViewModel } from "../../presenters/ChallengeEvaluationPresenter";
+import { confirmDiscard, showToast, trackUnsaved } from "../feedback";
+import ScoreScale from "./ScoreScale";
 
 interface ChallengeEvaluationViewProps {
 	sheetId: number | null;
@@ -13,11 +15,12 @@ interface ChallengeEvaluationViewProps {
 	canEditSecond: boolean;
 	canEditMilestoneGoal: boolean;
 	canViewSecondEvaluation: boolean;
-	isEditable: boolean;
 	controller: ChallengeEvaluationController;
 	viewModel: () => ChallengeEvaluationViewModel;
 	onUpdated: () => void;
 }
+
+const MAX_SCORE = 4;
 
 const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props) => {
 	const [activeTab, setActiveTab] = createSignal<number>(
@@ -30,7 +33,7 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 		midtermGoal: "",
 		achievement: "",
 	});
-	const [draftScore, setDraftScore] = createSignal({ firstScore: "", secondScore: "" });
+	const [draftScore, setDraftScore] = createSignal({ firstScore: 0, secondScore: 0 });
 	const [textUpdating, setTextUpdating] = createSignal(false);
 	const [scoreUpdating, setScoreUpdating] = createSignal(false);
 
@@ -57,6 +60,45 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 			displayObjectives()[0],
 	);
 
+	/** まだ保存されていない(本人が目標を未入力の)目標は、評価の対象にできない。 */
+	const isSaved = () => (activeObjective()?.id ?? 0) > 0;
+	const canScore = () => isSaved() && (props.canEditFirst || props.canEditSecond);
+
+	const textChanged = () => {
+		const objective = activeObjective();
+		const draft = draftText();
+		return (
+			objective != null &&
+			(draft.challengeGoal !== objective.challengeGoal ||
+				draft.midtermGoal !== objective.midtermGoal ||
+				draft.achievement !== objective.achievement)
+		);
+	};
+
+	const scoreChanged = () => {
+		const objective = activeObjective();
+		const draft = draftScore();
+		return (
+			objective != null &&
+			((props.canEditFirst && draft.firstScore !== (objective.firstScore ?? 0)) ||
+				(props.canEditSecond && draft.secondScore !== (objective.secondScore ?? 0)))
+		);
+	};
+
+	trackUnsaved(
+		"challenge",
+		() => (isTextEditing() && textChanged()) || (isScoreEditing() && scoreChanged()),
+	);
+
+	const selectTab = async (goalNumber: number) => {
+		if (goalNumber === activeTab() || !(await confirmDiscard())) {
+			return;
+		}
+		setIsTextEditing(false);
+		setIsScoreEditing(false);
+		setActiveTab(goalNumber);
+	};
+
 	const startTextEditing = () => {
 		const objective = activeObjective();
 		if (!objective) {
@@ -68,11 +110,6 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 			achievement: objective.achievement,
 		});
 		setIsTextEditing(true);
-		setIsScoreEditing(false);
-	};
-
-	const cancelTextEditing = () => {
-		setIsTextEditing(false);
 	};
 
 	const applyTextUpdate = async () => {
@@ -99,8 +136,9 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 					);
 		setTextUpdating(false);
 		if (success) {
-			props.onUpdated();
 			setIsTextEditing(false);
+			showToast("success", `目標 ${objective.goalNumber} を保存しました`);
+			props.onUpdated();
 		}
 	};
 
@@ -110,15 +148,10 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 			return;
 		}
 		setDraftScore({
-			firstScore: objective.firstScore ? String(objective.firstScore) : "",
-			secondScore: objective.secondScore ? String(objective.secondScore) : "",
+			firstScore: objective.firstScore ?? 0,
+			secondScore: objective.secondScore ?? 0,
 		});
 		setIsScoreEditing(true);
-		setIsTextEditing(false);
-	};
-
-	const cancelScoreEditing = () => {
-		setIsScoreEditing(false);
 	};
 
 	const applyScoreUpdate = async () => {
@@ -130,37 +163,48 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 		const success = await props.controller.updateScore(
 			props.sheetId ?? objective.sheetId,
 			objective.id,
-			props.canEditFirst ? Number(draftScore().firstScore) : undefined,
-			props.canEditSecond ? Number(draftScore().secondScore) : undefined,
+			props.canEditFirst ? draftScore().firstScore : undefined,
+			props.canEditSecond ? draftScore().secondScore : undefined,
 		);
 		setScoreUpdating(false);
 		if (success) {
-			props.onUpdated();
 			setIsScoreEditing(false);
+			showToast("success", `目標 ${objective.goalNumber} の評価を保存しました`);
+			props.onUpdated();
 		}
 	};
+
+	const ScoreReadout: Component<{ label: string; value: number | null | undefined }> = (
+		readoutProps,
+	) => (
+		<div class="score-pill">
+			<span class="score-label">{readoutProps.label}</span>
+			<Show when={readoutProps.value} fallback={<span class="score-value empty">未評価</span>}>
+				<span class="score-value">
+					{readoutProps.value}
+					<small> / {MAX_SCORE}</small>
+				</span>
+			</Show>
+		</div>
+	);
 
 	return (
 		<section class="challenge-card">
 			<div class="challenge-card__title">
 				<h2>チャレンジ目標評価</h2>
-				<p class="challenge-helper">1〜4 の整数で入力します。</p>
+				<p class="challenge-helper">目標ごとに 1〜{MAX_SCORE} の4段階で評価します。</p>
 			</div>
 
-			<div class="challenge-tabs" role="tablist">
+			<div class="challenge-tabs" role="tablist" aria-label="チャレンジ目標">
 				<For each={displayObjectives()}>
 					{(item) => (
 						<button
 							type="button"
 							role="tab"
-							class={
-								activeTab() === Number(item.goalNumber) ? "challenge-tab active" : "challenge-tab"
-							}
-							onClick={() => {
-								setActiveTab(Number(item.goalNumber));
-								setIsTextEditing(false);
-								setIsScoreEditing(false);
-							}}
+							aria-selected={activeTab() === Number(item.goalNumber)}
+							class="challenge-tab"
+							classList={{ active: activeTab() === Number(item.goalNumber) }}
+							onClick={() => void selectTab(Number(item.goalNumber))}
 						>
 							目標 {item.goalNumber}
 						</button>
@@ -171,98 +215,110 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 			<Show when={activeObjective()} fallback={<p>対象の目標が見つかりません。</p>}>
 				<article class="objective-block" role="tabpanel">
 					<div class="objective-meta">
-						<strong>目標 {activeObjective()?.goalNumber}</strong>
-						<div class="objective-meta-actions">
-							<div class="score-grid">
-								<Show
-									when={isScoreEditing()}
-									fallback={
-										<>
-											<div class="score-pill">
-												<span class="score-label">一次評価</span>
-												<span class="score-value">{activeObjective()?.firstScore || "—"}</span>
-											</div>
-											<Show when={props.canViewSecondEvaluation}>
-												<div class="score-pill">
-													<span class="score-label">二次評価</span>
-													<span class="score-value">{activeObjective()?.secondScore || "—"}</span>
-												</div>
-											</Show>
-										</>
-									}
-								>
-									<Show when={props.canEditFirst}>
-										<div class="score-pill">
-											<span class="score-label">一次評価</span>
-											<input
-												type="number"
-												class="score-input"
-												min="1"
-												max="4"
-												value={draftScore().firstScore}
-												onInput={(e) =>
-													setDraftScore({ ...draftScore(), firstScore: e.currentTarget.value })
-												}
-											/>
-										</div>
-									</Show>
-									<Show when={props.canEditSecond}>
-										<div class="score-pill">
-											<span class="score-label">二次評価</span>
-											<input
-												type="number"
-												class="score-input"
-												min="1"
-												max="4"
-												value={draftScore().secondScore}
-												onInput={(e) =>
-													setDraftScore({ ...draftScore(), secondScore: e.currentTarget.value })
-												}
-											/>
-										</div>
-									</Show>
-									<Show when={isScoreEditing()}>
-										<button
-											type="button"
-											class="primary-action"
-											onClick={applyScoreUpdate}
-											disabled={scoreUpdating()}
-										>
-											<Check class="action-icon" />
-											{scoreUpdating() ? "保存中..." : "保存"}
-										</button>
-										<button type="button" class="secondary-action" onClick={cancelScoreEditing}>
-											<X class="action-icon" />
-											キャンセル
-										</button>
-									</Show>
-								</Show>
-							</div>
+						<div class="score-grid">
 							<Show
-								when={
-									(activeObjective()?.id !== 0 &&
-										(props.canEditFirst || props.canEditSecond) &&
-										!isScoreEditing()) ||
-									(activeObjective()?.id === 0 && props.isEditable && !isScoreEditing())
+								when={isScoreEditing()}
+								fallback={
+									<>
+										<ScoreReadout label="一次評価" value={activeObjective()?.firstScore} />
+										<Show when={props.canViewSecondEvaluation}>
+											<ScoreReadout label="二次評価" value={activeObjective()?.secondScore} />
+										</Show>
+									</>
 								}
 							>
+								<Show when={props.canEditFirst}>
+									<div class="score-pill editing">
+										<span class="score-label">一次評価</span>
+										<ScoreScale
+											label="一次評価"
+											max={MAX_SCORE}
+											value={draftScore().firstScore}
+											disabled={scoreUpdating()}
+											onChange={(value) => setDraftScore({ ...draftScore(), firstScore: value })}
+										/>
+									</div>
+								</Show>
+								<Show when={props.canEditSecond}>
+									<div class="score-pill editing">
+										<span class="score-label">二次評価</span>
+										<ScoreScale
+											label="二次評価"
+											max={MAX_SCORE}
+											value={draftScore().secondScore}
+											disabled={scoreUpdating()}
+											onChange={(value) => setDraftScore({ ...draftScore(), secondScore: value })}
+										/>
+									</div>
+								</Show>
+							</Show>
+						</div>
+
+						<div class="objective-meta-actions">
+							<Show when={isScoreEditing()}>
+								<button
+									type="button"
+									class="primary-action"
+									onClick={applyScoreUpdate}
+									disabled={scoreUpdating() || !scoreChanged()}
+								>
+									<Check class="action-icon" />
+									{scoreUpdating() ? "保存中..." : "評価を保存"}
+								</button>
+								<button
+									type="button"
+									class="secondary-action"
+									onClick={() => setIsScoreEditing(false)}
+									disabled={scoreUpdating()}
+								>
+									<X class="action-icon" />
+									キャンセル
+								</button>
+							</Show>
+							<Show when={canScore() && !isScoreEditing() && !isTextEditing()}>
 								<button type="button" class="edit-toggle-button" onClick={startScoreEditing}>
 									<SquarePen class="edit-icon" />
-									評価更新
+									評価を入力
 								</button>
 							</Show>
-							<Show when={props.canEditMilestoneGoal && !isTextEditing()}>
+							<Show when={props.canEditMilestoneGoal && !isTextEditing() && !isScoreEditing()}>
 								<button type="button" class="edit-toggle-button" onClick={startTextEditing}>
 									<SquarePen class="edit-icon" />
-									目標編集
+									目標を編集
 								</button>
-							</Show>
-							<Show when={isTextEditing()}>
-								<span class="editing-label">編集中</span>
 							</Show>
 						</div>
 					</div>
-					<Show when={isTextEditing()}>
+
+					<Show when={!isSaved() && (props.canEditFirst || props.canEditSecond)}>
+						<p class="field-hint">本人が目標を入力すると、評価を入力できるようになります。</p>
+					</Show>
+
+					<Show
+						when={isTextEditing()}
+						fallback={
+							<div class="objective-fields">
+								<div class="objective-field">
+									<span class="objective-field__label">チャレンジ目標</span>
+									<p classList={{ empty: !activeObjective()?.challengeGoal }}>
+										{activeObjective()?.challengeGoal || "未入力"}
+									</p>
+								</div>
+								<div class="objective-field">
+									<span class="objective-field__label">中間目標</span>
+									<p classList={{ empty: !activeObjective()?.midtermGoal }}>
+										{activeObjective()?.midtermGoal || "未入力"}
+									</p>
+								</div>
+								<div class="objective-field">
+									<span class="objective-field__label">達成状況</span>
+									<p classList={{ empty: !activeObjective()?.achievement }}>
+										{activeObjective()?.achievement || "未入力"}
+									</p>
+								</div>
+							</div>
+						}
+					>
 						<div class="objective-fields editing">
 							<label>
 								<span>チャレンジ目標</span>
@@ -296,15 +352,15 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 									type="button"
 									class="primary-action"
 									onClick={applyTextUpdate}
-									disabled={textUpdating()}
+									disabled={textUpdating() || !textChanged()}
 								>
 									<Check class="action-icon" />
-									{textUpdating() ? "保存中..." : "保存"}
+									{textUpdating() ? "保存中..." : "目標を保存"}
 								</button>
 								<button
 									type="button"
 									class="secondary-action"
-									onClick={cancelTextEditing}
+									onClick={() => setIsTextEditing(false)}
 									disabled={textUpdating()}
 								>
 									<X class="action-icon" />
@@ -313,24 +369,11 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 							</div>
 						</div>
 					</Show>
-					<Show when={!isTextEditing()}>
-						<div class="objective-fields">
-							<div class="objective-field">
-								<span class="objective-field__label">チャレンジ目標</span>
-								<p>{activeObjective()?.challengeGoal || "—"}</p>
-							</div>
-							<div class="objective-field">
-								<span class="objective-field__label">中間目標</span>
-								<p>{activeObjective()?.midtermGoal || "—"}</p>
-							</div>
-							<div class="objective-field">
-								<span class="objective-field__label">達成状況</span>
-								<p>{activeObjective()?.achievement || "—"}</p>
-							</div>
-						</div>
-					</Show>
+
 					<Show when={props.viewModel().updateError}>
-						<p class="error-message">{props.viewModel().updateError}</p>
+						<p class="error-message" role="alert">
+							{props.viewModel().updateError}
+						</p>
 					</Show>
 				</article>
 			</Show>

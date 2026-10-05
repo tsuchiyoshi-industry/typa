@@ -85,13 +85,13 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 		);
 	};
 
-	trackUnsaved(
-		"challenge",
-		() => (isTextEditing() && textChanged()) || (isScoreEditing() && scoreChanged()),
-	);
+	const isDirty = () => (isTextEditing() && textChanged()) || (isScoreEditing() && scoreChanged());
+
+	trackUnsaved("challenge", isDirty);
 
 	const selectTab = async (goalNumber: number) => {
-		if (goalNumber === activeTab() || !(await confirmDiscard())) {
+		// 捨てるのはこの目標の入力だけなので、他の欄(総評など)の未保存は問わない
+		if (goalNumber === activeTab() || !(await confirmDiscard(isDirty()))) {
 			return;
 		}
 		setIsTextEditing(false);

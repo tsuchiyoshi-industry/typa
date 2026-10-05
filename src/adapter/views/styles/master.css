@@ -207,6 +207,11 @@
 	color: var(--hr-text);
 }
 
+.assignment-input-row .primary-action {
+	flex-shrink: 0;
+	white-space: nowrap;
+}
+
 .assignment-input-row input:focus {
 	outline: none;
 	border-color: var(--hr-accent);

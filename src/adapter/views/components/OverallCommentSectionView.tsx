@@ -31,7 +31,9 @@ const OverallCommentSection: Component<OverallCommentSectionProps> = (props) => 
 
 		return (
 			<div class="overall-comment-field">
-				<label for={inputId}>{fieldProps.label}</label>
+				<label class="overall-comment-field__label" for={inputId}>
+					{fieldProps.label}
+				</label>
 				<textarea
 					id={inputId}
 					value={fieldProps.value}

@@ -90,9 +90,12 @@ export function trackUnsaved(key: string, isDirty: () => boolean): void {
 	onCleanup(() => setUnsaved(key, false));
 }
 
-/** 未保存の変更があれば破棄してよいか確認する。なければ即 true。 */
-export function confirmDiscard(): Promise<boolean> {
-	if (!hasUnsavedChanges()) {
+/**
+ * 未保存の変更があれば破棄してよいか確認する。なければ即 true。
+ * 画面の一部だけを破棄する操作(タブ切り替えなど)は、その部分の状態を isDirty に渡す。
+ */
+export function confirmDiscard(isDirty = hasUnsavedChanges()): Promise<boolean> {
+	if (!isDirty) {
 		return Promise.resolve(true);
 	}
 	return confirmAction({

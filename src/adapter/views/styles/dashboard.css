@@ -553,7 +553,7 @@
 	color: var(--hr-text-muted);
 }
 
-.sheet-row__date {
+.sheet-table .sheet-row__date {
 	color: var(--hr-text-muted);
 	font-variant-numeric: tabular-nums;
 	white-space: nowrap;
@@ -1683,7 +1683,7 @@
 	gap: 0.55rem;
 }
 
-.overall-comment-field label {
+.overall-comment-field__label {
 	font-size: 0.8rem;
 	font-weight: 600;
 	color: var(--hr-text-muted);

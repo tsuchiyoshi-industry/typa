@@ -1,38 +1,45 @@
-import { ClipboardList, Save, ShieldCheck, User, UserCheck, Users } from "lucide-solid";
+import { Search, ShieldCheck, Users } from "lucide-solid";
 import {
 	type Component,
 	createEffect,
 	createMemo,
 	createSignal,
 	For,
+	Index,
 	on,
 	onMount,
+	type ParentComponent,
 	Show,
 } from "solid-js";
+import type { ApprovalRelationDto } from "../../application/dtos/EmployeeMasterDto";
 import type { EvaluatorType } from "../../domain/repositories/EmployeeMasterRepository";
 import type { EmployeeMasterController } from "../controllers/EmployeeMasterController";
 import type { EmployeeMasterViewModel } from "../presenters/EmployeeMasterPresenter";
-import { showToast } from "./feedback";
+import { confirmAction, showToast } from "./feedback";
 
 interface EmployeeMasterViewProps {
 	controller: EmployeeMasterController;
 	viewModel: () => EmployeeMasterViewModel;
 }
 
+type Scope = "all" | "mine" | "unset";
+
+/** 二次評価者「なし」を表す選択肢の値。未設定(空文字)と区別する。 */
+const NO_SECONDARY = "__none__";
+
 const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
-	const [primaryEmployeeNo, setPrimaryEmployeeNo] = createSignal("");
-	const [secondaryEmployeeNo, setSecondaryEmployeeNo] = createSignal("");
-	const [relationFilter, setRelationFilter] = createSignal("");
-	const [assigningType, setAssigningType] = createSignal<EvaluatorType | null>(null);
+	const [keyword, setKeyword] = createSignal("");
+	const [scope, setScope] = createSignal<Scope>("all");
+	const [savingKey, setSavingKey] = createSignal<string | null>(null);
 
 	onMount(() => {
 		void props.controller.load();
 	});
 
-	// 設定・更新の結果はトーストで知らせる
+	// 更新の結果はトーストで知らせる
 	createEffect(
 		on(
-			() => props.viewModel().assignmentStatus,
+			() => props.viewModel().updateStatus,
 			(status) => {
 				if (status.message) {
 					showToast(status.success ? "success" : "error", status.message);
@@ -42,298 +49,292 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 		),
 	);
 
-	const filteredRelations = createMemo(() => {
-		const keyword = relationFilter().trim().toLowerCase();
-		if (!keyword) {
-			return props.viewModel().relations;
-		}
+	const me = () => props.viewModel().currentEmployee;
+	// 読み込み中フラグなど無関係な更新で一覧を描き直さないよう、配列単位で購読する
+	const relations = createMemo(() => props.viewModel().relations);
+	const grades = createMemo(() => props.viewModel().grades);
 
-		return props
-			.viewModel()
-			.relations.filter(
-				(relation) =>
-					relation.employeeNo.toLowerCase().includes(keyword) ||
-					relation.name.toLowerCase().includes(keyword),
-			);
+	const isMine = (relation: ApprovalRelationDto) =>
+		relation.primaryEvaluatorId === me()?.id || relation.secondaryEvaluatorId === me()?.id;
+	// 二次評価者は「なし」と明示されていれば設定済み。自分で埋められない項目(Reviewer にとっての等級)は数えない
+	const hasUnset = (relation: ApprovalRelationDto) =>
+		relation.primaryEvaluatorId == null ||
+		(relation.secondaryEvaluatorId == null && !relation.noSecondaryEvaluator) ||
+		(props.viewModel().canEditGrades && relation.gradeId == null);
+
+	const scopes = createMemo<{ value: Scope; label: string; count: number }[]>(() => [
+		{ value: "all", label: "全員", count: relations().length },
+		{ value: "mine", label: "自分の担当", count: relations().filter(isMine).length },
+		{ value: "unset", label: "未設定あり", count: relations().filter(hasUnset).length },
+	]);
+
+	const visibleRelations = createMemo(() => {
+		const text = keyword().trim().toLowerCase();
+		return relations().filter(
+			(relation) =>
+				(scope() === "all" || (scope() === "mine" ? isMine(relation) : hasUnset(relation))) &&
+				(!text ||
+					relation.employeeNo.toLowerCase().includes(text) ||
+					relation.name.toLowerCase().includes(text)),
+		);
 	});
 
-	const handleAssign = async (evaluatorType: EvaluatorType) => {
-		const employeeNo =
-			evaluatorType === "primary" ? primaryEmployeeNo().trim() : secondaryEmployeeNo().trim();
-		if (!employeeNo) {
-			return;
+	const employeeNoById = createMemo(
+		() => new Map(relations().map((relation) => [relation.employeeId, relation.employeeNo])),
+	);
+
+	const emptyMessage = () => {
+		if (keyword().trim()) {
+			return `「${keyword().trim()}」に一致する社員はいません。`;
 		}
-		setAssigningType(evaluatorType);
-		await props.controller.assignEvaluator(employeeNo, evaluatorType);
-		setAssigningType(null);
-		if (props.viewModel().assignmentStatus.success) {
-			if (evaluatorType === "primary") {
-				setPrimaryEmployeeNo("");
-			} else {
-				setSecondaryEmployeeNo("");
-			}
+		if (scope() === "mine") {
+			return "あなたが評価者になっている社員はまだいません。「全員」の一覧で評価者に自分を選ぶと、ここに並びます。";
 		}
+		return scope() === "unset" ? "未設定の項目はありません。" : "表示できる社員はいません。";
 	};
 
-	const AdminEvaluatorControl: Component<{
-		targetEmployeeNo: string;
-		currentEvaluatorName: string;
-		evaluatorType: EvaluatorType;
-	}> = (controlProps) => {
-		const [evaluatorEmployeeNo, setEvaluatorEmployeeNo] = createSignal("");
-		const [updating, setUpdating] = createSignal(false);
-		const label = () => (controlProps.evaluatorType === "primary" ? "一次評価者" : "二次評価者");
-		// 入力した社員番号が誰なのかを、保存前に確認できるようにする
-		const matchedName = () =>
-			props.viewModel().relations.find((item) => item.employeeNo === evaluatorEmployeeNo().trim())
-				?.name;
+	// 選ぶとその場で保存する。保存できなかったときは元の選択に戻す。
+	const CellSelect: ParentComponent<{
+		label: string;
+		value: string;
+		saveKey: string;
+		onPick: (value: string) => Promise<boolean>;
+	}> = (cell) => {
+		let select!: HTMLSelectElement;
+		// option を差し替えると選択が先頭に戻るため、描画の更新が済んでから合わせ直す
+		createEffect(() => {
+			relations();
+			grades();
+			select.value = cell.value;
+		});
 
-		const handleUpdate = async () => {
-			const employeeNo = evaluatorEmployeeNo().trim();
-			if (!employeeNo) {
-				return;
+		const handleChange = async () => {
+			const previous = cell.value;
+			setSavingKey(cell.saveKey);
+			const saved = await cell.onPick(select.value);
+			setSavingKey(null);
+			if (!saved) {
+				select.value = previous;
 			}
-			setUpdating(true);
-			await props.controller.updateEvaluator(
-				controlProps.targetEmployeeNo,
-				employeeNo,
-				controlProps.evaluatorType,
-			);
-			setUpdating(false);
-			if (props.viewModel().assignmentStatus.success) {
-				setEvaluatorEmployeeNo("");
-			}
+			select.focus();
 		};
 
 		return (
-			<form
-				class="admin-evaluator-form"
-				onSubmit={(event) => {
-					event.preventDefault();
-					void handleUpdate();
-				}}
+			<span
+				class="cell-select"
+				classList={{ unset: !cell.value, saving: savingKey() === cell.saveKey }}
 			>
-				<span>{controlProps.currentEvaluatorName}</span>
-				<div class="admin-evaluator-row">
-					<input
-						type="text"
-						value={evaluatorEmployeeNo()}
-						onInput={(event) => setEvaluatorEmployeeNo(event.currentTarget.value)}
-						placeholder={`${label()}の社員番号`}
-						aria-label={`${controlProps.targetEmployeeNo} の ${label()} 社員番号`}
-						list="employee-options"
-						autocomplete="off"
-					/>
-					<button
-						type="submit"
-						class="icon-action"
-						aria-label={`${label()}を更新`}
-						title={`${label()}を更新`}
-						disabled={updating() || !evaluatorEmployeeNo().trim()}
-					>
-						<Save class="action-icon" />
-					</button>
-				</div>
-				<Show when={evaluatorEmployeeNo().trim()}>
-					<span class="field-hint" classList={{ invalid: !matchedName() }}>
-						{matchedName() ? `→ ${matchedName()} に変更` : "該当する社員が見つかりません"}
-					</span>
+				<select
+					ref={select}
+					aria-label={cell.label}
+					disabled={savingKey() !== null}
+					onChange={() => void handleChange()}
+				>
+					<option value="" disabled>
+						未設定
+					</option>
+					{cell.children}
+				</select>
+			</span>
+		);
+	};
+
+	const EvaluatorCell: Component<{
+		relation: ApprovalRelationDto;
+		evaluatorType: EvaluatorType;
+	}> = (cell) => {
+		const label = () => (cell.evaluatorType === "primary" ? "一次評価者" : "二次評価者");
+		const evaluatorId = () =>
+			cell.evaluatorType === "primary"
+				? cell.relation.primaryEvaluatorId
+				: cell.relation.secondaryEvaluatorId;
+
+		// 二次評価者は「未設定(指定待ち)」と「なし(明示)」を別の値として扱う
+		const selected = () =>
+			cell.evaluatorType === "secondary" &&
+			evaluatorId() == null &&
+			cell.relation.noSecondaryEvaluator
+				? NO_SECONDARY
+				: (employeeNoById().get(evaluatorId() ?? -1) ?? "");
+
+		const pick = async (value: string) => {
+			if (value !== NO_SECONDARY) {
+				return props.controller.updateEvaluator(
+					cell.relation.employeeNo,
+					value,
+					cell.evaluatorType,
+				);
+			}
+			const confirmed = await confirmAction({
+				title: `${cell.relation.name}さんの二次評価者を「なし」にしますか？`,
+				message:
+					"一次評価者の評価がそのまま最終評価になり、一次評価者が最終評価ランクの決定と評価の確定を行います。",
+				confirmLabel: "「なし」にする",
+			});
+			return (
+				confirmed && props.controller.updateEvaluator(cell.relation.employeeNo, null, "secondary")
+			);
+		};
+
+		return (
+			<CellSelect
+				label={`${cell.relation.name}さんの${label()}`}
+				value={selected()}
+				saveKey={`${cell.relation.employeeNo}:${cell.evaluatorType}`}
+				onPick={pick}
+			>
+				<Show when={cell.evaluatorType === "secondary"}>
+					<option value={NO_SECONDARY}>なし（一次評価が最終評価）</option>
 				</Show>
-			</form>
+				{/* ponytail: 全行×全社員ぶんの option を描画する(O(N²))。数百名を超えて重くなったら、操作中の行だけ select を描く */}
+				<For each={relations()}>
+					{(candidate) => (
+						<option
+							value={candidate.employeeNo}
+							disabled={candidate.employeeId === cell.relation.employeeId}
+						>
+							{`${candidate.name}（${candidate.employeeNo}）`}
+						</option>
+					)}
+				</For>
+			</CellSelect>
+		);
+	};
+
+	const GradeCell: Component<{ relation: ApprovalRelationDto }> = (cell) => {
+		const changeGrade = async (gradeId: string) => {
+			const grade = grades().find((item) => String(item.id) === gradeId);
+			if (!grade) {
+				return false;
+			}
+			const confirmed = await confirmAction({
+				title: `${cell.relation.name}さんの等級を「${grade.name}」に変更しますか？`,
+				message:
+					"共通評価の項目は等級ごとに決まります。進行中の評価シートがある場合、その項目も新しい等級のものに切り替わります。",
+				confirmLabel: "等級を変更する",
+			});
+			return confirmed && props.controller.updateGrade(cell.relation.employeeNo, grade.id);
+		};
+
+		return (
+			<CellSelect
+				label={`${cell.relation.name}さんの等級`}
+				value={cell.relation.gradeId == null ? "" : String(cell.relation.gradeId)}
+				saveKey={`${cell.relation.employeeNo}:grade`}
+				onPick={changeGrade}
+			>
+				<For each={grades()}>
+					{(grade) => <option value={String(grade.id)}>{grade.name}</option>}
+				</For>
+			</CellSelect>
 		);
 	};
 
 	const ProfilePanel = () => (
-		<section class="master-profile-panel">
-			<div class="master-section-title">
-				<User class="master-section-icon" />
-				<div>
-					<h2>プロフィール</h2>
-					<p>{props.viewModel().currentEmployee?.roleName ?? "Employee"}</p>
-				</div>
+		<section class="master-profile" aria-label="あなたのプロフィール">
+			<div class="master-profile-id">
+				<strong>{me()?.name ?? "未設定"}</strong>
+				<span class="employee-no">{me()?.employeeNo ?? "社員番号 未設定"}</span>
 			</div>
-			<div class="master-profile-grid">
-				<div class="master-profile-item">
-					<span>氏名</span>
-					<strong>{props.viewModel().currentEmployee?.name ?? "未設定"}</strong>
-				</div>
-				<div class="master-profile-item">
-					<span>社員番号</span>
-					<strong>{props.viewModel().currentEmployee?.employeeNo ?? "未設定"}</strong>
-				</div>
-				<div class="master-profile-item">
-					<span>等級</span>
-					<strong>{props.viewModel().currentEmployee?.gradeName ?? "未設定"}</strong>
-				</div>
-				<div class="master-profile-item">
-					<span>キャリアコース</span>
-					<strong>{props.viewModel().currentEmployee?.careerCourse ?? "未設定"}</strong>
-				</div>
-				<div class="master-profile-item">
-					<span>一次評価者</span>
-					<strong>{props.viewModel().currentEmployee?.primaryEvaluatorName ?? "未設定"}</strong>
-				</div>
-				<div class="master-profile-item">
-					<span>二次評価者</span>
-					<strong>{props.viewModel().currentEmployee?.secondaryEvaluatorName ?? "未設定"}</strong>
-				</div>
-			</div>
+			<dl class="master-profile-facts">
+				<For
+					each={[
+						["等級", me()?.gradeName],
+						["キャリアコース", me()?.careerCourse],
+						["一次評価者", me()?.primaryEvaluatorName],
+						["二次評価者", me()?.secondaryEvaluatorName],
+					]}
+				>
+					{([label, value]) => (
+						<div>
+							<dt>{label}</dt>
+							<dd classList={{ unset: !value || value === "未設定" }}>{value ?? "未設定"}</dd>
+						</div>
+					)}
+				</For>
+			</dl>
 		</section>
 	);
 
-	const AssignmentPanel = () => (
-		<section class="master-assignment-panel">
-			<div class="master-section-title">
-				<UserCheck class="master-section-icon" />
+	const EmployeeList = () => (
+		<section class="master-list">
+			<div class="master-list-head">
 				<div>
-					<h2>部下設定</h2>
-					<p>評価者種別ごとに対象社員番号を入力</p>
+					<h2>社員一覧</h2>
+					<p>
+						{props.viewModel().canEditGrades ? "等級と評価者" : "評価者"}
+						は、一覧から選ぶとその場で保存されます。二次評価者を「なし」にした社員は一次評価がそのまま最終評価になり、「未設定」のままの社員は評価を確定できません。
+					</p>
 				</div>
-			</div>
-			<div class="assignment-grid">
-				<form
-					class="assignment-form"
-					onSubmit={(event) => {
-						event.preventDefault();
-						void handleAssign("primary");
-					}}
-				>
-					<label for="primary-employee-no">一次評価者として担当する社員番号</label>
-					<div class="assignment-input-row">
-						<input
-							id="primary-employee-no"
-							type="text"
-							value={primaryEmployeeNo()}
-							onInput={(event) => setPrimaryEmployeeNo(event.currentTarget.value)}
-							placeholder="例: 10023"
-						/>
-						<button
-							type="submit"
-							class="primary-action"
-							disabled={assigningType() !== null || !primaryEmployeeNo().trim()}
-						>
-							<Save class="action-icon" />
-							<span>{assigningType() === "primary" ? "設定中..." : "設定"}</span>
-						</button>
-					</div>
-				</form>
-				<form
-					class="assignment-form"
-					onSubmit={(event) => {
-						event.preventDefault();
-						void handleAssign("secondary");
-					}}
-				>
-					<label for="secondary-employee-no">二次評価者として担当する社員番号</label>
-					<div class="assignment-input-row">
-						<input
-							id="secondary-employee-no"
-							type="text"
-							value={secondaryEmployeeNo()}
-							onInput={(event) => setSecondaryEmployeeNo(event.currentTarget.value)}
-							placeholder="例: 10023"
-						/>
-						<button
-							type="submit"
-							class="primary-action"
-							disabled={assigningType() !== null || !secondaryEmployeeNo().trim()}
-						>
-							<Save class="action-icon" />
-							<span>{assigningType() === "secondary" ? "設定中..." : "設定"}</span>
-						</button>
-					</div>
-				</form>
-			</div>
-		</section>
-	);
-
-	const RelationsTable = () => (
-		<section class="master-relations-panel">
-			<div class="master-section-title master-relations-title">
-				<div class="master-section-heading">
-					<ClipboardList class="master-section-icon" />
-					<div>
-						<h2>{props.viewModel().canViewAllRelations ? "承認先関係一覧" : "担当中の部下"}</h2>
-						<p>
-							{props.viewModel().canViewAllRelations
-								? "全社員の一次・二次評価者"
-								: "自分が評価者に設定されている社員"}
-						</p>
-					</div>
-				</div>
-				<label class="master-filter-field" for="relation-filter">
-					<span>検索</span>
+				<label class="master-search">
+					<Search class="master-search-icon" />
 					<input
-						id="relation-filter"
 						type="search"
-						value={relationFilter()}
-						onInput={(event) => setRelationFilter(event.currentTarget.value)}
-						placeholder="社員番号・氏名"
+						value={keyword()}
+						onInput={(event) => setKeyword(event.currentTarget.value)}
+						placeholder="氏名・社員番号で検索"
+						aria-label="氏名・社員番号で検索"
 					/>
 				</label>
 			</div>
-			<Show when={props.viewModel().canViewAllRelations}>
-				<datalist id="employee-options">
-					<For each={props.viewModel().relations}>
-						{(relation) => <option value={relation.employeeNo}>{relation.name}</option>}
-					</For>
-				</datalist>
-			</Show>
+			<fieldset class="master-scope">
+				<legend class="visually-hidden">表示する社員</legend>
+				<For each={scopes()}>
+					{(item) => (
+						<button
+							type="button"
+							aria-pressed={scope() === item.value}
+							onClick={() => setScope(item.value)}
+						>
+							{item.label}
+							<span>{item.count}</span>
+						</button>
+					)}
+				</For>
+			</fieldset>
 			<Show
-				when={filteredRelations().length > 0}
-				fallback={
-					<p>
-						{relationFilter().trim()
-							? `「${relationFilter().trim()}」に一致する社員はいません。`
-							: "表示できる社員はいません。"}
-					</p>
-				}
+				when={visibleRelations().length > 0}
+				fallback={<p class="master-empty">{emptyMessage()}</p>}
 			>
 				<div class="table-scroll">
 					<table class="master-table">
 						<thead>
 							<tr>
-								<th>社員番号</th>
-								<th>氏名</th>
-								<th>等級</th>
-								<th>一次評価者</th>
-								<th>二次評価者</th>
+								<th scope="col">社員</th>
+								<th scope="col">等級</th>
+								<th scope="col">一次評価者</th>
+								<th scope="col">二次評価者</th>
 							</tr>
 						</thead>
 						<tbody>
-							<For each={filteredRelations()}>
+							<Index each={visibleRelations()}>
 								{(relation) => (
 									<tr>
-										<td>{relation.employeeNo}</td>
-										<td>{relation.name}</td>
-										<td>{relation.gradeName}</td>
+										<th scope="row">
+											<span class="employee-name">{relation().name}</span>
+											<span class="employee-no">{relation().employeeNo}</span>
+										</th>
 										<td>
 											<Show
-												when={props.viewModel().canViewAllRelations}
-												fallback={relation.primaryEvaluatorName}
+												when={props.viewModel().canEditGrades}
+												fallback={
+													<span class="cell-text" classList={{ unset: relation().gradeId == null }}>
+														{relation().gradeName}
+													</span>
+												}
 											>
-												<AdminEvaluatorControl
-													targetEmployeeNo={relation.employeeNo}
-													currentEvaluatorName={relation.primaryEvaluatorName}
-													evaluatorType="primary"
-												/>
+												<GradeCell relation={relation()} />
 											</Show>
 										</td>
 										<td>
-											<Show
-												when={props.viewModel().canViewAllRelations}
-												fallback={relation.secondaryEvaluatorName}
-											>
-												<AdminEvaluatorControl
-													targetEmployeeNo={relation.employeeNo}
-													currentEvaluatorName={relation.secondaryEvaluatorName}
-													evaluatorType="secondary"
-												/>
-											</Show>
+											<EvaluatorCell relation={relation()} evaluatorType="primary" />
+										</td>
+										<td>
+											<EvaluatorCell relation={relation()} evaluatorType="secondary" />
 										</td>
 									</tr>
 								)}
-							</For>
+							</Index>
 						</tbody>
 					</table>
 				</div>
@@ -349,11 +350,15 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 						<Users class="header-icon" />
 						社員マスタ
 					</h1>
-					<p>社員プロフィールと承認先関係を確認します。</p>
+					<p>
+						{props.viewModel().canEditEvaluators
+							? "社員ごとの等級と評価者を管理します。"
+							: "あなたの等級と評価者を確認できます。"}
+					</p>
 				</div>
 				<div class="master-role-badge">
 					<ShieldCheck class="master-role-icon" />
-					<span>{props.viewModel().currentEmployee?.roleName ?? "Employee"}</span>
+					<span>{me()?.roleName ?? "Employee"}</span>
 				</div>
 			</header>
 
@@ -367,15 +372,12 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 			</Show>
 
 			<Show
-				when={!props.viewModel().loading || props.viewModel().currentEmployee}
+				when={!props.viewModel().loading || me()}
 				fallback={<p class="page-note">社員マスタを読み込んでいます...</p>}
 			>
 				<ProfilePanel />
-				<Show when={props.viewModel().canAssignEvaluators}>
-					<AssignmentPanel />
-				</Show>
-				<Show when={props.viewModel().mode !== "employee"}>
-					<RelationsTable />
+				<Show when={props.viewModel().canEditEvaluators}>
+					<EmployeeList />
 				</Show>
 			</Show>
 		</div>

@@ -3,17 +3,25 @@ import { isPrimaryEvaluator, isSecondaryEvaluator, isSubject } from "./Evaluator
 
 /**
  * 評価シートに対する「誰が・何を・見る/編集できるか」を一箇所に集約したドメインポリシー。
+ * 最終評価者は二次評価者。二次評価者を「なし」と明示した社員は、一次評価者が最終評価者を兼ねる
+ * (二次評価の入力はなく、一次評価がそのまま最終評価になる)。
+ * 二次評価者が未設定なだけの社員には最終評価者がおらず、設定されるまで確定できない。
  * 本人・一次評価者・二次評価者の役割はシートごとに解決するため、
  * 「自分が誰かの評価者であり、かつ自分自身の被評価者でもある」場合でも
  * シート間で判定が混ざることはない。
  */
 export class EvaluationSheetAccessPolicy {
+	private readonly viewerIsFinalEvaluator: boolean;
+
 	private constructor(
 		private readonly sheet: EvaluationSheet,
 		private readonly viewerIsSubject: boolean,
 		private readonly viewerIsPrimaryEvaluator: boolean,
 		private readonly viewerIsSecondaryEvaluator: boolean,
-	) {}
+	) {
+		this.viewerIsFinalEvaluator =
+			viewerIsSecondaryEvaluator || (viewerIsPrimaryEvaluator && sheet.primaryIsFinalEvaluator());
+	}
 
 	static for(
 		currentEmployeeId: number | null,
@@ -107,7 +115,12 @@ export class EvaluationSheetAccessPolicy {
 	}
 
 	canDecideFinalEvaluationRank(): boolean {
-		return this.canEditCommonEvaluationSecond();
+		return this.canFinalizeEvaluation();
+	}
+
+	/** 評価点・最終評価ランクなど、最終評価の結果を見られるのは最終評価者のみ。 */
+	canViewFinalEvaluation(): boolean {
+		return !this.viewerIsSubject && this.viewerIsFinalEvaluator;
 	}
 
 	// --- シートロック(提出・確定) ---
@@ -122,18 +135,14 @@ export class EvaluationSheetAccessPolicy {
 		return this.viewerIsSubject && this.sheet.status.isUnderEvaluation();
 	}
 
-	/** 二次評価者は評価入力段階(提出済み・未確定)のシートを確定し、不可逆にロックできる。 */
-	canFinalizeAsSecondaryEvaluator(): boolean {
-		return (
-			!this.viewerIsSubject &&
-			this.viewerIsSecondaryEvaluator &&
-			this.sheet.status.isUnderEvaluation()
-		);
+	/** 最終評価者は評価入力段階(提出済み・未確定)のシートを確定し、不可逆にロックできる。 */
+	canFinalizeEvaluation(): boolean {
+		return this.canViewFinalEvaluation() && this.sheet.status.isUnderEvaluation();
 	}
 
 	canChangeStatusTo(targetSubmitted: boolean): boolean {
 		return targetSubmitted
-			? this.canSubmitOwnSheet() || this.canFinalizeAsSecondaryEvaluator()
+			? this.canSubmitOwnSheet() || this.canFinalizeEvaluation()
 			: this.canRevertOwnSheetToDraft();
 	}
 
@@ -146,8 +155,8 @@ export class EvaluationSheetAccessPolicy {
 		);
 	}
 
-	/** 一次評価者向けの出力では、二次評価の内容をすべて伏せる。 */
+	/** 最終評価者ではない一次評価者向けの出力では、二次評価と最終評価の内容をすべて伏せる。 */
 	canExportSecondEvaluation(): boolean {
-		return !this.viewerIsSubject && this.viewerIsSecondaryEvaluator;
+		return this.canViewFinalEvaluation();
 	}
 }

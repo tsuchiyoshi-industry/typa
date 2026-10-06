@@ -12,7 +12,7 @@ import type { UseCase } from "../ports/UseCase";
 export interface UpdateEvaluationStatusRequest {
 	sheetId: number;
 	status: "draft" | "submitted";
-	/** 二次評価者による「評価の確定」操作かどうか。true の場合はシートを不可逆にロックする。 */
+	/** 最終評価者による「評価の確定」操作かどうか。true の場合はシートを不可逆にロックする。 */
 	asFinalization?: boolean;
 	currentEmployeeId: number;
 }
@@ -46,6 +46,19 @@ export class UpdateEvaluationStatusInteractor
 		const policy = EvaluationSheetAccessPolicy.for(request.currentEmployeeId, sheet);
 
 		const newStatus = this.resolveNewStatus(request, policy);
+		if (newStatus.isFinalizedBySecondEvaluator()) {
+			// 確定後は評価者の付け替えに左右されないよう、最終評価の集計をここで保存する。
+			// 二次評価者「なし」の社員は、一次評価の合計がそのまま最終評価の合計になる。
+			await this.evaluationSheetRepository.updateScoreTotals(request.sheetId, {
+				...(sheet.primaryIsFinalEvaluator()
+					? {
+							objectives: sheet.objectiveScoreTotals.withFirstAsFinal(),
+							commonEvaluationResults: sheet.commonEvaluationScoreTotals.withFirstAsFinal(),
+						}
+					: {}),
+				allocatedScores: sheet.allocatedScores,
+			});
+		}
 		const updated = await this.evaluationSheetRepository.updateStatus(request.sheetId, newStatus);
 		const gradeName = await this.employeeRepository.findGradeName(updated.subject.gradeId);
 
@@ -95,8 +108,10 @@ export class UpdateEvaluationStatusInteractor
 		}
 
 		if (request.asFinalization) {
-			if (!policy.canFinalizeAsSecondaryEvaluator()) {
-				throw new Error("二次評価者のみ評価を確定できます。");
+			if (!policy.canFinalizeEvaluation()) {
+				throw new Error(
+					"最終評価者(二次評価者。「なし」の場合は一次評価者)のみ評価を確定できます。二次評価者が未設定の場合は、先に社員マスタで設定してください。",
+				);
 			}
 			return EvaluationStatus.FINALIZED;
 		}

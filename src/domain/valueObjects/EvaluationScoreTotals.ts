@@ -62,6 +62,16 @@ export class EvaluationScoreTotals {
 		);
 	}
 
+	/** 二次評価者「なし」の社員の確定値: 一次評価の合計をそのまま最終(二次)の合計として扱う。 */
+	withFirstAsFinal(): EvaluationScoreTotals {
+		return new EvaluationScoreTotals(
+			this.firstTotalScore,
+			this.firstTotalRate,
+			this.firstTotalScore,
+			this.firstTotalRate,
+		);
+	}
+
 	private static toRate(totalScore: number, maxTotalScore: number): number {
 		if (maxTotalScore <= 0) {
 			return 0;

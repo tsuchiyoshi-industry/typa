@@ -1,8 +1,4 @@
 import type {
-	AssignEvaluatorInteractor,
-	AssignEvaluatorOutputPort,
-} from "../../application/usecases/AssignEvaluatorInteractor";
-import type {
 	LoadEmployeeMasterInteractor,
 	LoadEmployeeMasterOutputPort,
 } from "../../application/usecases/LoadEmployeeMasterInteractor";
@@ -10,24 +6,27 @@ import type {
 	UpdateEmployeeEvaluatorInteractor,
 	UpdateEmployeeEvaluatorOutputPort,
 } from "../../application/usecases/UpdateEmployeeEvaluatorInteractor";
+import type {
+	UpdateEmployeeGradeInteractor,
+	UpdateEmployeeGradeOutputPort,
+} from "../../application/usecases/UpdateEmployeeGradeInteractor";
 import type { EvaluatorType } from "../../domain/repositories/EmployeeMasterRepository";
 import type { EmployeeMasterViewModel } from "../presenters/EmployeeMasterPresenter";
 
 export class EmployeeMasterController {
 	constructor(
 		private readonly loadUseCase: LoadEmployeeMasterInteractor,
-		private readonly assignUseCase: AssignEvaluatorInteractor,
 		private readonly updateUseCase: UpdateEmployeeEvaluatorInteractor,
+		private readonly updateGradeUseCase: UpdateEmployeeGradeInteractor,
 		private readonly presenter: {
 			viewModel: () => EmployeeMasterViewModel;
 			outputPort: {
 				load: LoadEmployeeMasterOutputPort;
-				assign: AssignEvaluatorOutputPort;
 				update: UpdateEmployeeEvaluatorOutputPort;
+				updateGrade: UpdateEmployeeGradeOutputPort;
 			};
 			beginLoad: () => void;
 			presentError: (message: string) => void;
-			clearAssignmentStatus: () => void;
 		},
 	) {}
 
@@ -42,43 +41,47 @@ export class EmployeeMasterController {
 		}
 	}
 
-	async assignEvaluator(employeeNo: string, evaluatorType: EvaluatorType): Promise<void> {
-		try {
-			await this.assignUseCase.execute(
-				{ employeeNo, evaluatorType },
-				this.presenter.outputPort.assign,
-			);
-			if (this.presenter.viewModel().assignmentStatus.success) {
-				await this.loadUseCase.execute({}, this.presenter.outputPort.load);
-			}
-		} catch (error) {
-			this.presenter.presentError(
-				error instanceof Error ? error.message : "評価者の設定に失敗しました",
-			);
-		}
-	}
-
-	async updateEvaluator(
+	/** 更新できたら true。画面側は false のとき選択を元に戻す。 */
+	updateEvaluator(
 		targetEmployeeNo: string,
-		evaluatorEmployeeNo: string,
+		evaluatorEmployeeNo: string | null,
 		evaluatorType: EvaluatorType,
-	): Promise<void> {
-		try {
-			await this.updateUseCase.execute(
-				{ targetEmployeeNo, evaluatorEmployeeNo, evaluatorType },
-				this.presenter.outputPort.update,
-			);
-			if (this.presenter.viewModel().assignmentStatus.success) {
-				await this.loadUseCase.execute({}, this.presenter.outputPort.load);
-			}
-		} catch (error) {
-			this.presenter.presentError(
-				error instanceof Error ? error.message : "評価者の更新に失敗しました",
-			);
-		}
+	): Promise<boolean> {
+		return this.applyUpdate(
+			() =>
+				this.updateUseCase.execute(
+					{ targetEmployeeNo, evaluatorEmployeeNo, evaluatorType },
+					this.presenter.outputPort.update,
+				),
+			"評価者の更新に失敗しました",
+		);
 	}
 
-	clearAssignmentStatus(): void {
-		this.presenter.clearAssignmentStatus();
+	updateGrade(targetEmployeeNo: string, gradeId: number): Promise<boolean> {
+		return this.applyUpdate(
+			() =>
+				this.updateGradeUseCase.execute(
+					{ targetEmployeeNo, gradeId },
+					this.presenter.outputPort.updateGrade,
+				),
+			"等級の更新に失敗しました",
+		);
+	}
+
+	private async applyUpdate(
+		execute: () => Promise<void>,
+		fallbackMessage: string,
+	): Promise<boolean> {
+		try {
+			await execute();
+		} catch (error) {
+			this.presenter.presentError(error instanceof Error ? error.message : fallbackMessage);
+			return false;
+		}
+		if (!this.presenter.viewModel().updateStatus.success) {
+			return false;
+		}
+		await this.load();
+		return true;
 	}
 }

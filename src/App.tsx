@@ -22,7 +22,6 @@ import { clearUnsavedChanges, confirmDiscard } from "./adapter/views/feedback";
 import LoginView from "./adapter/views/LoginView";
 import SheetEditorView from "./adapter/views/SheetEditorView";
 import SheetListView from "./adapter/views/SheetListView";
-import { AssignEvaluatorInteractor } from "./application/usecases/AssignEvaluatorInteractor";
 import { CheckEvaluatorRoleInteractor } from "./application/usecases/CheckEvaluatorRoleInteractor";
 import { CreateEvaluationSheetInteractor } from "./application/usecases/CreateEvaluationSheetInteractor";
 import { ExportEvaluationSheetInteractor } from "./application/usecases/ExportEvaluationSheetInteractor";
@@ -32,6 +31,7 @@ import { FetchEvaluationSheetInteractor } from "./application/usecases/FetchEval
 import { LoadCommonEvaluationInteractor } from "./application/usecases/LoadCommonEvaluationInteractor";
 import { LoadEmployeeMasterInteractor } from "./application/usecases/LoadEmployeeMasterInteractor";
 import { UpdateEmployeeEvaluatorInteractor } from "./application/usecases/UpdateEmployeeEvaluatorInteractor";
+import { UpdateEmployeeGradeInteractor } from "./application/usecases/UpdateEmployeeGradeInteractor";
 import { UpdateEvaluationStatusInteractor } from "./application/usecases/UpdateEvaluationStatusInteractor";
 import { UpdateFinalEvaluationRankInteractor } from "./application/usecases/UpdateFinalEvaluationRankInteractor";
 import { UpdateMilestoneInteractor } from "./application/usecases/UpdateMilestoneInteractor";
@@ -117,10 +117,10 @@ const exportEvaluationSheetUseCase = new ExportEvaluationSheetInteractor(
 	new TauriSheetPdfGateway(),
 );
 const loadEmployeeMasterUseCase = new LoadEmployeeMasterInteractor(employeeMasterRepository);
-const assignEvaluatorUseCase = new AssignEvaluatorInteractor(employeeMasterRepository);
 const updateEmployeeEvaluatorUseCase = new UpdateEmployeeEvaluatorInteractor(
 	employeeMasterRepository,
 );
+const updateEmployeeGradeUseCase = new UpdateEmployeeGradeInteractor(employeeMasterRepository);
 
 const sheetListPresenter = createSheetListPresenter();
 const sheetEditorPresenter = createSheetEditorPresenter();
@@ -163,8 +163,8 @@ const challengeEvaluationController = new ChallengeEvaluationController(
 );
 const employeeMasterController = new EmployeeMasterController(
 	loadEmployeeMasterUseCase,
-	assignEvaluatorUseCase,
 	updateEmployeeEvaluatorUseCase,
+	updateEmployeeGradeUseCase,
 	employeeMasterPresenter,
 );
 

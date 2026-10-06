@@ -95,6 +95,7 @@ export class SupabaseEmployeeRepository implements EmployeeRepository {
 			grade_id: number | null;
 			primary_evaluator_id: number | null;
 			secondary_evaluator_id: number | null;
+			no_secondary_evaluator?: boolean | null;
 		};
 
 		return new Employee(
@@ -106,6 +107,7 @@ export class SupabaseEmployeeRepository implements EmployeeRepository {
 			employee.grade_id,
 			employee.primary_evaluator_id,
 			employee.secondary_evaluator_id,
+			employee.no_secondary_evaluator ?? false,
 		);
 	}
 
@@ -126,11 +128,14 @@ export class SupabaseEmployeeRepository implements EmployeeRepository {
 	async findEvaluatorNames(
 		primaryEvaluatorId: number | null,
 		secondaryEvaluatorId: number | null,
+		noSecondaryEvaluator = false,
 	): Promise<{ primaryEvaluator: string; secondaryEvaluator: string }> {
+		// 「なし」と明示された社員と、未設定(指定待ち)の社員を区別して表示する
+		const withoutSecondary = noSecondaryEvaluator ? "なし" : "未設定";
 		if (!primaryEvaluatorId && !secondaryEvaluatorId) {
 			return {
 				primaryEvaluator: "未設定",
-				secondaryEvaluator: "未設定",
+				secondaryEvaluator: withoutSecondary,
 			};
 		}
 
@@ -153,7 +158,7 @@ export class SupabaseEmployeeRepository implements EmployeeRepository {
 			primaryEvaluator: primaryEvaluatorId ? (names.get(primaryEvaluatorId) ?? "未設定") : "未設定",
 			secondaryEvaluator: secondaryEvaluatorId
 				? (names.get(secondaryEvaluatorId) ?? "未設定")
-				: "未設定",
+				: withoutSecondary,
 		};
 	}
 
@@ -195,6 +200,7 @@ export class SupabaseEmployeeRepository implements EmployeeRepository {
 			grade_id: number | null;
 			primary_evaluator_id: number | null;
 			secondary_evaluator_id: number | null;
+			no_secondary_evaluator?: boolean | null;
 		};
 
 		return new Employee(
@@ -206,6 +212,7 @@ export class SupabaseEmployeeRepository implements EmployeeRepository {
 			employee.grade_id,
 			employee.primary_evaluator_id,
 			employee.secondary_evaluator_id,
+			employee.no_secondary_evaluator ?? false,
 		);
 	}
 

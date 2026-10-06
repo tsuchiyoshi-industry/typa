@@ -1,11 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
+import { Employee } from "../../domain/entities/Employee";
+import { EvaluationSheet } from "../../domain/entities/EvaluationSheet";
 import { EvaluationScoreUpdateService } from "../../domain/services/EvaluationScoreUpdateService";
 import { EvaluationStatus } from "../../domain/valueObjects/EvaluationStatus";
 import {
 	commonRepository,
+	commonResult,
 	employeeRepository,
+	milestone,
 	milestoneRepository,
 	output,
+	period,
 	sheet,
 	sheetRepository,
 } from "../../test/fixtures";
@@ -406,6 +411,55 @@ describe("comments, final rank, status and notifications", () => {
 			expect.objectContaining({
 				sheet: expect.objectContaining({ status: "finalized" }),
 				notificationWarning: expect.stringContaining("評価は確定しました"),
+			}),
+		);
+	});
+	it("primary evaluator finalizes with their own evaluation when secondary is explicitly none", async () => {
+		const { sheets, employees, out } = setup();
+		const withoutSecondary = (status: EvaluationStatus) =>
+			EvaluationSheet.create({
+				sheetId: 100,
+				subject: new Employee(1, "テスト社員", "TEST001", 1, "技術", 5, 2, null, true),
+				evaluationPeriod: period(),
+				primaryEvaluatorName: "一次",
+				secondaryEvaluatorName: "なし",
+				objectives: [milestone()],
+				commonEvaluationResults: [commonResult()],
+				status,
+			});
+		sheets.findById.mockResolvedValue(withoutSecondary(EvaluationStatus.SUBMITTED));
+		sheets.updateStatus.mockImplementation(async (_id, status) => withoutSecondary(status));
+		const interactor = new UpdateEvaluationStatusInteractor(sheets, employees);
+
+		// 二次評価者ではない社員(3)は確定できない
+		await expect(
+			interactor.execute(
+				{ sheetId: 100, currentEmployeeId: 3, status: "submitted", asFinalization: true },
+				out,
+			),
+		).rejects.toThrow("最終評価者");
+		expect(sheets.updateScoreTotals).not.toHaveBeenCalled();
+
+		await interactor.execute(
+			{ sheetId: 100, currentEmployeeId: 2, status: "submitted", asFinalization: true },
+			out,
+		);
+		// 一次評価 (目標50%・共通60%) が最終評価の集計として保存される
+		expect(sheets.updateScoreTotals).toHaveBeenCalledWith(100, {
+			objectives: expect.objectContaining({ secondTotalScore: 2, secondTotalRate: 50 }),
+			commonEvaluationResults: expect.objectContaining({
+				secondTotalScore: 3,
+				secondTotalRate: 60,
+			}),
+			allocatedScores: expect.objectContaining({ totalEvaluationScore: 58 }),
+		});
+		expect(sheets.updateStatus).toHaveBeenCalledWith(100, EvaluationStatus.FINALIZED);
+		expect(out.present).toHaveBeenCalledWith(
+			expect.objectContaining({
+				sheet: expect.objectContaining({
+					status: "finalized",
+					allocatedScores: expect.objectContaining({ totalEvaluationScore: 58 }),
+				}),
 			}),
 		);
 	});

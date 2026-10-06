@@ -8,6 +8,8 @@ export interface EmployeeRepository {
 	findEvaluatorNames(
 		primaryEvaluatorId: number | null,
 		secondaryEvaluatorId: number | null,
+		/** true なら二次評価者は「なし」、false なら「未設定」と表示する。 */
+		noSecondaryEvaluator?: boolean,
 	): Promise<{
 		primaryEvaluator: string;
 		secondaryEvaluator: string;

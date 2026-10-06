@@ -22,8 +22,10 @@ export interface SheetExportDataDto {
 	periodEnd: string;
 	primaryEvaluator: string;
 	secondaryEvaluator: string;
+	/** true の場合(二次評価者「なし」)、一次評価者が最終評価者を兼ねる。帳票の「最終評価ランク」の決定者表記に使う。 */
+	primaryIsFinalEvaluator: boolean;
 	status: string;
-	/** 二次評価者以外が出力する場合、伏せ字("*")になる。 */
+	/** 最終評価者以外が出力する場合、伏せ字("*")になる。 */
 	finalEvaluationRank: string;
 	objectiveAllocationScore: number;
 	/** 二次評価の点数から算出されるため、二次評価者以外が出力する場合は伏せ字("*")になる。 */

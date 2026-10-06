@@ -29,6 +29,8 @@ export interface EvaluationSheetExportData {
 	periodEnd: string;
 	primaryEvaluator: string;
 	secondaryEvaluator: string;
+	/** true の場合(二次評価者「なし」)、一次評価者が最終評価者を兼ね、一次評価がそのまま最終評価になる。 */
+	primaryIsFinalEvaluator: boolean;
 	status: string;
 	totalScore: number;
 	finalEvaluationRank: string;

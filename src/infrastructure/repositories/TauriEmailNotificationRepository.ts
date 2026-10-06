@@ -13,6 +13,10 @@ export class TauriEmailNotificationRepository implements EmailNotificationReposi
 		const addresses = new Map<string, string>();
 		const missingRoles: string[] = [];
 		for (const recipient of recipients) {
+			// 二次評価者がいない社員は、宛先がなくて正しい
+			if (recipient.role === "secondary" && recipient.employeeId === null) {
+				continue;
+			}
 			const email = recipient.email?.trim();
 			if (!email || !/^[^\s@<>,;]+@[^\s@<>,;]+$/.test(email)) {
 				missingRoles.push(recipient.role === "primary" ? "一次評価者" : "二次評価者");

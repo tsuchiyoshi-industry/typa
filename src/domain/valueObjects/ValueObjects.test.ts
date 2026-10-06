@@ -81,6 +81,23 @@ describe("value objects and immutable entities", () => {
 			totalEvaluationScore: 100,
 		});
 	});
+	it("uses the primary evaluation in full when the primary is the final evaluator", () => {
+		const objectives = EvaluationScoreTotals.fromObjectives([milestone()]);
+		const common = EvaluationScoreTotals.fromCommonEvaluationResults([commonResult()]);
+		// 一次評価: 目標 2/4 = 50% → 20点中10点、共通 3/5 = 60% → 80点中48点
+		expect(EvaluationAllocatedScores.fromTotals(objectives, common, true)).toMatchObject({
+			objectiveSecondRate: 50,
+			objectiveEvaluationScore: 10,
+			commonEvaluationSecondRate: 60,
+			commonEvaluationEvaluationScore: 48,
+			totalEvaluationScore: 58,
+		});
+		expect(objectives.withFirstAsFinal()).toMatchObject({
+			firstTotalScore: 2,
+			secondTotalScore: 2,
+			secondTotalRate: 50,
+		});
+	});
 	it("handles empty totals without dividing by zero", () => {
 		expect(EvaluationScoreTotals.fromObjectives([])).toEqual(EvaluationScoreTotals.zero());
 		expect(EvaluationScoreTotals.fromCommonEvaluationResults([])).toEqual(

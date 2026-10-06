@@ -1,5 +1,6 @@
 import { EmployeeProfile } from "../../domain/entities/EmployeeProfile";
 import type {
+	EmployeeGrade,
 	EmployeeMasterRepository,
 	EvaluatorType,
 } from "../../domain/repositories/EmployeeMasterRepository";
@@ -15,6 +16,7 @@ interface EmployeeRow {
 	grade_id: number | null;
 	primary_evaluator_id: number | null;
 	secondary_evaluator_id: number | null;
+	no_secondary_evaluator?: boolean | null;
 }
 
 interface RoleRow {
@@ -51,51 +53,72 @@ export class SupabaseEmployeeMasterRepository implements EmployeeMasterRepositor
 		return this.findProfiles();
 	}
 
-	async findSubordinateProfiles(evaluatorEmployeeId: number): Promise<EmployeeProfile[]> {
-		const profiles = await this.findProfiles();
-		return profiles.filter(
-			(profile) =>
-				profile.primaryEvaluatorId === evaluatorEmployeeId ||
-				profile.secondaryEvaluatorId === evaluatorEmployeeId,
-		);
-	}
-
 	async findByEmployeeNo(employeeNo: string): Promise<EmployeeProfile | null> {
 		const profiles = await this.findProfiles();
 		return profiles.find((profile) => profile.employeeNo === employeeNo) ?? null;
 	}
 
-	async assignEvaluatorByEmployeeNo(
-		targetEmployeeNo: string,
-		evaluatorEmployeeId: number,
-		evaluatorType: EvaluatorType,
-	): Promise<EmployeeProfile | null> {
-		const columnName =
-			evaluatorType === "primary" ? "primary_evaluator_id" : "secondary_evaluator_id";
-		const { error } = await supabase
-			.from("employees")
-			.update({ [columnName]: evaluatorEmployeeId })
-			.eq("employee_no", targetEmployeeNo);
+	async findGrades(): Promise<EmployeeGrade[]> {
+		const { data, error } = await supabase
+			.from("employee_grades")
+			.select("id, grade_name")
+			.order("id");
 
-		if (error) {
-			console.error("Error assigning evaluator:", error);
-			return null;
+		if (error || !data) {
+			console.error("Error loading grades:", error);
+			return [];
 		}
 
-		return this.findByEmployeeNo(targetEmployeeNo);
+		return (data as GradeRow[]).map((grade) => ({ id: grade.id, name: grade.grade_name }));
 	}
 
 	async updateEvaluatorByEmployeeNo(
 		targetEmployeeNo: string,
-		evaluatorEmployeeNo: string,
+		evaluatorEmployeeNo: string | null,
 		evaluatorType: EvaluatorType,
 	): Promise<EmployeeProfile | null> {
-		const evaluator = await this.findByEmployeeNo(evaluatorEmployeeNo);
-		if (!evaluator) {
+		const evaluator =
+			evaluatorEmployeeNo === null ? null : await this.findByEmployeeNo(evaluatorEmployeeNo);
+		if (evaluatorEmployeeNo !== null && !evaluator) {
 			return null;
 		}
 
-		return this.assignEvaluatorByEmployeeNo(targetEmployeeNo, evaluator.id, evaluatorType);
+		return this.updateEmployee(
+			targetEmployeeNo,
+			evaluatorType === "primary"
+				? { primary_evaluator_id: evaluator?.id ?? null }
+				: // 評価者を外すときは「なし」と明示して保存し、未設定(指定待ち)と区別する
+					{
+						secondary_evaluator_id: evaluator?.id ?? null,
+						no_secondary_evaluator: evaluator === null,
+					},
+		);
+	}
+
+	async updateGradeByEmployeeNo(
+		targetEmployeeNo: string,
+		gradeId: number,
+	): Promise<EmployeeProfile | null> {
+		return this.updateEmployee(targetEmployeeNo, { grade_id: gradeId });
+	}
+
+	private async updateEmployee(
+		targetEmployeeNo: string,
+		values: Partial<EmployeeRow>,
+	): Promise<EmployeeProfile | null> {
+		const { data, error } = await supabase
+			.from("employees")
+			.update(values)
+			.eq("employee_no", targetEmployeeNo)
+			.select("id");
+
+		// RLSで拒否された更新はエラーにならず0件で返るため、更新できた行があることも確かめる
+		if (error || !data?.length) {
+			console.error("Error updating employee:", error);
+			return null;
+		}
+
+		return this.findByEmployeeNo(targetEmployeeNo);
 	}
 
 	private async findEmployeeIdByUserId(userId: string): Promise<number | null> {
@@ -147,9 +170,13 @@ export class SupabaseEmployeeMasterRepository implements EmployeeMasterRepositor
 						? (employeeNames.get(employee.primary_evaluator_id) ?? "未設定")
 						: "未設定",
 					employee.secondary_evaluator_id,
+					// 「なし」と明示された社員と、未設定(指定待ち)の社員を区別して表示する
 					employee.secondary_evaluator_id
 						? (employeeNames.get(employee.secondary_evaluator_id) ?? "未設定")
-						: "未設定",
+						: employee.no_secondary_evaluator
+							? "なし"
+							: "未設定",
+					employee.no_secondary_evaluator ?? false,
 				),
 		);
 	}

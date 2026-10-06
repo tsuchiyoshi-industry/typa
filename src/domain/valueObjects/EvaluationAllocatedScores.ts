@@ -18,25 +18,37 @@ export class EvaluationAllocatedScores {
 		return EvaluationAllocatedScores.fromValues({});
 	}
 
+	/**
+	 * 最終評価の獲得率から評価点を出す。最終評価は二次評価で、
+	 * 二次評価者「なし」の社員(primaryIsFinal)は一次評価をそのまま(100%)使う。
+	 * SecondRate と付く値は「最終評価に使った獲得率」を指す。
+	 */
 	static fromTotals(
 		objectiveScoreTotals: EvaluationScoreTotals,
 		commonEvaluationScoreTotals: EvaluationScoreTotals,
+		primaryIsFinal = false,
 	): EvaluationAllocatedScores {
+		const objectiveRate = primaryIsFinal
+			? objectiveScoreTotals.firstTotalRate
+			: objectiveScoreTotals.secondTotalRate;
+		const commonEvaluationRate = primaryIsFinal
+			? commonEvaluationScoreTotals.firstTotalRate
+			: commonEvaluationScoreTotals.secondTotalRate;
 		const objectiveEvaluationScore = EvaluationAllocatedScores.toEvaluationScore(
 			OBJECTIVE_EVALUATION_ALLOCATION_SCORE,
-			objectiveScoreTotals.secondTotalRate,
+			objectiveRate,
 		);
 		const commonEvaluationEvaluationScore = EvaluationAllocatedScores.toEvaluationScore(
 			COMMON_EVALUATION_ALLOCATION_SCORE,
-			commonEvaluationScoreTotals.secondTotalRate,
+			commonEvaluationRate,
 		);
 
 		return new EvaluationAllocatedScores(
 			OBJECTIVE_EVALUATION_ALLOCATION_SCORE,
-			objectiveScoreTotals.secondTotalRate,
+			objectiveRate,
 			objectiveEvaluationScore,
 			COMMON_EVALUATION_ALLOCATION_SCORE,
-			commonEvaluationScoreTotals.secondTotalRate,
+			commonEvaluationRate,
 			commonEvaluationEvaluationScore,
 			objectiveEvaluationScore + commonEvaluationEvaluationScore,
 		);

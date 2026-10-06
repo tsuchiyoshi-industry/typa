@@ -39,7 +39,9 @@ export class UpdateFinalEvaluationRankInteractor
 		}
 		const policy = EvaluationSheetAccessPolicy.for(request.currentEmployeeId, sheet);
 		if (!policy.canDecideFinalEvaluationRank()) {
-			throw new Error("二次評価者のみ最終評価ランクを決定できます。");
+			throw new Error(
+				"最終評価者(二次評価者。「なし」の場合は一次評価者)のみ最終評価ランクを決定できます。",
+			);
 		}
 
 		if (Boolean(request.letter) !== Boolean(request.level)) {

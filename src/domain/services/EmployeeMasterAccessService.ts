@@ -12,10 +12,10 @@ export function resolveEmployeeMasterMode(roleName: EmployeeRoleName): EmployeeM
 	return "employee";
 }
 
-export function canAssignEvaluator(roleName: EmployeeRoleName): boolean {
-	return resolveEmployeeMasterMode(roleName) === "reviewer";
+export function canEditEvaluators(roleName: EmployeeRoleName): boolean {
+	return resolveEmployeeMasterMode(roleName) !== "employee";
 }
 
-export function canViewAllApprovalRelations(roleName: EmployeeRoleName): boolean {
+export function canEditGrades(roleName: EmployeeRoleName): boolean {
 	return resolveEmployeeMasterMode(roleName) === "admin";
 }

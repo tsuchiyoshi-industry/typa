@@ -11,6 +11,7 @@ export function exportData(): EvaluationSheetExportData {
 		periodEnd: "2026-09-30",
 		primaryEvaluator: "一次",
 		secondaryEvaluator: "二次",
+		primaryIsFinalEvaluator: false,
 		status: "submitted",
 		totalScore: 0,
 		finalEvaluationRank: "A＋",

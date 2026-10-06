@@ -17,7 +17,8 @@ export interface CheckEvaluatorRoleResponse {
 	canViewSecondEvaluation: boolean;
 	canSubmitOwnSheet: boolean;
 	canRevertOwnSheetToDraft: boolean;
-	canFinalizeAsSecondaryEvaluator: boolean;
+	canFinalizeEvaluation: boolean;
+	canDecideFinalEvaluationRank: boolean;
 }
 
 export interface CheckEvaluatorRoleOutputPort extends OutputPort<CheckEvaluatorRoleResponse> {}
@@ -31,7 +32,8 @@ const NO_PERMISSIONS: CheckEvaluatorRoleResponse = {
 	canViewSecondEvaluation: false,
 	canSubmitOwnSheet: false,
 	canRevertOwnSheetToDraft: false,
-	canFinalizeAsSecondaryEvaluator: false,
+	canFinalizeEvaluation: false,
+	canDecideFinalEvaluationRank: false,
 };
 
 export class CheckEvaluatorRoleInteractor
@@ -73,7 +75,8 @@ export class CheckEvaluatorRoleInteractor
 			canViewSecondEvaluation: policy.canViewCommonEvaluationSecond(),
 			canSubmitOwnSheet: policy.canSubmitOwnSheet(),
 			canRevertOwnSheetToDraft: policy.canRevertOwnSheetToDraft(),
-			canFinalizeAsSecondaryEvaluator: policy.canFinalizeAsSecondaryEvaluator(),
+			canFinalizeEvaluation: policy.canFinalizeEvaluation(),
+			canDecideFinalEvaluationRank: policy.canDecideFinalEvaluationRank(),
 		});
 	}
 }

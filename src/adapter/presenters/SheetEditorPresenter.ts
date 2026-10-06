@@ -44,7 +44,8 @@ export interface SheetEditorViewModel {
 	canViewSecondEvaluation: boolean;
 	canSubmitOwnSheet: boolean;
 	canRevertOwnSheetToDraft: boolean;
-	canFinalizeAsSecondaryEvaluator: boolean;
+	canFinalizeEvaluation: boolean;
+	canDecideFinalEvaluationRank: boolean;
 	updatingOverallComment: boolean;
 	overallCommentUpdateError: string | null;
 	updatingFinalEvaluationRank: boolean;
@@ -103,7 +104,8 @@ export function createSheetEditorPresenter(): {
 		canViewSecondEvaluation: false,
 		canSubmitOwnSheet: false,
 		canRevertOwnSheetToDraft: false,
-		canFinalizeAsSecondaryEvaluator: false,
+		canFinalizeEvaluation: false,
+		canDecideFinalEvaluationRank: false,
 		updatingOverallComment: false,
 		overallCommentUpdateError: null,
 		updatingFinalEvaluationRank: false,
@@ -176,7 +178,8 @@ export function createSheetEditorPresenter(): {
 				canViewSecondEvaluation: response.canViewSecondEvaluation,
 				canSubmitOwnSheet: response.canSubmitOwnSheet,
 				canRevertOwnSheetToDraft: response.canRevertOwnSheetToDraft,
-				canFinalizeAsSecondaryEvaluator: response.canFinalizeAsSecondaryEvaluator,
+				canFinalizeEvaluation: response.canFinalizeEvaluation,
+				canDecideFinalEvaluationRank: response.canDecideFinalEvaluationRank,
 			}));
 		},
 	};

@@ -60,10 +60,19 @@ export class EvaluationSheet {
 			objectiveScoreTotals,
 			commonEvaluationScoreTotals,
 			params.allocatedScores ??
-				EvaluationAllocatedScores.fromTotals(objectiveScoreTotals, commonEvaluationScoreTotals),
+				EvaluationAllocatedScores.fromTotals(
+					objectiveScoreTotals,
+					commonEvaluationScoreTotals,
+					params.subject.primaryIsFinalEvaluator(),
+				),
 			params.status ?? EvaluationStatus.DRAFT,
 			params.finalEvaluationRank,
 		);
+	}
+
+	/** 二次評価者「なし」の社員は、一次評価者が最終評価者を兼ねる。 */
+	primaryIsFinalEvaluator(): boolean {
+		return this.subject.primaryIsFinalEvaluator();
 	}
 
 	isEditable(): boolean {

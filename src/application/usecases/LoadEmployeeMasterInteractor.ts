@@ -1,8 +1,8 @@
 import type { EmployeeProfile } from "../../domain/entities/EmployeeProfile";
 import type { EmployeeMasterRepository } from "../../domain/repositories/EmployeeMasterRepository";
 import {
-	canAssignEvaluator,
-	canViewAllApprovalRelations,
+	canEditEvaluators,
+	canEditGrades,
 	resolveEmployeeMasterMode,
 } from "../../domain/services/EmployeeMasterAccessService";
 import type {
@@ -37,9 +37,13 @@ function toApprovalRelationDto(profile: EmployeeProfile): ApprovalRelationDto {
 		employeeId: profile.id,
 		name: profile.name,
 		employeeNo: profile.employeeNo,
+		gradeId: profile.gradeId,
 		gradeName: profile.gradeName,
+		primaryEvaluatorId: profile.primaryEvaluatorId,
 		primaryEvaluatorName: profile.primaryEvaluatorName,
+		secondaryEvaluatorId: profile.secondaryEvaluatorId,
 		secondaryEvaluatorName: profile.secondaryEvaluatorName,
+		noSecondaryEvaluator: profile.noSecondaryEvaluator,
 	};
 }
 
@@ -57,27 +61,28 @@ export class LoadEmployeeMasterInteractor
 			outputPort.present({
 				currentEmployee: null,
 				mode: "employee",
-				canAssignEvaluators: false,
-				canViewAllRelations: false,
+				canEditEvaluators: false,
+				canEditGrades: false,
 				relations: [],
+				grades: [],
 			});
 			return;
 		}
 
-		const mode = resolveEmployeeMasterMode(currentEmployee.roleName);
-		const relations =
-			mode === "admin"
-				? await this.employeeMasterRepository.findAllEmployeeProfiles()
-				: mode === "reviewer"
-					? await this.employeeMasterRepository.findSubordinateProfiles(currentEmployee.id)
-					: [];
+		const editableEvaluators = canEditEvaluators(currentEmployee.roleName);
+		const editableGrades = canEditGrades(currentEmployee.roleName);
+		const relations = editableEvaluators
+			? await this.employeeMasterRepository.findAllEmployeeProfiles()
+			: [];
+		const grades = editableGrades ? await this.employeeMasterRepository.findGrades() : [];
 
 		outputPort.present({
 			currentEmployee: toEmployeeProfileDto(currentEmployee),
-			mode,
-			canAssignEvaluators: canAssignEvaluator(currentEmployee.roleName),
-			canViewAllRelations: canViewAllApprovalRelations(currentEmployee.roleName),
+			mode: resolveEmployeeMasterMode(currentEmployee.roleName),
+			canEditEvaluators: editableEvaluators,
+			canEditGrades: editableGrades,
 			relations: relations.map(toApprovalRelationDto),
+			grades,
 		});
 	}
 }

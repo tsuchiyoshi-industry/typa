@@ -70,6 +70,15 @@ it.each([null, "", "bad\r\nBcc: other@example.jp"])(
 		expect(ipc).toHaveBeenCalledTimes(1);
 	},
 );
+it("notifies only the primary evaluator when there is no secondary evaluator", async () => {
+	const { repository, recipients, ipc } = setup();
+	recipients.findFinalizedSheetRecipients.mockResolvedValue([
+		{ role: "primary", employeeId: 2, email: "first@example.jp" },
+		{ role: "secondary", employeeId: null, email: null },
+	]);
+	await repository.notifySheetFinalized(notification);
+	expect(ipc).toHaveBeenCalledTimes(1);
+});
 it("does not send when neither evaluator has a verified email", async () => {
 	const { repository, ipc } = setup(null, null);
 	await expect(repository.notifySheetFinalized(notification)).rejects.toThrow("認証済み登録メール");

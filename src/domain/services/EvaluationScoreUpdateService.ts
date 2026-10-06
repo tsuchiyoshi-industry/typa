@@ -37,6 +37,7 @@ export class EvaluationScoreUpdateService {
 			allocatedScores: EvaluationAllocatedScores.fromTotals(
 				objectiveScoreTotals,
 				sheet.commonEvaluationScoreTotals,
+				sheet.primaryIsFinalEvaluator(),
 			),
 		});
 
@@ -73,6 +74,7 @@ export class EvaluationScoreUpdateService {
 			allocatedScores: EvaluationAllocatedScores.fromTotals(
 				sheet.objectiveScoreTotals,
 				commonEvaluationScoreTotals,
+				sheet.primaryIsFinalEvaluator(),
 			),
 		});
 	}

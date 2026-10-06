@@ -1,16 +1,16 @@
 import { createSignal } from "solid-js";
 import type { EmployeeMasterDto } from "../../application/dtos/EmployeeMasterDto";
-import type { AssignEvaluatorOutputPort } from "../../application/usecases/AssignEvaluatorInteractor";
 import type {
 	LoadEmployeeMasterOutputPort,
 	LoadEmployeeMasterResponse,
 } from "../../application/usecases/LoadEmployeeMasterInteractor";
 import type { UpdateEmployeeEvaluatorOutputPort } from "../../application/usecases/UpdateEmployeeEvaluatorInteractor";
+import type { UpdateEmployeeGradeOutputPort } from "../../application/usecases/UpdateEmployeeGradeInteractor";
 
 export interface EmployeeMasterViewModel extends EmployeeMasterDto {
 	loading: boolean;
 	errorMessage: string | null;
-	assignmentStatus: {
+	updateStatus: {
 		message: string | null;
 		success: boolean | null;
 	};
@@ -20,22 +20,22 @@ export function createEmployeeMasterPresenter(): {
 	viewModel: () => EmployeeMasterViewModel;
 	outputPort: {
 		load: LoadEmployeeMasterOutputPort;
-		assign: AssignEvaluatorOutputPort;
 		update: UpdateEmployeeEvaluatorOutputPort;
+		updateGrade: UpdateEmployeeGradeOutputPort;
 	};
 	beginLoad: () => void;
 	presentError: (message: string) => void;
-	clearAssignmentStatus: () => void;
 } {
 	const [viewModel, setViewModel] = createSignal<EmployeeMasterViewModel>({
 		loading: true,
 		errorMessage: null,
 		currentEmployee: null,
 		mode: "employee",
-		canAssignEvaluators: false,
-		canViewAllRelations: false,
+		canEditEvaluators: false,
+		canEditGrades: false,
 		relations: [],
-		assignmentStatus: {
+		grades: [],
+		updateStatus: {
 			message: null,
 			success: null,
 		},
@@ -45,34 +45,19 @@ export function createEmployeeMasterPresenter(): {
 		present(response: LoadEmployeeMasterResponse) {
 			setViewModel((prev) => ({
 				...prev,
+				...response,
 				loading: false,
 				errorMessage: null,
-				currentEmployee: response.currentEmployee,
-				mode: response.mode,
-				canAssignEvaluators: response.canAssignEvaluators,
-				canViewAllRelations: response.canViewAllRelations,
-				relations: response.relations,
 			}));
 		},
 	};
 
-	const assignOutputPort: AssignEvaluatorOutputPort = {
+	// 評価者・等級どちらの更新結果も同じ形で受け取る
+	const updateOutputPort: UpdateEmployeeGradeOutputPort = {
 		present(response) {
 			setViewModel((prev) => ({
 				...prev,
-				assignmentStatus: {
-					message: response.message,
-					success: response.success,
-				},
-			}));
-		},
-	};
-
-	const updateOutputPort: UpdateEmployeeEvaluatorOutputPort = {
-		present(response) {
-			setViewModel((prev) => ({
-				...prev,
-				assignmentStatus: {
+				updateStatus: {
 					message: response.message,
 					success: response.success,
 				},
@@ -88,25 +73,14 @@ export function createEmployeeMasterPresenter(): {
 		setViewModel((prev) => ({ ...prev, loading: false, errorMessage: message }));
 	};
 
-	const clearAssignmentStatus = () => {
-		setViewModel((prev) => ({
-			...prev,
-			assignmentStatus: {
-				message: null,
-				success: null,
-			},
-		}));
-	};
-
 	return {
 		viewModel,
 		outputPort: {
 			load: loadOutputPort,
-			assign: assignOutputPort,
 			update: updateOutputPort,
+			updateGrade: updateOutputPort,
 		},
 		beginLoad,
 		presentError,
-		clearAssignmentStatus,
 	};
 }

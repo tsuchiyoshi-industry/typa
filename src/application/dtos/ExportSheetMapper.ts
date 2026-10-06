@@ -36,6 +36,7 @@ export function toSheetExportDataDto(
 		periodEnd: data.periodEnd,
 		primaryEvaluator: data.primaryEvaluator,
 		secondaryEvaluator: data.secondaryEvaluator,
+		primaryIsFinalEvaluator: data.primaryIsFinalEvaluator,
 		status: data.status,
 		finalEvaluationRank: maskText(data.finalEvaluationRank, canViewSecondEvaluation),
 		objectiveAllocationScore: data.objectiveAllocationScore,

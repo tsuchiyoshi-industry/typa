@@ -13,6 +13,7 @@ export function toEvaluationSheetDto(
 	}
 	const canViewCommon = policy.canViewCommonEvaluation();
 	const canViewSecond = canViewCommon && policy.canViewCommonEvaluationSecond();
+	const canViewFinal = canViewCommon && policy.canViewFinalEvaluation();
 
 	return {
 		sheetId: sheet.sheetId,
@@ -66,25 +67,27 @@ export function toEvaluationSheetDto(
 		},
 		allocatedScores: {
 			objectiveAllocationScore: sheet.allocatedScores.objectiveAllocationScore,
-			objectiveSecondRate: canViewSecondMilestoneScore
-				? sheet.allocatedScores.objectiveSecondRate
-				: null,
-			objectiveEvaluationScore: canViewSecondMilestoneScore
-				? sheet.allocatedScores.objectiveEvaluationScore
-				: null,
+			objectiveSecondRate:
+				canViewSecondMilestoneScore || canViewFinal
+					? sheet.allocatedScores.objectiveSecondRate
+					: null,
+			objectiveEvaluationScore:
+				canViewSecondMilestoneScore || canViewFinal
+					? sheet.allocatedScores.objectiveEvaluationScore
+					: null,
 			commonEvaluationAllocationScore: sheet.allocatedScores.commonEvaluationAllocationScore,
-			commonEvaluationSecondRate: canViewSecond
+			commonEvaluationSecondRate: canViewFinal
 				? sheet.allocatedScores.commonEvaluationSecondRate
 				: null,
-			commonEvaluationEvaluationScore: canViewSecond
+			commonEvaluationEvaluationScore: canViewFinal
 				? sheet.allocatedScores.commonEvaluationEvaluationScore
 				: null,
-			totalEvaluationScore: canViewSecond ? sheet.allocatedScores.totalEvaluationScore : null,
+			totalEvaluationScore: canViewFinal ? sheet.allocatedScores.totalEvaluationScore : null,
 		},
 		status: sheet.status.toString(),
 		isEditable: sheet.isEditable(),
 		finalEvaluationRank:
-			canViewSecond && sheet.finalEvaluationRank
+			canViewFinal && sheet.finalEvaluationRank
 				? {
 						letter: sheet.finalEvaluationRank.letter,
 						level: sheet.finalEvaluationRank.level,

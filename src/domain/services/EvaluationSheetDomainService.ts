@@ -25,6 +25,7 @@ export async function createSheetWithCommonEvaluation(
 			allocatedScores: EvaluationAllocatedScores.fromTotals(
 				sheet.objectiveScoreTotals,
 				commonEvaluationScoreTotals,
+				sheet.primaryIsFinalEvaluator(),
 			),
 		});
 	}

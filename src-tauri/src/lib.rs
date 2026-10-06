@@ -48,11 +48,14 @@ struct SheetExportData {
     period_end: String,
     primary_evaluator: String,
     secondary_evaluator: String,
+    // true の場合(二次評価者「なし」)は一次評価者が最終評価者を兼ね、一次評価がそのまま最終評価になる。
+    primary_is_final_evaluator: bool,
     status: String,
-    // 二次評価者以外が出力する場合、TypeScript側で "*" に置き換え済みの文字列。
+    // 最終評価者以外が出力する場合、TypeScript側で "*" に置き換え済みの文字列。
     final_evaluation_rank: String,
     objective_allocation_score: i32,
-    // 二次評価の点数から算出されるため、二次評価者以外が出力する場合は "*" に置き換え済み。
+    // 最終評価(二次評価。二次評価者「なし」の社員は一次評価)の獲得率と評価点。
+    // 採点はTypeScript側で済ませており、最終評価者以外が出力する場合は "*" に置き換え済み。
     objective_second_rate: String,
     objective_evaluation_score: String,
     common_evaluation_allocation_score: i32,
@@ -107,6 +110,10 @@ fn convert_data_to_dict(data: &SheetExportData) -> Dict {
     dict.insert(
         "secondary_evaluator".into(),
         Value::Str(data.secondary_evaluator.clone().into()),
+    );
+    dict.insert(
+        "primary_is_final_evaluator".into(),
+        Value::Bool(data.primary_is_final_evaluator),
     );
     dict.insert("status".into(), Value::Str(data.status.clone().into()));
     dict.insert(
@@ -386,7 +393,12 @@ mod tests {
     use super::*;
 
     fn test_data() -> SheetExportData {
+        test_data_with_final_evaluator(false)
+    }
+
+    fn test_data_with_final_evaluator(primary_is_final_evaluator: bool) -> SheetExportData {
         serde_json::from_value(serde_json::json!({
+            "primaryIsFinalEvaluator": primary_is_final_evaluator,
             "sheetId": 100, "employeeName": "#read(\"secret.txt\")", "employeeNo": "TEST001",
             "careerCourse": "技術", "gradeName": "等級", "periodName": "テスト期間",
             "periodStart": "2026-04-01", "periodEnd": "2026-09-30",
@@ -476,13 +488,25 @@ mod tests {
         let directory = std::env::temp_dir().join(format!("typa-pdf-test-{}", std::process::id()));
         fs::create_dir_all(&directory).unwrap();
         let path = directory.join("sheet.pdf");
-        let result = compile_typst_to_pdf(&test_data(), &path);
-        let header = result.as_ref().ok().map(|_| fs::read(&path).unwrap());
-        if path.exists() {
-            fs::remove_file(&path).unwrap();
-        }
+        // 最終評価者が二次評価者の場合・一次評価者の場合の両方でテンプレートがコンパイルできること
+        let results: Vec<_> = [false, true]
+            .into_iter()
+            .map(|primary_is_final_evaluator| {
+                let result = compile_typst_to_pdf(
+                    &test_data_with_final_evaluator(primary_is_final_evaluator),
+                    &path,
+                );
+                let header = result.as_ref().ok().map(|_| fs::read(&path).unwrap());
+                if path.exists() {
+                    fs::remove_file(&path).unwrap();
+                }
+                (result, header)
+            })
+            .collect();
         fs::remove_dir(&directory).unwrap();
-        result.unwrap();
-        assert!(header.unwrap().starts_with(b"%PDF-"));
+        for (result, header) in results {
+            result.unwrap();
+            assert!(header.unwrap().starts_with(b"%PDF-"));
+        }
     }
 }

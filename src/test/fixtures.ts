@@ -148,17 +148,17 @@ export function masterRepository() {
 		findAllEmployeeProfiles: vi
 			.fn<EmployeeMasterRepository["findAllEmployeeProfiles"]>()
 			.mockResolvedValue([profile()]),
-		findSubordinateProfiles: vi
-			.fn<EmployeeMasterRepository["findSubordinateProfiles"]>()
-			.mockResolvedValue([profile()]),
 		findByEmployeeNo: vi
 			.fn<EmployeeMasterRepository["findByEmployeeNo"]>()
 			.mockResolvedValue(profile()),
-		assignEvaluatorByEmployeeNo: vi
-			.fn<EmployeeMasterRepository["assignEvaluatorByEmployeeNo"]>()
-			.mockResolvedValue(profile()),
+		findGrades: vi
+			.fn<EmployeeMasterRepository["findGrades"]>()
+			.mockResolvedValue([{ id: 5, name: "等級" }]),
 		updateEvaluatorByEmployeeNo: vi
 			.fn<EmployeeMasterRepository["updateEvaluatorByEmployeeNo"]>()
+			.mockResolvedValue(profile()),
+		updateGradeByEmployeeNo: vi
+			.fn<EmployeeMasterRepository["updateGradeByEmployeeNo"]>()
 			.mockResolvedValue(profile()),
 	} satisfies EmployeeMasterRepository;
 }

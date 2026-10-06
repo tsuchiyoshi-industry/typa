@@ -401,13 +401,13 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 	);
 
 	const FinalEvaluationRankSection = () => (
-		<Show when={canEditSecond()}>
+		<Show when={viewModel().canDecideFinalEvaluationRank}>
 			<section class="final-rank-panel">
 				<div class="final-rank-panel__title">
 					<Award class="section-icon" />
 					<div>
 						<h2>最終評価ランク</h2>
-						<p>二次評価者が決定します。選ぶとすぐに保存されます。</p>
+						<p>最終評価者が決定します。選ぶとすぐに保存されます。</p>
 					</div>
 				</div>
 				<label class="final-rank-selector" for="final-rank-select">
@@ -496,7 +496,7 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 						status={sheet()?.status ?? "draft"}
 						canSubmit={viewModel().canSubmitOwnSheet}
 						canRevert={viewModel().canRevertOwnSheetToDraft}
-						canFinalize={viewModel().canFinalizeAsSecondaryEvaluator}
+						canFinalize={viewModel().canFinalizeEvaluation}
 						updating={viewModel().updatingStatus}
 						notice={viewModel().statusUpdateError}
 						onSubmit={() => void handleSubmitSheet()}

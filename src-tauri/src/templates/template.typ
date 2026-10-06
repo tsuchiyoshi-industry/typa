@@ -59,6 +59,9 @@
   text(size: 10pt, weight: "bold")[#value]
 }
 
+// 二次評価者「なし」の社員は、一次評価者が最終評価者を兼ねる
+#let final-evaluator = if inputs.primary_is_final_evaluator { "一次評価者" } else { "二次評価者" }
+
 #let score-summary-table() = {
   table(
     columns: (28mm, 16mm, 18mm, 22mm),
@@ -83,7 +86,7 @@
     [#point(inputs.common_evaluation_evaluation_score)],
     table.cell(colspan: 2)[評価点],
     table.cell(colspan: 2)[#point(inputs.total_evaluation_score)],
-    table.cell(colspan: 2)[【二次評価者】最終評価ランク],
+    table.cell(colspan: 2)[【#final-evaluator】最終評価ランク],
     table.cell(colspan: 2, fill: sheet-green)[#final-rank(inputs.final_evaluation_rank)],
   )
 }

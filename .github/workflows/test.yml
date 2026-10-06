@@ -18,10 +18,13 @@ jobs:
       - run: bun run typecheck
       - run: bun run test:coverage
       - uses: dtolnay/rust-toolchain@stable
+      # release.yml と同じ shared-key・release プロファイルにして、main で温めたキャッシュをリリース時に使う
       - uses: Swatinem/rust-cache@v2
         with:
+          shared-key: windows-tauri
+          save-if: ${{ github.ref == 'refs/heads/main' }}
           workspaces: src-tauri -> target
-      - run: bun run test:rust
+      - run: bun run test:rust --release
       - uses: actions/upload-artifact@v4
         if: always()
         with:

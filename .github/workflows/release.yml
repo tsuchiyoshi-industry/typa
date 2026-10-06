@@ -86,21 +86,28 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+      # キャッシュは main で保存したものをタグのビルドでも使う。
+      # (タグの実行で保存したキャッシュは他のタグから読めないため、保存は main だけにする)
+      # test.yml と同じ shared-key・同じ release プロファイルにして、依存クレートを使い回す。
       - name: Cargo cache
         uses: Swatinem/rust-cache@v2
         with:
-          shared-key: windows-tauri-release
-          save-if: "true"
-          workspaces: |
-            . -> target
-            src-tauri -> src-tauri/target
+          shared-key: windows-tauri
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+          workspaces: src-tauri -> target
 
+      # ソースからのビルド(数分)を避け、ビルド済みバイナリを入れる
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit@0.22.2
+
+      # --release: この後の tauri build と同じプロファイルで依存クレートを1回だけコンパイルする
       - name: Rust release checks
         shell: bash
         run: |
-          bun run test:rust
-          cargo install cargo-audit --locked --version 0.22.2
           cargo audit --file src-tauri/Cargo.lock
+          bun run test:rust --release
 
       - name: Build bundle
         shell: bash

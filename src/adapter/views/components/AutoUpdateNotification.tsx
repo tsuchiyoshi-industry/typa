@@ -15,6 +15,17 @@ import {
 
 type UpdateStatus = "idle" | "available" | "downloading" | "installing" | "restarting" | "error";
 
+// 起動したままのアプリ(共有PCなど)も新しいバージョンに気づけるよう、この間隔で確認し直す
+const RECHECK_INTERVAL_MS = 30 * 60 * 1000;
+
+/** Tauri のコマンドは Error ではなく文字列で失敗を返すため、その文言もそのまま見せる。 */
+const describeError = (error: unknown, fallback: string) => {
+	if (error instanceof Error) {
+		return error.message;
+	}
+	return typeof error === "string" && error ? error : fallback;
+};
+
 const formatBytes = (bytes: number) => {
 	if (bytes < 1024) {
 		return `${bytes} B`;
@@ -34,6 +45,7 @@ const AutoUpdateNotification: Component = () => {
 	const [contentLength, setContentLength] = createSignal<number | null>(null);
 	const [restartCountdown, setRestartCountdown] = createSignal(5);
 	let restartTimer: number | undefined;
+	let recheckTimer: number | undefined;
 
 	const progress = createMemo(() => {
 		const total = contentLength();
@@ -59,27 +71,46 @@ const AutoUpdateNotification: Component = () => {
 		return body.length > 180 ? `${body.slice(0, 180)}...` : body;
 	});
 
-	onMount(async () => {
-		if (!isTauri()) {
-			return;
-		}
-
+	const checkForUpdate = async (background: boolean) => {
 		try {
 			const availableUpdate = await check();
 			if (availableUpdate) {
 				setUpdate(availableUpdate);
 				setStatus("available");
+				setDismissed(false);
 			}
 		} catch (error) {
-			setStatus("error");
 			console.error("Failed to check for updates:", error);
-			setErrorMessage(error instanceof Error ? error.message : "更新情報の確認に失敗しました。");
+			// 開いている間の再確認は、失敗しても作業の邪魔をせず次の確認を待つ
+			if (!background) {
+				setStatus("error");
+				setErrorMessage(describeError(error, "更新情報の確認に失敗しました。"));
+			}
 		}
+	};
+
+	onMount(() => {
+		if (!isTauri()) {
+			return;
+		}
+
+		void checkForUpdate(false);
+		recheckTimer = window.setInterval(() => {
+			// ダウンロード中・インストール中・再起動待ちは触らない。「あとで」で閉じた更新はもう一度知らせる
+			const waiting =
+				status() === "idle" || status() === "error" || (status() === "available" && dismissed());
+			if (waiting) {
+				void checkForUpdate(true);
+			}
+		}, RECHECK_INTERVAL_MS);
 	});
 
 	onCleanup(() => {
 		if (restartTimer !== undefined) {
 			window.clearInterval(restartTimer);
+		}
+		if (recheckTimer !== undefined) {
+			window.clearInterval(recheckTimer);
 		}
 		const currentUpdate = update();
 		if (currentUpdate && status() !== "downloading" && status() !== "installing") {
@@ -119,7 +150,7 @@ const AutoUpdateNotification: Component = () => {
 				restartTimer = undefined;
 			}
 			setStatus("error");
-			setErrorMessage(error instanceof Error ? error.message : "アプリの再起動に失敗しました。");
+			setErrorMessage(describeError(error, "アプリの再起動に失敗しました。"));
 		}
 	};
 
@@ -166,9 +197,7 @@ const AutoUpdateNotification: Component = () => {
 			scheduleRelaunch();
 		} catch (error) {
 			setStatus("error");
-			setErrorMessage(
-				error instanceof Error ? error.message : "更新のインストールに失敗しました。",
-			);
+			setErrorMessage(describeError(error, "更新のインストールに失敗しました。"));
 		}
 	};
 

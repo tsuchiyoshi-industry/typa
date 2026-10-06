@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
+use tauri::Manager;
 use tauri_plugin_fs::FsExt;
 use typst::foundations::{Array, Dict, Value};
 
@@ -380,6 +381,13 @@ pub fn run() {
         .plugin(tauri_plugin_upload::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
+        .setup(|app| {
+            // どのバージョンが動いているかを、ウィンドウのタイトルで確かめられるようにする
+            if let Some(window) = app.get_webview_window("main") {
+                window.set_title(&format!("typa v{}", app.package_info().version))?;
+            }
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             generate_pdf_with_typst,
             send_email

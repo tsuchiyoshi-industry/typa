@@ -173,9 +173,11 @@ const SheetListView: Component<SheetListViewProps> = (props) => {
 		void props.controller.load();
 	});
 
+	// 出力の結果そのものが入れ替わったときだけ知らせる(無関係な変化で同じ通知を出し直さない)
+	const exportStatus = createMemo(() => props.viewModel().exportStatus);
 	createEffect(
 		on(
-			() => props.viewModel().exportStatus,
+			exportStatus,
 			(status) => {
 				if (!status.message) {
 					return;

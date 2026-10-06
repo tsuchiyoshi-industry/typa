@@ -36,10 +36,12 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 		void props.controller.load();
 	});
 
-	// 更新の結果はトーストで知らせる
+	// 更新の結果はトーストで知らせる。更新後の再読み込みなど無関係な変化で同じ結果を
+	// 出し直さないよう、結果そのものが入れ替わったときだけ反応させる
+	const updateStatus = createMemo(() => props.viewModel().updateStatus);
 	createEffect(
 		on(
-			() => props.viewModel().updateStatus,
+			updateStatus,
 			(status) => {
 				if (status.message) {
 					showToast(status.success ? "success" : "error", status.message);

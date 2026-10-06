@@ -33,7 +33,10 @@
 	"overrides": {
 		"@babel/core": "7.29.6",
 		"browserslist": "4.29.3",
-		"baseline-browser-mapping": "2.11.27"
+		"baseline-browser-mapping": "2.11.27",
+		"seroval": "1.6.8",
+		"seroval-plugins": "1.6.8",
+		"source-map-js": "1.2.2"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.5.15",

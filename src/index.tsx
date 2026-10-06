@@ -4,5 +4,6 @@ import App from "./App";
 import "./adapter/views/styles/global.css";
 import "./adapter/views/styles/dashboard.css";
 import "./adapter/views/styles/master.css";
+import "./adapter/views/styles/map.css";
 
 render(() => <App />, document.getElementById("root") as HTMLElement);

@@ -229,10 +229,6 @@ a:hover {
 	cursor: not-allowed;
 }
 
-.forgot-password-link {
-	align-self: flex-end;
-}
-
 .auth-toggle {
 	display: flex;
 	flex-wrap: wrap;

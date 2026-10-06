@@ -20,12 +20,13 @@ beforeAll(async () => {
 		create schema auth;
 		create function auth.uid() returns uuid language sql stable as
 		$$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
-		create table auth.users (id uuid primary key, email text, email_confirmed_at timestamptz);
+		create table auth.users (id uuid primary key, email text, email_confirmed_at timestamptz, raw_user_meta_data jsonb);
 		create table public.employees (id integer primary key, user_id uuid, primary_evaluator_id integer, secondary_evaluator_id integer);
 		create table public.evaluation_sheets (id bigint primary key, employee_id bigint, status text);
 		insert into auth.users
 		select ('00000000-0000-0000-0000-' || lpad(id::text, 12, '0'))::uuid,
-		       'employee' || id || '@example.jp', now() from generate_series(1, 8) as id;
+		       'typa-e' || id || '@example.jp', now(),
+		       jsonb_build_object('contact_email', 'employee' || id || '@example.jp') from generate_series(1, 8) as id;
 		insert into public.employees (id, user_id, primary_evaluator_id, secondary_evaluator_id)
 		select id, ('00000000-0000-0000-0000-' || lpad(id::text, 12, '0'))::uuid, 2, 3 from generate_series(1, 8) as id;
 		update public.employees set primary_evaluator_id = null where id = 5;
@@ -51,7 +52,7 @@ afterAll(async () => {
 const recipients = (sheetId = 100) =>
 	db.query("select * from public.get_finalized_sheet_notification_recipients($1)", [sheetId]);
 
-it("executes the actual migration and returns only the two evaluator Auth emails", async () => {
+it("executes the actual migration and returns only the two evaluator contact emails, not the internal Auth emails", async () => {
 	expect((await recipients()).rows).toEqual([
 		{ role: "primary", employee_id: 2, email: "employee2@example.jp" },
 		{ role: "secondary", employee_id: 3, email: "employee3@example.jp" },
@@ -74,9 +75,9 @@ it("denies anonymous execution and authenticated calls without a JWT user", asyn
 it.each([101, 999])("denies unfinalized or nonexistent sheet %s", async (id) => {
 	await expect(recipients(id)).rejects.toMatchObject({ code: "42501" });
 });
-it("does not disclose unverified Auth email", async () => {
+it("does not disclose the contact email of an unconfirmed Auth user", async () => {
 	await db.exec(
-		"reset role; update auth.users set email_confirmed_at = null where email = 'employee2@example.jp'; set role authenticated",
+		"reset role; update auth.users set email_confirmed_at = null where email = 'typa-e2@example.jp'; set role authenticated",
 	);
 	expect((await recipients()).rows[0]).toEqual({ role: "primary", employee_id: 2, email: null });
 });

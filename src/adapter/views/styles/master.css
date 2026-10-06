@@ -298,6 +298,36 @@
 	padding: 0.42rem 0.6rem;
 }
 
+/* ----- 登録の取り消し(Admin のみ) ----- */
+.master-table .col-action {
+	text-align: center;
+}
+
+.master-table thead th.col-action {
+	width: 5.5rem;
+	padding-inline: 0.8rem;
+}
+
+.row-action {
+	display: inline-grid;
+	place-items: center;
+	width: 2rem;
+	height: 2rem;
+	color: var(--hr-text-muted);
+	border-radius: var(--hr-radius-sm);
+}
+
+.row-action:hover:not(:disabled),
+.row-action:focus-visible {
+	color: var(--hr-danger);
+	background: var(--hr-bg-elevated);
+}
+
+.row-action:disabled {
+	opacity: 0.5;
+	cursor: progress;
+}
+
 /* ふだんは文字として読め、行に触れると「選べる」ことが分かる */
 .cell-select {
 	position: relative;

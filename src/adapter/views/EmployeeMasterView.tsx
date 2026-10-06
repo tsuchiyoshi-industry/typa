@@ -1,4 +1,4 @@
-import { Search, ShieldCheck, Users } from "lucide-solid";
+import { Search, ShieldCheck, Trash2, Users } from "lucide-solid";
 import {
 	type Component,
 	createEffect,
@@ -230,6 +230,41 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 		);
 	};
 
+	// 社員の行と評価データは残し、ログイン用アカウントだけを消して未登録に戻す
+	const resetRegistration = async (relation: ApprovalRelationDto) => {
+		const confirmed = await confirmAction({
+			title: `${relation.name}さんの登録を取り消しますか？`,
+			message:
+				"ログイン用のアカウントを削除します。本人が新規登録をやり直すまで、この社員番号ではログインできなくなります。評価シートなどのデータは残ります。",
+			confirmLabel: "登録を取り消す",
+			tone: "danger",
+		});
+		if (!confirmed) {
+			return;
+		}
+		setSavingKey(`${relation.employeeNo}:registration`);
+		await props.controller.resetRegistration(relation.employeeNo);
+		setSavingKey(null);
+	};
+
+	const RegistrationCell: Component<{ relation: ApprovalRelationDto }> = (cell) => (
+		<Show when={cell.relation.registered} fallback={<span class="cell-text unset">未登録</span>}>
+			{/* 自分の登録を消すと操作中のセッションごと使えなくなるため、自分の行には出さない */}
+			<Show when={cell.relation.employeeId !== me()?.id}>
+				<button
+					type="button"
+					class="row-action"
+					aria-label={`${cell.relation.name}さんの登録を取り消す`}
+					title="登録を取り消す"
+					disabled={savingKey() !== null}
+					onClick={() => void resetRegistration(cell.relation)}
+				>
+					<Trash2 size={16} />
+				</button>
+			</Show>
+		</Show>
+	);
+
 	const ProfilePanel = () => (
 		<section class="master-profile" aria-label="あなたのプロフィール">
 			<div class="master-profile-id">
@@ -304,6 +339,11 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 								<th scope="col">等級</th>
 								<th scope="col">一次評価者</th>
 								<th scope="col">二次評価者</th>
+								<Show when={props.viewModel().canResetRegistrations}>
+									<th scope="col" class="col-action">
+										登録
+									</th>
+								</Show>
 							</tr>
 						</thead>
 						<tbody>
@@ -332,6 +372,11 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 										<td>
 											<EvaluatorCell relation={relation()} evaluatorType="secondary" />
 										</td>
+										<Show when={props.viewModel().canResetRegistrations}>
+											<td class="col-action">
+												<RegistrationCell relation={relation()} />
+											</td>
+										</Show>
 									</tr>
 								)}
 							</Index>

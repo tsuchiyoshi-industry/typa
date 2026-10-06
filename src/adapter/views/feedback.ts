@@ -36,6 +36,8 @@ export interface ConfirmRequest {
 	message: string;
 	confirmLabel: string;
 	cancelLabel?: string;
+	/** 選択肢のないお知らせは true にする。キャンセルボタンを出さない。 */
+	acknowledgeOnly?: boolean;
 	/** 取り消せない操作は danger にする。 */
 	tone?: "default" | "danger";
 }

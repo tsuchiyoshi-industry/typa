@@ -110,9 +110,19 @@ Rust依存監査の情報警告8件は、未保守6クレート、`glib 0.18.5`�
 - [Babel advisory](https://github.com/advisories/GHSA-4x5r-pxfx-6jf8) / [Browserslist advisory](https://github.com/advisories/GHSA-c83g-rgw3-j3cx)。
 - [RUSTSEC-2026-0194](https://rustsec.org/advisories/RUSTSEC-2026-0194.html) / [RUSTSEC-2026-0195](https://rustsec.org/advisories/RUSTSEC-2026-0195.html)。
 
+## 社員番号ログイン（2026-10-06追補）
+
+ログインIDは社員番号とし、メールアドレスでログインする仕組みは廃止した。Authユーザーのメールアドレスは社員番号から組み立てた内部用アドレス(`typa-<社員番号>@<VITE_REQUIRED_DOMAIN>`)で、メールは届かない。社員番号は管理者が `employees` に登録した値で、利用者は登録しない。
+
+新規登録は、(1) `VITE_REQUIRED_DOMAIN` のメールアドレス(共有PCのアドレスを複数の社員が使ってよい)へ認証コードを送り、(2) コード・社員番号・パスワードを入力させ、(3) 社員番号が社員マスタにあり未登録であることを確かめてからアカウントを作って紐付ける。登録済みの社員番号は「既に登録されています」と拒否する。コードを受け取ったメールアドレスはユーザーメタデータ `contact_email` に保存し、評価確定通知の宛先に使う(`supabase/migrations/202610060001_no_secondary_evaluator.sql`)。パスワードの再設定画面はない。パスワード忘れや別人による登録は、Adminが社員マスタのゴミ箱ボタンで登録を取り消し、本人に新規登録をやり直させる。取り消しはDB関数 `reset_employee_registration`(`supabase/migrations/202610060002_reset_employee_registration.sql`)が行い、呼び出し元がAdminであることをDB側で確かめたうえで `employees.user_id` をnullに戻し、Authユーザーを物理削除する。社員の行と評価データは削除しない。自分自身の登録は取り消せない。
+
+前提となるSupabase設定: Authの「Confirm email」を無効にする(内部用アドレスは確認メールを受け取れない)。Magic Link / Confirm signup のメールテンプレートに `{{ .Token }}` を含める。
+
+受容したリスクと未解決事項: 会社ドメインのメールを受け取れる人は、未登録の社員番号ならどれでも登録できる(利用者が受容。本人が登録しようとしたときの「既に登録されています」で気付く運用)。Reviewer以上の番号を先に取られると他人の評価を閲覧できるため、評価者を先に登録させる。メールアドレスの確認・ドメイン制限・社員番号の未登録確認はいずれもクライアント側の手順で、Auth APIを直接呼べば迂回できる点はSEC-003のまま未解決。`contact_email` は本人が書き換えられる。
+
 ## 評価者への通知仕様（2026-10-05追補）
 
-登録メールは `auth.users.email` に保存される。OTP確認後の `linkUserToEmployee` は `employees.user_id` を更新し、社員とAuthユーザーを紐付ける。employeesのemail列は追加しない。固定宛先 `VITE_SHEET_FINALIZED_NOTIFY_TO` は廃止し、GitHub workflowからも削除した。
+通知先は、新規登録で認証コードを受け取ったメールアドレス(Authユーザーメタデータの `contact_email`)。2026-10-06の社員番号ログイン化で `auth.users.email` は内部用アドレスになった。アカウント作成後の `linkUserToEmployee` は `employees.user_id` を更新し、社員とAuthユーザーを紐付ける。employeesのemail列は追加しない。固定宛先 `VITE_SHEET_FINALIZED_NOTIFY_TO` は廃止し、GitHub workflowからも削除した。
 
 二次評価確定後、一次・二次評価者の認証済み登録メールに別々に送信する。同一メールは大文字小文字・前後空白を正規化して1通にまとめる。片方が未登録・未認証・送信失敗でも他方は送信を試みる。通知の失敗は確定済みデータを戻さず、画面に通知警告を表示する。自動再送はない。提出時・一次評価完了時の通知は追加していない。
 

@@ -31,14 +31,16 @@ const ConfirmDialog: Component = () => {
 						<p id="confirm-dialog-message">{request().message}</p>
 						<div class="confirm-dialog__actions">
 							{/* 取り消せない操作で Enter を押しても実行されないよう、キャンセル側に初期フォーカス */}
-							<button
-								type="button"
-								class="secondary-action"
-								autofocus
-								onClick={() => settleConfirm(false)}
-							>
-								{request().cancelLabel ?? "キャンセル"}
-							</button>
+							<Show when={!request().acknowledgeOnly}>
+								<button
+									type="button"
+									class="secondary-action"
+									autofocus
+									onClick={() => settleConfirm(false)}
+								>
+									{request().cancelLabel ?? "キャンセル"}
+								</button>
+							</Show>
 							<button
 								type="button"
 								class="primary-action"

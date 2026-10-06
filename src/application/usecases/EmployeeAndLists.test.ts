@@ -15,6 +15,7 @@ import { CreateEvaluationSheetInteractor } from "./CreateEvaluationSheetInteract
 import { FetchCategorizedSheetsInteractor } from "./FetchCategorizedSheetsInteractor";
 import { FetchDistinctPeriodsInteractor } from "./FetchDistinctPeriodsInteractor";
 import { LoadEmployeeMasterInteractor } from "./LoadEmployeeMasterInteractor";
+import { ResetEmployeeRegistrationInteractor } from "./ResetEmployeeRegistrationInteractor";
 import { UpdateEmployeeEvaluatorInteractor } from "./UpdateEmployeeEvaluatorInteractor";
 import { UpdateEmployeeGradeInteractor } from "./UpdateEmployeeGradeInteractor";
 
@@ -33,6 +34,7 @@ describe("employee master authorization", () => {
 				expect.objectContaining({
 					canEditEvaluators: editsEvaluators,
 					canEditGrades: role === "Admin",
+					canResetRegistrations: role === "Admin",
 					relations: editsEvaluators ? [expect.objectContaining({ employeeNo: "TEST001" })] : [],
 				}),
 			);
@@ -123,6 +125,46 @@ describe("employee master authorization", () => {
 			);
 			expect(out.present).toHaveBeenCalledWith(expect.objectContaining({ success: false }));
 			expect(repo.updateEvaluatorByEmployeeNo).toHaveBeenCalledTimes(kind === "failed" ? 1 : 0);
+		},
+	);
+	it.each(["Reviewer", "Employee", "unknown", null])(
+		"denies registration reset by %s",
+		async (role) => {
+			const repo = masterRepository();
+			repo.findCurrentEmployeeProfile.mockResolvedValue(role === null ? null : profile(role, 2));
+			const out = output<never>();
+			await new ResetEmployeeRegistrationInteractor(repo).execute(
+				{ targetEmployeeNo: "TEST001" },
+				out,
+			);
+			expect(repo.resetRegistrationByEmployeeNo).not.toHaveBeenCalled();
+			expect(out.present).toHaveBeenCalledWith(expect.objectContaining({ success: false }));
+		},
+	);
+	it.each(["ok", "empty", "missingTarget", "self", "unregistered", "failed"])(
+		"admin registration reset case %s",
+		async (kind) => {
+			const repo = masterRepository();
+			repo.findCurrentEmployeeProfile.mockResolvedValue(profile("Admin", 2));
+			repo.findByEmployeeNo.mockResolvedValue(
+				kind === "missingTarget"
+					? null
+					: profile("Employee", kind === "self" ? 2 : 1, kind !== "unregistered"),
+			);
+			if (kind === "failed") {
+				repo.resetRegistrationByEmployeeNo.mockResolvedValue(false);
+			}
+			const out = output<never>();
+			await new ResetEmployeeRegistrationInteractor(repo).execute(
+				{ targetEmployeeNo: kind === "empty" ? " " : " TEST001 " },
+				out,
+			);
+			const reachesRepository = kind === "ok" || kind === "failed";
+			expect(repo.resetRegistrationByEmployeeNo).toHaveBeenCalledTimes(reachesRepository ? 1 : 0);
+			if (reachesRepository) {
+				expect(repo.resetRegistrationByEmployeeNo).toHaveBeenCalledWith("TEST001");
+			}
+			expect(out.present).toHaveBeenCalledWith(expect.objectContaining({ success: kind === "ok" }));
 		},
 	);
 	it.each(["Reviewer", "Employee", "unknown", null])("denies grade update by %s", async (role) => {

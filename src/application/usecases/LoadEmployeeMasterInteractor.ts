@@ -3,6 +3,7 @@ import type { EmployeeMasterRepository } from "../../domain/repositories/Employe
 import {
 	canEditEvaluators,
 	canEditGrades,
+	canResetRegistrations,
 	resolveEmployeeMasterMode,
 } from "../../domain/services/EmployeeMasterAccessService";
 import type {
@@ -44,6 +45,7 @@ function toApprovalRelationDto(profile: EmployeeProfile): ApprovalRelationDto {
 		secondaryEvaluatorId: profile.secondaryEvaluatorId,
 		secondaryEvaluatorName: profile.secondaryEvaluatorName,
 		noSecondaryEvaluator: profile.noSecondaryEvaluator,
+		registered: profile.registered,
 	};
 }
 
@@ -63,6 +65,7 @@ export class LoadEmployeeMasterInteractor
 				mode: "employee",
 				canEditEvaluators: false,
 				canEditGrades: false,
+				canResetRegistrations: false,
 				relations: [],
 				grades: [],
 			});
@@ -81,6 +84,7 @@ export class LoadEmployeeMasterInteractor
 			mode: resolveEmployeeMasterMode(currentEmployee.roleName),
 			canEditEvaluators: editableEvaluators,
 			canEditGrades: editableGrades,
+			canResetRegistrations: canResetRegistrations(currentEmployee.roleName),
 			relations: relations.map(toApprovalRelationDto),
 			grades,
 		});

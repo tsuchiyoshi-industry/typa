@@ -3,6 +3,10 @@ import type {
 	LoadEmployeeMasterOutputPort,
 } from "../../application/usecases/LoadEmployeeMasterInteractor";
 import type {
+	ResetEmployeeRegistrationInteractor,
+	ResetEmployeeRegistrationOutputPort,
+} from "../../application/usecases/ResetEmployeeRegistrationInteractor";
+import type {
 	UpdateEmployeeEvaluatorInteractor,
 	UpdateEmployeeEvaluatorOutputPort,
 } from "../../application/usecases/UpdateEmployeeEvaluatorInteractor";
@@ -18,12 +22,14 @@ export class EmployeeMasterController {
 		private readonly loadUseCase: LoadEmployeeMasterInteractor,
 		private readonly updateUseCase: UpdateEmployeeEvaluatorInteractor,
 		private readonly updateGradeUseCase: UpdateEmployeeGradeInteractor,
+		private readonly resetRegistrationUseCase: ResetEmployeeRegistrationInteractor,
 		private readonly presenter: {
 			viewModel: () => EmployeeMasterViewModel;
 			outputPort: {
 				load: LoadEmployeeMasterOutputPort;
 				update: UpdateEmployeeEvaluatorOutputPort;
 				updateGrade: UpdateEmployeeGradeOutputPort;
+				resetRegistration: ResetEmployeeRegistrationOutputPort;
 			};
 			beginLoad: () => void;
 			presentError: (message: string) => void;
@@ -65,6 +71,17 @@ export class EmployeeMasterController {
 					this.presenter.outputPort.updateGrade,
 				),
 			"等級の更新に失敗しました",
+		);
+	}
+
+	resetRegistration(targetEmployeeNo: string): Promise<boolean> {
+		return this.applyUpdate(
+			() =>
+				this.resetRegistrationUseCase.execute(
+					{ targetEmployeeNo },
+					this.presenter.outputPort.resetRegistration,
+				),
+			"登録の取り消しに失敗しました",
 		);
 	}
 

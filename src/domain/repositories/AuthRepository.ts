@@ -3,34 +3,26 @@ export type AuthSession = {
 };
 
 export type SignUpResult =
-	| { status: "created" }
+	| { status: "created"; userId: string }
 	| { status: "already_registered" }
 	| { status: "error"; error: Error };
 
-export type PasswordResetResult =
-	| { status: "success" }
-	| { status: "invalid_code"; error: Error }
-	| { status: "update_failed"; error: Error };
-
+/**
+ * ログインIDは社員番号。メールアドレスは、新規登録のときに認証コードを受け取るためだけに使う
+ * (共有PCのメールアドレスを複数の社員が使ってよい)。
+ */
 export interface AuthRepository {
 	getSession(): Promise<AuthSession | null>;
 	onAuthStateChange(callback: (session: AuthSession | null) => void): () => void;
-	getCurrentUserEmail(): Promise<string | null>;
+	getCurrentEmployeeNo(): Promise<string | null>;
 	signInWithPassword(
-		email: string,
+		employeeNo: string,
 		password: string,
 	): Promise<{ userId: string | null; error: Error | null }>;
-	signUp(email: string, password: string, employeeNo: string): Promise<SignUpResult>;
-	verifySignupOtp(
-		email: string,
-		token: string,
-	): Promise<{ userId: string | null; error: Error | null }>;
-	resendSignupOtp(email: string): Promise<{ error: Error | null }>;
-	requestPasswordReset(email: string): Promise<{ error: Error | null }>;
-	confirmPasswordReset(
-		email: string,
-		token: string,
-		newPassword: string,
-	): Promise<PasswordResetResult>;
+	sendEmailCode(email: string): Promise<{ error: Error | null }>;
+	/** 成功すると、そのメールアドレスの確認用セッションになる(社員にはまだ紐付かない)。 */
+	verifyEmailCode(email: string, token: string): Promise<{ error: Error | null }>;
+	/** contactEmail は認証コードを受け取ったメールアドレス。評価者への通知の宛先になる。 */
+	signUp(employeeNo: string, password: string, contactEmail: string): Promise<SignUpResult>;
 	signOut(): Promise<void>;
 }

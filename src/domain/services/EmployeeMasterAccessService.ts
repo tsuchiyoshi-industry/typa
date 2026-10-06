@@ -19,3 +19,8 @@ export function canEditEvaluators(roleName: EmployeeRoleName): boolean {
 export function canEditGrades(roleName: EmployeeRoleName): boolean {
 	return resolveEmployeeMasterMode(roleName) === "admin";
 }
+
+/** 登録の取り消し(ログイン用アカウントの削除)は Admin だけが行える。 */
+export function canResetRegistrations(roleName: EmployeeRoleName): boolean {
+	return resolveEmployeeMasterMode(roleName) === "admin";
+}

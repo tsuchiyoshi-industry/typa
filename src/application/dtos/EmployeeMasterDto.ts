@@ -27,6 +27,8 @@ export interface ApprovalRelationDto {
 	secondaryEvaluatorName: string;
 	/** 二次評価者を「なし」と明示しているか。false で secondaryEvaluatorId が null なら未設定(指定待ち)。 */
 	noSecondaryEvaluator: boolean;
+	/** 新規登録を済ませているか。登録の取り消しは登録済みの社員にだけ行える。 */
+	registered: boolean;
 }
 
 export interface EmployeeMasterDto {
@@ -34,6 +36,7 @@ export interface EmployeeMasterDto {
 	mode: EmployeeMasterMode;
 	canEditEvaluators: boolean;
 	canEditGrades: boolean;
+	canResetRegistrations: boolean;
 	relations: ApprovalRelationDto[];
 	grades: EmployeeGrade[];
 }

@@ -18,7 +18,7 @@ import { FinalEvaluationRank } from "../domain/valueObjects/FinalEvaluationRank"
 export const period = () =>
 	new EvaluationPeriod(10, "テスト期間", "2026-04-01", "2026-09-30", true);
 export const employee = () => new Employee(1, "テスト社員", "TEST001", 1, "技術", 5, 2, 3);
-export const profile = (role = "Employee", id = 1) =>
+export const profile = (role = "Employee", id = 1, registered = true) =>
 	new EmployeeProfile(
 		id,
 		`テスト${id}`,
@@ -32,6 +32,8 @@ export const profile = (role = "Employee", id = 1) =>
 		"一次",
 		3,
 		"二次",
+		false,
+		registered,
 	);
 export const milestone = () =>
 	Milestone.create({
@@ -105,6 +107,9 @@ export function employeeRepository() {
 			.fn<EmployeeRepository["findEvaluatorNames"]>()
 			.mockResolvedValue({ primaryEvaluator: "一次", secondaryEvaluator: "二次" }),
 		findGradeName: vi.fn<EmployeeRepository["findGradeName"]>().mockResolvedValue("等級"),
+		findRegistrationStatus: vi
+			.fn<EmployeeRepository["findRegistrationStatus"]>()
+			.mockResolvedValue("available"),
 		linkUserToEmployee: vi.fn<EmployeeRepository["linkUserToEmployee"]>().mockResolvedValue(true),
 		checkUserLinked: vi.fn<EmployeeRepository["checkUserLinked"]>().mockResolvedValue(true),
 	} satisfies EmployeeRepository;
@@ -160,5 +165,8 @@ export function masterRepository() {
 		updateGradeByEmployeeNo: vi
 			.fn<EmployeeMasterRepository["updateGradeByEmployeeNo"]>()
 			.mockResolvedValue(profile()),
+		resetRegistrationByEmployeeNo: vi
+			.fn<EmployeeMasterRepository["resetRegistrationByEmployeeNo"]>()
+			.mockResolvedValue(true),
 	} satisfies EmployeeMasterRepository;
 }

@@ -216,6 +216,22 @@ export class SupabaseEmployeeRepository implements EmployeeRepository {
 		);
 	}
 
+	async findRegistrationStatus(
+		employeeNo: string,
+	): Promise<"available" | "registered" | "missing"> {
+		const { data, error } = await supabase
+			.from("employees")
+			.select("user_id")
+			.eq("employee_no", employeeNo)
+			.maybeSingle();
+
+		if (error || !data) {
+			return "missing";
+		}
+
+		return (data as { user_id: string | null }).user_id ? "registered" : "available";
+	}
+
 	async linkUserToEmployee(employeeNo: string, authUserId: string): Promise<boolean> {
 		const { data, error } = await supabase
 			.from("employees")

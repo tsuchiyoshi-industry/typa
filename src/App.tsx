@@ -30,6 +30,7 @@ import { FetchDistinctPeriodsInteractor } from "./application/usecases/FetchDist
 import { FetchEvaluationSheetInteractor } from "./application/usecases/FetchEvaluationSheetInteractor";
 import { LoadCommonEvaluationInteractor } from "./application/usecases/LoadCommonEvaluationInteractor";
 import { LoadEmployeeMasterInteractor } from "./application/usecases/LoadEmployeeMasterInteractor";
+import { ResetEmployeeRegistrationInteractor } from "./application/usecases/ResetEmployeeRegistrationInteractor";
 import { UpdateEmployeeEvaluatorInteractor } from "./application/usecases/UpdateEmployeeEvaluatorInteractor";
 import { UpdateEmployeeGradeInteractor } from "./application/usecases/UpdateEmployeeGradeInteractor";
 import { UpdateEvaluationStatusInteractor } from "./application/usecases/UpdateEvaluationStatusInteractor";
@@ -121,6 +122,9 @@ const updateEmployeeEvaluatorUseCase = new UpdateEmployeeEvaluatorInteractor(
 	employeeMasterRepository,
 );
 const updateEmployeeGradeUseCase = new UpdateEmployeeGradeInteractor(employeeMasterRepository);
+const resetEmployeeRegistrationUseCase = new ResetEmployeeRegistrationInteractor(
+	employeeMasterRepository,
+);
 
 const sheetListPresenter = createSheetListPresenter();
 const sheetEditorPresenter = createSheetEditorPresenter();
@@ -165,6 +169,7 @@ const employeeMasterController = new EmployeeMasterController(
 	loadEmployeeMasterUseCase,
 	updateEmployeeEvaluatorUseCase,
 	updateEmployeeGradeUseCase,
+	resetEmployeeRegistrationUseCase,
 	employeeMasterPresenter,
 );
 
@@ -180,7 +185,7 @@ const AppLayout: Component<{ children?: JSX.Element | JSX.Element[] }> = (props)
 const DashboardLayout: Component<{ children?: JSX.Element | JSX.Element[] }> = (props) => {
 	const [menuOpen, setMenuOpen] = createSignal(false);
 	const [userMenuOpen, setUserMenuOpen] = createSignal(false);
-	const [userEmail, setUserEmail] = createSignal<string>("");
+	const [employeeNo, setEmployeeNo] = createSignal<string>("");
 
 	const handleClickOutside = (e: MouseEvent) => {
 		if (!(e.target as HTMLElement).closest(".user-menu-container")) {
@@ -197,7 +202,7 @@ const DashboardLayout: Component<{ children?: JSX.Element | JSX.Element[] }> = (
 	onMount(() => {
 		document.addEventListener("click", handleClickOutside);
 		document.addEventListener("keydown", handleKeyDown);
-		void authRepository.getCurrentUserEmail().then((email) => setUserEmail(email ?? ""));
+		void authRepository.getCurrentEmployeeNo().then((no) => setEmployeeNo(no ?? ""));
 	});
 	onCleanup(() => {
 		document.removeEventListener("click", handleClickOutside);
@@ -252,7 +257,7 @@ const DashboardLayout: Component<{ children?: JSX.Element | JSX.Element[] }> = (
 						aria-expanded={userMenuOpen()}
 					>
 						<User size={20} />
-						<span class="user-email">{userEmail()}</span>
+						<span class="user-email">{employeeNo()}</span>
 					</button>
 					<Show when={userMenuOpen()}>
 						<div class="user-menu-dropdown" role="menu">

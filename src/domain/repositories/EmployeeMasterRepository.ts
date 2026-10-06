@@ -22,4 +22,9 @@ export interface EmployeeMasterRepository {
 		targetEmployeeNo: string,
 		gradeId: number,
 	): Promise<EmployeeProfile | null>;
+	/**
+	 * 社員の行は残したまま、ログイン用アカウントを削除して未登録に戻す(評価データは残る)。
+	 * 取り消せたら true。
+	 */
+	resetRegistrationByEmployeeNo(targetEmployeeNo: string): Promise<boolean>;
 }

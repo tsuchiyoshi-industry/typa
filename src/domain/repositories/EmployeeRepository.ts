@@ -15,6 +15,8 @@ export interface EmployeeRepository {
 		secondaryEvaluator: string;
 	}>;
 	findGradeName(gradeId: number | null): Promise<string>;
+	/** 新規登録できる社員番号か。missing は社員マスタにない番号、registered は登録済み(紐付け済み)の番号。 */
+	findRegistrationStatus(employeeNo: string): Promise<"available" | "registered" | "missing">;
 	linkUserToEmployee(employeeNo: string, authUserId: string): Promise<boolean>;
 	checkUserLinked(employeeNo: string): Promise<boolean>;
 }

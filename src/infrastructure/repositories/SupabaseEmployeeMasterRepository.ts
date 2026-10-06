@@ -102,6 +102,20 @@ export class SupabaseEmployeeMasterRepository implements EmployeeMasterRepositor
 		return this.updateEmployee(targetEmployeeNo, { grade_id: gradeId });
 	}
 
+	async resetRegistrationByEmployeeNo(targetEmployeeNo: string): Promise<boolean> {
+		// Authユーザーの削除はクライアントの権限ではできないため、Admin だけが実行できるDB関数に任せる
+		const { data, error } = await supabase.rpc("reset_employee_registration", {
+			p_employee_no: targetEmployeeNo,
+		});
+
+		if (error) {
+			console.error("Error resetting employee registration:", error);
+			return false;
+		}
+
+		return data === true;
+	}
+
 	private async updateEmployee(
 		targetEmployeeNo: string,
 		values: Partial<EmployeeRow>,
@@ -177,6 +191,7 @@ export class SupabaseEmployeeMasterRepository implements EmployeeMasterRepositor
 							? "なし"
 							: "未設定",
 					employee.no_secondary_evaluator ?? false,
+					employee.user_id != null,
 				),
 		);
 	}

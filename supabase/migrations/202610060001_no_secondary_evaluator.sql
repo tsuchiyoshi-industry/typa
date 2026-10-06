@@ -1,6 +1,10 @@
 -- "No secondary evaluator" is recorded explicitly so it cannot be confused with a
 -- secondary evaluator that simply has not been assigned yet (secondary_evaluator_id is null).
 -- Only employees explicitly marked here are finalized by their primary evaluator.
+--
+-- Login is by employee number, so auth.users.email is an internal address that receives
+-- no mail. Notifications go to the address that received the sign-up code, stored at
+-- sign-up as user metadata (contact_email).
 begin;
 
 alter table public.employees
@@ -44,7 +48,9 @@ begin
 
   return query
   select recipients.role, recipients.employee_id,
-         case when account.email_confirmed_at is not null then account.email::text else null::text end
+         case when account.email_confirmed_at is not null
+              then nullif(account.raw_user_meta_data ->> 'contact_email', '')
+              else null::text end
   from (values ('primary'::text, primary_id), ('secondary'::text, secondary_id))
        as recipients(role, employee_id)
   left join public.employees as evaluator on evaluator.id = recipients.employee_id
@@ -55,6 +61,6 @@ $$;
 revoke all on function public.get_finalized_sheet_notification_recipients(bigint) from public, anon, authenticated;
 grant execute on function public.get_finalized_sheet_notification_recipients(bigint) to authenticated;
 comment on function public.get_finalized_sheet_notification_recipients(bigint)
-  is 'Verified primary/secondary Auth emails for finalized-sheet notifications; final evaluator only (secondary, or primary when the employee is marked no_secondary_evaluator).';
+  is 'Sign-up contact emails of the primary/secondary evaluators for finalized-sheet notifications; final evaluator only (secondary, or primary when the employee is marked no_secondary_evaluator).';
 
 commit;

@@ -1,10 +1,10 @@
 import type {
 	AuthRepository,
 	AuthSession,
-	PasswordResetResult,
 	SignUpResult,
 } from "../../domain/repositories/AuthRepository";
 import { supabase } from "../db/supabase";
+import { toAuthEmail } from "./authEmail";
 
 export class SupabaseAuthRepository implements AuthRepository {
 	async getSession(): Promise<AuthSession | null> {
@@ -29,18 +29,23 @@ export class SupabaseAuthRepository implements AuthRepository {
 		return () => subscription.unsubscribe();
 	}
 
-	async getCurrentUserEmail(): Promise<string | null> {
+	async getCurrentEmployeeNo(): Promise<string | null> {
 		const {
 			data: { user },
 		} = await supabase.auth.getUser();
 
-		return user?.email ?? null;
+		return (user?.user_metadata?.employee_no as string | undefined) ?? null;
 	}
 
 	async signInWithPassword(
-		email: string,
+		employeeNo: string,
 		password: string,
 	): Promise<{ userId: string | null; error: Error | null }> {
+		const email = toAuthEmail(employeeNo);
+		if (!email) {
+			return { userId: null, error: new Error("社員番号の形式が正しくありません。") };
+		}
+
 		const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
 		if (error) {
@@ -50,70 +55,46 @@ export class SupabaseAuthRepository implements AuthRepository {
 		return { userId: data.user?.id ?? null, error: null };
 	}
 
-	async signUp(email: string, password: string, employeeNo: string): Promise<SignUpResult> {
+	async sendEmailCode(email: string): Promise<{ error: Error | null }> {
+		const { error } = await supabase.auth.signInWithOtp({ email });
+		return { error };
+	}
+
+	async verifyEmailCode(email: string, token: string): Promise<{ error: Error | null }> {
+		const { error } = await supabase.auth.verifyOtp({ email, token, type: "email" });
+		return { error };
+	}
+
+	async signUp(employeeNo: string, password: string, contactEmail: string): Promise<SignUpResult> {
+		const email = toAuthEmail(employeeNo);
+		if (!email) {
+			return { status: "error", error: new Error("社員番号の形式が正しくありません。") };
+		}
+
 		const { data, error } = await supabase.auth.signUp({
 			email,
 			password,
-			options: { data: { employee_no: employeeNo } },
+			options: { data: { employee_no: employeeNo, contact_email: contactEmail } },
 		});
 
 		if (error) {
-			return { status: "error", error };
+			return error.code === "user_already_exists"
+				? { status: "already_registered" }
+				: { status: "error", error };
 		}
 
-		// Supabaseの仕様: 既に登録済みのメールアドレスの場合、identitiesが空配列で返る
+		// メール確認が有効なプロジェクトでは、登録済みのアドレスは identities が空配列で返る
 		if (data.user?.identities?.length === 0) {
 			return { status: "already_registered" };
 		}
 
-		return { status: "created" };
-	}
-
-	async verifySignupOtp(
-		email: string,
-		token: string,
-	): Promise<{ userId: string | null; error: Error | null }> {
-		const { data, error } = await supabase.auth.verifyOtp({ email, token, type: "signup" });
-
-		if (error || !data.user) {
-			return { userId: null, error: error ?? new Error("認証に失敗しました。") };
+		// 内部用アドレスにはメールが届かないため、メール確認が有効だとログインできる状態にならない
+		if (!data.user || !data.session) {
+			console.error("Sign-up returned no session. Disable 'Confirm email' in Supabase Auth.");
+			return { status: "error", error: new Error("登録を完了できませんでした。") };
 		}
 
-		return { userId: data.user.id, error: null };
-	}
-
-	async resendSignupOtp(email: string): Promise<{ error: Error | null }> {
-		const { error } = await supabase.auth.resend({ type: "signup", email });
-		return { error };
-	}
-
-	async requestPasswordReset(email: string): Promise<{ error: Error | null }> {
-		const { error } = await supabase.auth.resetPasswordForEmail(email);
-		return { error };
-	}
-
-	async confirmPasswordReset(
-		email: string,
-		token: string,
-		newPassword: string,
-	): Promise<PasswordResetResult> {
-		const { error: verifyError } = await supabase.auth.verifyOtp({
-			email,
-			token,
-			type: "recovery",
-		});
-
-		if (verifyError) {
-			return { status: "invalid_code", error: verifyError };
-		}
-
-		const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
-
-		if (updateError) {
-			return { status: "update_failed", error: updateError };
-		}
-
-		return { status: "success" };
+		return { status: "created", userId: data.user.id };
 	}
 
 	async signOut(): Promise<void> {

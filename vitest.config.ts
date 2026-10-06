@@ -1,9 +1,12 @@
+import solid from "vite-plugin-solid";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
+	plugins: [solid({ hot: false })],
+	resolve: { conditions: ["development", "browser"] },
 	test: {
 		environment: "node",
-		include: ["src/**/*.test.ts"],
+		include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
 		clearMocks: true,
 		restoreMocks: true,
 		coverage: {

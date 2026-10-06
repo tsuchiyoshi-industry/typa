@@ -15,6 +15,7 @@ import type { ApprovalRelationDto } from "../../application/dtos/EmployeeMasterD
 import type { EvaluatorType } from "../../domain/repositories/EmployeeMasterRepository";
 import type { EmployeeMasterController } from "../controllers/EmployeeMasterController";
 import type { EmployeeMasterViewModel } from "../presenters/EmployeeMasterPresenter";
+import SearchableEvaluatorSelect from "./components/SearchableEvaluatorSelect";
 import { confirmAction, showToast } from "./feedback";
 
 interface EmployeeMasterViewProps {
@@ -55,6 +56,9 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 	// 読み込み中フラグなど無関係な更新で一覧を描き直さないよう、配列単位で購読する
 	const relations = createMemo(() => props.viewModel().relations);
 	const grades = createMemo(() => props.viewModel().grades);
+	const managedRelations = createMemo(() =>
+		relations().filter((relation) => relation.careerCourse?.trim() !== "役員"),
+	);
 
 	const isMine = (relation: ApprovalRelationDto) =>
 		relation.primaryEvaluatorId === me()?.id || relation.secondaryEvaluatorId === me()?.id;
@@ -65,14 +69,14 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 		(props.viewModel().canEditGrades && relation.gradeId == null);
 
 	const scopes = createMemo<{ value: Scope; label: string; count: number }[]>(() => [
-		{ value: "all", label: "全員", count: relations().length },
-		{ value: "mine", label: "自分の担当", count: relations().filter(isMine).length },
-		{ value: "unset", label: "未設定あり", count: relations().filter(hasUnset).length },
+		{ value: "all", label: "全員", count: managedRelations().length },
+		{ value: "mine", label: "自分の担当", count: managedRelations().filter(isMine).length },
+		{ value: "unset", label: "未設定あり", count: managedRelations().filter(hasUnset).length },
 	]);
 
 	const visibleRelations = createMemo(() => {
 		const text = keyword().trim().toLowerCase();
-		return relations().filter(
+		return managedRelations().filter(
 			(relation) =>
 				(scope() === "all" || (scope() === "mine" ? isMine(relation) : hasUnset(relation))) &&
 				(!text ||
@@ -103,22 +107,35 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 		onPick: (value: string) => Promise<boolean>;
 	}> = (cell) => {
 		let select!: HTMLSelectElement;
-		// option を差し替えると選択が先頭に戻るため、描画の更新が済んでから合わせ直す
+		const [pending, setPending] = createSignal<string | null>(null);
+		// Apply the authoritative value after Solid has replaced the option nodes.
 		createEffect(() => {
-			relations();
+			cell.value;
 			grades();
-			select.value = cell.value;
+			pending();
+			queueMicrotask(() => {
+				if (select.isConnected) {
+					select.value = pending() ?? cell.value;
+				}
+			});
 		});
 
 		const handleChange = async () => {
-			const previous = cell.value;
-			setSavingKey(cell.saveKey);
-			const saved = await cell.onPick(select.value);
-			setSavingKey(null);
-			if (!saved) {
-				select.value = previous;
+			const picked = select.value;
+			if (picked === cell.value) {
+				return;
 			}
-			select.focus();
+			setPending(picked);
+			setSavingKey(cell.saveKey);
+			try {
+				await cell.onPick(picked);
+			} finally {
+				setPending(null);
+				setSavingKey(null);
+				if (select.isConnected) {
+					select.focus();
+				}
+			}
 		};
 
 		return (
@@ -178,28 +195,35 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 			);
 		};
 
+		const options = createMemo(() => [
+			...(cell.evaluatorType === "secondary"
+				? [{ value: NO_SECONDARY, name: "なし（一次評価が最終評価）" }]
+				: []),
+			...relations()
+				.filter((candidate) => candidate.employeeId !== cell.relation.employeeId)
+				.map((candidate) => ({
+					value: candidate.employeeNo,
+					name: candidate.name,
+					employeeNo: candidate.employeeNo,
+				})),
+		]);
+		const saveKey = () => `${cell.relation.employeeNo}:${cell.evaluatorType}`;
 		return (
-			<CellSelect
+			<SearchableEvaluatorSelect
 				label={`${cell.relation.name}さんの${label()}`}
 				value={selected()}
-				saveKey={`${cell.relation.employeeNo}:${cell.evaluatorType}`}
-				onPick={pick}
-			>
-				<Show when={cell.evaluatorType === "secondary"}>
-					<option value={NO_SECONDARY}>なし（一次評価が最終評価）</option>
-				</Show>
-				{/* ponytail: 全行×全社員ぶんの option を描画する(O(N²))。数百名を超えて重くなったら、操作中の行だけ select を描く */}
-				<For each={relations()}>
-					{(candidate) => (
-						<option
-							value={candidate.employeeNo}
-							disabled={candidate.employeeId === cell.relation.employeeId}
-						>
-							{`${candidate.name}（${candidate.employeeNo}）`}
-						</option>
-					)}
-				</For>
-			</CellSelect>
+				options={options()}
+				disabled={savingKey() !== null}
+				saving={savingKey() === saveKey()}
+				onPick={async (value) => {
+					setSavingKey(saveKey());
+					try {
+						return await pick(value);
+					} finally {
+						setSavingKey(null);
+					}
+				}}
+			/>
 		);
 	};
 
@@ -261,7 +285,8 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 					disabled={savingKey() !== null}
 					onClick={() => void resetRegistration(cell.relation)}
 				>
-					<Trash2 size={16} />
+					<Trash2 size={15} />
+					<span>取消</span>
 				</button>
 			</Show>
 		</Show>
@@ -300,7 +325,7 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 					<h2>社員一覧</h2>
 					<p>
 						{props.viewModel().canEditGrades ? "等級と評価者" : "評価者"}
-						は、一覧から選ぶとその場で保存されます。二次評価者を「なし」にした社員は一次評価がそのまま最終評価になり、「未設定」のままの社員は評価を確定できません。
+						を変更できます。選択すると自動で保存されます。
 					</p>
 				</div>
 				<label class="master-search">
@@ -314,21 +339,27 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 					/>
 				</label>
 			</div>
-			<fieldset class="master-scope">
-				<legend class="visually-hidden">表示する社員</legend>
-				<For each={scopes()}>
-					{(item) => (
-						<button
-							type="button"
-							aria-pressed={scope() === item.value}
-							onClick={() => setScope(item.value)}
-						>
-							{item.label}
-							<span>{item.count}</span>
-						</button>
-					)}
-				</For>
-			</fieldset>
+			<div class="master-list-toolbar">
+				<fieldset class="master-scope">
+					<legend class="visually-hidden">表示する社員</legend>
+					<For each={scopes()}>
+						{(item) => (
+							<button
+								type="button"
+								aria-pressed={scope() === item.value}
+								onClick={() => setScope(item.value)}
+							>
+								{item.label}
+								<span>{item.count}</span>
+							</button>
+						)}
+					</For>
+				</fieldset>
+				<span class="master-result-count">{visibleRelations().length}名を表示</span>
+			</div>
+			<p class="master-list-note">
+				評価者は氏名・社員番号で検索できます。役員は管理対象から除外しています。
+			</p>
 			<Show
 				when={visibleRelations().length > 0}
 				fallback={<p class="master-empty">{emptyMessage()}</p>}
@@ -354,7 +385,10 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 									<tr>
 										<th scope="row">
 											<span class="employee-name">{relation().name}</span>
-											<span class="employee-no">{relation().employeeNo}</span>
+											<span class="employee-no">
+												{relation().employeeNo}
+												<Show when={relation().careerCourse}> · {relation().careerCourse}</Show>
+											</span>
 										</th>
 										<td>
 											<Show

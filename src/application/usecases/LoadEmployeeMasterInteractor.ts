@@ -38,6 +38,7 @@ function toApprovalRelationDto(profile: EmployeeProfile): ApprovalRelationDto {
 		employeeId: profile.id,
 		name: profile.name,
 		employeeNo: profile.employeeNo,
+		careerCourse: profile.careerCourse,
 		gradeId: profile.gradeId,
 		gradeName: profile.gradeName,
 		primaryEvaluatorId: profile.primaryEvaluatorId,

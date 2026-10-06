@@ -19,6 +19,7 @@ export interface ApprovalRelationDto {
 	employeeId: number;
 	name: string;
 	employeeNo: string;
+	careerCourse: string | null;
 	gradeId: number | null;
 	gradeName: string;
 	primaryEvaluatorId: number | null;

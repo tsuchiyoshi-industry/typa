@@ -54,7 +54,7 @@ export class LoadCommonEvaluationInteractor
 					title: result.item.title,
 					description: result.item.description,
 					weight: result.item.weight,
-					gradeId: result.item.gradeId,
+					itemSetId: result.item.itemSetId,
 				},
 			})),
 			totalFirstScore: summary.totalFirstScore,

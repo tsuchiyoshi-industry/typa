@@ -3,7 +3,7 @@ export interface CommonEvaluationItemDto {
 	title: string;
 	description: string;
 	weight: number;
-	gradeId: number | null;
+	itemSetId: number | null;
 }
 
 export interface CommonEvaluationResultDto {

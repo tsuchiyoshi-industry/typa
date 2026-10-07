@@ -19,6 +19,7 @@ import {
 	Show,
 } from "solid-js";
 import type { SheetSummaryDto } from "../../application/dtos/SheetListDto";
+import { EvaluationStatus } from "../../domain/valueObjects/EvaluationStatus";
 import type { SheetListController } from "../controllers/SheetListController";
 import type { SheetListViewModel } from "../presenters/SheetListPresenter";
 import { showToast } from "./feedback";
@@ -31,6 +32,8 @@ interface SheetListViewProps {
 	controller: SheetListController;
 	viewModel: () => SheetListViewModel;
 }
+
+const isFinalized = (sheet: SheetSummaryDto) => EvaluationStatus.from(sheet.status).isFinalized();
 
 const sortValue = (sheet: SheetSummaryDto, field: SortField): string | number => {
 	switch (field) {
@@ -147,15 +150,13 @@ const SheetTable: Component<{
 											<button
 												type="button"
 												class="export-button"
-												aria-disabled={sheet.status !== "finalized"}
+												aria-disabled={!isFinalized(sheet)}
 												title={
-													sheet.status === "finalized"
-														? undefined
-														: "評価が確定すると PDF を出力できます"
+													isFinalized(sheet) ? undefined : "評価が確定すると PDF を出力できます"
 												}
 												onClick={(event) => {
 													event.stopPropagation();
-													if (sheet.status === "finalized") {
+													if (isFinalized(sheet)) {
 														props.onExport?.(sheet);
 													}
 												}}

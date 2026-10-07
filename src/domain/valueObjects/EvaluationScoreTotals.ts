@@ -1,5 +1,7 @@
 import type { CommonEvaluationResult } from "../entities/CommonEvaluationResult";
 import type { Milestone } from "../entities/Milestone";
+import { EvaluationAllocation } from "./EvaluationAllocation";
+import { Score } from "./Score";
 
 export class EvaluationScoreTotals {
 	private constructor(
@@ -7,6 +9,7 @@ export class EvaluationScoreTotals {
 		public readonly firstTotalRate: number,
 		public readonly secondTotalScore: number,
 		public readonly secondTotalRate: number,
+		private readonly maxTotalScore: number | null = null,
 	) {}
 
 	static zero(): EvaluationScoreTotals {
@@ -18,12 +21,16 @@ export class EvaluationScoreTotals {
 		firstTotalRate?: number | null;
 		secondTotalScore?: number | null;
 		secondTotalRate?: number | null;
+		maxTotalScore?: number | null;
 	}): EvaluationScoreTotals {
 		return new EvaluationScoreTotals(
 			EvaluationScoreTotals.toNonNegativeInteger(params.firstTotalScore),
 			EvaluationScoreTotals.toNonNegativeInteger(params.firstTotalRate),
 			EvaluationScoreTotals.toNonNegativeInteger(params.secondTotalScore),
 			EvaluationScoreTotals.toNonNegativeInteger(params.secondTotalRate),
+			params.maxTotalScore == null
+				? null
+				: EvaluationScoreTotals.toNonNegativeInteger(params.maxTotalScore),
 		);
 	}
 
@@ -36,29 +43,38 @@ export class EvaluationScoreTotals {
 			(sum, objective) => sum + objective.secondScore.toNumber(),
 			0,
 		);
-		const maxTotalScore = objectives.length * 4;
+		const maxTotalScore = objectives.length * Score.MAX;
 
 		return new EvaluationScoreTotals(
 			firstTotalScore,
 			EvaluationScoreTotals.toRate(firstTotalScore, maxTotalScore),
 			secondTotalScore,
 			EvaluationScoreTotals.toRate(secondTotalScore, maxTotalScore),
+			maxTotalScore || null,
 		);
 	}
 
+	/**
+	 * 共通評価の項目の配点は係数。各項目を 1〜4 で評価し、「配点 × 評価」がその項目の得点、
+	 * 「配点 × 4」が満点になる。配点 1 の項目が 10 個なら満点は 40 点。
+	 */
 	static fromCommonEvaluationResults(results: CommonEvaluationResult[]): EvaluationScoreTotals {
-		const firstTotalScore = results.reduce((sum, result) => sum + result.firstScore.toNumber(), 0);
-		const secondTotalScore = results.reduce(
-			(sum, result) => sum + result.secondScore.toNumber(),
+		const firstTotalScore = results.reduce(
+			(sum, result) => sum + result.item.weight * result.firstScore.toNumber(),
 			0,
 		);
-		const maxTotalScore = results.reduce((sum, result) => sum + result.item.weight, 0);
+		const secondTotalScore = results.reduce(
+			(sum, result) => sum + result.item.weight * result.secondScore.toNumber(),
+			0,
+		);
+		const maxTotalScore = results.reduce((sum, result) => sum + result.item.weight * Score.MAX, 0);
 
 		return new EvaluationScoreTotals(
 			firstTotalScore,
 			EvaluationScoreTotals.toRate(firstTotalScore, maxTotalScore),
 			secondTotalScore,
 			EvaluationScoreTotals.toRate(secondTotalScore, maxTotalScore),
+			maxTotalScore || null,
 		);
 	}
 
@@ -69,7 +85,22 @@ export class EvaluationScoreTotals {
 			this.firstTotalRate,
 			this.firstTotalScore,
 			this.firstTotalRate,
+			this.maxTotalScore,
 		);
+	}
+
+	/** 表示・保存用の整数の得点率ではなく、合計点と満点から換算する。 */
+	scoreFor(allocation: number, useFirst = false): number {
+		return this.maxTotalScore == null
+			? EvaluationAllocation.toScore(
+					allocation,
+					useFirst ? this.firstTotalRate : this.secondTotalRate,
+				)
+			: EvaluationAllocation.fromTotal(
+					allocation,
+					useFirst ? this.firstTotalScore : this.secondTotalScore,
+					this.maxTotalScore,
+				);
 	}
 
 	private static toRate(totalScore: number, maxTotalScore: number): number {

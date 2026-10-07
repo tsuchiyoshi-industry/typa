@@ -1,0 +1,155 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { EvaluationAllocation } from "../../domain/valueObjects/EvaluationAllocation";
+import { commonRepository, commonResult, employeeRepository } from "../../test/fixtures";
+
+const db = vi.hoisted(() => ({ from: vi.fn() }));
+vi.mock("../db/supabase", () => ({ supabase: { from: db.from } }));
+
+import { SupabaseEvaluationSheetRepository } from "./SupabaseEvaluationSheetRepository";
+
+function setup(status = "first_evaluated") {
+	const employee = {
+		name: "社員",
+		employee_no: "TEST001",
+		career_course: "技術",
+		grade_id: 1,
+		primary_evaluator_id: 2,
+		secondary_evaluator_id: 3,
+	};
+	const sheet = {
+		id: 100,
+		period_id: 10,
+		employee_id: 1,
+		status,
+		total_score: 0,
+		first_overall_comment: "一次",
+		second_overall_comment: "二次",
+		objectives_first_total_score: 8,
+		objectives_first_total_rate: 100,
+		objectives_second_total_score: 5,
+		objectives_second_total_rate: 63,
+		common_evaluation_first_total_score: 15,
+		common_evaluation_first_total_rate: 75,
+		common_evaluation_second_total_score: 20,
+		common_evaluation_second_total_rate: 100,
+		// 保存された集計が古くても、未確定のシートは現在の配点で換算する
+		objectives_second_evaluation_score: 13,
+		common_evaluation_second_evaluation_score: 80,
+		total_evaluation_score: 93,
+		objective_allocation: 20,
+		common_allocation: 80,
+		final_rank_letter: "A",
+		final_rank_level: "none",
+		period: { period_name: "テスト期間", start_date: "2026-04-01", end_date: "2026-09-30" },
+		employee,
+	};
+	const objectives = [2, 3].map((score, i) => ({
+		id: 11 + i,
+		sheet_id: 100,
+		goal_number: i + 1,
+		challenge_goal: "目標",
+		midterm_goal: "中間",
+		achievement: "達成",
+		first_score: 4,
+		second_score: score,
+	}));
+	db.from.mockImplementation((table: string) => ({
+		select: vi.fn().mockReturnThis(),
+		eq: vi.fn().mockReturnThis(),
+		single: vi.fn().mockResolvedValue({ data: sheet, error: null }),
+		maybeSingle: vi.fn().mockResolvedValue({
+			data: {
+				id: 10,
+				period_name: "テスト期間",
+				start_date: "2026-04-01",
+				end_date: "2026-09-30",
+				is_active: true,
+			},
+			error: null,
+		}),
+		order: vi
+			.fn()
+			.mockResolvedValue({ data: table === "milestones" ? objectives : null, error: null }),
+	}));
+	const settings = {
+		findAllocation: vi.fn().mockResolvedValue(EvaluationAllocation.of(31, 69)),
+		saveAllocation: vi.fn(),
+	};
+	const common = commonRepository();
+	common.findResultsBySheetId.mockResolvedValue({
+		results: [commonResult()],
+		totalFirstScore: 15,
+		totalSecondScore: 20,
+		totalWeight: 5,
+		firstRate: 75,
+		secondRate: 100,
+	});
+	const repo = new SupabaseEvaluationSheetRepository(employeeRepository(), common, settings);
+	return { sheet, repo, settings };
+}
+
+beforeEach(() => vi.clearAllMocks());
+
+describe("allocation across sheets and PDF data", () => {
+	it("uses current settings and the exact fraction in an open sheet and export", async () => {
+		const { repo } = setup();
+		const sheet = await repo.findById(100);
+		expect(sheet?.allocatedScores).toMatchObject({
+			objectiveAllocationScore: 31,
+			objectiveEvaluationScore: 19,
+			commonEvaluationAllocationScore: 69,
+			commonEvaluationEvaluationScore: 69,
+			totalEvaluationScore: 88,
+		});
+		// 31 × 8/8 + 69 × 15/20 = 31 + 52 = 83
+		expect(sheet?.firstEvaluationScore()).toBe(83);
+		const exported = await repo.findExportData(100);
+		expect(exported).toMatchObject({
+			objectiveAllocationScore: 31,
+			objectiveEvaluationScore: 19,
+			commonEvaluationAllocationScore: 69,
+			totalEvaluationScore: 88,
+		});
+	});
+	it("ignores stale stored totals in an open sheet and calculates from the actual scores", async () => {
+		// 等級や項目が変わる前に保存された合計(28点・280%)が残っていても、いまの点数(配点 5 × 評価 3 = 15 / 20)で計算する
+		const { sheet: row, repo } = setup("submitted");
+		Object.assign(row, {
+			objectives_first_total_score: 4,
+			objectives_first_total_rate: 100,
+			common_evaluation_first_total_score: 28,
+			common_evaluation_first_total_rate: 280,
+		});
+		const sheet = await repo.findById(100);
+		expect(sheet?.commonEvaluationScoreTotals).toMatchObject({
+			firstTotalScore: 15,
+			firstTotalRate: 75,
+		});
+		expect(sheet?.objectiveScoreTotals).toMatchObject({ firstTotalScore: 8, firstTotalRate: 100 });
+		// 31 × 8/8 + 69 × 15/20 = 31 + 52 = 83 点。100 点を超えない
+		expect(sheet?.firstEvaluationScore()).toBe(83);
+	});
+	it("preserves finalized scores, weights and ranks without reading current settings", async () => {
+		const { repo, settings } = setup("finalized");
+		const sheet = await repo.findById(100);
+		expect(sheet?.allocatedScores).toMatchObject({
+			objectiveAllocationScore: 20,
+			commonEvaluationAllocationScore: 80,
+			totalEvaluationScore: 93,
+		});
+		expect(sheet?.resolveFinalEvaluationRank().toDisplayText()).toBe("A");
+		expect(await repo.findExportData(100)).toMatchObject({
+			objectiveAllocationScore: 20,
+			commonEvaluationAllocationScore: 80,
+			totalEvaluationScore: 93,
+			finalEvaluationRank: "A",
+		});
+		expect(settings.findAllocation).not.toHaveBeenCalled();
+	});
+	it("fails an active calculation if settings cannot be loaded instead of silently using 20/80", async () => {
+		const { repo, settings } = setup();
+		settings.findAllocation.mockRejectedValue(new Error("settings unavailable"));
+		await expect(repo.findById(100)).rejects.toThrow("settings unavailable");
+		await expect(repo.findExportData(100)).rejects.toThrow("settings unavailable");
+	});
+});

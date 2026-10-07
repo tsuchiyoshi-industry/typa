@@ -1,6 +1,7 @@
 import { Check, SquarePen, X } from "lucide-solid";
 import { type Component, createEffect, createMemo, createSignal, For, Show } from "solid-js";
 import type { CommonEvaluationResultDto } from "../../../application/dtos/CommonEvaluationDto";
+import { Score } from "../../../domain/valueObjects/Score";
 import type { CommonEvaluationController } from "../../controllers/CommonEvaluationController";
 import type { CommonEvaluationViewModel } from "../../presenters/CommonEvaluationPresenter";
 import { showToast, trackUnsaved } from "../feedback";
@@ -24,17 +25,14 @@ interface Draft {
 	secondScore: number;
 }
 
-/** 配点がこの値以下ならボタン式、それより大きければ数値入力にする。 */
-const SCALE_MAX_WEIGHT = 5;
-
 const toDraft = (result: CommonEvaluationResultDto): Draft => ({
 	firstComment: result.firstComment,
 	firstScore: result.firstScore ?? 0,
 	secondScore: result.secondScore ?? 0,
 });
 
-const isValidScore = (score: number, weight: number) =>
-	Number.isInteger(score) && score >= 0 && score <= weight;
+/** 評価は 0(未評価)〜4。配点は点数の上限ではなく、評価に掛ける係数。 */
+const isValidScore = (score: number) => Number.isInteger(score) && score >= 0 && score <= Score.MAX;
 
 export default function CommonEvaluationView(props: CommonEvaluationViewProps) {
 	const [isEditing, setIsEditing] = createSignal(false);
@@ -75,8 +73,8 @@ export default function CommonEvaluationView(props: CommonEvaluationViewProps) {
 	const isRowInvalid = (result: CommonEvaluationResultDto) => {
 		const draft = draftOf(result);
 		return (
-			(props.canEditFirst && !isValidScore(draft.firstScore, result.item.weight)) ||
-			(props.canEditSecond && !isValidScore(draft.secondScore, result.item.weight))
+			(props.canEditFirst && !isValidScore(draft.firstScore)) ||
+			(props.canEditSecond && !isValidScore(draft.secondScore))
 		);
 	};
 
@@ -88,12 +86,21 @@ export default function CommonEvaluationView(props: CommonEvaluationViewProps) {
 	// 編集中は入力中の値で合計を出し、保存前に結果を確認できるようにする
 	const totalFirst = () =>
 		isEditing() && props.canEditFirst
-			? results().reduce((sum, result) => sum + (draftOf(result).firstScore || 0), 0)
+			? results().reduce(
+					(sum, result) => sum + result.item.weight * (draftOf(result).firstScore || 0),
+					0,
+				)
 			: (summary()?.totalFirstScore ?? 0);
 	const totalSecond = () =>
 		isEditing() && props.canEditSecond
-			? results().reduce((sum, result) => sum + (draftOf(result).secondScore || 0), 0)
+			? results().reduce(
+					(sum, result) => sum + result.item.weight * (draftOf(result).secondScore || 0),
+					0,
+				)
 			: (summary()?.totalSecondScore ?? 0);
+
+	/** 満点は「配点の合計 × 4」。 */
+	const maxTotal = () => (summary()?.totalWeight ?? 0) * Score.MAX;
 
 	const beginEdit = () => {
 		setDrafts({});
@@ -132,10 +139,8 @@ export default function CommonEvaluationView(props: CommonEvaluationViewProps) {
 		label: string;
 		editable: boolean;
 	}> = (cellProps) => {
-		const weight = () => cellProps.result.item.weight;
 		const draftValue = () => draftOf(cellProps.result)[cellProps.field];
 		const savedValue = () => cellProps.result[cellProps.field];
-		const invalid = () => !isValidScore(draftValue(), weight());
 
 		return (
 			<Show
@@ -146,41 +151,13 @@ export default function CommonEvaluationView(props: CommonEvaluationViewProps) {
 					</span>
 				}
 			>
-				<Show
-					when={weight() <= SCALE_MAX_WEIGHT}
-					fallback={
-						<>
-							<input
-								class="score-input"
-								classList={{ invalid: invalid() }}
-								type="number"
-								min="0"
-								max={weight()}
-								step="1"
-								aria-label={`${cellProps.result.item.title} ${cellProps.label}`}
-								aria-invalid={invalid()}
-								value={draftValue() || ""}
-								disabled={submitting()}
-								onInput={(e) =>
-									updateDraft(cellProps.result, {
-										[cellProps.field]: Number(e.currentTarget.value) || 0,
-									})
-								}
-							/>
-							<Show when={invalid()}>
-								<span class="field-error">0〜{weight()} の整数</span>
-							</Show>
-						</>
-					}
-				>
-					<ScoreScale
-						label={`${cellProps.result.item.title} ${cellProps.label}`}
-						max={weight()}
-						value={draftValue()}
-						disabled={submitting()}
-						onChange={(value) => updateDraft(cellProps.result, { [cellProps.field]: value })}
-					/>
-				</Show>
+				<ScoreScale
+					label={`${cellProps.result.item.title} ${cellProps.label}`}
+					max={Score.MAX}
+					value={draftValue()}
+					disabled={submitting()}
+					onChange={(value) => updateDraft(cellProps.result, { [cellProps.field]: value })}
+				/>
 			</Show>
 		);
 	};
@@ -190,7 +167,9 @@ export default function CommonEvaluationView(props: CommonEvaluationViewProps) {
 			<div class="common-evaluation-card__header">
 				<div>
 					<h2>共通評価</h2>
-					<p class="challenge-helper">各項目を配点の範囲内で評価します。</p>
+					<p class="challenge-helper">
+						項目ごとに 1〜{Score.MAX} の4段階で評価します。得点は「配点 × 評価」です。
+					</p>
 				</div>
 				<Show when={summary() != null && (props.canEditFirst || props.canEditSecond)}>
 					<Show
@@ -307,12 +286,18 @@ export default function CommonEvaluationView(props: CommonEvaluationViewProps) {
 						<tfoot>
 							<tr>
 								<th scope="row" colSpan={3}>
-									合計
+									合計（配点 × 評価）
 								</th>
 								<td class="col-number">{summary()?.totalWeight ?? 0}</td>
-								<td class="col-score">{totalFirst()}</td>
+								<td class="col-score">
+									{totalFirst()}
+									<small> / {maxTotal()}</small>
+								</td>
 								<Show when={props.canViewSecondEvaluation}>
-									<td class="col-score">{totalSecond()}</td>
+									<td class="col-score">
+										{totalSecond()}
+										<small> / {maxTotal()}</small>
+									</td>
 								</Show>
 							</tr>
 						</tfoot>

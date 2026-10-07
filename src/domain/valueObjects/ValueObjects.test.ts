@@ -6,7 +6,7 @@ import { EMPLOYEE_ROLE_NAMES, EmployeeRole } from "./EmployeeRole";
 import { EvaluationAllocatedScores } from "./EvaluationAllocatedScores";
 import { EvaluationRank } from "./EvaluationRank";
 import { EvaluationScoreTotals } from "./EvaluationScoreTotals";
-import { EvaluationStatus } from "./EvaluationStatus";
+import { EVALUATION_STATUS_VALUES, EvaluationStatus } from "./EvaluationStatus";
 import { Score } from "./Score";
 
 describe("value objects and immutable entities", () => {
@@ -31,6 +31,16 @@ describe("value objects and immutable entities", () => {
 	it.each([null, undefined, "", "   "])("normalizes empty comment %s", (value) =>
 		expect(Comment.from(value).toString()).toBe(""),
 	);
+	it("keeps statuses to the known values in the order a sheet moves through them", () => {
+		expect(EvaluationStatus.ALL.map(String)).toEqual([...EVALUATION_STATUS_VALUES]);
+		expect(EvaluationStatus.ALL.map((status) => status.order())).toEqual([0, 1, 2, 3]);
+		// 同じ値は同じインスタンス。比較は === でできる
+		expect(EvaluationStatus.from("finalized")).toBe(EvaluationStatus.FINALIZED);
+		expect(EvaluationStatus.find("first_evaluated")).toBe(EvaluationStatus.FIRST_EVALUATED);
+		for (const unknown of ["missing", "", null, undefined]) {
+			expect(EvaluationStatus.find(unknown)).toBeUndefined();
+		}
+	});
 	it("trims comments without interpreting markup", () => {
 		expect(Comment.from("  <script>x</script>  ").value).toBe("<script>x</script>");
 		expect(Comment.from(" x ").equals(Comment.from("x"))).toBe(true);
@@ -92,7 +102,7 @@ describe("value objects and immutable entities", () => {
 		expect(() => EvaluationRank.fromOptional(letter, level)).toThrow(),
 	);
 	it("uses the stored rank only for a confirmed stage, otherwise the rank of the current score", () => {
-		// フィクスチャの保存値は A+。一次評価 58点 → B-、二次評価 100点 → S
+		// フィクスチャの保存値は A+。一次評価 70点 → B、二次評価 100点 → S
 		const stored = (status: EvaluationStatus) =>
 			EvaluationSheet.create({
 				sheetId: 100,
@@ -107,8 +117,8 @@ describe("value objects and immutable entities", () => {
 				finalEvaluationRank: EvaluationRank.from("A", "plus"),
 			});
 		const submitted = stored(EvaluationStatus.SUBMITTED);
-		expect(submitted.firstEvaluationScore()).toBe(58);
-		expect(submitted.resolveFirstEvaluationRank().toDisplayText()).toBe("B-");
+		expect(submitted.firstEvaluationScore()).toBe(70);
+		expect(submitted.resolveFirstEvaluationRank().toDisplayText()).toBe("B");
 		expect(submitted.resolveFinalEvaluationRank().toDisplayText()).toBe("S");
 		const firstEvaluated = stored(EvaluationStatus.FIRST_EVALUATED);
 		expect(firstEvaluated.resolveFirstEvaluationRank().toDisplayText()).toBe("A");
@@ -124,10 +134,11 @@ describe("value objects and immutable entities", () => {
 			secondTotalScore: 4,
 			secondTotalRate: 100,
 		});
+		// 配点は係数。配点 5 の項目を 3 と 4 で評価すると、得点は 15 と 20、満点は 5 × 4 = 20
 		expect(EvaluationScoreTotals.fromCommonEvaluationResults([commonResult()])).toMatchObject({
-			firstTotalScore: 3,
-			firstTotalRate: 60,
-			secondTotalScore: 5,
+			firstTotalScore: 15,
+			firstTotalRate: 75,
+			secondTotalScore: 20,
 			secondTotalRate: 100,
 		});
 		expect(
@@ -144,13 +155,13 @@ describe("value objects and immutable entities", () => {
 	it("uses the primary evaluation in full when the primary is the final evaluator", () => {
 		const objectives = EvaluationScoreTotals.fromObjectives([milestone()]);
 		const common = EvaluationScoreTotals.fromCommonEvaluationResults([commonResult()]);
-		// 一次評価: 目標 2/4 = 50% → 20点中10点、共通 3/5 = 60% → 80点中48点
+		// 一次評価: 目標 2/4 = 50% → 20点中10点、共通 15/20 = 75% → 80点中60点
 		expect(EvaluationAllocatedScores.fromTotals(objectives, common, true)).toMatchObject({
 			objectiveSecondRate: 50,
 			objectiveEvaluationScore: 10,
-			commonEvaluationSecondRate: 60,
-			commonEvaluationEvaluationScore: 48,
-			totalEvaluationScore: 58,
+			commonEvaluationSecondRate: 75,
+			commonEvaluationEvaluationScore: 60,
+			totalEvaluationScore: 70,
 		});
 		expect(objectives.withFirstAsFinal()).toMatchObject({
 			firstTotalScore: 2,
@@ -214,7 +225,7 @@ describe("value objects and immutable entities", () => {
 	it("updates common result without modifying original or other evaluator", () => {
 		const original = commonResult();
 		expect(original.withFirstUpdate(4, " x ").firstComment.value).toBe("x");
-		expect(original.withFirstUpdate(4, "x").secondScore.value).toBe(5);
+		expect(original.withFirstUpdate(4, "x").secondScore.value).toBe(4);
 		expect(original.withSecondUpdate(2).firstScore.value).toBe(3);
 		expect(original.firstScore.value).toBe(3);
 	});

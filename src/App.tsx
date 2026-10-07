@@ -6,6 +6,7 @@ import { CommonEvaluationController } from "./adapter/controllers/CommonEvaluati
 import { EmployeeMapController } from "./adapter/controllers/EmployeeMapController";
 import { EmployeeMasterController } from "./adapter/controllers/EmployeeMasterController";
 import { ReviewerWorkspaceController } from "./adapter/controllers/ReviewerWorkspaceController";
+import { SettingsController } from "./adapter/controllers/SettingsController";
 import { SheetEditorController } from "./adapter/controllers/SheetEditorController";
 import { SheetListController } from "./adapter/controllers/SheetListController";
 import { createChallengeEvaluationPresenter } from "./adapter/presenters/ChallengeEvaluationPresenter";
@@ -22,8 +23,10 @@ import ThemeToggleButton from "./adapter/views/components/ThemeToggleButton";
 import EmployeeMapView from "./adapter/views/EmployeeMapView";
 import EmployeeMasterView from "./adapter/views/EmployeeMasterView";
 import { clearUnsavedChanges, confirmDiscard } from "./adapter/views/feedback";
+import HelpView from "./adapter/views/HelpView";
 import LoginView from "./adapter/views/LoginView";
 import ReviewerWorkspaceView from "./adapter/views/ReviewerWorkspaceView";
+import SettingsView from "./adapter/views/SettingsView";
 import SheetEditorView from "./adapter/views/SheetEditorView";
 import SheetListView from "./adapter/views/SheetListView";
 import { CheckEvaluatorRoleInteractor } from "./application/usecases/CheckEvaluatorRoleInteractor";
@@ -39,12 +42,13 @@ import { ResetEmployeeRegistrationInteractor } from "./application/usecases/Rese
 import { UpdateEmployeeEvaluatorInteractor } from "./application/usecases/UpdateEmployeeEvaluatorInteractor";
 import { UpdateEmployeeGradeInteractor } from "./application/usecases/UpdateEmployeeGradeInteractor";
 import { UpdateEmployeeRoleInteractor } from "./application/usecases/UpdateEmployeeRoleInteractor";
+import { UpdateEvaluationAllocationInteractor } from "./application/usecases/UpdateEvaluationAllocationInteractor";
 import { UpdateEvaluationStatusInteractor } from "./application/usecases/UpdateEvaluationStatusInteractor";
 import { UpdateMilestoneInteractor } from "./application/usecases/UpdateMilestoneInteractor";
 import { UpdateOverallCommentInteractor } from "./application/usecases/UpdateOverallCommentInteractor";
 import { UpsertCommonEvaluationInteractor } from "./application/usecases/UpsertCommonEvaluationInteractor";
 import type { AuthSession } from "./domain/repositories/AuthRepository";
-import { canEditEvaluators } from "./domain/services/EmployeeMasterAccessService";
+import { canEditEvaluators, canEditSettings } from "./domain/services/EmployeeMasterAccessService";
 import { EvaluationScoreUpdateService } from "./domain/services/EvaluationScoreUpdateService";
 import { SupabaseAuthRepository } from "./infrastructure/auth/SupabaseAuthRepository";
 import { SupabaseCommonEvaluationRepository } from "./infrastructure/repositories/SupabaseCommonEvaluationRepository";
@@ -52,6 +56,7 @@ import { SupabaseEmployeeMasterRepository } from "./infrastructure/repositories/
 import { SupabaseEmployeeRepository } from "./infrastructure/repositories/SupabaseEmployeeRepository";
 import { SupabaseEvaluationNotificationRecipientRepository } from "./infrastructure/repositories/SupabaseEvaluationNotificationRecipientRepository";
 import { SupabaseEvaluationPeriodRepository } from "./infrastructure/repositories/SupabaseEvaluationPeriodRepository";
+import { SupabaseEvaluationSettingsRepository } from "./infrastructure/repositories/SupabaseEvaluationSettingsRepository";
 import { SupabaseEvaluationSheetRepository } from "./infrastructure/repositories/SupabaseEvaluationSheetRepository";
 import { SupabaseMilestoneRepository } from "./infrastructure/repositories/SupabaseMilestoneRepository";
 import { SupabaseReviewerWorkspaceRepository } from "./infrastructure/repositories/SupabaseReviewerWorkspaceRepository";
@@ -61,9 +66,11 @@ import { TauriSheetPdfGateway } from "./infrastructure/repositories/TauriSheetPd
 const authRepository = new SupabaseAuthRepository();
 const employeeRepository = new SupabaseEmployeeRepository();
 const commonEvaluationRepository = new SupabaseCommonEvaluationRepository();
+const evaluationSettingsRepository = new SupabaseEvaluationSettingsRepository();
 const evaluationSheetRepository = new SupabaseEvaluationSheetRepository(
 	employeeRepository,
 	commonEvaluationRepository,
+	evaluationSettingsRepository,
 );
 const evaluationPeriodRepository = new SupabaseEvaluationPeriodRepository();
 const reviewerWorkspaceController = new ReviewerWorkspaceController(
@@ -72,6 +79,11 @@ const reviewerWorkspaceController = new ReviewerWorkspaceController(
 );
 const milestoneRepository = new SupabaseMilestoneRepository();
 const employeeMasterRepository = new SupabaseEmployeeMasterRepository();
+const settingsController = new SettingsController(
+	evaluationSettingsRepository,
+	employeeMasterRepository,
+	new UpdateEvaluationAllocationInteractor(evaluationSettingsRepository, employeeMasterRepository),
+);
 const emailNotificationRepository = new TauriEmailNotificationRepository(
 	new SupabaseEvaluationNotificationRecipientRepository(),
 );
@@ -200,6 +212,7 @@ const DashboardLayout: Component<{ children?: JSX.Element | JSX.Element[] }> = (
 	const [employeeName, setEmployeeName] = createSignal<string>("");
 	const [roleName, setRoleName] = createSignal<string>("");
 	const [canViewMap, setCanViewMap] = createSignal(false);
+	const [canViewSettings, setCanViewSettings] = createSignal(false);
 	let mounted = true;
 
 	const handleClickOutside = (e: MouseEvent) => {
@@ -225,11 +238,13 @@ const DashboardLayout: Component<{ children?: JSX.Element | JSX.Element[] }> = (
 					setEmployeeName(person?.name ?? "");
 					setRoleName(person?.role.toString() ?? "");
 					setCanViewMap(!!person && canEditEvaluators(person.role));
+					setCanViewSettings(!!person && canEditSettings(person.role));
 				}
 			})
 			.catch(() => {
 				if (mounted) {
 					setCanViewMap(false);
+					setCanViewSettings(false);
 				}
 			});
 	});
@@ -265,7 +280,11 @@ const DashboardLayout: Component<{ children?: JSX.Element | JSX.Element[] }> = (
 						<X size={24} />
 					</Show>
 				</button>
-				<nav class="topbar-nav" classList={{ "nav-open": menuOpen() }}>
+				<nav
+					class="topbar-nav"
+					aria-label="メインナビゲーション"
+					classList={{ "nav-open": menuOpen() }}
+				>
 					<A href="/" end class="nav-link" onClick={() => setMenuOpen(false)}>
 						評価シート一覧
 					</A>
@@ -283,6 +302,14 @@ const DashboardLayout: Component<{ children?: JSX.Element | JSX.Element[] }> = (
 							マップ
 						</A>
 					</Show>
+					<Show when={canViewSettings()}>
+						<A href="/settings" class="nav-link" onClick={() => setMenuOpen(false)}>
+							設定
+						</A>
+					</Show>
+					<A href="/help" class="nav-link" onClick={() => setMenuOpen(false)}>
+						ヘルプ
+					</A>
 				</nav>
 				<ThemeToggleButton />
 				<div class="user-menu-container">
@@ -431,6 +458,11 @@ const App: Component = () => {
 						path="/map"
 						component={() => <EmployeeMapView load={() => employeeMapController.load()} />}
 					/>
+					<Route
+						path="/settings"
+						component={() => <SettingsView controller={settingsController} />}
+					/>
+					<Route path="/help" component={() => <HelpView controller={settingsController} />} />
 					<Route path="*404" component={NotFound} />
 				</Route>
 			</Router>

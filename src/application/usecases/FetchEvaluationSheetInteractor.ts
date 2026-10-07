@@ -1,10 +1,8 @@
 import type { EmployeeRepository } from "../../domain/repositories/EmployeeRepository";
 import type { EvaluationSheetRepository } from "../../domain/repositories/EvaluationSheetRepository";
 import { EvaluationSheetAccessPolicy } from "../../domain/services/EvaluationSheetAccessPolicy";
-import {
-	COMMON_EVALUATION_ALLOCATION_SCORE,
-	OBJECTIVE_EVALUATION_ALLOCATION_SCORE,
-} from "../../domain/valueObjects/EvaluationAllocatedScores";
+import { EvaluationAllocation } from "../../domain/valueObjects/EvaluationAllocation";
+import { EvaluationStatus } from "../../domain/valueObjects/EvaluationStatus";
 import type { EvaluationSheetDto } from "../dtos/EvaluationSheetDto";
 import { toEvaluationSheetDto } from "../dtos/EvaluationSheetMapper";
 import type { OutputPort } from "../ports/OutputPort";
@@ -56,15 +54,15 @@ export class FetchEvaluationSheetInteractor
 					secondTotalRate: 0,
 				},
 				allocatedScores: {
-					objectiveAllocationScore: OBJECTIVE_EVALUATION_ALLOCATION_SCORE,
+					objectiveAllocationScore: EvaluationAllocation.DEFAULT.objective,
 					objectiveSecondRate: 0,
 					objectiveEvaluationScore: 0,
-					commonEvaluationAllocationScore: COMMON_EVALUATION_ALLOCATION_SCORE,
+					commonEvaluationAllocationScore: EvaluationAllocation.DEFAULT.common,
 					commonEvaluationSecondRate: 0,
 					commonEvaluationEvaluationScore: 0,
 					totalEvaluationScore: 0,
 				},
-				status: "draft",
+				status: EvaluationStatus.DRAFT.toString(),
 				isEditable: true,
 			});
 			return;

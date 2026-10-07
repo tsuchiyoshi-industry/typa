@@ -2,13 +2,13 @@ import type { EvaluationSheet } from "../entities/EvaluationSheet";
 import type { EvaluationAllocatedScores } from "../valueObjects/EvaluationAllocatedScores";
 import type { EvaluationRank } from "../valueObjects/EvaluationRank";
 import type { EvaluationScoreTotals } from "../valueObjects/EvaluationScoreTotals";
-import type { EvaluationStatus } from "../valueObjects/EvaluationStatus";
+import type { EvaluationStatus, EvaluationStatusValue } from "../valueObjects/EvaluationStatus";
 
 export interface EvaluationSheetSummary {
 	id: number;
 	periodId: number;
 	employeeId: number;
-	status: string;
+	status: EvaluationStatus;
 	totalScore: number;
 	createdAt: string;
 	updatedAt: string;
@@ -34,7 +34,7 @@ export interface EvaluationSheetExportData {
 	secondaryEvaluator: string;
 	/** true の場合(二次評価者「なし」)、一次評価者が最終評価者を兼ね、一次評価がそのまま最終評価になる。 */
 	primaryIsFinalEvaluator: boolean;
-	status: string;
+	status: EvaluationStatusValue;
 	totalScore: number;
 	finalEvaluationRank: string;
 	objectiveAllocationScore: number;

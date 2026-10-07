@@ -1,3 +1,4 @@
+import type { EvaluationStatusValue } from "../../domain/valueObjects/EvaluationStatus";
 export interface ExportSheetRequestDto {
 	sheetId: number;
 	employeeId: number;
@@ -24,7 +25,7 @@ export interface SheetExportDataDto {
 	secondaryEvaluator: string;
 	/** true の場合(二次評価者「なし」)、一次評価者が最終評価者を兼ねる。帳票の「最終評価ランク」の決定者表記に使う。 */
 	primaryIsFinalEvaluator: boolean;
-	status: string;
+	status: EvaluationStatusValue;
 	/** 最終評価者以外が出力する場合、伏せ字("*")になる。 */
 	finalEvaluationRank: string;
 	objectiveAllocationScore: number;

@@ -7,6 +7,7 @@ let db: PGlite;
 const migration = (file: string) =>
 	readFileSync(new URL(`../../supabase/migrations/${file}`, import.meta.url), "utf8");
 const stages = migration("202610080001_evaluation_stages.sql");
+const settingsMigration = migration("202610080004_evaluation_settings.sql");
 const uid = (id: number) => `00000000-0000-0000-0000-${String(id).padStart(12, "0")}`;
 const login = async (id: number) => {
 	await db.query("select set_config('request.jwt.claim.sub', $1, false)", [uid(id)]);
@@ -31,6 +32,10 @@ beforeAll(async () => {
 		create table auth.users (id uuid primary key, email_confirmed_at timestamptz, raw_user_meta_data jsonb);
 		create table public.employee_grades (id smallint primary key, grade_name text, item_set_id smallint);
 		create table public.employees (id integer primary key, user_id uuid, name text, employee_no text, grade_id smallint, career_course text, primary_evaluator_id integer, secondary_evaluator_id integer, no_secondary_evaluator boolean default false);
+		create table public.roles (id smallint primary key, role_name text);
+		insert into public.roles values (1, 'Employee'), (2, 'Reviewer'), (3, 'Admin');
+		alter table public.employees add column role_id smallint default 1 references public.roles(id);
+		grant select on public.employees, public.roles to authenticated;
 		create table public.evaluation_sheets (id bigint primary key, employee_id integer, period_id bigint, status text, updated_at timestamptz default now(), first_overall_comment text, second_overall_comment text, final_rank_letter text, final_rank_level text, total_evaluation_score integer);
 		create table public.milestones (id bigint primary key, sheet_id bigint, goal_number integer, challenge_goal text, midterm_goal text, achievement text, first_score integer, second_score integer);
 		create table public.common_evaluation_items (id bigint primary key, title text, description text, weight integer, item_set_id smallint);
@@ -49,10 +54,14 @@ beforeAll(async () => {
 	await db.exec(migration("202610070001_reviewer_workspace.sql"));
 	await db.exec(stages);
 	await db.exec(stages);
+	await db.exec(settingsMigration);
+	await db.exec(settingsMigration);
 }, 30_000);
 beforeEach(async () => {
 	await db.exec(`reset role;
 		update auth.users set email_confirmed_at = now();
+		update public.employees set role_id = case when id = 8 then 3 when id in (2, 3) then 2 else 1 end;
+		update public.evaluation_settings set objective_allocation = 20, common_allocation = 80;
 		update public.employees set primary_evaluator_id = 2, secondary_evaluator_id = 3, no_secondary_evaluator = false, grade_id = 1;
 		update public.evaluation_sheets set status = 'submitted', first_rank = null, final_rank_letter = 'A', final_rank_level = 'plus', total_evaluation_score = 80 where id = 100;
 		set role authenticated;`);
@@ -79,9 +88,85 @@ it("returns the entire caseload including missing sheets, draft and finalized; e
 		canViewFinal: true,
 		primaryIsFinal: false,
 		status: "submitted",
+		objectiveAllocation: 20,
+		commonAllocation: 80,
 		secondOverallComment: "二次の根拠",
 	});
 	expect(rows[0].commonItems.map((item) => item.id)).toEqual([21, 22]);
+});
+
+it("lets every signed-in role read settings, and only Admin update them", async () => {
+	for (const employeeId of [1, 2, 3, 8]) {
+		await login(employeeId);
+		expect(
+			(
+				await db.query(
+					"select objective_allocation, common_allocation from public.evaluation_settings",
+				)
+			).rows,
+		).toEqual([{ objective_allocation: 20, common_allocation: 80 }]);
+		const result = await db.query(
+			"update public.evaluation_settings set objective_allocation = 31, common_allocation = 69 returning id",
+		);
+		expect(result.rows).toHaveLength(employeeId === 8 ? 1 : 0);
+	}
+	await login(1);
+	expect(
+		(await db.query("select objective_allocation from public.evaluation_settings")).rows[0],
+	).toEqual({ objective_allocation: 31 });
+	await db.exec("reset role; set role anon");
+	await expect(db.query("select * from public.evaluation_settings")).rejects.toMatchObject({
+		code: "42501",
+	});
+});
+
+it("uses new weights for open sheets but preserves the allocation of finalized sheets", async () => {
+	await login(8);
+	await db.query(
+		"update public.evaluation_settings set objective_allocation = 31, common_allocation = 69",
+	);
+	await login(3);
+	const rows = await workspace();
+	expect(rows.find((row) => row.employeeId === 1)).toMatchObject({
+		objectiveAllocation: 31,
+		commonAllocation: 69,
+	});
+	expect(rows.find((row) => row.employeeId === 5)).toMatchObject({
+		objectiveAllocation: 31,
+		commonAllocation: 69,
+	});
+	expect(rows.find((row) => row.employeeId === 6)).toMatchObject({
+		status: "finalized",
+		objectiveAllocation: 20,
+		commonAllocation: 80,
+		finalScore: 60,
+	});
+});
+
+it("enforces valid weights and does not allow clients to insert, delete or change the singleton id", async () => {
+	await login(8);
+	await expect(
+		db.query(
+			"update public.evaluation_settings set objective_allocation = 30, common_allocation = 80",
+		),
+	).rejects.toMatchObject({ code: "23514" });
+	await expect(
+		db.query(
+			"update public.evaluation_settings set objective_allocation = -1, common_allocation = 101",
+		),
+	).rejects.toMatchObject({ code: "23514" });
+	await expect(db.query("update public.evaluation_settings set id = false")).rejects.toMatchObject({
+		code: "42501",
+	});
+	await expect(db.query("delete from public.evaluation_settings")).rejects.toMatchObject({
+		code: "42501",
+	});
+	await expect(
+		db.query("insert into public.evaluation_settings default values"),
+	).rejects.toMatchObject({ code: "42501" });
+	expect((await db.query("select id from public.evaluation_settings")).rows).toEqual([
+		{ id: true },
+	]);
 });
 it("exposes nothing of a draft to its evaluators", async () => {
 	for (const evaluator of [2, 3]) {

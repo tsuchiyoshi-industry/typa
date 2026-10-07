@@ -3,7 +3,10 @@ import type { EmailNotificationRepository } from "../../domain/repositories/Emai
 import type { EmployeeRepository } from "../../domain/repositories/EmployeeRepository";
 import type { EvaluationSheetRepository } from "../../domain/repositories/EvaluationSheetRepository";
 import { EvaluationSheetAccessPolicy } from "../../domain/services/EvaluationSheetAccessPolicy";
-import { EvaluationStatus } from "../../domain/valueObjects/EvaluationStatus";
+import type {
+	EvaluationStatus,
+	EvaluationStatusValue,
+} from "../../domain/valueObjects/EvaluationStatus";
 import type { EvaluationSheetDto } from "../dtos/EvaluationSheetDto";
 import { toEvaluationSheetDto } from "../dtos/EvaluationSheetMapper";
 import type { OutputPort } from "../ports/OutputPort";
@@ -12,10 +15,10 @@ import type { UseCase } from "../ports/UseCase";
 export interface UpdateEvaluationStatusRequest {
 	sheetId: number;
 	/**
-	 * 進める先の状態。draft: 本人が下書きに戻す / submitted: 本人が提出する /
-	 * first_evaluated: 一次評価者が一次評価を確定する / finalized: 最終評価者が評価を確定する。
+	 * 進める先の状態。下書き: 本人が下書きに戻す / 提出済み: 本人が提出する /
+	 * 一次評価済み: 一次評価者が一次評価を確定する / 評価確定: 最終評価者が評価を確定する。
 	 */
-	status: string;
+	status: EvaluationStatus;
 	currentEmployeeId: number;
 }
 
@@ -104,37 +107,34 @@ export class UpdateEvaluationStatusInteractor
 		}
 	}
 
+	/** 進める先の状態ごとに、その操作をしてよい人かを確かめる。 */
 	private resolveNewStatus(
 		request: UpdateEvaluationStatusRequest,
 		policy: EvaluationSheetAccessPolicy,
 	): EvaluationStatus {
-		switch (request.status) {
-			case "draft":
-				if (!policy.canRevertOwnSheetToDraft()) {
-					throw new Error(
-						"この評価シートを下書きに戻す権限がありません。一次評価の確定後は戻せません。",
-					);
-				}
-				return EvaluationStatus.DRAFT;
-			case "submitted":
-				if (!policy.canSubmitOwnSheet()) {
-					throw new Error("自分の評価シートのみ提出できます。");
-				}
-				return EvaluationStatus.SUBMITTED;
-			case "first_evaluated":
-				if (!policy.canConfirmFirstEvaluation()) {
-					throw new Error("一次評価者のみ、提出済みのシートの一次評価を確定できます。");
-				}
-				return EvaluationStatus.FIRST_EVALUATED;
-			case "finalized":
-				if (!policy.canFinalizeEvaluation()) {
-					throw new Error(
-						"最終評価者(二次評価者。「なし」の場合は一次評価者)のみ、一次評価が確定したシートを確定できます。二次評価者が未設定の場合は、先に社員マスタで設定してください。",
-					);
-				}
-				return EvaluationStatus.FINALIZED;
-			default:
-				throw new Error("評価シートの状態が不正です。");
+		const rules: Record<EvaluationStatusValue, { allowed: boolean; denied: string }> = {
+			draft: {
+				allowed: policy.canRevertOwnSheetToDraft(),
+				denied: "この評価シートを下書きに戻す権限がありません。一次評価の確定後は戻せません。",
+			},
+			submitted: {
+				allowed: policy.canSubmitOwnSheet(),
+				denied: "自分の評価シートのみ提出できます。",
+			},
+			first_evaluated: {
+				allowed: policy.canConfirmFirstEvaluation(),
+				denied: "一次評価者のみ、提出済みのシートの一次評価を確定できます。",
+			},
+			finalized: {
+				allowed: policy.canFinalizeEvaluation(),
+				denied:
+					"最終評価者(二次評価者。「なし」の場合は一次評価者)のみ、一次評価が確定したシートを確定できます。二次評価者が未設定の場合は、先に社員マスタで設定してください。",
+			},
+		};
+		const rule = rules[request.status.toString()];
+		if (!rule.allowed) {
+			throw new Error(rule.denied);
 		}
+		return request.status;
 	}
 }

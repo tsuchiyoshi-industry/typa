@@ -1,3 +1,5 @@
+import type { EvaluationStatusValue } from "../valueObjects/EvaluationStatus";
+
 export interface ReviewObjective {
 	id: number;
 	goalNumber: number;
@@ -37,8 +39,12 @@ export interface ReviewerRow {
 	/** 二次評価者「なし」の社員。一次評価の確定がそのまま評価の確定になる。 */
 	primaryIsFinal: boolean;
 	sheetId: number | null;
-	status: "missing" | "draft" | "submitted" | "first_evaluated" | "finalized";
+	/** シートの状態。missing は、この期間のシートがまだ作られていない。 */
+	status: EvaluationStatusValue | "missing";
 	updatedAt: string | null;
+	/** 評価点の配点。確定済みのシートは確定時の配点、それ以外は現在の設定。 */
+	objectiveAllocation: number;
+	commonAllocation: number;
 	firstOverallComment: string;
 	secondOverallComment: string | null;
 	/** 確定済みのランク。未確定の段階は null で、現在の点数から見込みを出す。 */

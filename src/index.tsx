@@ -6,5 +6,6 @@ import "./adapter/views/styles/dashboard.css";
 import "./adapter/views/styles/master.css";
 import "./adapter/views/styles/map.css";
 import "./adapter/views/styles/review.css";
+import "./adapter/views/styles/pages.css";
 
 render(() => <App />, document.getElementById("root") as HTMLElement);

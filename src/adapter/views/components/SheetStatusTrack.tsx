@@ -1,9 +1,13 @@
 import { Check, FileCheck, ShieldCheck, Undo2 } from "lucide-solid";
 import { type Component, For, Show } from "solid-js";
-import { SHEET_STATUS_ORDER, type SheetStatus, statusHint, statusLabel } from "../format";
+import {
+	EvaluationStatus,
+	type EvaluationStatusValue,
+} from "../../../domain/valueObjects/EvaluationStatus";
+import { statusHint, statusLabel } from "../format";
 
 interface SheetStatusTrackProps {
-	status: string;
+	status: EvaluationStatusValue;
 	/** 二次評価者「なし」の社員は「一次評価済み」の段を通らない。 */
 	primaryIsFinal: boolean;
 	canSubmit: boolean;
@@ -20,11 +24,13 @@ interface SheetStatusTrackProps {
 
 /** 下書き → 提出済み → 一次評価済み → 評価確定 の進行と、いま自分ができる次の操作を示す。 */
 const SheetStatusTrack: Component<SheetStatusTrackProps> = (props) => {
+	const current = () => EvaluationStatus.from(props.status);
 	const steps = () =>
-		SHEET_STATUS_ORDER.filter(
-			(step) => step !== "first_evaluated" || !props.primaryIsFinal || step === props.status,
+		EvaluationStatus.ALL.filter(
+			(step) =>
+				step !== EvaluationStatus.FIRST_EVALUATED || !props.primaryIsFinal || step === current(),
 		);
-	const currentRank = () => steps().indexOf(props.status as SheetStatus);
+	const currentRank = () => steps().indexOf(current());
 
 	return (
 		<div class="status-track">
@@ -44,7 +50,7 @@ const SheetStatusTrack: Component<SheetStatusTrackProps> = (props) => {
 									<Check size={12} />
 								</Show>
 							</span>
-							{statusLabel(step)}
+							{statusLabel(step.toString())}
 						</li>
 					)}
 				</For>

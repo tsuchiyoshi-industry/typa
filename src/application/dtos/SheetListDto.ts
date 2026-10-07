@@ -1,8 +1,9 @@
+import type { EvaluationStatusValue } from "../../domain/valueObjects/EvaluationStatus";
 export interface SheetSummaryDto {
 	id: number;
 	periodId: number;
 	employeeId: number;
-	status: string;
+	status: EvaluationStatusValue;
 	/** List rows do not resolve per-sheet secondary permissions. Do not expose a derived score. */
 	totalScore: null;
 	createdAt: string;

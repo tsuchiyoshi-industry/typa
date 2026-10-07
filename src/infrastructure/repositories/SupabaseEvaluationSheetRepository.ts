@@ -3,12 +3,14 @@ import { EvaluationSheet } from "../../domain/entities/EvaluationSheet";
 import { Milestone } from "../../domain/entities/Milestone";
 import type { CommonEvaluationRepository } from "../../domain/repositories/CommonEvaluationRepository";
 import type { EmployeeRepository } from "../../domain/repositories/EmployeeRepository";
+import type { EvaluationSettingsRepository } from "../../domain/repositories/EvaluationSettingsRepository";
 import type {
 	EvaluationSheetExportData,
 	EvaluationSheetRepository,
 	EvaluationSheetSummary,
 } from "../../domain/repositories/EvaluationSheetRepository";
 import { EvaluationAllocatedScores } from "../../domain/valueObjects/EvaluationAllocatedScores";
+import { EvaluationAllocation } from "../../domain/valueObjects/EvaluationAllocation";
 import { EvaluationRank } from "../../domain/valueObjects/EvaluationRank";
 import { EvaluationScoreTotals } from "../../domain/valueObjects/EvaluationScoreTotals";
 import { EvaluationStatus } from "../../domain/valueObjects/EvaluationStatus";
@@ -65,7 +67,7 @@ function toSheetSummary(item: EvaluationSheetListRow): EvaluationSheetSummary {
 		id: item.id,
 		periodId: item.period_id,
 		employeeId: item.employee_id,
-		status: item.status,
+		status: EvaluationStatus.from(item.status),
 		totalScore: item.total_score,
 		createdAt: item.created_at,
 		updatedAt: item.updated_at,
@@ -82,7 +84,23 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 	constructor(
 		private readonly employeeRepository: EmployeeRepository,
 		private readonly commonEvaluationRepository: CommonEvaluationRepository,
+		private readonly settingsRepository: EvaluationSettingsRepository,
 	) {}
+
+	/**
+	 * 確定済みのシートは確定時の配点を使い、後から設定を変えても確定した評価点と食い違わないようにする。
+	 * それ以外は現在の設定で計算する。
+	 */
+	private async allocationFor(
+		status: EvaluationStatus,
+		sheet: { objective_allocation?: number | null; common_allocation?: number | null },
+	): Promise<EvaluationAllocation> {
+		return status.isFinalized() &&
+			sheet.objective_allocation != null &&
+			sheet.common_allocation != null
+			? EvaluationAllocation.of(sheet.objective_allocation, sheet.common_allocation)
+			: this.settingsRepository.findAllocation();
+	}
 
 	async createOrGetSheet(periodId: number, employeeId: number): Promise<number> {
 		const { data, error } = await supabase
@@ -134,6 +152,8 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 			final_rank_letter?: string | null;
 			final_rank_level?: string | null;
 			first_rank?: string | null;
+			objective_allocation?: number | null;
+			common_allocation?: number | null;
 			created_at: string;
 			updated_at: string;
 		};
@@ -198,6 +218,9 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 			employee.gradeId ?? null,
 		);
 
+		// DB の文字列は、ここで一度だけ状態に変換する
+		const status = EvaluationStatus.from(sheet.status);
+		const allocation = await this.allocationFor(status, sheet);
 		const hasObjectiveTotals = [
 			sheet.objectives_first_total_score,
 			sheet.objectives_first_total_rate,
@@ -215,22 +238,28 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 			sheet.common_evaluation_second_evaluation_score,
 			sheet.total_evaluation_score,
 		].some((value) => value != null);
-		const objectiveScoreTotals = hasObjectiveTotals
-			? EvaluationScoreTotals.fromValues({
-					firstTotalScore: sheet.objectives_first_total_score,
-					firstTotalRate: sheet.objectives_first_total_rate,
-					secondTotalScore: sheet.objectives_second_total_score,
-					secondTotalRate: sheet.objectives_second_total_rate,
-				})
-			: undefined;
-		const commonEvaluationScoreTotals = hasCommonEvaluationTotals
-			? EvaluationScoreTotals.fromValues({
-					firstTotalScore: sheet.common_evaluation_first_total_score,
-					firstTotalRate: sheet.common_evaluation_first_total_rate,
-					secondTotalScore: sheet.common_evaluation_second_total_score,
-					secondTotalRate: sheet.common_evaluation_second_total_rate,
-				})
-			: undefined;
+		// 保存されている合計と得点率は、点数を保存したときの項目・満点で計算したもの。等級や項目が
+		// 変わると実際の点数と食い違うので、確定済みのシートだけがそれを使う(満点は渡さず、保存時の
+		// 得点率で換算する)。未確定のシートは、いまの目標・共通評価の点数から計算し直す。
+		const finalized = status.isFinalized();
+		const objectiveScoreTotals =
+			finalized && hasObjectiveTotals
+				? EvaluationScoreTotals.fromValues({
+						firstTotalScore: sheet.objectives_first_total_score,
+						firstTotalRate: sheet.objectives_first_total_rate,
+						secondTotalScore: sheet.objectives_second_total_score,
+						secondTotalRate: sheet.objectives_second_total_rate,
+					})
+				: undefined;
+		const commonEvaluationScoreTotals =
+			finalized && hasCommonEvaluationTotals
+				? EvaluationScoreTotals.fromValues({
+						firstTotalScore: sheet.common_evaluation_first_total_score,
+						firstTotalRate: sheet.common_evaluation_first_total_rate,
+						secondTotalScore: sheet.common_evaluation_second_total_score,
+						secondTotalRate: sheet.common_evaluation_second_total_rate,
+					})
+				: undefined;
 
 		return EvaluationSheet.create({
 			sheetId: sheet.id,
@@ -247,16 +276,18 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 			// 未確定のシートは、今の評価者設定(二次評価者「なし」かどうか)から算出し直す。
 			// 確定済みは確定時の保存値を使い、その後の評価者の付け替えに左右されないようにする。
 			allocatedScores:
-				hasAllocatedScores && sheet.status === "finalized"
+				hasAllocatedScores && finalized
 					? EvaluationAllocatedScores.fromValues({
 							objectiveSecondRate: sheet.objectives_second_total_rate,
 							objectiveEvaluationScore: sheet.objectives_second_evaluation_score,
 							commonEvaluationSecondRate: sheet.common_evaluation_second_total_rate,
 							commonEvaluationEvaluationScore: sheet.common_evaluation_second_evaluation_score,
 							totalEvaluationScore: sheet.total_evaluation_score,
+							allocation,
 						})
 					: undefined,
-			status: EvaluationStatus.from(sheet.status),
+			allocation,
+			status,
 			finalEvaluationRank: EvaluationRank.fromOptional(
 				sheet.final_rank_letter,
 				sheet.final_rank_level,
@@ -295,6 +326,9 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 			payload.common_evaluation_second_evaluation_score =
 				totals.allocatedScores.commonEvaluationEvaluationScore;
 			payload.total_evaluation_score = totals.allocatedScores.totalEvaluationScore;
+			// この評価点を計算したときの配点。確定後はこの値を使い続ける
+			payload.objective_allocation = totals.allocatedScores.objectiveAllocationScore;
+			payload.common_allocation = totals.allocatedScores.commonEvaluationAllocationScore;
 		}
 
 		if (Object.keys(payload).length === 0) {
@@ -401,6 +435,8 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 				total_evaluation_score,
 				final_rank_letter,
 				final_rank_level,
+				objective_allocation,
+				common_allocation,
 				period:evaluation_periods!inner(period_name, start_date, end_date),
 				employee:employees!inner(name, employee_no, career_course, grade_id, primary_evaluator_id, secondary_evaluator_id)
 			`,
@@ -427,6 +463,8 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 			total_evaluation_score?: number | null;
 			final_rank_letter?: string | null;
 			final_rank_level?: string | null;
+			objective_allocation?: number | null;
+			common_allocation?: number | null;
 			period: PeriodJoinRow | PeriodJoinRow[];
 			employee: (EmployeeJoinRow & {
 				career_course: string | null;
@@ -499,28 +537,30 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 		const commonEvaluationTotals = EvaluationScoreTotals.fromCommonEvaluationResults(
 			commonEvaluationSummary.results,
 		);
+		const status = EvaluationStatus.from(sheet.status);
+		const allocation = await this.allocationFor(status, sheet);
 		// findById と同じく、確定済みは保存値、未確定は今の評価者設定から算出する
-		const allocatedScores =
-			sheet.status === "finalized"
-				? EvaluationAllocatedScores.fromValues({
-						objectiveSecondRate:
-							sheet.objectives_second_total_rate ?? objectiveTotals.secondTotalRate,
-						objectiveEvaluationScore: sheet.objectives_second_evaluation_score,
-						commonEvaluationSecondRate:
-							sheet.common_evaluation_second_total_rate ?? commonEvaluationTotals.secondTotalRate,
-						commonEvaluationEvaluationScore: sheet.common_evaluation_second_evaluation_score,
-						totalEvaluationScore: sheet.total_evaluation_score,
-					})
-				: EvaluationAllocatedScores.fromTotals(
-						objectiveTotals,
-						commonEvaluationTotals,
-						primaryIsFinal,
-					);
+		const allocatedScores = status.isFinalized()
+			? EvaluationAllocatedScores.fromValues({
+					objectiveSecondRate:
+						sheet.objectives_second_total_rate ?? objectiveTotals.secondTotalRate,
+					objectiveEvaluationScore: sheet.objectives_second_evaluation_score,
+					commonEvaluationSecondRate:
+						sheet.common_evaluation_second_total_rate ?? commonEvaluationTotals.secondTotalRate,
+					commonEvaluationEvaluationScore: sheet.common_evaluation_second_evaluation_score,
+					totalEvaluationScore: sheet.total_evaluation_score,
+					allocation,
+				})
+			: EvaluationAllocatedScores.fromTotals(
+					objectiveTotals,
+					commonEvaluationTotals,
+					primaryIsFinal,
+					allocation,
+				);
 		// 確定前は、手入力されていた過去のランクが残っていても出力しない
-		const finalEvaluationRank =
-			sheet.status === "finalized"
-				? EvaluationRank.fromOptional(sheet.final_rank_letter, sheet.final_rank_level)
-				: undefined;
+		const finalEvaluationRank = status.isFinalized()
+			? EvaluationRank.fromOptional(sheet.final_rank_letter, sheet.final_rank_level)
+			: undefined;
 
 		return {
 			sheetId: sheet.id,
@@ -534,7 +574,7 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 			primaryEvaluator: evaluatorNames.primaryEvaluator,
 			secondaryEvaluator: evaluatorNames.secondaryEvaluator,
 			primaryIsFinalEvaluator: primaryIsFinal,
-			status: sheet.status,
+			status: status.toString(),
 			totalScore: sheet.total_score,
 			finalEvaluationRank: finalEvaluationRank?.toDisplayText() ?? "",
 			objectiveAllocationScore: allocatedScores.objectiveAllocationScore,

@@ -1,10 +1,5 @@
+import { EvaluationAllocation } from "./EvaluationAllocation";
 import type { EvaluationScoreTotals } from "./EvaluationScoreTotals";
-
-export const OBJECTIVE_EVALUATION_ALLOCATION_SCORE = 20;
-export const COMMON_EVALUATION_ALLOCATION_SCORE = 80;
-/** 評価点の満点。評価ランクはこの満点に対する得点率で決まる。 */
-export const TOTAL_EVALUATION_ALLOCATION_SCORE =
-	OBJECTIVE_EVALUATION_ALLOCATION_SCORE + COMMON_EVALUATION_ALLOCATION_SCORE;
 
 export class EvaluationAllocatedScores {
 	private constructor(
@@ -25,11 +20,14 @@ export class EvaluationAllocatedScores {
 	 * 最終評価の獲得率から評価点を出す。最終評価は二次評価で、
 	 * 二次評価者「なし」の社員(primaryIsFinal)は一次評価をそのまま(100%)使う。
 	 * SecondRate と付く値は「最終評価に使った獲得率」を指す。
+	 * チャレンジ目標は「点数の合計 ÷ (目標数 × 4)」、共通評価は「点数の合計 ÷ 配点の合計」が獲得率で、
+	 * それぞれに allocation の配点を掛ける。等級によって共通評価の項目数が違っても、配点は同じになる。
 	 */
 	static fromTotals(
 		objectiveScoreTotals: EvaluationScoreTotals,
 		commonEvaluationScoreTotals: EvaluationScoreTotals,
 		primaryIsFinal = false,
+		allocation = EvaluationAllocation.DEFAULT,
 	): EvaluationAllocatedScores {
 		const objectiveRate = primaryIsFinal
 			? objectiveScoreTotals.firstTotalRate
@@ -37,33 +35,36 @@ export class EvaluationAllocatedScores {
 		const commonEvaluationRate = primaryIsFinal
 			? commonEvaluationScoreTotals.firstTotalRate
 			: commonEvaluationScoreTotals.secondTotalRate;
-		const objectiveEvaluationScore = EvaluationAllocatedScores.toEvaluationScore(
-			OBJECTIVE_EVALUATION_ALLOCATION_SCORE,
-			objectiveRate,
+		const objectiveEvaluationScore = objectiveScoreTotals.scoreFor(
+			allocation.objective,
+			primaryIsFinal,
 		);
-		const commonEvaluationEvaluationScore = EvaluationAllocatedScores.toEvaluationScore(
-			COMMON_EVALUATION_ALLOCATION_SCORE,
-			commonEvaluationRate,
+		const commonEvaluationEvaluationScore = commonEvaluationScoreTotals.scoreFor(
+			allocation.common,
+			primaryIsFinal,
 		);
 
 		return new EvaluationAllocatedScores(
-			OBJECTIVE_EVALUATION_ALLOCATION_SCORE,
+			allocation.objective,
 			objectiveRate,
 			objectiveEvaluationScore,
-			COMMON_EVALUATION_ALLOCATION_SCORE,
+			allocation.common,
 			commonEvaluationRate,
 			commonEvaluationEvaluationScore,
 			objectiveEvaluationScore + commonEvaluationEvaluationScore,
 		);
 	}
 
+	/** 保存済みの値から復元する。allocation は、その値を計算したときの配点。 */
 	static fromValues(params: {
 		objectiveSecondRate?: number | null;
 		objectiveEvaluationScore?: number | null;
 		commonEvaluationSecondRate?: number | null;
 		commonEvaluationEvaluationScore?: number | null;
 		totalEvaluationScore?: number | null;
+		allocation?: EvaluationAllocation;
 	}): EvaluationAllocatedScores {
+		const allocation = params.allocation ?? EvaluationAllocation.DEFAULT;
 		const objectiveSecondRate = EvaluationAllocatedScores.toNonNegativeInteger(
 			params.objectiveSecondRate,
 		);
@@ -72,34 +73,24 @@ export class EvaluationAllocatedScores {
 		);
 		const objectiveEvaluationScore =
 			params.objectiveEvaluationScore == null
-				? EvaluationAllocatedScores.toEvaluationScore(
-						OBJECTIVE_EVALUATION_ALLOCATION_SCORE,
-						objectiveSecondRate,
-					)
+				? EvaluationAllocation.toScore(allocation.objective, objectiveSecondRate)
 				: EvaluationAllocatedScores.toNonNegativeInteger(params.objectiveEvaluationScore);
 		const commonEvaluationEvaluationScore =
 			params.commonEvaluationEvaluationScore == null
-				? EvaluationAllocatedScores.toEvaluationScore(
-						COMMON_EVALUATION_ALLOCATION_SCORE,
-						commonEvaluationSecondRate,
-					)
+				? EvaluationAllocation.toScore(allocation.common, commonEvaluationSecondRate)
 				: EvaluationAllocatedScores.toNonNegativeInteger(params.commonEvaluationEvaluationScore);
 
 		return new EvaluationAllocatedScores(
-			OBJECTIVE_EVALUATION_ALLOCATION_SCORE,
+			allocation.objective,
 			objectiveSecondRate,
 			objectiveEvaluationScore,
-			COMMON_EVALUATION_ALLOCATION_SCORE,
+			allocation.common,
 			commonEvaluationSecondRate,
 			commonEvaluationEvaluationScore,
 			params.totalEvaluationScore == null
 				? objectiveEvaluationScore + commonEvaluationEvaluationScore
 				: EvaluationAllocatedScores.toNonNegativeInteger(params.totalEvaluationScore),
 		);
-	}
-
-	private static toEvaluationScore(allocationScore: number, rate: number): number {
-		return Math.round((allocationScore * rate) / 100);
 	}
 
 	private static toNonNegativeInteger(value?: number | null): number {

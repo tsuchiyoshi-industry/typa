@@ -18,6 +18,8 @@ export function reviewerRow(id = 1, overrides: Partial<ReviewerRowDto> = {}): Re
 		sheetId: 100 + id,
 		status: "first_evaluated",
 		updatedAt: "2026-10-07T01:00:00Z",
+		objectiveAllocation: 20,
+		commonAllocation: 80,
 		firstOverallComment: "一次評価の根拠",
 		secondOverallComment: "二次評価の根拠",
 		firstRank: "B-",

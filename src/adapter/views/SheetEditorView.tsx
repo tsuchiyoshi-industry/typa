@@ -12,7 +12,7 @@ import {
 } from "solid-js";
 import type { EvaluationRankDto } from "../../application/dtos/EvaluationSheetDto";
 import type { SheetSummaryDto } from "../../application/dtos/SheetListDto";
-import type { EvaluationStatusValue } from "../../domain/valueObjects/EvaluationStatus";
+import { EvaluationStatus } from "../../domain/valueObjects/EvaluationStatus";
 import type { ChallengeEvaluationController } from "../controllers/ChallengeEvaluationController";
 import type { CommonEvaluationController } from "../controllers/CommonEvaluationController";
 import type { SheetEditorController } from "../controllers/SheetEditorController";
@@ -205,7 +205,7 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 		return false;
 	};
 
-	const changeStatus = async (status: EvaluationStatusValue, doneMessage: string) => {
+	const changeStatus = async (status: EvaluationStatus, doneMessage: string) => {
 		const success = await props.controller.updateStatus(status);
 		if (success) {
 			showToast("success", doneMessage);
@@ -230,7 +230,7 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 			confirmLabel: "提出する",
 		});
 		if (confirmed) {
-			await changeStatus("submitted", "評価シートを提出しました");
+			await changeStatus(EvaluationStatus.SUBMITTED, "評価シートを提出しました");
 		}
 	};
 
@@ -245,7 +245,7 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 			confirmLabel: "下書きに戻す",
 		});
 		if (confirmed) {
-			await changeStatus("draft", "下書きに戻しました");
+			await changeStatus(EvaluationStatus.DRAFT, "下書きに戻しました");
 		}
 	};
 
@@ -259,7 +259,10 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 			confirmLabel: "一次評価を確定する",
 			tone: "danger",
 		});
-		if (confirmed && (await changeStatus("first_evaluated", "一次評価を確定しました"))) {
+		if (
+			confirmed &&
+			(await changeStatus(EvaluationStatus.FIRST_EVALUATED, "一次評価を確定しました"))
+		) {
 			props.onStageCompleted?.();
 		}
 	};
@@ -274,7 +277,7 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 			confirmLabel: "評価を確定する",
 			tone: "danger",
 		});
-		if (confirmed && (await changeStatus("finalized", "評価を確定しました"))) {
+		if (confirmed && (await changeStatus(EvaluationStatus.FINALIZED, "評価を確定しました"))) {
 			props.onStageCompleted?.();
 		}
 	};
@@ -540,7 +543,7 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 				</div>
 				<Show when={!isNew() && sheet()}>
 					<SheetStatusTrack
-						status={sheet()?.status ?? "draft"}
+						status={sheet()?.status ?? EvaluationStatus.DRAFT.toString()}
 						primaryIsFinal={sheet()?.primaryIsFinalEvaluator ?? false}
 						canSubmit={viewModel().canSubmitOwnSheet}
 						canRevert={viewModel().canRevertOwnSheetToDraft}

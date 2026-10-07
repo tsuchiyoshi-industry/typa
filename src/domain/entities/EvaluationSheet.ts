@@ -1,7 +1,5 @@
-import {
-	EvaluationAllocatedScores,
-	TOTAL_EVALUATION_ALLOCATION_SCORE,
-} from "../valueObjects/EvaluationAllocatedScores";
+import { EvaluationAllocatedScores } from "../valueObjects/EvaluationAllocatedScores";
+import { EvaluationAllocation } from "../valueObjects/EvaluationAllocation";
 import { EvaluationRank } from "../valueObjects/EvaluationRank";
 import { EvaluationScoreTotals } from "../valueObjects/EvaluationScoreTotals";
 import { EvaluationStatus } from "../valueObjects/EvaluationStatus";
@@ -28,6 +26,8 @@ export class EvaluationSheet {
 		/** 確定時に保存したランク。未確定の段階では undefined、または過去の手入力値が残っていることがある。 */
 		public readonly finalEvaluationRank?: EvaluationRank,
 		public readonly firstEvaluationRank?: EvaluationRank,
+		/** 評価点の配点。確定済みのシートは確定時の配点、それ以外は現在の設定。 */
+		public readonly allocation: EvaluationAllocation = EvaluationAllocation.DEFAULT,
 	) {}
 
 	static create(params: {
@@ -46,6 +46,7 @@ export class EvaluationSheet {
 		status?: EvaluationStatus;
 		finalEvaluationRank?: EvaluationRank;
 		firstEvaluationRank?: EvaluationRank;
+		allocation?: EvaluationAllocation;
 	}): EvaluationSheet {
 		const commonEvaluationResults = params.commonEvaluationResults ?? [];
 		const objectiveScoreTotals =
@@ -70,10 +71,12 @@ export class EvaluationSheet {
 					objectiveScoreTotals,
 					commonEvaluationScoreTotals,
 					params.subject.primaryIsFinalEvaluator(),
+					params.allocation,
 				),
 			params.status ?? EvaluationStatus.DRAFT,
 			params.finalEvaluationRank,
 			params.firstEvaluationRank,
+			params.allocation,
 		);
 	}
 
@@ -82,12 +85,13 @@ export class EvaluationSheet {
 		return this.subject.primaryIsFinalEvaluator();
 	}
 
-	/** 一次評価の評価点(目標20点 + 共通評価80点)。 */
+	/** 一次評価の評価点(チャレンジ目標と共通評価の得点率に、それぞれの配点を掛けた合計)。 */
 	firstEvaluationScore(): number {
 		return EvaluationAllocatedScores.fromTotals(
 			this.objectiveScoreTotals,
 			this.commonEvaluationScoreTotals,
 			true,
+			this.allocation,
 		).totalEvaluationScore;
 	}
 
@@ -95,7 +99,7 @@ export class EvaluationSheet {
 	resolveFirstEvaluationRank(): EvaluationRank {
 		return (
 			(this.status.isFirstEvaluationConfirmed() ? this.firstEvaluationRank : undefined) ??
-			EvaluationRank.fromScore(this.firstEvaluationScore(), TOTAL_EVALUATION_ALLOCATION_SCORE)
+			EvaluationRank.fromScore(this.firstEvaluationScore(), EvaluationAllocation.TOTAL)
 		);
 	}
 
@@ -105,7 +109,7 @@ export class EvaluationSheet {
 			(this.status.isFinalized() ? this.finalEvaluationRank : undefined) ??
 			EvaluationRank.fromScore(
 				this.allocatedScores.totalEvaluationScore,
-				TOTAL_EVALUATION_ALLOCATION_SCORE,
+				EvaluationAllocation.TOTAL,
 			)
 		);
 	}

@@ -4,10 +4,16 @@ import type { SheetEditorController } from "../adapter/controllers/SheetEditorCo
 import { createChallengeEvaluationPresenter } from "../adapter/presenters/ChallengeEvaluationPresenter";
 import { createCommonEvaluationPresenter } from "../adapter/presenters/CommonEvaluationPresenter";
 import { createSheetEditorPresenter } from "../adapter/presenters/SheetEditorPresenter";
-import { finalScore, reviewRank, reviewScore } from "../adapter/viewmodels/reviewerWorkspace";
+import {
+	finalScore,
+	reviewRank,
+	reviewScore,
+	sheetStatus,
+} from "../adapter/viewmodels/reviewerWorkspace";
 import type { SheetEditorViewProps } from "../adapter/views/SheetEditorView";
 import type { EvaluationSheetDto } from "../application/dtos/EvaluationSheetDto";
 import type { ReviewerRowDto } from "../application/dtos/ReviewerWorkspaceDto";
+import { EvaluationStatus } from "../domain/valueObjects/EvaluationStatus";
 
 /** Real editor/presenters, a deterministic in-memory transport for UI verification. */
 export function reviewerEditorFixture(
@@ -75,7 +81,7 @@ export function reviewerEditorFixture(
 			commonEvaluationEvaluationScore: 64,
 			totalEvaluationScore: finalScore(row),
 		},
-		status: row.status,
+		status: EvaluationStatus.from(row.status).toString(),
 		isEditable: false,
 		firstEvaluationRank: {
 			displayText: reviewRank(row, "first")?.text ?? "D",
@@ -86,7 +92,7 @@ export function reviewerEditorFixture(
 			? {
 					displayText: reviewRank(row, "final")?.text ?? "D",
 					score: finalScore(row) ?? 0,
-					confirmed: row.status === "finalized",
+					confirmed: !!sheetStatus(row)?.isFinalized(),
 				}
 			: undefined,
 	});
@@ -94,10 +100,11 @@ export function reviewerEditorFixture(
 		changed?.();
 	};
 	const canConfirmFirst = (row: ReviewerRowDto) =>
-		row.isPrimary && !row.primaryIsFinal && row.status === "submitted";
+		row.isPrimary && !row.primaryIsFinal && !!sheetStatus(row)?.isAwaitingFirstEvaluation();
 	const canFinalize = (row: ReviewerRowDto) =>
 		row.canViewFinal &&
-		(row.status === "first_evaluated" || (row.primaryIsFinal && row.status === "submitted"));
+		(!!sheetStatus(row)?.isAwaitingSecondEvaluation() ||
+			(row.primaryIsFinal && !!sheetStatus(row)?.isAwaitingFirstEvaluation()));
 	const controller = {
 		async loadSheet(id: number, silent = false) {
 			presenter.beginSheetLoad(silent);
@@ -108,8 +115,8 @@ export function reviewerEditorFixture(
 			const row = find(id);
 			presenter.outputPort.role.present({
 				isSubject: false,
-				canEditFirst: row.isPrimary && row.status === "submitted",
-				canEditSecond: row.canViewSecond && row.status === "first_evaluated",
+				canEditFirst: row.isPrimary && !!sheetStatus(row)?.isAwaitingFirstEvaluation(),
+				canEditSecond: row.canViewSecond && !!sheetStatus(row)?.isAwaitingSecondEvaluation(),
 				canEditMilestoneGoal: false,
 				canViewCommonEvaluation: true,
 				canViewSecondEvaluation: row.canViewSecond,
@@ -130,15 +137,15 @@ export function reviewerEditorFixture(
 			presenter.outputPort.sheet.present(dto(row));
 			return true;
 		},
-		async updateStatus(status: string) {
+		async updateStatus(status: EvaluationStatus) {
 			const row = find(presenter.viewModel().sheet?.sheetId as number);
-			if (status === "first_evaluated" && canConfirmFirst(row)) {
+			if (status === EvaluationStatus.FIRST_EVALUATED && canConfirmFirst(row)) {
 				row.firstRank = reviewRank(row, "first")?.text ?? null;
-				row.status = "first_evaluated";
-			} else if (status === "finalized" && canFinalize(row)) {
+				row.status = status.toString();
+			} else if (status === EvaluationStatus.FINALIZED && canFinalize(row)) {
 				row.finalRank = reviewRank(row, "final")?.text ?? null;
 				row.finalScore = finalScore(row);
-				row.status = "finalized";
+				row.status = status.toString();
 			} else {
 				return false;
 			}

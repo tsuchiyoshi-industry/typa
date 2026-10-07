@@ -1,6 +1,7 @@
 import type { EvaluationSheetRepository } from "../../domain/repositories/EvaluationSheetRepository";
 import type { EvaluationScoreUpdateService } from "../../domain/services/EvaluationScoreUpdateService";
 import { EvaluationSheetAccessPolicy } from "../../domain/services/EvaluationSheetAccessPolicy";
+import { Score } from "../../domain/valueObjects/Score";
 import type { OutputPort } from "../ports/OutputPort";
 import type { UseCase } from "../ports/UseCase";
 
@@ -64,7 +65,8 @@ export class UpsertCommonEvaluationInteractor
 				scores.push(result.secondScore);
 			}
 			for (const score of scores) {
-				if (!Number.isInteger(score) || score < 0 || score > existing.item.weight) {
+				// 評価は 0(未評価)〜4。配点は係数で、点数の上限ではない
+				if (!Number.isInteger(score) || score < 0 || score > Score.MAX) {
 					throw new Error("共通評価の評価点が範囲外です。");
 				}
 			}

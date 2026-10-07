@@ -1,20 +1,27 @@
 import type { ReviewerRowDto } from "../../application/dtos/ReviewerWorkspaceDto";
-import { TOTAL_EVALUATION_ALLOCATION_SCORE } from "../../domain/valueObjects/EvaluationAllocatedScores";
+import { EvaluationAllocation } from "../../domain/valueObjects/EvaluationAllocation";
 import { EvaluationRank } from "../../domain/valueObjects/EvaluationRank";
+import { EvaluationStatus } from "../../domain/valueObjects/EvaluationStatus";
+import { Score } from "../../domain/valueObjects/Score";
 
 /** いま誰の番か。first / second は自分が評価して確定する番、waiting は本人か相手の評価者の番。 */
 export type ReviewTask = "first" | "second" | "waiting" | "finalized";
 export type ReviewFilter = "all" | ReviewTask;
 export type ReviewSort = "priority" | "name" | "firstScore" | "finalScore" | "gap";
 
+/** シートの状態。この期間のシートがまだ無ければ undefined。 */
+export const sheetStatus = (row: ReviewerRowDto): EvaluationStatus | undefined =>
+	EvaluationStatus.find(row.status);
+
 export function reviewTask(row: ReviewerRowDto): ReviewTask {
-	if (row.status === "finalized") {
+	const status = sheetStatus(row);
+	if (status?.isFinalized()) {
 		return "finalized";
 	}
-	if (row.status === "submitted" && row.isPrimary) {
+	if (status?.isAwaitingFirstEvaluation() && row.isPrimary) {
 		return "first";
 	}
-	if (row.status === "first_evaluated" && row.canViewFinal) {
+	if (status?.isAwaitingSecondEvaluation() && row.canViewFinal) {
 		return "second";
 	}
 	return "waiting";
@@ -25,30 +32,35 @@ export const isMyTurn = (row: ReviewerRowDto): boolean =>
 
 /** 評価者は提出済みのシートだけを開ける。下書きは内容が届かない。 */
 export const canOpen = (row: ReviewerRowDto): boolean =>
-	row.sheetId !== null && row.status !== "draft";
+	row.sheetId !== null && !!sheetStatus(row)?.isSubmitted();
 
 export const reviewLabel = (row: ReviewerRowDto): string => {
-	switch (row.status) {
-		case "missing":
-			return "未作成";
-		case "draft":
-			return "提出待ち";
-		case "submitted":
-			return row.isPrimary ? (row.primaryIsFinal ? "評価する" : "一次評価する") : "一次評価待ち";
-		case "first_evaluated":
-			return row.canViewFinal ? "二次評価する" : "二次評価待ち";
-		default:
-			return "評価確定";
+	const status = sheetStatus(row);
+	if (!status) {
+		return "未作成";
 	}
+	if (status.isDraft()) {
+		return "提出待ち";
+	}
+	if (status.isAwaitingFirstEvaluation()) {
+		return row.isPrimary ? (row.primaryIsFinal ? "評価する" : "一次評価する") : "一次評価待ち";
+	}
+	if (status.isAwaitingSecondEvaluation()) {
+		return row.canViewFinal ? "二次評価する" : "二次評価待ち";
+	}
+	return "評価確定";
 };
 
 /** 最終評価(二次評価。「なし」の社員は一次評価)が始まっているか。始まる前の点数は意味を持たない。 */
-const finalEvaluationStarted = (row: ReviewerRowDto): boolean =>
-	row.status === "first_evaluated" ||
-	row.status === "finalized" ||
-	(row.primaryIsFinal && row.status === "submitted");
+const finalEvaluationStarted = (row: ReviewerRowDto): boolean => {
+	const status = sheetStatus(row);
+	return (
+		!!status?.isFirstEvaluationConfirmed() ||
+		(row.primaryIsFinal && !!status?.isAwaitingFirstEvaluation())
+	);
+};
 
-/** Match the sheet's 20/80 allocation and rounding. Zero is a valid score, never a completion marker. */
+/** Match the sheet's allocation and rounding. Zero is a valid score, never a completion marker. */
 export function reviewScore(row: ReviewerRowDto, stage: "first" | "second"): number | null {
 	if (
 		!canOpen(row) ||
@@ -57,27 +69,27 @@ export function reviewScore(row: ReviewerRowDto, stage: "first" | "second"): num
 		return null;
 	}
 	const scoreKey = stage === "first" ? "firstScore" : "secondScore";
-	const objectiveRate = row.objectives.length
-		? Math.round(
-				(row.objectives.reduce((sum, item) => sum + (item[scoreKey] ?? 0), 0) /
-					(row.objectives.length * 4)) *
-					100,
-			)
-		: 0;
+	const objectiveTotal = row.objectives.reduce((sum, item) => sum + (item[scoreKey] ?? 0), 0);
+	// 共通評価の配点は係数。得点は「配点 × 評価」、満点は「配点 × 4」
 	const weight = row.commonItems.reduce((sum, item) => sum + item.weight, 0);
-	const commonRate = weight
-		? Math.round(
-				(row.commonItems.reduce((sum, item) => sum + (item[scoreKey] ?? 0), 0) / weight) * 100,
-			)
-		: 0;
-	return Math.round((20 * objectiveRate) / 100) + Math.round((80 * commonRate) / 100);
+	const commonTotal = row.commonItems.reduce(
+		(sum, item) => sum + item.weight * (item[scoreKey] ?? 0),
+		0,
+	);
+	return (
+		EvaluationAllocation.fromTotal(
+			row.objectiveAllocation,
+			objectiveTotal,
+			row.objectives.length * Score.MAX,
+		) + EvaluationAllocation.fromTotal(row.commonAllocation, commonTotal, weight * Score.MAX)
+	);
 }
 
 export function finalScore(row: ReviewerRowDto): number | null {
 	if (!row.canViewFinal || !canOpen(row) || !finalEvaluationStarted(row)) {
 		return null;
 	}
-	return row.status === "finalized" && row.finalScore !== null
+	return sheetStatus(row)?.isFinalized() && row.finalScore !== null
 		? row.finalScore
 		: reviewScore(row, row.canViewSecond ? "second" : "first");
 }
@@ -98,7 +110,7 @@ export function reviewRank(
 	return score === null
 		? null
 		: {
-				text: EvaluationRank.fromScore(score, TOTAL_EVALUATION_ALLOCATION_SCORE).toDisplayText(),
+				text: EvaluationRank.fromScore(score, EvaluationAllocation.TOTAL).toDisplayText(),
 				confirmed: false,
 			};
 }

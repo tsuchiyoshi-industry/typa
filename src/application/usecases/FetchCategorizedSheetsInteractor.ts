@@ -23,7 +23,7 @@ function toSheetSummaryDto(summary: EvaluationSheetSummary): SheetSummaryDto {
 		id: summary.id,
 		periodId: summary.periodId,
 		employeeId: summary.employeeId,
-		status: summary.status,
+		status: summary.status.toString(),
 		totalScore: null,
 		createdAt: summary.createdAt,
 		updatedAt: summary.updatedAt,
@@ -77,7 +77,7 @@ export class FetchCategorizedSheetsInteractor
 			mySheets: mySheets.map(toSheetSummaryDto),
 			// 下書き中のシートは評価者に見せない
 			subordinateSheets: subordinateSheets
-				.filter((summary) => summary.status !== "draft")
+				.filter((summary) => !summary.status.isDraft())
 				.map(toSheetSummaryDto),
 		});
 	}

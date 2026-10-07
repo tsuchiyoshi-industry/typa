@@ -1,3 +1,4 @@
+import type { EvaluationStatusValue } from "../../domain/valueObjects/EvaluationStatus";
 import type { EmployeeDto } from "./EmployeeDto";
 import type { EvaluationPeriodDto } from "./EvaluationPeriodDto";
 import type { MilestoneDto } from "./MilestoneDto";
@@ -40,7 +41,7 @@ export interface EvaluationSheetDto {
 	objectiveScoreTotals: EvaluationScoreTotalsDto;
 	commonEvaluationScoreTotals: EvaluationScoreTotalsDto;
 	allocatedScores: EvaluationAllocatedScoresDto;
-	status: string;
+	status: EvaluationStatusValue;
 	isEditable: boolean;
 	/** 評価者にだけ見せる。本人には渡さない。 */
 	firstEvaluationRank?: EvaluationRankDto;

@@ -15,14 +15,15 @@ const submittedToPrimary = { status: "submitted", isPrimary: true, firstRank: nu
 
 it("uses the exact 20/80 allocation, rounding and primary-as-final rule", () => {
 	const row = reviewerRow();
-	expect(reviewScore(row, "first")).toBe(58);
-	expect(reviewScore(row, "second")).toBe(79);
-	expect(finalScore(row)).toBe(79);
+	// 一次: 20 × 2/4 + 80 × (5×3)/(5×4) = 70。二次: 20 × 3/4 + 80 × (5×4)/(5×4) = 95
+	expect(reviewScore(row, "first")).toBe(70);
+	expect(reviewScore(row, "second")).toBe(95);
+	expect(finalScore(row)).toBe(95);
 	expect(
 		finalScore(
 			reviewerRow(1, { ...submittedToPrimary, canViewSecond: false, primaryIsFinal: true }),
 		),
-	).toBe(58);
+	).toBe(70);
 	expect(finalScore(reviewerRow(1, { status: "finalized", finalScore: 83 }))).toBe(83);
 	expect(finalScore(reviewerRow(1, { canViewFinal: false }))).toBeNull();
 	expect(reviewScore(reviewerRow(1, { canViewSecond: false }), "second")).toBeNull();
@@ -34,14 +35,14 @@ it("shows no score for a draft, and no final score before the final evaluation s
 	expect(reviewScore(draft, "first")).toBeNull();
 	expect(reviewRank(draft, "first")).toBeNull();
 	const waitingForPrimary = reviewerRow(1, { status: "submitted", firstRank: null });
-	expect(reviewScore(waitingForPrimary, "first")).toBe(58);
+	expect(reviewScore(waitingForPrimary, "first")).toBe(70);
 	expect(reviewScore(waitingForPrimary, "second")).toBeNull();
 	expect(finalScore(waitingForPrimary)).toBeNull();
 	expect(reviewRank(waitingForPrimary, "final")).toBeNull();
 });
 it("derives a provisional rank from the score and prefers the confirmed rank", () => {
 	expect(reviewRank(reviewerRow(1, submittedToPrimary), "first")).toEqual({
-		text: "B-",
+		text: "B",
 		confirmed: false,
 	});
 	// 確定後は保存値。配点が変わっても、確定した時点のランクのまま
@@ -49,7 +50,7 @@ it("derives a provisional rank from the score and prefers the confirmed rank", (
 		text: "A",
 		confirmed: true,
 	});
-	expect(reviewRank(reviewerRow(), "final")).toEqual({ text: "B", confirmed: false });
+	expect(reviewRank(reviewerRow(), "final")).toEqual({ text: "S", confirmed: false });
 	expect(
 		reviewRank(reviewerRow(1, { status: "finalized", finalRank: "B+", finalScore: 81 }), "final"),
 	).toEqual({ text: "B+", confirmed: true });

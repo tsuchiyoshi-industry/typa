@@ -53,8 +53,9 @@ export const commonResult = () =>
 		id: 21,
 		sheetId: 100,
 		itemId: 31,
+		// 配点 5 の項目を、一次 3・二次 4(満点)で評価。得点は 15 / 20 と 20 / 20
 		firstScore: 3,
-		secondScore: 5,
+		secondScore: 4,
 		firstComment: "一次コメント",
 		item: new CommonEvaluationItem(31, "共通項目", "説明", 5, 5),
 	});
@@ -130,10 +131,10 @@ export function commonRepository() {
 			.fn<CommonEvaluationRepository["findResultsBySheetId"]>()
 			.mockResolvedValue({
 				results: [commonResult()],
-				totalFirstScore: 3,
-				totalSecondScore: 5,
+				totalFirstScore: 15,
+				totalSecondScore: 20,
 				totalWeight: 5,
-				firstRate: 60,
+				firstRate: 75,
 				secondRate: 100,
 			}),
 		createResultsForSheet: vi

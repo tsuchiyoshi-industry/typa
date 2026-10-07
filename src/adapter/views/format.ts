@@ -1,23 +1,18 @@
-export type SheetStatus = "draft" | "submitted" | "first_evaluated" | "finalized";
+import {
+	EvaluationStatus,
+	type EvaluationStatusValue,
+} from "../../domain/valueObjects/EvaluationStatus";
 
-/** 進行順。一覧の並び替えと進行トラックの両方で使う。 */
-export const SHEET_STATUS_ORDER: readonly SheetStatus[] = [
-	"draft",
-	"submitted",
-	"first_evaluated",
-	"finalized",
-];
-
-const STATUS_LABELS: Record<string, string> = {
+const STATUS_LABELS: Record<EvaluationStatusValue, string> = {
 	draft: "下書き",
 	submitted: "提出済み",
 	first_evaluated: "一次評価済み",
 	finalized: "評価確定",
 };
 
-export const statusLabel = (status: string): string => STATUS_LABELS[status] ?? status;
+export const statusLabel = (status: EvaluationStatusValue): string => STATUS_LABELS[status];
 
-const STATUS_HINTS: Record<string, string> = {
+const STATUS_HINTS: Record<EvaluationStatusValue, string> = {
 	draft: "本人が編集中です。提出するまで評価者には表示されません。",
 	submitted: "一次評価者の評価を待っています。",
 	first_evaluated: "一次評価が確定しました。二次評価者の評価を待っています。",
@@ -25,10 +20,11 @@ const STATUS_HINTS: Record<string, string> = {
 };
 
 /** いまの状態で「誰の番か」を一文で示す。 */
-export const statusHint = (status: string): string => STATUS_HINTS[status] ?? "";
+export const statusHint = (status: EvaluationStatusValue): string => STATUS_HINTS[status];
 
-export const statusRank = (status: string): number =>
-	SHEET_STATUS_ORDER.indexOf(status as SheetStatus);
+/** 進行順での位置。一覧の並び替えに使う。 */
+export const statusRank = (status: EvaluationStatusValue): number =>
+	EvaluationStatus.from(status).order();
 
 const dateTimeFormat = new Intl.DateTimeFormat("ja-JP", {
 	year: "numeric",

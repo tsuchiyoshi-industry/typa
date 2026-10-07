@@ -2,6 +2,7 @@ import { Check, SquarePen, X } from "lucide-solid";
 import { type Component, createEffect, createMemo, createSignal, For, Show } from "solid-js";
 import type { EmployeeDto } from "../../../application/dtos/EmployeeDto";
 import type { MilestoneDto } from "../../../application/dtos/MilestoneDto";
+import { Score } from "../../../domain/valueObjects/Score";
 import type { ChallengeEvaluationController } from "../../controllers/ChallengeEvaluationController";
 import type { ChallengeEvaluationViewModel } from "../../presenters/ChallengeEvaluationPresenter";
 import { confirmDiscard, showToast, trackUnsaved } from "../feedback";
@@ -21,7 +22,7 @@ interface ChallengeEvaluationViewProps {
 	onSavingChange?: (saving: boolean) => void;
 }
 
-const MAX_SCORE = 4;
+const MAX_SCORE = Score.MAX;
 
 const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props) => {
 	const [activeTab, setActiveTab] = createSignal<number>(

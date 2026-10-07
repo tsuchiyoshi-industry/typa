@@ -25,6 +25,11 @@ export function canEditRoles(role: EmployeeRole): boolean {
 	return resolveEmployeeMasterMode(role) === "admin";
 }
 
+/** 評価の基準(配点など)を決める「設定」は Admin だけが変更できる。 */
+export function canEditSettings(role: EmployeeRole): boolean {
+	return resolveEmployeeMasterMode(role) === "admin";
+}
+
 /** 登録の取り消し(ログイン用アカウントの削除)は Admin だけが行える。 */
 export function canResetRegistrations(role: EmployeeRole): boolean {
 	return resolveEmployeeMasterMode(role) === "admin";

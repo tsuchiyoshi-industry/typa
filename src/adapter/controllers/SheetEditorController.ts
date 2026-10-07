@@ -27,7 +27,7 @@ import type {
 	UpdateOverallCommentOutputPort,
 } from "../../application/usecases/UpdateOverallCommentInteractor";
 import type { EmployeeRepository } from "../../domain/repositories/EmployeeRepository";
-import type { EvaluationStatusValue } from "../../domain/valueObjects/EvaluationStatus";
+import type { EvaluationStatus } from "../../domain/valueObjects/EvaluationStatus";
 import type { SheetEditorViewModel } from "../presenters/SheetEditorPresenter";
 
 export class SheetEditorController {
@@ -202,8 +202,8 @@ export class SheetEditorController {
 		}
 	}
 
-	/** status: 進める先の状態(draft / submitted / first_evaluated / finalized)。 */
-	async updateStatus(status: EvaluationStatusValue): Promise<boolean> {
+	/** status: 進める先の状態。 */
+	async updateStatus(status: EvaluationStatus): Promise<boolean> {
 		const { sheet } = this.presenter.viewModel();
 		if (!sheet?.sheetId) {
 			this.presenter.presentStatusUpdateError(

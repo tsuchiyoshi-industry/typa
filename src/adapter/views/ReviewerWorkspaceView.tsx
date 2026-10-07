@@ -35,6 +35,7 @@ import {
 	reviewRank,
 	reviewScore,
 	reviewTask,
+	sheetStatus,
 } from "../viewmodels/reviewerWorkspace";
 import { clearUnsavedChanges, confirmDiscard, hasUnsavedChanges, showToast } from "./feedback";
 import { formatDateTime } from "./format";
@@ -51,7 +52,7 @@ const Badge: Component<{ row: ReviewerRowDto }> = (props) => (
 		class="review-badge"
 		classList={{
 			action: isMyTurn(props.row),
-			done: props.row.status === "finalized",
+			done: reviewTask(props.row) === "finalized",
 			waiting: reviewTask(props.row) === "waiting",
 		}}
 	>
@@ -890,13 +891,19 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 														次の自分の番へ <ArrowRight size={16} />
 													</button>
 												</div>
-												<Show when={row().status === "submitted" && !row().isPrimary}>
+												<Show
+													when={sheetStatus(row())?.isAwaitingFirstEvaluation() && !row().isPrimary}
+												>
 													<p class="review-notice muted">
 														一次評価者（{row().primaryEvaluator}
 														）が一次評価を確定すると、二次評価を入力できるようになります。
 													</p>
 												</Show>
-												<Show when={row().status === "first_evaluated" && !row().canViewFinal}>
+												<Show
+													when={
+														sheetStatus(row())?.isAwaitingSecondEvaluation() && !row().canViewFinal
+													}
+												>
 													<p class="review-notice muted">
 														一次評価は確定済みです。二次評価者の確定を待っています。
 													</p>
@@ -945,7 +952,7 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 						<Show when={visible().length} fallback={<Empty />}>
 							<Show when={mode() === "compare"} fallback={<SummaryTable people={visible()} />}>
 								<p class="review-comparison-help">
-									評価点は目標20点＋共通評価80点で換算。詳細は一覧で最大6人を選択して比較できます。
+									評価点は「設定」の配点（チャレンジ目標＋共通評価で100点）で換算。詳細は一覧で最大6人を選択して比較できます。
 								</p>
 								<Show
 									when={groups().length}

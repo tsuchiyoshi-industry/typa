@@ -1,0 +1,268 @@
+/* 設定・ヘルプ: 説明を読むページの共通スタイル */
+.settings-page,
+.help-page {
+	display: grid;
+	gap: 20px;
+	max-width: 920px;
+	width: 100%;
+	min-width: 0;
+}
+
+.allocation-saved {
+	color: var(--hr-text-muted);
+	font-variant-numeric: tabular-nums;
+}
+.allocation-dirty {
+	margin-left: 0.75rem;
+	padding: 0.2rem 0.5rem;
+	border-radius: 999px;
+	background: var(--hr-accent-muted);
+	color: var(--hr-text);
+	font-size: 0.7rem;
+}
+.allocation-preview {
+	display: flex;
+	height: 10px;
+	margin-top: 1rem;
+	border-radius: 999px;
+	overflow: hidden;
+	background: var(--hr-border);
+}
+.allocation-preview-objective {
+	background: var(--hr-accent-hover);
+}
+.allocation-preview-common {
+	background: var(--hr-text-muted);
+}
+
+.info-card {
+	padding: 22px 24px;
+	border: 1px solid var(--hr-border);
+	border-radius: 12px;
+	background: var(--hr-surface);
+	scroll-margin-top: 5rem;
+}
+.info-card h2 {
+	margin: 0 0 0.6rem;
+	font-size: 1.05rem;
+	font-weight: 650;
+}
+.info-card h3 {
+	margin: 1.4rem 0 0.5rem;
+	font-size: 0.875rem;
+	font-weight: 600;
+}
+.info-card p,
+.info-card li {
+	font-size: 0.875rem;
+	line-height: 1.75;
+}
+.info-card p {
+	margin: 0.5rem 0 0;
+}
+.info-card ul {
+	margin: 0.5rem 0 0;
+	padding-left: 1.25rem;
+}
+.info-card a {
+	color: var(--hr-accent-hover);
+	text-decoration: underline;
+}
+
+/* 配点の入力: チャレンジ目標 ＋ 共通評価 ＝ 100 点 */
+.allocation-form {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-end;
+	gap: 0.9rem;
+	margin-top: 1rem;
+}
+.allocation-form label {
+	display: grid;
+	gap: 0.35rem;
+	font-size: 0.78rem;
+	color: var(--hr-text-muted);
+}
+.allocation-input {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4rem;
+	font-size: 0.875rem;
+	color: var(--hr-text);
+}
+.allocation-input input {
+	width: 6rem;
+	min-height: 2.5rem;
+	padding: 0.4rem 0.6rem;
+	border: 1px solid var(--hr-border-strong);
+	border-radius: var(--hr-radius-sm);
+	background: var(--hr-bg-elevated);
+	color: var(--hr-text);
+	font-size: 1.1rem;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+	text-align: right;
+}
+.allocation-input input:focus {
+	outline: none;
+	border-color: var(--hr-accent);
+	box-shadow: 0 0 0 3px var(--hr-accent-muted);
+}
+.allocation-plus,
+.allocation-total {
+	padding-bottom: 0.55rem;
+	font-size: 1rem;
+	font-weight: 600;
+}
+.allocation-total.invalid {
+	color: var(--hr-danger-text);
+}
+
+.allocation-rules {
+	display: grid;
+	gap: 0.75rem;
+	margin: 0.75rem 0 0;
+}
+.allocation-rules > div {
+	padding: 0.8rem 1rem;
+	border: 1px solid var(--hr-border);
+	border-radius: var(--hr-radius-sm);
+	background: var(--hr-bg-elevated);
+}
+.allocation-rules dt {
+	font-size: 0.8rem;
+	font-weight: 600;
+}
+.allocation-rules dd {
+	margin: 0.25rem 0 0;
+	font-size: 0.84rem;
+	line-height: 1.7;
+}
+.allocation-rules small {
+	display: block;
+	margin-top: 0.3rem;
+	font-size: 0.76rem;
+	color: var(--hr-text-muted);
+	font-variant-numeric: tabular-nums;
+}
+.allocation-note {
+	color: var(--hr-text-muted);
+}
+.settings-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 0.6rem;
+	margin-top: 1.4rem;
+}
+
+/* ヘルプ */
+.help-toc {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+}
+.help-toc a {
+	padding: 0.35rem 0.75rem;
+	border: 1px solid var(--hr-border);
+	border-radius: 999px;
+	background: var(--hr-surface);
+	font-size: 0.78rem;
+	color: var(--hr-text);
+}
+.help-toc a:hover {
+	border-color: var(--hr-accent);
+	background: var(--hr-accent-muted);
+}
+.help-stages {
+	display: grid;
+	gap: 0.6rem;
+	margin: 0.9rem 0 0;
+	padding: 0;
+	list-style: none;
+}
+.help-stages li {
+	display: grid;
+	grid-template-columns: 1.9rem 1fr;
+	gap: 0.8rem;
+	padding: 0.8rem 1rem;
+	border: 1px solid var(--hr-border);
+	border-radius: var(--hr-radius-sm);
+	background: var(--hr-bg-elevated);
+}
+.help-stage-number {
+	display: grid;
+	place-items: center;
+	width: 1.9rem;
+	height: 1.9rem;
+	border-radius: 50%;
+	background: var(--hr-accent-hover);
+	color: #fff;
+	font-size: 0.8rem;
+	font-weight: 600;
+}
+.help-stage-actor {
+	margin-left: 0.75rem;
+	font-size: 0.74rem;
+	color: var(--hr-text-muted);
+}
+.help-stages p {
+	margin: 0.2rem 0 0;
+	font-size: 0.84rem;
+}
+.help-table {
+	width: 100%;
+	margin-top: 0.75rem;
+	border-collapse: collapse;
+	font-size: 0.84rem;
+}
+.help-table th,
+.help-table td {
+	padding: 0.6rem 0.75rem;
+	border-bottom: 1px solid var(--hr-border);
+	text-align: left;
+	vertical-align: top;
+	line-height: 1.65;
+}
+.help-table thead th {
+	font-size: 0.74rem;
+	font-weight: 500;
+	color: var(--hr-text-muted);
+	background: var(--hr-bg-elevated);
+}
+.help-table tbody th {
+	font-weight: 600;
+	white-space: nowrap;
+}
+.help-rank-table {
+	max-width: 22rem;
+}
+
+@media (max-width: 600px) {
+	.info-card {
+		padding: 18px 16px;
+	}
+	.allocation-input input {
+		width: 5rem;
+	}
+	.allocation-form {
+		gap: 0.6rem;
+	}
+	.allocation-total {
+		width: 100%;
+		text-align: right;
+	}
+	.help-stage-actor {
+		display: block;
+		margin-left: 0;
+	}
+	.help-stages li {
+		padding: 0.75rem;
+		gap: 0.6rem;
+	}
+	.help-table {
+		min-width: 28rem;
+	}
+	.help-rank-table {
+		min-width: 0;
+	}
+}

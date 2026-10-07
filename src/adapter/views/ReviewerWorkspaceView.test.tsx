@@ -193,7 +193,7 @@ it("finalizes after confirmation and advances to the reviewer's next turn", asyn
 	fireEvent.click(action);
 	// ランクは選ばせず、点数から決まった結果を確定前に見せる
 	const dialog = await view.findByRole("dialog");
-	expect(dialog.textContent).toContain("最終評価ランクは B（79 点 / 100 点）");
+	expect(dialog.textContent).toContain("最終評価ランクは S（95 点 / 100 点）");
 	fireEvent.click(within(dialog).getByRole("button", { name: "評価を確定する" }));
 	await waitFor(() => expect(view.history.get()).toContain("sheet=103"));
 	const sidebar = view.getByRole("complementary", { name: "受け持ち一覧" });
@@ -208,7 +208,7 @@ it("confirms the primary evaluation with a notice that the secondary evaluator i
 	);
 	fireEvent.click(await view.findByRole("button", { name: "一次評価を確定する" }));
 	const dialog = await view.findByRole("dialog");
-	expect(dialog.textContent).toContain("一次評価ランクは B-（58 点 / 100 点）");
+	expect(dialog.textContent).toContain("一次評価ランクは B（70 点 / 100 点）");
 	expect(dialog.textContent).toContain("二次評価者（徳永 優）に通知メールを送ります");
 	fireEvent.click(within(dialog).getByRole("button", { name: "一次評価を確定する" }));
 	const sidebar = view.getByRole("complementary", { name: "受け持ち一覧" });

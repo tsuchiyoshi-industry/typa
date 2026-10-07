@@ -73,14 +73,14 @@ describe("authorization matrix", () => {
 					id === 2 && (evaluating || status === EvaluationStatus.FIRST_EVALUATED),
 				);
 				expect(policy.canExportSecondEvaluation()).toBe(id === 2);
-				// 一次評価 (目標50% → 10点、共通60% → 48点) がそのまま最終評価になる
-				expect(withoutSecondary.allocatedScores.totalEvaluationScore).toBe(58);
+				// 一次評価 (目標50% → 10点、共通75% → 60点) がそのまま最終評価になる
+				expect(withoutSecondary.allocatedScores.totalEvaluationScore).toBe(70);
 				if (id === 1 || (id === 2 && !draft)) {
 					const dto = toEvaluationSheetDto(withoutSecondary, "等級", policy);
-					expect(dto.allocatedScores.totalEvaluationScore).toBe(id === 2 ? 58 : null);
+					expect(dto.allocatedScores.totalEvaluationScore).toBe(id === 2 ? 70 : null);
 					// 評価ランクは評価者にだけ見せる。本人には渡さない
-					expect(dto.finalEvaluationRank?.displayText).toBe(id === 2 ? "B-" : undefined);
-					expect(dto.firstEvaluationRank?.displayText).toBe(id === 2 ? "B-" : undefined);
+					expect(dto.finalEvaluationRank?.displayText).toBe(id === 2 ? "B" : undefined);
+					expect(dto.firstEvaluationRank?.displayText).toBe(id === 2 ? "B" : undefined);
 				}
 			},
 		);

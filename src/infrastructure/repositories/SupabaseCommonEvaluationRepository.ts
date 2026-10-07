@@ -188,15 +188,14 @@ export class SupabaseCommonEvaluationRepository implements CommonEvaluationRepos
 			});
 		});
 
-		const totalFirstScore = results.reduce((sum, r) => sum + r.firstScore.toNumber(), 0);
-		const totalSecondScore = results.reduce((sum, r) => sum + r.secondScore.toNumber(), 0);
 		const totalWeight = results.reduce((sum, r) => sum + r.item.weight, 0);
+		// 合計は「配点 × 評価」の合計。満点は totalWeight × 4
 		const totals = EvaluationScoreTotals.fromCommonEvaluationResults(results);
 
 		return {
 			results,
-			totalFirstScore,
-			totalSecondScore,
+			totalFirstScore: totals.firstTotalScore,
+			totalSecondScore: totals.secondTotalScore,
 			totalWeight,
 			firstRate: totals.firstTotalRate,
 			secondRate: totals.secondTotalRate,

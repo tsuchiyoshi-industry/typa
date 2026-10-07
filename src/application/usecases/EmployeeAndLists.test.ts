@@ -231,7 +231,7 @@ describe("lists and permission queries", () => {
 				id: 100,
 				periodId: 10,
 				employeeId: 1,
-				status: "draft",
+				status: EvaluationStatus.SUBMITTED,
 				totalScore: 0,
 				createdAt: "created",
 				updatedAt: "updated",

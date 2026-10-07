@@ -8,35 +8,31 @@ import {
 	watchSystemTheme,
 } from "../theme";
 
-const ThemeToggleButton: Component = () => {
+/** ユーザーメニューの中に置くテーマ切替。押してもメニューは閉じず、切り替わった様子をその場で見られる。 */
+const ThemeMenuItem: Component = () => {
 	const [preference, setPreference] = createSignal(getStoredThemePreference());
 	const [systemTick, setSystemTick] = createSignal(0);
 
 	const stopWatching = watchSystemTheme(() => setSystemTick((tick) => tick + 1));
 	onCleanup(stopWatching);
 
-	const effectiveTheme = createMemo(() => {
+	const isDark = createMemo(() => {
 		systemTick();
-		return resolveEffectiveTheme(preference());
+		return resolveEffectiveTheme(preference()) === "dark";
 	});
 
 	const toggle = () => {
-		const next = effectiveTheme() === "dark" ? "light" : "dark";
+		const next = isDark() ? "light" : "dark";
 		applyThemePreference(next);
 		setPreference(next);
 	};
 
 	return (
-		<button
-			type="button"
-			class="theme-toggle-button"
-			onClick={toggle}
-			aria-label={effectiveTheme() === "dark" ? "ライトテーマに切り替え" : "ダークテーマに切り替え"}
-			title={effectiveTheme() === "dark" ? "ライトテーマに切り替え" : "ダークテーマに切り替え"}
-		>
-			{effectiveTheme() === "dark" ? <Moon size={18} /> : <Sun size={18} />}
+		<button type="button" class="user-menu-item" onClick={toggle}>
+			{isDark() ? <Sun size={18} /> : <Moon size={18} />}
+			<span>{isDark() ? "ライトテーマにする" : "ダークテーマにする"}</span>
 		</button>
 	);
 };
 
-export default ThemeToggleButton;
+export default ThemeMenuItem;

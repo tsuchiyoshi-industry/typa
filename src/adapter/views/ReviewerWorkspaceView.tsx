@@ -210,7 +210,7 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 				setError(
 					reason instanceof Error
 						? reason.message
-						: ((reason as { message?: string })?.message ?? "受け持ちを読み込めませんでした。"),
+						: ((reason as { message?: string })?.message ?? "部下の一覧を読み込めませんでした。"),
 				);
 			}
 			return null;
@@ -332,7 +332,7 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 		<div class="review-filters">
 			<label class="review-search">
 				<Search size={16} />
-				<span class="visually-hidden">受け持ちを検索</span>
+				<span class="visually-hidden">部下を検索</span>
 				<input
 					type="search"
 					placeholder="氏名・社員番号・一次評価者で検索"
@@ -381,7 +381,7 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 	const Empty = () => (
 		<div class="review-empty">
 			<ListFilter size={28} />
-			<h2>{rows().length ? "条件に合う対象者がいません" : "この期間の受け持ちはありません"}</h2>
+			<h2>{rows().length ? "条件に合う対象者がいません" : "この期間に評価する部下はいません"}</h2>
 			<p>
 				{rows().length
 					? "検索や絞り込み条件を変えてください。"
@@ -465,7 +465,7 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 									<button
 										type="button"
 										class="review-evaluator-label"
-										aria-label={`一次評価者 ${row.primaryEvaluator}の受け持ちで絞り込む`}
+										aria-label={`一次評価者 ${row.primaryEvaluator}の部下で絞り込む`}
 										onClick={(event) => {
 											event.stopPropagation();
 											setPrimaryEvaluator(String(row.primaryEvaluatorId ?? "unassigned"));
@@ -657,7 +657,7 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 			<header class="review-heading">
 				<div>
 					<span class="review-eyebrow">REVIEW WORKSPACE</span>
-					<h1>受け持ちの評価</h1>
+					<h1>部下の評価</h1>
 				</div>
 				<div class="review-heading-actions">
 					<label class="review-period">
@@ -680,7 +680,7 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 					<button
 						type="button"
 						class="review-icon-button"
-						aria-label="受け持ちを再読み込み"
+						aria-label="部下の一覧を再読み込み"
 						title="再読み込み"
 						disabled={mutationBusy()}
 						onClick={() => void refresh()}
@@ -695,14 +695,14 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 					<div>
 						<Users size={18} />
 						<span>
-							受け持ち <strong>{rows().length}</strong> 人
+							部下 <strong>{rows().length}</strong> 人
 						</span>
 						<span class="review-progress-count">
 							評価確定 <strong>{count("finalized")}</strong> / {rows().length}
 						</span>
 					</div>
 					<progress
-						aria-label="受け持ちの評価確定の進捗"
+						aria-label="部下の評価確定の進捗"
 						value={count("finalized")}
 						max={Math.max(1, rows().length)}
 					/>
@@ -773,7 +773,7 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 				when={!loading()}
 				fallback={
 					<div class="review-empty" role="status">
-						受け持ちを読み込んでいます…
+						部下の一覧を読み込んでいます…
 					</div>
 				}
 			>
@@ -784,7 +784,7 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 							<Users size={14} />
 							<span>一次評価者</span>
 							<strong>{label().name}</strong>
-							<span>の受け持ちを表示</span>
+							<span>の部下を表示</span>
 							<button
 								type="button"
 								aria-label="一次評価者の絞り込みを解除"
@@ -807,7 +807,7 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 						when={mode() !== "evaluate"}
 						fallback={
 							<div class="review-split">
-								<aside class="review-caseload" aria-label="受け持ち一覧">
+								<aside class="review-caseload" aria-label="部下の一覧">
 									<header>
 										<strong>対象者</strong>
 										<span>{visible().length} 人</span>

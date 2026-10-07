@@ -13,7 +13,7 @@ const SECTIONS = [
 	["roles", "誰が何をできるか"],
 	["score", "評価点の計算"],
 	["rank", "評価ランク"],
-	["review", "受け持ちの評価"],
+	["review", "部下の評価"],
 	["pdf", "PDF 出力と通知メール"],
 	["master", "社員マスタと権限"],
 	["account", "ログインと登録"],
@@ -119,7 +119,7 @@ const HelpView: Component<HelpViewProps> = (props) => {
 					二次評価者が「なし」の社員は、一次評価者が最終評価者を兼ねます。「一次評価済み」は通らず、一次評価者の確定がそのまま評価確定になります。
 				</p>
 				<p>
-					評価シートは「新規作成」で評価期間を選んで作ります。一覧の「作成時の等級」は、シートを作った時点の等級です。その後に等級が変わっても変わりません。
+					評価シートは、評価シート一覧の「新規作成」で評価期間を選んで作ります。一覧の「作成時の等級」は、シートを作った時点の等級です。その後に等級が変わっても変わりません。
 				</p>
 			</section>
 
@@ -180,7 +180,8 @@ const HelpView: Component<HelpViewProps> = (props) => {
 					<p>
 						評価点は {EvaluationAllocation.TOTAL} 点満点で、チャレンジ目標に{" "}
 						<strong>{objective()} 点</strong>、共通評価に <strong>{common()} 点</strong>
-						を割り振っています。この配点は Admin が「設定」で変更できます。
+						を割り振っています。この配点は Admin
+						が、右上のユーザーメニューにある「設定」で変更できます。
 					</p>
 				</Show>
 				<dl class="allocation-rules">
@@ -258,10 +259,10 @@ const HelpView: Component<HelpViewProps> = (props) => {
 			</section>
 
 			<section class="info-card" id="help-review">
-				<h2>受け持ちの評価</h2>
+				<h2>部下の評価</h2>
 				<p>
 					評価者は「
-					<A href="/review">受け持ちの評価</A>
+					<A href="/review">部下の評価</A>
 					」で、自分が一次・二次評価者になっている社員をまとめて見られます。
 				</p>
 				<ul>
@@ -272,7 +273,7 @@ const HelpView: Component<HelpViewProps> = (props) => {
 						行のどこを押しても評価シートが開きます。まだ提出されていない社員の行は開けません。
 					</li>
 					<li>
-						氏名・社員番号の検索に加え、等級や一次評価者で絞り込めます。二次評価者は、一次評価者をラベルとして受け持ちを整理できます。
+						氏名・社員番号の検索に加え、等級や一次評価者で絞り込めます。二次評価者は、一次評価者ごとに部下を整理できます。
 					</li>
 					<li>
 						評価を入力したら、シートの最後にあるバーから確定します。確定すると、次の「自分の番」のシートへ進みます。

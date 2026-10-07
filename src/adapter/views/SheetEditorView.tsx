@@ -570,7 +570,7 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 					href={`/review?period=${sheet()?.evaluationPeriod?.id}&sheet=${sheetId()}&mode=evaluate`}
 				>
 					<Users size={16} />
-					受け持ち一覧を残して評価する
+					部下の一覧を見ながら評価する
 				</A>
 			</Show>
 			<header class="sheet-header">

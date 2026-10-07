@@ -29,14 +29,6 @@ export class SupabaseAuthRepository implements AuthRepository {
 		return () => subscription.unsubscribe();
 	}
 
-	async getCurrentEmployeeNo(): Promise<string | null> {
-		const {
-			data: { user },
-		} = await supabase.auth.getUser();
-
-		return (user?.user_metadata?.employee_no as string | undefined) ?? null;
-	}
-
 	async signInWithPassword(
 		employeeNo: string,
 		password: string,

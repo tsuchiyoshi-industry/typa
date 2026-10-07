@@ -272,10 +272,10 @@ const SheetListView: Component<SheetListViewProps> = (props) => {
 							<A
 								href="/review"
 								class="section-nav-link"
-								title="受け持ち全体の進み具合を見て、自分の番から評価を進めます"
+								title="部下全員の進み具合を見て、自分の番から評価を進めます"
 							>
 								<ClipboardCheck size={16} />
-								受け持ちの評価
+								部下の評価へ
 							</A>
 						}
 					/>

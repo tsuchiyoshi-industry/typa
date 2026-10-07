@@ -14,7 +14,6 @@ export type SignUpResult =
 export interface AuthRepository {
 	getSession(): Promise<AuthSession | null>;
 	onAuthStateChange(callback: (session: AuthSession | null) => void): () => void;
-	getCurrentEmployeeNo(): Promise<string | null>;
 	signInWithPassword(
 		employeeNo: string,
 		password: string,

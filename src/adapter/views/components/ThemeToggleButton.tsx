@@ -1,4 +1,5 @@
-import { Moon, Sun } from "lucide-solid";
+import Moon from "lucide-solid/icons/moon";
+import Sun from "lucide-solid/icons/sun";
 import { type Component, createMemo, createSignal, onCleanup } from "solid-js";
 import {
 	applyThemePreference,

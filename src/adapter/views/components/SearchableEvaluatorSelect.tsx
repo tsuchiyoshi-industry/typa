@@ -1,4 +1,6 @@
-import { Check, ChevronDown, Search } from "lucide-solid";
+import Check from "lucide-solid/icons/check";
+import ChevronDown from "lucide-solid/icons/chevron-down";
+import Search from "lucide-solid/icons/search";
 import {
 	type Component,
 	createEffect,

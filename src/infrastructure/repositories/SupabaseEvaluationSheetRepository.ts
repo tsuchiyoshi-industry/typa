@@ -197,21 +197,22 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 			.eq("sheet_id", sheet.id)
 			.order("goal_number", { ascending: true });
 
+		if (milestoneError) {
+			throw milestoneError;
+		}
 		const objectives =
-			(milestoneError || !milestonesData ? [] : (milestonesData as MilestoneRow[]))
-				.slice(0, 2)
-				.map((item) =>
-					Milestone.create({
-						id: item.id,
-						sheetId: item.sheet_id,
-						goalNumber: item.goal_number,
-						challengeGoal: item.challenge_goal ?? "",
-						midtermGoal: item.midterm_goal ?? "",
-						achievement: item.achievement ?? "",
-						firstScore: item.first_score ?? 0,
-						secondScore: item.second_score ?? 0,
-					}),
-				) ?? [];
+			((milestonesData ?? []) as MilestoneRow[]).slice(0, 2).map((item) =>
+				Milestone.create({
+					id: item.id,
+					sheetId: item.sheet_id,
+					goalNumber: item.goal_number,
+					challengeGoal: item.challenge_goal ?? "",
+					midtermGoal: item.midterm_goal ?? "",
+					achievement: item.achievement ?? "",
+					firstScore: item.first_score ?? 0,
+					secondScore: item.second_score ?? 0,
+				}),
+			) ?? [];
 
 		const results = await this.commonEvaluationRepository.findResultsBySheetId(
 			sheet.id,

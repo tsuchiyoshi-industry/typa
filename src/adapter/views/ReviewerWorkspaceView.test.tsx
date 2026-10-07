@@ -240,6 +240,41 @@ it("blocks finalization of unsaved comments without losing the draft", async () 
 	expect(view.queryByRole("dialog")).toBeNull();
 	expect((textarea as HTMLTextAreaElement).value).toBe("書きかけの判断");
 });
+
+it.each([
+	{
+		label: "primary",
+		overrides: submittedToPrimary,
+		scoreKey: "firstScore",
+		button: "一次評価を確定する",
+	},
+	{ label: "secondary", overrides: {}, scoreKey: "secondScore", button: "二次評価を確定する" },
+	{
+		label: "primary final",
+		overrides: { ...submittedToPrimary, primaryIsFinal: true, canViewSecond: false },
+		scoreKey: "firstScore",
+		button: "評価を確定する",
+	},
+] as const)(
+	"shows missing own items and blocks $label confirmation before opening a dialog",
+	async ({ overrides, scoreKey, button }) => {
+		const row = reviewerRow(1, overrides);
+		row.objectives = row.objectives.map((item) => ({ ...item, [scoreKey]: 0 }));
+		row.commonItems = row.commonItems.map((item) => ({ ...item, [scoreKey]: 0 }));
+		const view = setup([row], "/review?period=10&sheet=101&mode=evaluate");
+		await view.findByText("自分の評価: あと 2 件");
+		fireEvent.click(view.getByRole("button", { name: button }));
+		expect(view.queryByRole("dialog")).toBeNull();
+		const notice = view
+			.getAllByRole("alert")
+			.find((element) => element.classList.contains("evaluation-completion"));
+		expect(notice?.textContent).toContain("チャレンジ目標 1");
+		expect(notice?.textContent).toContain("共通評価「業務遂行」");
+		expect(notice?.querySelector<HTMLDetailsElement>("details")?.open).toBe(true);
+		expect(row.status).not.toBe("finalized");
+		expect(view.history.get()).toContain("sheet=101");
+	},
+);
 it("preserves an editor draft when a refresh reloads the caseload", async () => {
 	const view = setup([reviewerRow(1), reviewerRow(2)], "/review?period=10&sheet=101&mode=evaluate");
 	const textarea = await view.findByRole("textbox", { name: "二次評価者の総評" });
@@ -249,6 +284,26 @@ it("preserves an editor draft when a refresh reloads the caseload", async () => 
 	expect(
 		(view.getByRole("textbox", { name: "二次評価者の総評" }) as HTMLTextAreaElement).value,
 	).toBe("残したい下書き");
+});
+
+it("allows confirmation after the remaining common evaluation is set and saved", async () => {
+	const row = reviewerRow(1);
+	row.commonItems[0].secondScore = 0;
+	const view = setup([row], "/review?period=10&sheet=101&mode=evaluate");
+	await view.findByText("自分の評価: あと 1 件");
+	fireEvent.click(view.getByRole("button", { name: "二次評価を確定する" }));
+	expect(view.queryByRole("dialog")).toBeNull();
+	const commonCard = view
+		.getByRole("heading", { name: "共通評価" })
+		.closest(".common-evaluation-card") as HTMLElement;
+	fireEvent.click(within(commonCard).getByRole("button", { name: "評価を入力" }));
+	fireEvent.click(within(commonCard).getByRole("button", { name: "業務遂行 二次評価 3" }));
+	fireEvent.click(within(commonCard).getByRole("button", { name: "評価を保存" }));
+	await waitFor(() => expect(view.queryByText("自分の評価: あと 1 件")).toBeNull());
+	fireEvent.click(view.getByRole("button", { name: "二次評価を確定する" }));
+	const dialog = await view.findByRole("dialog");
+	fireEvent.click(within(dialog).getByRole("button", { name: "評価を確定する" }));
+	await waitFor(() => expect(row.status).toBe("finalized"));
 });
 it("discards a stale period response when the reviewer changes periods quickly", async () => {
 	const view = setup([reviewerRow(1)]);

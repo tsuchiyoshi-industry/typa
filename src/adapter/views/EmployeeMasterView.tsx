@@ -1,4 +1,8 @@
-import { List, Network, Search, Trash2, Users } from "lucide-solid";
+import List from "lucide-solid/icons/list";
+import Network from "lucide-solid/icons/network";
+import Search from "lucide-solid/icons/search";
+import Trash from "lucide-solid/icons/trash";
+import Users from "lucide-solid/icons/users";
 import {
 	type Component,
 	createEffect,
@@ -346,7 +350,7 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 					disabled={savingKey() !== null}
 					onClick={() => void resetRegistration(cell.relation)}
 				>
-					<Trash2 size={15} />
+					<Trash size={15} />
 					<span>取消</span>
 				</button>
 			</Show>

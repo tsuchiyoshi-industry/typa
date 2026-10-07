@@ -43,6 +43,8 @@ export interface EvaluationSheetDto {
 	allocatedScores: EvaluationAllocatedScoresDto;
 	status: EvaluationStatusValue;
 	isEditable: boolean;
+	/** 今このシートを確定できる評価者にだけ渡す、自分の評価の未設定項目。 */
+	pendingEvaluationItems?: string[];
 	/** 評価者にだけ見せる。本人には渡さない。 */
 	firstEvaluationRank?: EvaluationRankDto;
 	/** 最終評価者にだけ見せる。 */

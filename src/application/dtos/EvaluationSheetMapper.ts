@@ -87,6 +87,15 @@ export function toEvaluationSheetDto(
 		},
 		status: sheet.status.toString(),
 		isEditable: sheet.isEditable(),
+		...(policy.canConfirmFirstEvaluation() || policy.canFinalizeEvaluation()
+			? {
+					pendingEvaluationItems: sheet.pendingEvaluationItems(
+						policy.canConfirmFirstEvaluation() || sheet.primaryIsFinalEvaluator()
+							? "first"
+							: "second",
+					),
+				}
+			: {}),
 		firstEvaluationRank: canViewCommon
 			? {
 					displayText: sheet.resolveFirstEvaluationRank().toDisplayText(),

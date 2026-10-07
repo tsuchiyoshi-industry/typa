@@ -1,16 +1,14 @@
 import { useSearchParams } from "@solidjs/router";
-import {
-	ArrowRight,
-	Award,
-	ChevronLeft,
-	ChevronRight,
-	ClipboardCheck,
-	Columns3,
-	ListFilter,
-	RotateCw,
-	Search,
-	Users,
-} from "lucide-solid";
+import ArrowRight from "lucide-solid/icons/arrow-right";
+import Award from "lucide-solid/icons/award";
+import ChevronLeft from "lucide-solid/icons/chevron-left";
+import ChevronRight from "lucide-solid/icons/chevron-right";
+import ClipboardCheck from "lucide-solid/icons/clipboard-check";
+import Columns3 from "lucide-solid/icons/columns-3";
+import ListFilter from "lucide-solid/icons/list-filter";
+import RotateCw from "lucide-solid/icons/rotate-cw";
+import Search from "lucide-solid/icons/search";
+import Users from "lucide-solid/icons/users";
 import {
 	type Component,
 	createEffect,

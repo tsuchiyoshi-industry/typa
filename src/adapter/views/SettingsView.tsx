@@ -1,5 +1,5 @@
 import { useBeforeLeave } from "@solidjs/router";
-import { Settings } from "lucide-solid";
+import Settings from "lucide-solid/icons/settings";
 import { type Component, createSignal, onCleanup, onMount, Show } from "solid-js";
 import { EvaluationAllocation } from "../../domain/valueObjects/EvaluationAllocation";
 import type { SettingsController } from "../controllers/SettingsController";

@@ -1,4 +1,7 @@
-import { CircleAlert, CircleCheck, Info, X } from "lucide-solid";
+import CircleAlert from "lucide-solid/icons/circle-alert";
+import CircleCheck from "lucide-solid/icons/circle-check";
+import Info from "lucide-solid/icons/info";
+import X from "lucide-solid/icons/x";
 import { type Component, createEffect, For, Show } from "solid-js";
 import { dismissToast, pendingConfirm, settleConfirm, toasts } from "../feedback";
 

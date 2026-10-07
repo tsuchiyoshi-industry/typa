@@ -85,6 +85,19 @@ export class EvaluationSheet {
 		return this.subject.primaryIsFinalEvaluator();
 	}
 
+	/** 確定する評価者自身の、まだ評価されていない項目。0 は未評価。 */
+	pendingEvaluationItems(stage: "first" | "second"): string[] {
+		const scoreKey = stage === "first" ? "firstScore" : "secondScore";
+		return [
+			...this.objectives
+				.filter((objective) => objective[scoreKey].toNumber() === 0)
+				.map((objective) => `チャレンジ目標 ${objective.goalNumber}`),
+			...this.commonEvaluationResults
+				.filter((result) => result[scoreKey].toNumber() === 0)
+				.map((result) => `共通評価「${result.item.title}」`),
+		];
+	}
+
 	/** 一次評価の評価点(チャレンジ目標と共通評価の得点率に、それぞれの配点を掛けた合計)。 */
 	firstEvaluationScore(): number {
 		return EvaluationAllocatedScores.fromTotals(

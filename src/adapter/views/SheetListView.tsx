@@ -1,14 +1,12 @@
 import { A, useNavigate } from "@solidjs/router";
-import {
-	ArrowDown,
-	ArrowUp,
-	ChevronRight,
-	ClipboardCheck,
-	Download,
-	FilePlus2,
-	Plus,
-	RotateCw,
-} from "lucide-solid";
+import ArrowDown from "lucide-solid/icons/arrow-down";
+import ArrowUp from "lucide-solid/icons/arrow-up";
+import ChevronRight from "lucide-solid/icons/chevron-right";
+import ClipboardCheck from "lucide-solid/icons/clipboard-check";
+import Download from "lucide-solid/icons/download";
+import FilePlusCorner from "lucide-solid/icons/file-plus-corner";
+import Plus from "lucide-solid/icons/plus";
+import RotateCw from "lucide-solid/icons/rotate-cw";
 import {
 	type Component,
 	createEffect,
@@ -249,7 +247,7 @@ const SheetListView: Component<SheetListViewProps> = (props) => {
 					fallback={
 						<Show when={!props.viewModel().errorMessage}>
 							<div class="empty-state">
-								<FilePlus2 class="empty-state__icon" />
+								<FilePlusCorner class="empty-state__icon" />
 								<h2>自分の評価シートはまだありません</h2>
 								<p>「新規作成」からシートを作成すると、ここに表示されます。</p>
 							</div>

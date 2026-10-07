@@ -1,5 +1,8 @@
 import { A, Navigate, Route, Router } from "@solidjs/router";
-import { LogOut, Menu, User, X } from "lucide-solid";
+import LogOut from "lucide-solid/icons/log-out";
+import Menu from "lucide-solid/icons/menu";
+import User from "lucide-solid/icons/user";
+import X from "lucide-solid/icons/x";
 import { type Component, createSignal, type JSX, onCleanup, onMount, Show } from "solid-js";
 import { ChallengeEvaluationController } from "./adapter/controllers/ChallengeEvaluationController";
 import { CommonEvaluationController } from "./adapter/controllers/CommonEvaluationController";

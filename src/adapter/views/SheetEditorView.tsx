@@ -1,5 +1,10 @@
 import { A, useBeforeLeave, useNavigate, useParams } from "@solidjs/router";
-import { Award, CalendarDays, FileText, ShieldCheck, User, Users } from "lucide-solid";
+import Award from "lucide-solid/icons/award";
+import CalendarDays from "lucide-solid/icons/calendar-days";
+import FileText from "lucide-solid/icons/file-text";
+import ShieldCheck from "lucide-solid/icons/shield-check";
+import User from "lucide-solid/icons/user";
+import Users from "lucide-solid/icons/users";
 import {
 	type Component,
 	createEffect,
@@ -66,6 +71,15 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 	const gradeId = createMemo(() => sheet()?.subject?.gradeId ?? null);
 	const canEditFirst = createMemo(() => viewModel().canEditFirst);
 	const canEditSecond = createMemo(() => viewModel().canEditSecond);
+	const pendingEvaluationItems = createMemo(() => sheet()?.pendingEvaluationItems ?? []);
+	const [attemptedConfirmation, setAttemptedConfirmation] = createSignal(false);
+	let completionNotice: HTMLDivElement | undefined;
+	createEffect(
+		on(
+			() => [sheetId(), sheet()?.status],
+			() => setAttemptedConfirmation(false),
+		),
+	);
 	const [firstOverallDraft, setFirstOverallDraft] = createSignal("");
 	const [secondOverallDraft, setSecondOverallDraft] = createSignal("");
 	const [savingOverallTarget, setSavingOverallTarget] = createSignal<OverallCommentTarget | null>(
@@ -228,6 +242,8 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 				showToast("error", "通知メールを送信できませんでした", warning);
 			}
 			reloadCurrentSheetFromRoute();
+		} else if (viewModel().statusUpdateError) {
+			showToast("error", "変更できませんでした", viewModel().statusUpdateError ?? undefined);
 		}
 		return success;
 	};
@@ -263,7 +279,7 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 	};
 
 	const handleConfirmFirst = async () => {
-		if (!ensureNothingUnsaved()) {
+		if (!ensureNothingUnsaved() || !ensureEvaluationComplete()) {
 			return;
 		}
 		const confirmed = await confirmAction({
@@ -281,7 +297,7 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 	};
 
 	const handleFinalize = async () => {
-		if (!ensureNothingUnsaved()) {
+		if (!ensureNothingUnsaved() || !ensureEvaluationComplete()) {
 			return;
 		}
 		const confirmed = await confirmAction({
@@ -293,6 +309,16 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 		if (confirmed && (await changeStatus(EvaluationStatus.FINALIZED, "評価を確定しました"))) {
 			props.onStageCompleted?.();
 		}
+	};
+
+	const ensureEvaluationComplete = () => {
+		if (pendingEvaluationItems().length === 0) {
+			return true;
+		}
+		setAttemptedConfirmation(true);
+		completionNotice?.focus({ preventScroll: true });
+		completionNotice?.scrollIntoView?.({ block: "center", behavior: "smooth" });
+		return false;
 	};
 
 	const toSubjectOption = (sheet: SheetSummaryDto) => ({
@@ -599,6 +625,26 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 							<>
 								<ProfileCards />
 								<EvaluationRankSection />
+								<Show when={pendingEvaluationItems().length > 0}>
+									<div
+										ref={completionNotice}
+										class="evaluation-completion"
+										classList={{ invalid: attemptedConfirmation() }}
+										tabIndex={-1}
+										role={attemptedConfirmation() ? "alert" : "status"}
+									>
+										<p>
+											<strong>自分の評価: あと {pendingEvaluationItems().length} 件</strong>
+										</p>
+										<p>確定する前に、すべての評価を 1〜4 で設定して保存してください。</p>
+										<details open={attemptedConfirmation()}>
+											<summary>未設定の項目を確認する</summary>
+											<ul>
+												<For each={pendingEvaluationItems()}>{(item) => <li>{item}</li>}</For>
+											</ul>
+										</details>
+									</div>
+								</Show>
 								<ChallengeEvaluationView
 									sheetId={sheetId()}
 									objectives={sheet()?.objectives ?? []}

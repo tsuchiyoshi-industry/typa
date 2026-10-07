@@ -91,6 +91,21 @@ function setup(status = "first_evaluated") {
 beforeEach(() => vi.clearAllMocks());
 
 describe("allocation across sheets and PDF data", () => {
+	it("does not treat failed objective reads as an empty, complete set of evaluation items", async () => {
+		const { repo } = setup();
+		const makeQuery = db.from.getMockImplementation();
+		if (!makeQuery) {
+			throw new Error("mock is not initialized");
+		}
+		db.from.mockImplementation((table: string) => {
+			const query = makeQuery(table);
+			if (table === "milestones") {
+				query.order.mockResolvedValue({ data: null, error: new Error("goal read failed") });
+			}
+			return query;
+		});
+		await expect(repo.findById(100)).rejects.toThrow("goal read failed");
+	});
 	it("uses current settings and the exact fraction in an open sheet and export", async () => {
 		const { repo } = setup();
 		const sheet = await repo.findById(100);

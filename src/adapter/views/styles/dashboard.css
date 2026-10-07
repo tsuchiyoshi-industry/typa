@@ -1960,3 +1960,39 @@
 .overall-comment-card > .error-message {
 	margin: 0 1.25rem 1.25rem;
 }
+
+.evaluation-completion {
+	padding: 1rem 1.25rem;
+	border: 1px solid var(--hr-border);
+	border-radius: var(--hr-radius-md);
+	background: var(--hr-bg-elevated);
+	scroll-margin-top: 5rem;
+	font-size: 0.85rem;
+	line-height: 1.7;
+}
+.evaluation-completion p {
+	margin: 0;
+}
+.evaluation-completion p + p {
+	color: var(--hr-text-muted);
+}
+.evaluation-completion details {
+	margin-top: 0.4rem;
+}
+.evaluation-completion summary {
+	cursor: pointer;
+}
+.evaluation-completion ul {
+	margin: 0.4rem 0 0;
+	padding-left: 1.25rem;
+}
+.evaluation-completion.invalid {
+	border-color: var(--hr-danger-text);
+}
+.evaluation-completion:focus-visible {
+	outline: 2px solid var(--hr-accent);
+	outline-offset: 3px;
+}
+.status-track__notice {
+	white-space: pre-line;
+}

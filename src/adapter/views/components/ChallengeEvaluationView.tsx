@@ -1,4 +1,6 @@
-import { Check, SquarePen, X } from "lucide-solid";
+import Check from "lucide-solid/icons/check";
+import SquarePen from "lucide-solid/icons/square-pen";
+import X from "lucide-solid/icons/x";
 import { type Component, createEffect, createMemo, createSignal, For, Show } from "solid-js";
 import type { EmployeeDto } from "../../../application/dtos/EmployeeDto";
 import type { MilestoneDto } from "../../../application/dtos/MilestoneDto";

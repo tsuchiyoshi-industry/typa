@@ -83,6 +83,17 @@ export function reviewerEditorFixture(
 		},
 		status: EvaluationStatus.from(row.status).toString(),
 		isEditable: false,
+		pendingEvaluationItems: (() => {
+			const score = row.status === "submitted" ? "firstScore" : "secondScore";
+			return [
+				...row.objectives
+					.filter((goal) => goal[score] === 0)
+					.map((goal) => `チャレンジ目標 ${goal.goalNumber}`),
+				...row.commonItems
+					.filter((item) => item[score] === 0)
+					.map((item) => `共通評価「${item.title}」`),
+			];
+		})(),
 		firstEvaluationRank: {
 			displayText: reviewRank(row, "first")?.text ?? "D",
 			score: reviewScore(row, "first") ?? 0,

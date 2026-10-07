@@ -1,5 +1,5 @@
 import { A } from "@solidjs/router";
-import { CircleHelp } from "lucide-solid";
+import CircleQuestionMark from "lucide-solid/icons/circle-question-mark";
 import { type Component, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { EvaluationAllocation } from "../../domain/valueObjects/EvaluationAllocation";
 import type { SettingsController } from "../controllers/SettingsController";
@@ -84,7 +84,7 @@ const HelpView: Component<HelpViewProps> = (props) => {
 			<header class="master-header">
 				<div>
 					<h1>
-						<CircleHelp class="header-icon" />
+						<CircleQuestionMark class="header-icon" />
 						ヘルプ
 					</h1>
 					<p>TYPA での人事考課の進め方と、評価点・評価ランクの決まり方をまとめています。</p>
@@ -212,7 +212,8 @@ const HelpView: Component<HelpViewProps> = (props) => {
 				</dl>
 				<p>
 					得点率は途中で丸めず、配点を掛けた後にそれぞれ 1 点単位に四捨五入し、2
-					つの評価点を足します。0 点は「未入力」ではなく、点数として扱います。
+					つの評価点を足します。評価は 1〜4 の4段階で、0
+					は未評価です。一次評価・二次評価を確定するときは、自分のチャレンジ目標と共通評価をすべて設定して保存する必要があります。未設定の項目が残っていると確定できません。
 				</p>
 				<p>
 					配点を変更すると、まだ確定していない評価シートの評価点と見込みランクに反映されます。確定済みの評価シートは、確定したときの配点のままです。すでに確定した一次評価ランクも保持されます。

@@ -51,6 +51,16 @@ export class UpdateEvaluationStatusInteractor
 		const policy = EvaluationSheetAccessPolicy.for(request.currentEmployeeId, sheet);
 
 		const newStatus = this.resolveNewStatus(request, policy);
+		if (newStatus.isFirstEvaluationConfirmed()) {
+			const stage =
+				newStatus.isFinalized() && !sheet.primaryIsFinalEvaluator() ? "second" : "first";
+			const pending = sheet.pendingEvaluationItems(stage);
+			if (pending.length > 0) {
+				throw new Error(
+					`${stage === "first" ? "一次" : "二次"}評価に未設定の項目が ${pending.length} 件あります。すべての評価を 1〜4 で設定して保存してください。\n${pending.map((item) => `・${item}`).join("\n")}`,
+				);
+			}
+		}
 		if (newStatus.isFinalized()) {
 			// 確定後は評価者の付け替えに左右されないよう、最終評価の集計をここで保存する。
 			// 二次評価者「なし」の社員は、一次評価の合計がそのまま最終評価の合計になる。

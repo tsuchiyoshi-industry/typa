@@ -1,4 +1,7 @@
-import { Check, FileCheck, ShieldCheck, Undo2 } from "lucide-solid";
+import Check from "lucide-solid/icons/check";
+import FileCheck from "lucide-solid/icons/file-check";
+import ShieldCheck from "lucide-solid/icons/shield-check";
+import Undo2 from "lucide-solid/icons/undo-2";
 import { type Component, For, Show } from "solid-js";
 import {
 	EvaluationStatus,

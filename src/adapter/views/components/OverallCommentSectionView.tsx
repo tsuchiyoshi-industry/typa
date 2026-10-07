@@ -1,4 +1,5 @@
-import { Check, MessageSquareText } from "lucide-solid";
+import Check from "lucide-solid/icons/check";
+import MessageSquareText from "lucide-solid/icons/message-square-text";
 import { type Component, Show } from "solid-js";
 
 export type OverallCommentTarget = "first" | "second";

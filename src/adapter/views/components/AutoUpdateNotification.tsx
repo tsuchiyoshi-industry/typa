@@ -1,7 +1,10 @@
 import { isTauri } from "@tauri-apps/api/core";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type DownloadEvent, type Update } from "@tauri-apps/plugin-updater";
-import { Download, RefreshCw, RotateCw, X } from "lucide-solid";
+import Download from "lucide-solid/icons/download";
+import RefreshCw from "lucide-solid/icons/refresh-cw";
+import RotateCw from "lucide-solid/icons/rotate-cw";
+import X from "lucide-solid/icons/x";
 import {
 	type Component,
 	createMemo,

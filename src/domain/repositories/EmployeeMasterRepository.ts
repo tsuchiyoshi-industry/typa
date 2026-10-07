@@ -1,4 +1,5 @@
 import type { EmployeeProfile } from "../entities/EmployeeProfile";
+import type { EmployeeRole } from "../valueObjects/EmployeeRole";
 
 export type EvaluatorType = "primary" | "secondary";
 
@@ -22,6 +23,8 @@ export interface EmployeeMasterRepository {
 		targetEmployeeNo: string,
 		gradeId: number,
 	): Promise<EmployeeProfile | null>;
+	/** Admin だけが実行できるDB関数で権限を変える。最後の Admin は外せない。変更できたら true。 */
+	updateRoleByEmployeeNo(targetEmployeeNo: string, role: EmployeeRole): Promise<boolean>;
 	/**
 	 * 社員の行は残したまま、ログイン用アカウントを削除して未登録に戻す(評価データは残る)。
 	 * 取り消せたら true。

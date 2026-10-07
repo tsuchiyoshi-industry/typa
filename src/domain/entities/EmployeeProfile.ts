@@ -1,4 +1,4 @@
-export type EmployeeRoleName = "Admin" | "Reviewer" | "Employee" | string;
+import type { EmployeeRole } from "../valueObjects/EmployeeRole";
 
 export class EmployeeProfile {
 	constructor(
@@ -6,7 +6,7 @@ export class EmployeeProfile {
 		public readonly name: string,
 		public readonly employeeNo: string,
 		public readonly roleId: number | null,
-		public readonly roleName: EmployeeRoleName,
+		public readonly role: EmployeeRole,
 		public readonly careerCourse: string | null,
 		public readonly gradeId: number | null,
 		public readonly gradeName: string,

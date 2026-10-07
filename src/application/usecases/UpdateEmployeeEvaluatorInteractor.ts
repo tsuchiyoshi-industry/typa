@@ -43,7 +43,7 @@ export class UpdateEmployeeEvaluatorInteractor
 		}
 
 		const currentEmployee = await this.employeeMasterRepository.findCurrentEmployeeProfile();
-		if (!currentEmployee || !canEditEvaluators(currentEmployee.roleName)) {
+		if (!currentEmployee || !canEditEvaluators(currentEmployee.role)) {
 			outputPort.present({
 				success: false,
 				message: "評価者を更新する権限がありません。",

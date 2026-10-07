@@ -38,6 +38,7 @@ import { LoadEmployeeMasterInteractor } from "./application/usecases/LoadEmploye
 import { ResetEmployeeRegistrationInteractor } from "./application/usecases/ResetEmployeeRegistrationInteractor";
 import { UpdateEmployeeEvaluatorInteractor } from "./application/usecases/UpdateEmployeeEvaluatorInteractor";
 import { UpdateEmployeeGradeInteractor } from "./application/usecases/UpdateEmployeeGradeInteractor";
+import { UpdateEmployeeRoleInteractor } from "./application/usecases/UpdateEmployeeRoleInteractor";
 import { UpdateEvaluationStatusInteractor } from "./application/usecases/UpdateEvaluationStatusInteractor";
 import { UpdateMilestoneInteractor } from "./application/usecases/UpdateMilestoneInteractor";
 import { UpdateOverallCommentInteractor } from "./application/usecases/UpdateOverallCommentInteractor";
@@ -131,6 +132,7 @@ const updateEmployeeEvaluatorUseCase = new UpdateEmployeeEvaluatorInteractor(
 	employeeMasterRepository,
 );
 const updateEmployeeGradeUseCase = new UpdateEmployeeGradeInteractor(employeeMasterRepository);
+const updateEmployeeRoleUseCase = new UpdateEmployeeRoleInteractor(employeeMasterRepository);
 const resetEmployeeRegistrationUseCase = new ResetEmployeeRegistrationInteractor(
 	employeeMasterRepository,
 );
@@ -177,6 +179,7 @@ const employeeMasterController = new EmployeeMasterController(
 	loadEmployeeMasterUseCase,
 	updateEmployeeEvaluatorUseCase,
 	updateEmployeeGradeUseCase,
+	updateEmployeeRoleUseCase,
 	resetEmployeeRegistrationUseCase,
 	employeeMasterPresenter,
 );
@@ -220,8 +223,8 @@ const DashboardLayout: Component<{ children?: JSX.Element | JSX.Element[] }> = (
 			.then((person) => {
 				if (mounted) {
 					setEmployeeName(person?.name ?? "");
-					setRoleName(person?.roleName ?? "");
-					setCanViewMap(!!person && canEditEvaluators(person.roleName));
+					setRoleName(person?.role.toString() ?? "");
+					setCanViewMap(!!person && canEditEvaluators(person.role));
 				}
 			})
 			.catch(() => {

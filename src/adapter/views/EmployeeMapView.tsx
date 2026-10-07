@@ -381,10 +381,12 @@ const EmployeeMapView: Component<{ load: () => Promise<EmployeeMapDto> }> = (pro
 											<dt>キャリアコース</dt>
 											<dd>{person().careerCourse ?? "未設定"}</dd>
 										</div>
-										<div>
-											<dt>権限</dt>
-											<dd>{person().roleName}</dd>
-										</div>
+										<Show when={person().roleName}>
+											<div>
+												<dt>権限</dt>
+												<dd>{person().roleName}</dd>
+											</div>
+										</Show>
 										<div>
 											<dt>登録</dt>
 											<dd>{person().registered ? "登録済み" : "未登録"}</dd>

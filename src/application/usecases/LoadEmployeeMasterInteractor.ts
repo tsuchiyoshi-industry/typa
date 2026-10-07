@@ -3,6 +3,7 @@ import type { EmployeeMasterRepository } from "../../domain/repositories/Employe
 import {
 	canEditEvaluators,
 	canEditGrades,
+	canEditRoles,
 	canResetRegistrations,
 	resolveEmployeeMasterMode,
 } from "../../domain/services/EmployeeMasterAccessService";
@@ -25,7 +26,7 @@ function toEmployeeProfileDto(profile: EmployeeProfile): EmployeeProfileDto {
 		id: profile.id,
 		name: profile.name,
 		employeeNo: profile.employeeNo,
-		roleName: profile.roleName,
+		roleName: profile.role.toString(),
 		careerCourse: profile.careerCourse,
 		gradeName: profile.gradeName,
 		primaryEvaluatorName: profile.primaryEvaluatorName,
@@ -33,12 +34,14 @@ function toEmployeeProfileDto(profile: EmployeeProfile): EmployeeProfileDto {
 	};
 }
 
-function toApprovalRelationDto(profile: EmployeeProfile): ApprovalRelationDto {
+function toApprovalRelationDto(profile: EmployeeProfile, showRole: boolean): ApprovalRelationDto {
 	return {
 		employeeId: profile.id,
 		name: profile.name,
 		employeeNo: profile.employeeNo,
 		careerCourse: profile.careerCourse,
+		// 誰がどの権限かは Admin にだけ見せる
+		roleName: showRole ? profile.role.toString() : null,
 		gradeId: profile.gradeId,
 		gradeName: profile.gradeName,
 		primaryEvaluatorId: profile.primaryEvaluatorId,
@@ -66,6 +69,7 @@ export class LoadEmployeeMasterInteractor
 				mode: "employee",
 				canEditEvaluators: false,
 				canEditGrades: false,
+				canEditRoles: false,
 				canResetRegistrations: false,
 				relations: [],
 				grades: [],
@@ -73,8 +77,9 @@ export class LoadEmployeeMasterInteractor
 			return;
 		}
 
-		const editableEvaluators = canEditEvaluators(currentEmployee.roleName);
-		const editableGrades = canEditGrades(currentEmployee.roleName);
+		const editableEvaluators = canEditEvaluators(currentEmployee.role);
+		const editableGrades = canEditGrades(currentEmployee.role);
+		const editableRoles = canEditRoles(currentEmployee.role);
 		const relations = editableEvaluators
 			? await this.employeeMasterRepository.findAllEmployeeProfiles()
 			: [];
@@ -82,11 +87,12 @@ export class LoadEmployeeMasterInteractor
 
 		outputPort.present({
 			currentEmployee: toEmployeeProfileDto(currentEmployee),
-			mode: resolveEmployeeMasterMode(currentEmployee.roleName),
+			mode: resolveEmployeeMasterMode(currentEmployee.role),
 			canEditEvaluators: editableEvaluators,
 			canEditGrades: editableGrades,
-			canResetRegistrations: canResetRegistrations(currentEmployee.roleName),
-			relations: relations.map(toApprovalRelationDto),
+			canEditRoles: editableRoles,
+			canResetRegistrations: canResetRegistrations(currentEmployee.role),
+			relations: relations.map((profile) => toApprovalRelationDto(profile, editableRoles)),
 			grades,
 		});
 	}

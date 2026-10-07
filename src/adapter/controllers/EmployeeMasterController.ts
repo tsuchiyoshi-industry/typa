@@ -14,6 +14,10 @@ import type {
 	UpdateEmployeeGradeInteractor,
 	UpdateEmployeeGradeOutputPort,
 } from "../../application/usecases/UpdateEmployeeGradeInteractor";
+import type {
+	UpdateEmployeeRoleInteractor,
+	UpdateEmployeeRoleOutputPort,
+} from "../../application/usecases/UpdateEmployeeRoleInteractor";
 import type { EvaluatorType } from "../../domain/repositories/EmployeeMasterRepository";
 import type { EmployeeMasterViewModel } from "../presenters/EmployeeMasterPresenter";
 
@@ -22,6 +26,7 @@ export class EmployeeMasterController {
 		private readonly loadUseCase: LoadEmployeeMasterInteractor,
 		private readonly updateUseCase: UpdateEmployeeEvaluatorInteractor,
 		private readonly updateGradeUseCase: UpdateEmployeeGradeInteractor,
+		private readonly updateRoleUseCase: UpdateEmployeeRoleInteractor,
 		private readonly resetRegistrationUseCase: ResetEmployeeRegistrationInteractor,
 		private readonly presenter: {
 			viewModel: () => EmployeeMasterViewModel;
@@ -29,6 +34,7 @@ export class EmployeeMasterController {
 				load: LoadEmployeeMasterOutputPort;
 				update: UpdateEmployeeEvaluatorOutputPort;
 				updateGrade: UpdateEmployeeGradeOutputPort;
+				updateRole: UpdateEmployeeRoleOutputPort;
 				resetRegistration: ResetEmployeeRegistrationOutputPort;
 			};
 			beginLoad: () => void;
@@ -71,6 +77,17 @@ export class EmployeeMasterController {
 					this.presenter.outputPort.updateGrade,
 				),
 			"等級の更新に失敗しました",
+		);
+	}
+
+	updateRole(targetEmployeeNo: string, roleName: string): Promise<boolean> {
+		return this.applyUpdate(
+			() =>
+				this.updateRoleUseCase.execute(
+					{ targetEmployeeNo, roleName },
+					this.presenter.outputPort.updateRole,
+				),
+			"権限の変更に失敗しました",
 		);
 	}
 

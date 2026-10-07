@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { commonResult, employee, milestone, period, profile, sheet } from "../../test/fixtures";
 import { EvaluationSheet } from "../entities/EvaluationSheet";
 import { Comment } from "./Comment";
+import { EMPLOYEE_ROLE_NAMES, EmployeeRole } from "./EmployeeRole";
 import { EvaluationAllocatedScores } from "./EvaluationAllocatedScores";
 import { EvaluationRank } from "./EvaluationRank";
 import { EvaluationScoreTotals } from "./EvaluationScoreTotals";
@@ -239,5 +240,16 @@ describe("value objects and immutable entities", () => {
 		expect(sheet().equals(sheet())).toBe(true);
 		expect(sheet(EvaluationStatus.DRAFT).isEditable()).toBe(true);
 		expect(sheet(EvaluationStatus.FINALIZED).isEditable()).toBe(false);
+	});
+	it("keeps roles to the known values and treats an unknown stored name as the weakest role", () => {
+		expect(EmployeeRole.ALL.map(String)).toEqual([...EMPLOYEE_ROLE_NAMES]);
+		expect(EmployeeRole.find("Admin")).toBe(EmployeeRole.ADMIN);
+		expect(EmployeeRole.find("admin")).toBeUndefined();
+		for (const stored of ["Owner", "", null, undefined]) {
+			expect(EmployeeRole.fromStored(stored)).toBe(EmployeeRole.EMPLOYEE);
+		}
+		expect(EmployeeRole.ALL.filter((role) => role.isAdmin())).toEqual([EmployeeRole.ADMIN]);
+		expect(EmployeeRole.REVIEWER.equals(EmployeeRole.fromStored("Reviewer"))).toBe(true);
+		expect(EmployeeRole.REVIEWER.equals(EmployeeRole.EMPLOYEE)).toBe(false);
 	});
 });

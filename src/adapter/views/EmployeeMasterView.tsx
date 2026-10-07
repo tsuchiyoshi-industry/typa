@@ -13,6 +13,11 @@ import {
 } from "solid-js";
 import type { ApprovalRelationDto } from "../../application/dtos/EmployeeMasterDto";
 import type { EvaluatorType } from "../../domain/repositories/EmployeeMasterRepository";
+import {
+	EMPLOYEE_ROLE_NAMES,
+	EmployeeRole,
+	type EmployeeRoleName,
+} from "../../domain/valueObjects/EmployeeRole";
 import type { EmployeeMasterController } from "../controllers/EmployeeMasterController";
 import type { EmployeeMasterViewModel } from "../presenters/EmployeeMasterPresenter";
 import SearchableEvaluatorSelect from "./components/SearchableEvaluatorSelect";
@@ -24,6 +29,12 @@ interface EmployeeMasterViewProps {
 }
 
 type Scope = "all" | "mine" | "unset";
+
+const ROLE_DESCRIPTIONS: Record<EmployeeRoleName, string> = {
+	Admin: "社員マスタで全員の権限・等級・評価者を変更でき、登録の取り消しもできます。",
+	Reviewer: "社員マスタで評価者を変更でき、マップを閲覧できます。",
+	Employee: "社員マスタでは自分の情報だけを閲覧できます。",
+};
 
 /** 二次評価者「なし」を表す選択肢の値。未設定(空文字)と区別する。 */
 const NO_SECONDARY = "__none__";
@@ -56,17 +67,20 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 	// 読み込み中フラグなど無関係な更新で一覧を描き直さないよう、配列単位で購読する
 	const relations = createMemo(() => props.viewModel().relations);
 	const grades = createMemo(() => props.viewModel().grades);
+	// 役員の等級・評価者は管理しない。権限だけは変えられるので、Admin の一覧には役員も出す
+	const isExecutive = (relation: ApprovalRelationDto) => relation.careerCourse?.trim() === "役員";
 	const managedRelations = createMemo(() =>
-		relations().filter((relation) => relation.careerCourse?.trim() !== "役員"),
+		relations().filter((relation) => props.viewModel().canEditRoles || !isExecutive(relation)),
 	);
 
 	const isMine = (relation: ApprovalRelationDto) =>
 		relation.primaryEvaluatorId === me()?.id || relation.secondaryEvaluatorId === me()?.id;
 	// 二次評価者は「なし」と明示されていれば設定済み。自分で埋められない項目(Reviewer にとっての等級)は数えない
 	const hasUnset = (relation: ApprovalRelationDto) =>
-		relation.primaryEvaluatorId == null ||
-		(relation.secondaryEvaluatorId == null && !relation.noSecondaryEvaluator) ||
-		(props.viewModel().canEditGrades && relation.gradeId == null);
+		!isExecutive(relation) &&
+		(relation.primaryEvaluatorId == null ||
+			(relation.secondaryEvaluatorId == null && !relation.noSecondaryEvaluator) ||
+			(props.viewModel().canEditGrades && relation.gradeId == null));
 
 	const scopes = createMemo<{ value: Scope; label: string; count: number }[]>(() => [
 		{ value: "all", label: "全員", count: managedRelations().length },
@@ -256,6 +270,44 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 		);
 	};
 
+	const RoleCell: Component<{ relation: ApprovalRelationDto }> = (cell) => {
+		const changeRole = async (picked: string) => {
+			const role = EmployeeRole.find(picked);
+			if (!role) {
+				return false;
+			}
+			const self = cell.relation.employeeId === me()?.id;
+			const confirmed = await confirmAction({
+				title: `${cell.relation.name}さんの権限を ${role} に変更しますか？`,
+				message: `${role}: ${ROLE_DESCRIPTIONS[role.toString()]}${
+					self && !role.isAdmin()
+						? " 自分の権限を変更すると、この画面で権限を管理できなくなります。"
+						: ""
+				}`,
+				confirmLabel: "権限を変更する",
+				tone: role.isAdmin() || self ? "danger" : "default",
+			});
+			const changed =
+				confirmed && (await props.controller.updateRole(cell.relation.employeeNo, role.toString()));
+			if (changed && self) {
+				// 自分の権限が変わると、メニューや表示できる画面も変わる
+				window.location.reload();
+			}
+			return changed;
+		};
+
+		return (
+			<CellSelect
+				label={`${cell.relation.name}さんの権限`}
+				value={cell.relation.roleName ?? ""}
+				saveKey={`${cell.relation.employeeNo}:role`}
+				onPick={changeRole}
+			>
+				<For each={EMPLOYEE_ROLE_NAMES}>{(name) => <option value={name}>{name}</option>}</For>
+			</CellSelect>
+		);
+	};
+
 	// 社員の行と評価データは残し、ログイン用アカウントだけを消して未登録に戻す
 	const resetRegistration = async (relation: ApprovalRelationDto) => {
 		const confirmed = await confirmAction({
@@ -324,7 +376,11 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 				<div>
 					<h2>社員一覧</h2>
 					<p>
-						{props.viewModel().canEditGrades ? "等級と評価者" : "評価者"}
+						{props.viewModel().canEditRoles
+							? "権限・等級・評価者"
+							: props.viewModel().canEditGrades
+								? "等級と評価者"
+								: "評価者"}
 						を変更できます。選択すると自動で保存されます。
 					</p>
 				</div>
@@ -358,7 +414,10 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 				<span class="master-result-count">{visibleRelations().length}名を表示</span>
 			</div>
 			<p class="master-list-note">
-				評価者は氏名・社員番号で検索できます。役員は管理対象から除外しています。
+				評価者は氏名・社員番号で検索できます。
+				{props.viewModel().canEditRoles
+					? "役員は権限だけ変更できます（等級・評価者は管理対象外です）。Admin が0人になる変更はできません。"
+					: "役員は管理対象から除外しています。"}
 			</p>
 			<Show
 				when={visibleRelations().length > 0}
@@ -369,6 +428,9 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 						<thead>
 							<tr>
 								<th scope="col">社員</th>
+								<Show when={props.viewModel().canEditRoles}>
+									<th scope="col">権限</th>
+								</Show>
 								<th scope="col">等級</th>
 								<th scope="col">一次評価者</th>
 								<th scope="col">二次評価者</th>
@@ -390,28 +452,49 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 												<Show when={relation().careerCourse}> · {relation().careerCourse}</Show>
 											</span>
 										</th>
-										<td>
-											<Show
-												when={props.viewModel().canEditGrades}
-												fallback={
-													<span class="cell-text" classList={{ unset: relation().gradeId == null }}>
-														{relation().gradeName}
-													</span>
-												}
-											>
-												<GradeCell relation={relation()} />
-											</Show>
-										</td>
-										<td>
-											<EvaluatorCell relation={relation()} evaluatorType="primary" />
-										</td>
-										<td>
-											<EvaluatorCell relation={relation()} evaluatorType="secondary" />
-										</td>
-										<Show when={props.viewModel().canResetRegistrations}>
-											<td class="col-action">
-												<RegistrationCell relation={relation()} />
+										<Show when={props.viewModel().canEditRoles}>
+											<td>
+												<RoleCell relation={relation()} />
 											</td>
+										</Show>
+										<Show
+											when={!isExecutive(relation())}
+											fallback={
+												// 役員は権限だけを管理する
+												<td
+													class="cell-text unset"
+													colSpan={props.viewModel().canResetRegistrations ? 4 : 3}
+												>
+													役員（等級・評価者は管理対象外）
+												</td>
+											}
+										>
+											<td>
+												<Show
+													when={props.viewModel().canEditGrades}
+													fallback={
+														<span
+															class="cell-text"
+															classList={{ unset: relation().gradeId == null }}
+														>
+															{relation().gradeName}
+														</span>
+													}
+												>
+													<GradeCell relation={relation()} />
+												</Show>
+											</td>
+											<td>
+												<EvaluatorCell relation={relation()} evaluatorType="primary" />
+											</td>
+											<td>
+												<EvaluatorCell relation={relation()} evaluatorType="secondary" />
+											</td>
+											<Show when={props.viewModel().canResetRegistrations}>
+												<td class="col-action">
+													<RegistrationCell relation={relation()} />
+												</td>
+											</Show>
 										</Show>
 									</tr>
 								)}

@@ -11,6 +11,7 @@ import type { EmployeeMasterRepository } from "../domain/repositories/EmployeeMa
 import type { EmployeeRepository } from "../domain/repositories/EmployeeRepository";
 import type { EvaluationSheetRepository } from "../domain/repositories/EvaluationSheetRepository";
 import type { MilestoneRepository } from "../domain/repositories/MilestoneRepository";
+import { EmployeeRole } from "../domain/valueObjects/EmployeeRole";
 import { EvaluationRank } from "../domain/valueObjects/EvaluationRank";
 import { EvaluationStatus } from "../domain/valueObjects/EvaluationStatus";
 
@@ -24,7 +25,8 @@ export const profile = (role = "Employee", id = 1, registered = true) =>
 		`テスト${id}`,
 		`TEST00${id}`,
 		1,
-		role,
+		// 知らない名前は、DB から読んだときと同じく Employee になる
+		EmployeeRole.fromStored(role),
 		"技術",
 		5,
 		"等級",
@@ -162,6 +164,9 @@ export function masterRepository() {
 		updateGradeByEmployeeNo: vi
 			.fn<EmployeeMasterRepository["updateGradeByEmployeeNo"]>()
 			.mockResolvedValue(profile()),
+		updateRoleByEmployeeNo: vi
+			.fn<EmployeeMasterRepository["updateRoleByEmployeeNo"]>()
+			.mockResolvedValue(true),
 		resetRegistrationByEmployeeNo: vi
 			.fn<EmployeeMasterRepository["resetRegistrationByEmployeeNo"]>()
 			.mockResolvedValue(true),

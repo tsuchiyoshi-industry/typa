@@ -27,7 +27,7 @@ export class UpdateEmployeeGradeInteractor
 		const targetEmployeeNo = request.targetEmployeeNo.trim();
 
 		const currentEmployee = await this.employeeMasterRepository.findCurrentEmployeeProfile();
-		if (!currentEmployee || !canEditGrades(currentEmployee.roleName)) {
+		if (!currentEmployee || !canEditGrades(currentEmployee.role)) {
 			outputPort.present({ success: false, message: "等級を更新する権限がありません。" });
 			return;
 		}

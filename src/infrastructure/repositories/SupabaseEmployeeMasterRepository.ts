@@ -4,6 +4,7 @@ import type {
 	EmployeeMasterRepository,
 	EvaluatorType,
 } from "../../domain/repositories/EmployeeMasterRepository";
+import { EmployeeRole } from "../../domain/valueObjects/EmployeeRole";
 import { supabase } from "../db/supabase";
 
 interface EmployeeRow {
@@ -102,6 +103,21 @@ export class SupabaseEmployeeMasterRepository implements EmployeeMasterRepositor
 		return this.updateEmployee(targetEmployeeNo, { grade_id: gradeId });
 	}
 
+	async updateRoleByEmployeeNo(targetEmployeeNo: string, role: EmployeeRole): Promise<boolean> {
+		// role_id はクライアントから直接更新できない。Admin の確認と「Admin を0人にしない」をDB関数に任せる
+		const { data, error } = await supabase.rpc("set_employee_role", {
+			p_employee_no: targetEmployeeNo,
+			p_role_name: role.toString(),
+		});
+
+		if (error) {
+			console.error("Error updating employee role:", error);
+			return false;
+		}
+
+		return data === true;
+	}
+
 	async resetRegistrationByEmployeeNo(targetEmployeeNo: string): Promise<boolean> {
 		// Authユーザーの削除はクライアントの権限ではできないため、Admin だけが実行できるDB関数に任せる
 		const { data, error } = await supabase.rpc("reset_employee_registration", {
@@ -175,7 +191,8 @@ export class SupabaseEmployeeMasterRepository implements EmployeeMasterRepositor
 					employee.name,
 					employee.employee_no,
 					employee.role_id,
-					employee.role_id ? (roleNames.get(employee.role_id) ?? "Employee") : "Employee",
+					// DB は権限を名前(文字列)で持つ。アプリの中では値オブジェクトで扱う
+					EmployeeRole.fromStored(roleNames.get(employee.role_id ?? -1)),
 					employee.career_course,
 					employee.grade_id,
 					employee.grade_id ? (gradeNames.get(employee.grade_id) ?? "未設定") : "未設定",

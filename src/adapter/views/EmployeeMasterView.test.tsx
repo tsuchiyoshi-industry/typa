@@ -23,6 +23,7 @@ const employee = (
 	employeeNo: `E00${id}`,
 	name,
 	careerCourse,
+	roleName: "Employee",
 	gradeId: 1,
 	gradeName: "G1",
 	primaryEvaluatorId: 2,
@@ -40,6 +41,7 @@ function setup() {
 		mode: "admin",
 		canEditEvaluators: true,
 		canEditGrades: true,
+		canEditRoles: true,
 		canResetRegistrations: true,
 		currentEmployee: {
 			id: 9,
@@ -73,6 +75,7 @@ function setup() {
 			return true;
 		}),
 		updateEvaluator: vi.fn().mockResolvedValue(true),
+		updateRole: vi.fn().mockResolvedValue(true),
 		resetRegistration: vi.fn(),
 	};
 	const screen = render(() => (
@@ -111,10 +114,49 @@ it("restores the grade and enables controls when saving fails", async () => {
 	await waitFor(() => expect(select.disabled).toBe(false));
 	expect(select.value).toBe("1");
 });
-it("excludes executives from rows and counts but retains them as evaluator candidates", () => {
+it("lets only an Admin see and change roles, after confirmation", async () => {
 	const screen = setup();
+	const select = screen.getByLabelText("山田さんの権限") as HTMLSelectElement;
+	await waitFor(() => expect(select.value).toBe("Employee"));
+	expect([...select.options].map((option) => option.value).filter(Boolean)).toEqual([
+		"Admin",
+		"Reviewer",
+		"Employee",
+	]);
+	vi.mocked(confirmAction).mockResolvedValueOnce(false);
+	fireEvent.change(select, { target: { value: "Admin" } });
+	await waitFor(() => expect(select.value).toBe("Employee"));
+	expect(screen.controller.updateRole).not.toHaveBeenCalled();
+	fireEvent.change(select, { target: { value: "Reviewer" } });
+	await waitFor(() =>
+		expect(screen.controller.updateRole).toHaveBeenCalledWith("E001", "Reviewer"),
+	);
+	// Admin 以外には、誰がどの権限かを出さない
+	screen.setViewModel((prev) => ({
+		...prev,
+		mode: "reviewer",
+		canEditRoles: false,
+		canEditGrades: false,
+		canResetRegistrations: false,
+		relations: prev.relations.map((row) => ({ ...row, roleName: null })),
+	}));
+	await waitFor(() => expect(screen.queryByLabelText("山田さんの権限")).toBeNull());
+	expect(screen.queryByRole("columnheader", { name: "権限" })).toBeNull();
+});
+it("shows executives to an Admin for their role only", () => {
+	const screen = setup();
+	expect(screen.getByLabelText("田中さんの権限")).toBeTruthy();
 	expect(screen.queryByLabelText("田中さんの等級")).toBeNull();
-	expect(screen.getByRole("button", { name: /^全員\s*2$/ })).toBeTruthy();
+	expect(screen.queryByLabelText("田中さんの一次評価者")).toBeNull();
+	// 等級・評価者を持たない役員は「未設定あり」に数えない
+	expect(screen.getByRole("button", { name: /^全員\s*3$/ })).toBeTruthy();
+	expect(screen.getByRole("button", { name: /^未設定あり\s*0$/ })).toBeTruthy();
+});
+it("excludes executives from rows and counts but retains them as evaluator candidates", async () => {
+	const screen = setup();
+	screen.setViewModel((prev) => ({ ...prev, mode: "reviewer", canEditRoles: false }));
+	await waitFor(() => expect(screen.getByRole("button", { name: /^全員\s*2$/ })).toBeTruthy());
+	expect(screen.queryByLabelText("田中さんの等級")).toBeNull();
 	(screen.getByLabelText("山田さんの一次評価者") as HTMLInputElement).focus();
 	expect(screen.getByRole("option", { name: /田中\s*E003/ })).toBeTruthy();
 	expect(screen.queryByRole("option", { name: /山田\s*E001/ })).toBeNull();

@@ -31,7 +31,7 @@ export class ResetEmployeeRegistrationInteractor
 		const targetEmployeeNo = request.targetEmployeeNo.trim();
 
 		const currentEmployee = await this.employeeMasterRepository.findCurrentEmployeeProfile();
-		if (!currentEmployee || !canResetRegistrations(currentEmployee.roleName)) {
+		if (!currentEmployee || !canResetRegistrations(currentEmployee.role)) {
 			outputPort.present({ success: false, message: "登録を取り消す権限がありません。" });
 			return;
 		}

@@ -47,6 +47,8 @@ DB構成は [tables.md](./tables.md) を正とします。実装では `evaluati
 
 `202610080002_sheet_grade.sql` は `evaluation_sheets.grade_id`（シート作成時の等級）を追加します。等級は挿入時に DB のトリガーが社員の等級から設定し、その後に社員の等級が変わっても書き換えません。評価シート一覧にはこの等級を表示します。PDF を出力できるのは、評価が確定したシートの評価者だけです。
 
+`202610080003_employee_roles.sql` は、Admin が社員マスタから TYPA の権限（Admin / Reviewer / Employee）を変えるための DB 関数 `set_employee_role` を追加します。最後の Admin は外せません。あわせて、クライアントから `employees.role_id` を直接更新する権限を外します（`employees` に列を追加したら、クライアントから更新させる列はこのマイグレーションと同じ形で `grant update` が必要です）。誰がどの権限かは Admin の画面にだけ表示しますが、`role_id` の読み取り自体は DB 側で制限していません（SEC-002 の対象）。
+
 ## 開発
 
 フロントエンドのみ起動:

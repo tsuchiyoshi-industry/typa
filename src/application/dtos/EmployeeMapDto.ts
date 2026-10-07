@@ -4,7 +4,8 @@ export interface EmployeeMapPersonDto {
 	employeeNo: string;
 	gradeName: string;
 	careerCourse: string | null;
-	roleName: string;
+	/** 権限。Admin 以外には渡さない(null)。 */
+	roleName: string | null;
 	primaryEvaluatorId: number | null;
 	secondaryEvaluatorId: number | null;
 	noSecondaryEvaluator: boolean;

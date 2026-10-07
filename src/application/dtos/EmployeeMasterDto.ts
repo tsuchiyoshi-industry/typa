@@ -20,6 +20,8 @@ export interface ApprovalRelationDto {
 	name: string;
 	employeeNo: string;
 	careerCourse: string | null;
+	/** 権限。Admin 以外には渡さない(null)。 */
+	roleName: string | null;
 	gradeId: number | null;
 	gradeName: string;
 	primaryEvaluatorId: number | null;
@@ -37,6 +39,7 @@ export interface EmployeeMasterDto {
 	mode: EmployeeMasterMode;
 	canEditEvaluators: boolean;
 	canEditGrades: boolean;
+	canEditRoles: boolean;
 	canResetRegistrations: boolean;
 	relations: ApprovalRelationDto[];
 	grades: EmployeeGrade[];

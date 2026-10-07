@@ -108,6 +108,7 @@ const SheetTable: Component<{
 							<Show when={props.showName}>
 								<SortHeader field="name" label="氏名" />
 							</Show>
+							<th>作成時の等級</th>
 							<SortHeader field="status" label="ステータス" />
 							<SortHeader field="updated" label="最終更新" />
 							<th>
@@ -135,18 +136,28 @@ const SheetTable: Component<{
 											<span class="sheet-row__sub">{sheet.employeeNo}</span>
 										</td>
 									</Show>
+									<td>{sheet.gradeName || "—"}</td>
 									<td>
 										<span class={`status-chip ${sheet.status}`}>{statusLabel(sheet.status)}</span>
 									</td>
 									<td class="sheet-row__date">{formatDateTime(sheet.updatedAt)}</td>
 									<td class="action-buttons">
 										<Show when={props.onExport}>
+											{/* 確定前は押せないが、理由のヒントを出せるよう disabled にはしない */}
 											<button
 												type="button"
 												class="export-button"
+												aria-disabled={sheet.status !== "finalized"}
+												title={
+													sheet.status === "finalized"
+														? undefined
+														: "評価が確定すると PDF を出力できます"
+												}
 												onClick={(event) => {
 													event.stopPropagation();
-													props.onExport?.(sheet);
+													if (sheet.status === "finalized") {
+														props.onExport?.(sheet);
+													}
 												}}
 												disabled={props.exportingId != null}
 											>
@@ -232,11 +243,7 @@ const SheetListView: Component<SheetListViewProps> = (props) => {
 							<div class="empty-state">
 								<FilePlus2 class="empty-state__icon" />
 								<h2>自分の評価シートはまだありません</h2>
-								<p>評価期間を選んでシートを作成すると、ここに表示されます。</p>
-								<A href="/sheet/new" class="create-sheet-button">
-									<Plus size={20} />
-									<span>評価シートを作成</span>
-								</A>
+								<p>「新規作成」からシートを作成すると、ここに表示されます。</p>
 							</div>
 						</Show>
 					}
@@ -253,7 +260,7 @@ const SheetListView: Component<SheetListViewProps> = (props) => {
 						<div>
 							<span class="review-eyebrow">REVIEW WORKSPACE</span>
 							<strong>受け持ち全体から、評価を進める</strong>
-							<span>確認状況を見渡す・続きから評価する・等級ごとに比較する</span>
+							<span>進み具合を見渡す・自分の番から評価する・等級ごとに比較する</span>
 						</div>
 						<span>
 							受け持ちの評価へ <ChevronRight size={18} />

@@ -1,67 +1,114 @@
 import { expect, it } from "vitest";
 import { reviewerRow } from "../../test/reviewerFixture";
 import {
+	canOpen,
 	filterReviewRows,
 	finalScore,
-	nextPending,
+	nextMyTurn,
 	reviewLabel,
+	reviewRank,
 	reviewScore,
+	reviewTask,
 } from "./reviewerWorkspace";
+
+const submittedToPrimary = { status: "submitted", isPrimary: true, firstRank: null } as const;
 
 it("uses the exact 20/80 allocation, rounding and primary-as-final rule", () => {
 	const row = reviewerRow();
 	expect(reviewScore(row, "first")).toBe(58);
 	expect(reviewScore(row, "second")).toBe(79);
 	expect(finalScore(row)).toBe(79);
-	expect(finalScore(reviewerRow(1, { canViewSecond: false }))).toBe(58);
+	expect(
+		finalScore(
+			reviewerRow(1, { ...submittedToPrimary, canViewSecond: false, primaryIsFinal: true }),
+		),
+	).toBe(58);
 	expect(finalScore(reviewerRow(1, { status: "finalized", finalScore: 83 }))).toBe(83);
 	expect(finalScore(reviewerRow(1, { canViewFinal: false }))).toBeNull();
 	expect(reviewScore(reviewerRow(1, { canViewSecond: false }), "second")).toBeNull();
 	expect(reviewScore(reviewerRow(1, { sheetId: null }), "first")).toBeNull();
 });
-it("treats zero as a real score and confirms completion only from the checkpoint", () => {
-	const row = reviewerRow(1, { objectives: [], commonItems: [] });
-	expect(reviewScore(row, "first")).toBe(0);
-	expect(reviewLabel(row)).toBe("未確認");
-	expect(reviewLabel({ ...row, reviewed: true })).toBe("確認済み");
+it("shows no score for a draft, and no final score before the final evaluation starts", () => {
+	const draft = reviewerRow(1, { status: "draft", objectives: [], commonItems: [] });
+	expect(canOpen(draft)).toBe(false);
+	expect(reviewScore(draft, "first")).toBeNull();
+	expect(reviewRank(draft, "first")).toBeNull();
+	const waitingForPrimary = reviewerRow(1, { status: "submitted", firstRank: null });
+	expect(reviewScore(waitingForPrimary, "first")).toBe(58);
+	expect(reviewScore(waitingForPrimary, "second")).toBeNull();
+	expect(finalScore(waitingForPrimary)).toBeNull();
+	expect(reviewRank(waitingForPrimary, "final")).toBeNull();
 });
-it("filters normalized Japanese search, grade, stage, and progress independently", () => {
+it("derives a provisional rank from the score and prefers the confirmed rank", () => {
+	expect(reviewRank(reviewerRow(1, submittedToPrimary), "first")).toEqual({
+		text: "B-",
+		confirmed: false,
+	});
+	// 確定後は保存値。配点が変わっても、確定した時点のランクのまま
+	expect(reviewRank(reviewerRow(1, { firstRank: "A" }), "first")).toEqual({
+		text: "A",
+		confirmed: true,
+	});
+	expect(reviewRank(reviewerRow(), "final")).toEqual({ text: "B", confirmed: false });
+	expect(
+		reviewRank(reviewerRow(1, { status: "finalized", finalRank: "B+", finalScore: 81 }), "final"),
+	).toEqual({ text: "B+", confirmed: true });
+	expect(reviewRank(reviewerRow(1, { canViewFinal: false }), "final")).toBeNull();
+});
+it("tells whose turn it is from the stage and the reviewer's role", () => {
+	const cases = [
+		[reviewerRow(1, { sheetId: null, status: "missing" }), "waiting", "未作成"],
+		[reviewerRow(1, { status: "draft" }), "waiting", "提出待ち"],
+		[reviewerRow(1, submittedToPrimary), "first", "一次評価する"],
+		[reviewerRow(1, { ...submittedToPrimary, primaryIsFinal: true }), "first", "評価する"],
+		[reviewerRow(1, { status: "submitted" }), "waiting", "一次評価待ち"],
+		[reviewerRow(1), "second", "二次評価する"],
+		[reviewerRow(1, { isPrimary: true, canViewFinal: false }), "waiting", "二次評価待ち"],
+		[reviewerRow(1, { status: "finalized" }), "finalized", "評価確定"],
+	] as const;
+	for (const [row, task, label] of cases) {
+		expect(reviewTask(row)).toBe(task);
+		expect(reviewLabel(row)).toBe(label);
+	}
+});
+it("treats zero as a real score: an unscored submitted sheet is still the reviewer's turn", () => {
+	const row = reviewerRow(1, { ...submittedToPrimary, objectives: [], commonItems: [] });
+	expect(reviewScore(row, "first")).toBe(0);
+	expect(reviewTask(row)).toBe("first");
+});
+it("filters normalized Japanese search, grade and stage independently, own turns first", () => {
 	const rows = [
 		reviewerRow(1),
-		reviewerRow(2, { role: "primary", gradeId: 2, gradeName: "技術2級", status: "draft" }),
-		reviewerRow(3, { needsRecheck: true }),
-		reviewerRow(4, { reviewed: true }),
+		reviewerRow(2, { gradeId: 2, gradeName: "技術2級", status: "draft" }),
+		reviewerRow(3, submittedToPrimary),
+		reviewerRow(4, { status: "submitted" }),
 		reviewerRow(5, { status: "finalized" }),
 	];
-	const options = { query: "", grade: "", role: "", filter: "all", sort: "priority" } as const;
-	expect(filterReviewRows(rows, options).map((row) => row.employeeId)).toEqual([3, 1, 4, 2, 5]);
+	const options = { query: "", grade: "", filter: "all", sort: "priority" } as const;
+	expect(filterReviewRows(rows, options).map((row) => row.employeeId)).toEqual([3, 1, 2, 4, 5]);
 	expect(
-		filterReviewRows(rows, {
-			...options,
-			query: "Ｅ００２",
-			grade: "2",
-			role: "primary",
-			filter: "waiting",
-		}).map((row) => row.employeeId),
+		filterReviewRows(rows, { ...options, query: "Ｅ００２", grade: "2", filter: "waiting" }).map(
+			(row) => row.employeeId,
+		),
 	).toEqual([2]);
-	expect(
-		filterReviewRows(rows, { ...options, query: "一次 太郎", filter: "pending" }),
-	).toHaveLength(2);
-	expect(filterReviewRows(rows, { ...options, filter: "recheck" })).toHaveLength(1);
-	expect(filterReviewRows(rows, { ...options, filter: "reviewed" })).toHaveLength(1);
+	expect(filterReviewRows(rows, { ...options, query: "一次 太郎", filter: "second" })).toHaveLength(
+		1,
+	);
+	expect(filterReviewRows(rows, { ...options, filter: "first" })).toHaveLength(1);
+	expect(filterReviewRows(rows, { ...options, filter: "waiting" })).toHaveLength(2);
 	expect(filterReviewRows(rows, { ...options, filter: "finalized" })).toHaveLength(1);
 });
-it("wraps next-unconfirmed navigation and skips draft, confirmed and the current person", () => {
+it("wraps next-turn navigation and skips drafts, others' turns and the current person", () => {
 	const rows = [
 		reviewerRow(1),
 		reviewerRow(2, { status: "draft" }),
-		reviewerRow(3, { reviewed: true }),
-		reviewerRow(4),
+		reviewerRow(3, { status: "submitted" }),
+		reviewerRow(4, submittedToPrimary),
 	];
-	expect(nextPending(rows, 1)?.employeeId).toBe(4);
-	expect(nextPending(rows, 4)?.employeeId).toBe(1);
-	expect(nextPending([reviewerRow(1)], 1)).toBeUndefined();
-	expect(nextPending(rows)?.employeeId).toBe(1);
+	expect(nextMyTurn(rows, 1)?.employeeId).toBe(4);
+	expect(nextMyTurn(rows, 4)?.employeeId).toBe(1);
+	expect(nextMyTurn([reviewerRow(1)], 1)).toBeUndefined();
+	expect(nextMyTurn(rows)?.employeeId).toBe(1);
 });
 it("filters primary evaluator by ID even when people share the same name", () => {
 	const rows = [
@@ -69,7 +116,7 @@ it("filters primary evaluator by ID even when people share the same name", () =>
 		reviewerRow(2, { primaryEvaluatorId: 21, primaryEvaluator: "佐藤 太郎" }),
 		reviewerRow(3, { primaryEvaluatorId: null, primaryEvaluator: "未設定" }),
 	];
-	const options = { query: "", grade: "", role: "", filter: "all", sort: "priority" } as const;
+	const options = { query: "", grade: "", filter: "all", sort: "priority" } as const;
 	expect(
 		filterReviewRows(rows, { ...options, primaryEvaluator: "20" }).map((row) => row.employeeId),
 	).toEqual([1]);

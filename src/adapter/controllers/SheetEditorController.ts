@@ -23,14 +23,11 @@ import type {
 	UpdateEvaluationStatusOutputPort,
 } from "../../application/usecases/UpdateEvaluationStatusInteractor";
 import type {
-	UpdateFinalEvaluationRankInteractor,
-	UpdateFinalEvaluationRankOutputPort,
-} from "../../application/usecases/UpdateFinalEvaluationRankInteractor";
-import type {
 	UpdateOverallCommentInteractor,
 	UpdateOverallCommentOutputPort,
 } from "../../application/usecases/UpdateOverallCommentInteractor";
 import type { EmployeeRepository } from "../../domain/repositories/EmployeeRepository";
+import type { EvaluationStatusValue } from "../../domain/valueObjects/EvaluationStatus";
 import type { SheetEditorViewModel } from "../presenters/SheetEditorPresenter";
 
 export class SheetEditorController {
@@ -43,7 +40,6 @@ export class SheetEditorController {
 		private readonly checkRoleUseCase: CheckEvaluatorRoleInteractor,
 		private readonly fetchAccessibleSheetsUseCase: FetchCategorizedSheetsInteractor,
 		private readonly updateOverallCommentUseCase: UpdateOverallCommentInteractor,
-		private readonly updateFinalEvaluationRankUseCase: UpdateFinalEvaluationRankInteractor,
 		private readonly updateStatusUseCase: UpdateEvaluationStatusInteractor,
 		private readonly presenter: {
 			viewModel: () => SheetEditorViewModel;
@@ -54,7 +50,6 @@ export class SheetEditorController {
 				role: CheckEvaluatorRoleOutputPort;
 				accessibleSheets: FetchCategorizedSheetsOutputPort;
 				overallComment: UpdateOverallCommentOutputPort;
-				finalEvaluationRank: UpdateFinalEvaluationRankOutputPort;
 				status: UpdateEvaluationStatusOutputPort;
 			};
 			beginSheetLoad: (silent?: boolean) => void;
@@ -67,8 +62,6 @@ export class SheetEditorController {
 			presentCreateError: (message: string) => void;
 			beginOverallCommentUpdate: () => void;
 			presentOverallCommentUpdateError: (message: string) => void;
-			beginFinalEvaluationRankUpdate: () => void;
-			presentFinalEvaluationRankUpdateError: (message: string) => void;
 			beginStatusUpdate: () => void;
 			presentStatusUpdateError: (message: string) => void;
 		},
@@ -209,7 +202,8 @@ export class SheetEditorController {
 		}
 	}
 
-	async updateStatus(status: "draft" | "submitted", asFinalization = false): Promise<boolean> {
+	/** status: 進める先の状態(draft / submitted / first_evaluated / finalized)。 */
+	async updateStatus(status: EvaluationStatusValue): Promise<boolean> {
 		const { sheet } = this.presenter.viewModel();
 		if (!sheet?.sheetId) {
 			this.presenter.presentStatusUpdateError(
@@ -231,7 +225,6 @@ export class SheetEditorController {
 				{
 					sheetId: sheet.sheetId,
 					status,
-					asFinalization,
 					currentEmployeeId,
 				},
 				this.presenter.outputPort.status,
@@ -240,42 +233,6 @@ export class SheetEditorController {
 		} catch (error) {
 			this.presenter.presentStatusUpdateError(
 				error instanceof Error ? error.message : "ステータスの変更に失敗しました",
-			);
-			return false;
-		}
-	}
-
-	async decideFinalEvaluationRank(letter: string, level: string): Promise<boolean> {
-		const { sheet } = this.presenter.viewModel();
-		if (!sheet?.sheetId) {
-			this.presenter.presentFinalEvaluationRankUpdateError(
-				"評価シートIDを取得できないため、最終評価ランクを保存できません。",
-			);
-			return false;
-		}
-
-		const currentEmployeeId = await this.requireCurrentEmployeeId(
-			this.presenter.presentFinalEvaluationRankUpdateError,
-		);
-		if (currentEmployeeId === null) {
-			return false;
-		}
-
-		this.presenter.beginFinalEvaluationRankUpdate();
-		try {
-			await this.updateFinalEvaluationRankUseCase.execute(
-				{
-					sheetId: sheet.sheetId,
-					letter,
-					level,
-					currentEmployeeId,
-				},
-				this.presenter.outputPort.finalEvaluationRank,
-			);
-			return true;
-		} catch (error) {
-			this.presenter.presentFinalEvaluationRankUpdateError(
-				error instanceof Error ? error.message : "最終評価ランクの保存に失敗しました",
 			);
 			return false;
 		}

@@ -1,7 +1,10 @@
-import { EvaluationAllocatedScores } from "../valueObjects/EvaluationAllocatedScores";
+import {
+	EvaluationAllocatedScores,
+	TOTAL_EVALUATION_ALLOCATION_SCORE,
+} from "../valueObjects/EvaluationAllocatedScores";
+import { EvaluationRank } from "../valueObjects/EvaluationRank";
 import { EvaluationScoreTotals } from "../valueObjects/EvaluationScoreTotals";
 import { EvaluationStatus } from "../valueObjects/EvaluationStatus";
-import type { FinalEvaluationRank } from "../valueObjects/FinalEvaluationRank";
 import type { CommonEvaluationResult } from "./CommonEvaluationResult";
 import type { Employee } from "./Employee";
 import type { EvaluationPeriod } from "./EvaluationPeriod";
@@ -22,7 +25,9 @@ export class EvaluationSheet {
 		public readonly commonEvaluationScoreTotals: EvaluationScoreTotals,
 		public readonly allocatedScores: EvaluationAllocatedScores,
 		public readonly status: EvaluationStatus,
-		public readonly finalEvaluationRank?: FinalEvaluationRank,
+		/** 確定時に保存したランク。未確定の段階では undefined、または過去の手入力値が残っていることがある。 */
+		public readonly finalEvaluationRank?: EvaluationRank,
+		public readonly firstEvaluationRank?: EvaluationRank,
 	) {}
 
 	static create(params: {
@@ -39,7 +44,8 @@ export class EvaluationSheet {
 		commonEvaluationScoreTotals?: EvaluationScoreTotals;
 		allocatedScores?: EvaluationAllocatedScores;
 		status?: EvaluationStatus;
-		finalEvaluationRank?: FinalEvaluationRank;
+		finalEvaluationRank?: EvaluationRank;
+		firstEvaluationRank?: EvaluationRank;
 	}): EvaluationSheet {
 		const commonEvaluationResults = params.commonEvaluationResults ?? [];
 		const objectiveScoreTotals =
@@ -67,12 +73,41 @@ export class EvaluationSheet {
 				),
 			params.status ?? EvaluationStatus.DRAFT,
 			params.finalEvaluationRank,
+			params.firstEvaluationRank,
 		);
 	}
 
 	/** 二次評価者「なし」の社員は、一次評価者が最終評価者を兼ねる。 */
 	primaryIsFinalEvaluator(): boolean {
 		return this.subject.primaryIsFinalEvaluator();
+	}
+
+	/** 一次評価の評価点(目標20点 + 共通評価80点)。 */
+	firstEvaluationScore(): number {
+		return EvaluationAllocatedScores.fromTotals(
+			this.objectiveScoreTotals,
+			this.commonEvaluationScoreTotals,
+			true,
+		).totalEvaluationScore;
+	}
+
+	/** 一次評価ランク。一次評価の確定後は保存値、確定前は現在の点数から決まる見込み。 */
+	resolveFirstEvaluationRank(): EvaluationRank {
+		return (
+			(this.status.isFirstEvaluationConfirmed() ? this.firstEvaluationRank : undefined) ??
+			EvaluationRank.fromScore(this.firstEvaluationScore(), TOTAL_EVALUATION_ALLOCATION_SCORE)
+		);
+	}
+
+	/** 最終評価ランク。最終評価者(二次評価者。「なし」の社員は一次評価者)の評価点から決まる。 */
+	resolveFinalEvaluationRank(): EvaluationRank {
+		return (
+			(this.status.isFinalized() ? this.finalEvaluationRank : undefined) ??
+			EvaluationRank.fromScore(
+				this.allocatedScores.totalEvaluationScore,
+				TOTAL_EVALUATION_ALLOCATION_SCORE,
+			)
+		);
 	}
 
 	isEditable(): boolean {

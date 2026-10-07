@@ -17,8 +17,4 @@ export class ReviewerWorkspaceController {
 	load(periodId: number) {
 		return this.repository.load(periodId);
 	}
-
-	setReviewed(sheetId: number, revision: string, reviewed: boolean) {
-		return this.repository.setReviewed(sheetId, revision, reviewed);
-	}
 }

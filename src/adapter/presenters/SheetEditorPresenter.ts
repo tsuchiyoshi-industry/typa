@@ -21,10 +21,6 @@ import type {
 	UpdateEvaluationStatusResponse,
 } from "../../application/usecases/UpdateEvaluationStatusInteractor";
 import type {
-	UpdateFinalEvaluationRankOutputPort,
-	UpdateFinalEvaluationRankResponse,
-} from "../../application/usecases/UpdateFinalEvaluationRankInteractor";
-import type {
 	UpdateOverallCommentOutputPort,
 	UpdateOverallCommentResponse,
 } from "../../application/usecases/UpdateOverallCommentInteractor";
@@ -44,12 +40,10 @@ export interface SheetEditorViewModel {
 	canViewSecondEvaluation: boolean;
 	canSubmitOwnSheet: boolean;
 	canRevertOwnSheetToDraft: boolean;
+	canConfirmFirstEvaluation: boolean;
 	canFinalizeEvaluation: boolean;
-	canDecideFinalEvaluationRank: boolean;
 	updatingOverallComment: boolean;
 	overallCommentUpdateError: string | null;
-	updatingFinalEvaluationRank: boolean;
-	finalEvaluationRankUpdateError: string | null;
 	updatingStatus: boolean;
 	statusUpdateError: string | null;
 	creating: boolean;
@@ -67,7 +61,6 @@ export function createSheetEditorPresenter(): {
 		role: CheckEvaluatorRoleOutputPort;
 		accessibleSheets: FetchCategorizedSheetsOutputPort;
 		overallComment: UpdateOverallCommentOutputPort;
-		finalEvaluationRank: UpdateFinalEvaluationRankOutputPort;
 		status: UpdateEvaluationStatusOutputPort;
 	};
 	beginSheetLoad: (silent?: boolean) => void;
@@ -81,8 +74,6 @@ export function createSheetEditorPresenter(): {
 	presentRoleError: (message: string) => void;
 	beginOverallCommentUpdate: () => void;
 	presentOverallCommentUpdateError: (message: string) => void;
-	beginFinalEvaluationRankUpdate: () => void;
-	presentFinalEvaluationRankUpdateError: (message: string) => void;
 	beginStatusUpdate: () => void;
 	presentStatusUpdateError: (message: string) => void;
 } {
@@ -104,12 +95,10 @@ export function createSheetEditorPresenter(): {
 		canViewSecondEvaluation: false,
 		canSubmitOwnSheet: false,
 		canRevertOwnSheetToDraft: false,
+		canConfirmFirstEvaluation: false,
 		canFinalizeEvaluation: false,
-		canDecideFinalEvaluationRank: false,
 		updatingOverallComment: false,
 		overallCommentUpdateError: null,
-		updatingFinalEvaluationRank: false,
-		finalEvaluationRankUpdateError: null,
 		updatingStatus: false,
 		statusUpdateError: null,
 		creating: false,
@@ -127,7 +116,6 @@ export function createSheetEditorPresenter(): {
 				createdSheetId: null,
 				fetchError: null,
 				overallCommentUpdateError: null,
-				finalEvaluationRankUpdateError: null,
 			}));
 		},
 	};
@@ -178,8 +166,8 @@ export function createSheetEditorPresenter(): {
 				canViewSecondEvaluation: response.canViewSecondEvaluation,
 				canSubmitOwnSheet: response.canSubmitOwnSheet,
 				canRevertOwnSheetToDraft: response.canRevertOwnSheetToDraft,
+				canConfirmFirstEvaluation: response.canConfirmFirstEvaluation,
 				canFinalizeEvaluation: response.canFinalizeEvaluation,
-				canDecideFinalEvaluationRank: response.canDecideFinalEvaluationRank,
 			}));
 		},
 	};
@@ -191,17 +179,6 @@ export function createSheetEditorPresenter(): {
 				sheet: response.sheet,
 				updatingOverallComment: false,
 				overallCommentUpdateError: null,
-			}));
-		},
-	};
-
-	const finalEvaluationRankOutputPort: UpdateFinalEvaluationRankOutputPort = {
-		present(response: UpdateFinalEvaluationRankResponse) {
-			setViewModel((prev) => ({
-				...prev,
-				sheet: response.sheet,
-				updatingFinalEvaluationRank: false,
-				finalEvaluationRankUpdateError: null,
 			}));
 		},
 	};
@@ -254,22 +231,6 @@ export function createSheetEditorPresenter(): {
 		}));
 	};
 
-	const beginFinalEvaluationRankUpdate = () => {
-		setViewModel((prev) => ({
-			...prev,
-			updatingFinalEvaluationRank: true,
-			finalEvaluationRankUpdateError: null,
-		}));
-	};
-
-	const presentFinalEvaluationRankUpdateError = (message: string) => {
-		setViewModel((prev) => ({
-			...prev,
-			updatingFinalEvaluationRank: false,
-			finalEvaluationRankUpdateError: message,
-		}));
-	};
-
 	const presentOverallCommentUpdateError = (message: string) => {
 		setViewModel((prev) => ({
 			...prev,
@@ -315,12 +276,13 @@ export function createSheetEditorPresenter(): {
 						canViewSecondEvaluation: false,
 						canSubmitOwnSheet: false,
 						canRevertOwnSheetToDraft: false,
+						canConfirmFirstEvaluation: false,
 						canFinalizeEvaluation: false,
-						canDecideFinalEvaluationRank: false,
+						// 別のシートを開いたら、前のシートの確定時の警告は持ち越さない
+						statusUpdateError: null,
 					}),
 			fetchError: null,
 			overallCommentUpdateError: null,
-			finalEvaluationRankUpdateError: null,
 		}));
 	};
 
@@ -351,7 +313,6 @@ export function createSheetEditorPresenter(): {
 			role: roleOutputPort,
 			accessibleSheets: accessibleSheetsOutputPort,
 			overallComment: overallCommentOutputPort,
-			finalEvaluationRank: finalEvaluationRankOutputPort,
 			status: statusOutputPort,
 		},
 		beginSheetLoad,
@@ -365,8 +326,6 @@ export function createSheetEditorPresenter(): {
 		presentRoleError,
 		beginOverallCommentUpdate,
 		presentOverallCommentUpdateError,
-		beginFinalEvaluationRankUpdate,
-		presentFinalEvaluationRankUpdateError,
 		beginStatusUpdate,
 		presentStatusUpdateError,
 	};

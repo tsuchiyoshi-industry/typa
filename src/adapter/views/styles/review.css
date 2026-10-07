@@ -65,7 +65,10 @@
 }
 .review-overview {
 	display: grid;
-	grid-template-columns: minmax(240px, 1.7fr) repeat(4, 1fr);
+	/* 件数カードは、自分が担当する段階の数だけ並ぶ */
+	grid-template-columns: minmax(240px, 1.7fr);
+	grid-auto-flow: column;
+	grid-auto-columns: 1fr;
 	border: 1px solid var(--hr-border);
 	background: var(--hr-surface);
 	border-radius: var(--hr-radius-md);
@@ -117,6 +120,10 @@
 .review-stat:hover,
 .review-stat[aria-pressed="true"] {
 	background: var(--hr-accent-muted);
+}
+/* 自分の番のシートが残っている段階。件数の色だけ変わる(ラベルは下で色を指定している) */
+.review-stat.action {
+	color: var(--hr-accent-hover);
 }
 .review-stat > span {
 	font-size: 0.72rem;
@@ -262,6 +269,37 @@
 .review-table tbody tr:hover {
 	background: var(--hr-surface-hover);
 }
+/* 行全体が開くボタンになる。提出前の行は開けない */
+.review-row.openable {
+	cursor: pointer;
+}
+.review-row:not(.openable) {
+	color: var(--hr-text-muted);
+}
+.review-row.mine td:first-child {
+	box-shadow: inset 3px 0 0 var(--hr-accent-hover);
+}
+.review-row__chevron {
+	color: var(--hr-text-muted);
+	text-align: right;
+}
+.review-score-rank {
+	display: inline-flex;
+	align-items: baseline;
+	gap: 0.5rem;
+	font-variant-numeric: tabular-nums;
+}
+.review-rank {
+	min-width: 1.6rem;
+	text-align: left;
+	font-weight: 600;
+}
+/* 確定前のランクは見込み */
+.review-rank.provisional,
+.review-mini-rank.provisional {
+	font-weight: 400;
+	color: var(--hr-text-muted);
+}
 .review-table .numeric {
 	text-align: right;
 	font-variant-numeric: tabular-nums;
@@ -296,7 +334,6 @@
 }
 .review-evaluator-label {
 	display: block;
-	margin-top: 0.35rem;
 	padding: 0.12rem 0.4rem;
 	border: 1px solid var(--hr-border);
 	border-radius: 4px;
@@ -340,6 +377,11 @@
 	color: var(--hr-text);
 	background: var(--hr-accent-muted);
 	font-weight: 500;
+}
+.review-badge.action {
+	color: #fff;
+	background: var(--hr-accent-hover);
+	border-color: var(--hr-accent-hover);
 }
 .review-badge.done {
 	color: var(--hr-success-text);
@@ -703,7 +745,8 @@
 }
 @media (max-width: 1100px) {
 	.review-overview {
-		grid-template-columns: repeat(4, 1fr);
+		grid-auto-flow: row;
+		grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
 	}
 	.review-progress {
 		grid-column: 1 / -1;

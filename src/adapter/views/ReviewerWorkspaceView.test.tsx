@@ -10,6 +10,14 @@ import FeedbackHost from "./components/FeedbackHost";
 import { clearUnsavedChanges, settleConfirm } from "./feedback";
 import ReviewerWorkspaceView from "./ReviewerWorkspaceView";
 
+// jsdom は <dialog> の showModal / close を実装していない
+HTMLDialogElement.prototype.showModal ??= function (this: HTMLDialogElement) {
+	this.setAttribute("open", "");
+};
+HTMLDialogElement.prototype.close ??= function (this: HTMLDialogElement) {
+	this.removeAttribute("open");
+};
+
 afterEach(() => {
 	cleanup();
 	clearUnsavedChanges();
@@ -32,26 +40,12 @@ const periods = [
 	},
 ];
 function setup(people: ReviewerRowDto[], url = "/review") {
-	let rows = people;
+	const rows = people;
 	const history = createMemoryHistory();
 	history.set({ value: url, replace: true, scroll: false });
 	const controller = {
 		loadPeriods: vi.fn().mockResolvedValue(periods),
 		load: vi.fn().mockImplementation(async () => structuredClone(rows)),
-		setReviewed: vi
-			.fn()
-			.mockImplementation(async (sheetId: number, _revision: string, reviewed: boolean) => {
-				rows = rows.map((row) =>
-					row.sheetId === sheetId
-						? {
-								...row,
-								reviewed,
-								needsRecheck: false,
-								reviewedAt: reviewed ? "2026-10-07T01:30:00Z" : null,
-							}
-						: row,
-				);
-			}),
 	};
 	const editor = reviewerEditorFixture(() => rows);
 
@@ -80,10 +74,12 @@ function setup(people: ReviewerRowDto[], url = "/review") {
 	return { ...view, controller, history };
 }
 
-it("searches the caseload and filters progress without treating zero as complete", async () => {
+const submittedToPrimary = { status: "submitted", isPrimary: true, firstRank: null } as const;
+
+it("searches the caseload and filters by whose turn it is", async () => {
 	const view = setup([
 		reviewerRow(1),
-		reviewerRow(2, { reviewed: true }),
+		reviewerRow(2, submittedToPrimary),
 		reviewerRow(3, { sheetId: null, status: "missing" }),
 	]);
 	await view.findByRole("button", { name: /社員1.*E001/ });
@@ -91,10 +87,33 @@ it("searches the caseload and filters progress without treating zero as complete
 	expect(view.queryByRole("button", { name: /社員1.*E001/ })).toBeNull();
 	expect(view.getByRole("button", { name: /社員2.*E002/ })).toBeTruthy();
 	fireEvent.input(view.getByRole("searchbox"), { target: { value: "" } });
-	fireEvent.click(view.getByRole("button", { name: "未確認1" }));
+	fireEvent.click(view.getByRole("button", { name: "二次評価する1人" }));
 	expect(view.getByRole("button", { name: /社員1.*E001/ })).toBeTruthy();
 	expect(view.queryByRole("button", { name: /社員2.*E002/ })).toBeNull();
+	fireEvent.click(view.getByRole("button", { name: "一次評価する1人" }));
+	expect(view.getByRole("button", { name: /社員2.*E002/ })).toBeTruthy();
 	expect(view.controller.load).toHaveBeenCalledTimes(1);
+});
+it("hides the stages the reviewer has no part in", async () => {
+	const view = setup([reviewerRow(1, { ...submittedToPrimary, canViewSecond: false })]);
+	await view.findByRole("button", { name: "一次評価する1人" });
+	expect(view.queryByRole("button", { name: /二次評価する/ })).toBeNull();
+});
+it("opens a sheet from anywhere on its row, but not a draft", async () => {
+	const view = setup([reviewerRow(1), reviewerRow(2, { status: "draft" })]);
+	const draft = (await view.findByText("提出待ち")).closest("tr") as HTMLElement;
+	fireEvent.click(within(draft).getByText("技術1級"));
+	expect(view.history.get()).not.toContain("sheet=");
+	expect((within(draft).getByRole("button", { name: /社員2/ }) as HTMLButtonElement).disabled).toBe(
+		true,
+	);
+	fireEvent.click(
+		within(
+			view.getByText("二次評価する", { selector: "td *" }).closest("tr") as HTMLElement,
+		).getByText("技術1級"),
+	);
+	await waitFor(() => expect(view.history.get()).toContain("sheet=101"));
+	expect(view.history.get()).toContain("mode=evaluate");
 });
 it("compares selected people by grade and shows score differences and judgment evidence", async () => {
 	const view = setup([
@@ -164,38 +183,69 @@ it("shows primary judgment as read-only evidence while editing secondary evaluat
 		(view.getByRole("textbox", { name: "二次評価者の総評" }) as HTMLTextAreaElement).readOnly,
 	).toBe(false);
 });
-it("records confirmation and advances while retaining the caseload and skipping finished people", async () => {
+it("finalizes after confirmation and advances to the reviewer's next turn", async () => {
 	const view = setup(
-		[reviewerRow(1), reviewerRow(2), reviewerRow(3, { reviewed: true })],
+		[reviewerRow(1), reviewerRow(2, { status: "submitted" }), reviewerRow(3)],
 		"/review?period=10&sheet=101&mode=evaluate",
 	);
-	const action = await view.findByRole("button", { name: "確認して次へ" });
+	const action = await view.findByRole("button", { name: "二次評価を確定する" });
 	await waitFor(() => expect((action as HTMLButtonElement).disabled).toBe(false));
 	fireEvent.click(action);
-	await waitFor(() => expect(view.history.get()).toContain("sheet=102"));
-	expect(view.controller.setReviewed).toHaveBeenCalledWith(101, "revision-1", true);
+	// ランクは選ばせず、点数から決まった結果を確定前に見せる
+	const dialog = await view.findByRole("dialog");
+	expect(dialog.textContent).toContain("最終評価ランクは B（79 点 / 100 点）");
+	fireEvent.click(within(dialog).getByRole("button", { name: "評価を確定する" }));
+	await waitFor(() => expect(view.history.get()).toContain("sheet=103"));
 	const sidebar = view.getByRole("complementary", { name: "受け持ち一覧" });
-	expect(
-		within(sidebar).getByRole("button", { name: "社員2の評価を開く" }).getAttribute("aria-pressed"),
-	).toBe("true");
 	expect(within(sidebar).getByRole("button", { name: "社員1の評価を開く" }).textContent).toContain(
-		"確認済み",
+		"評価確定",
 	);
 });
-it("blocks confirmation of unsaved comments without losing the draft", async () => {
+it("confirms the primary evaluation with a notice that the secondary evaluator is notified", async () => {
+	const view = setup(
+		[reviewerRow(1, submittedToPrimary)],
+		"/review?period=10&sheet=101&mode=evaluate",
+	);
+	fireEvent.click(await view.findByRole("button", { name: "一次評価を確定する" }));
+	const dialog = await view.findByRole("dialog");
+	expect(dialog.textContent).toContain("一次評価ランクは B-（58 点 / 100 点）");
+	expect(dialog.textContent).toContain("二次評価者（徳永 優）に通知メールを送ります");
+	fireEvent.click(within(dialog).getByRole("button", { name: "一次評価を確定する" }));
+	const sidebar = view.getByRole("complementary", { name: "受け持ち一覧" });
+	await waitFor(() =>
+		expect(
+			within(sidebar).getByRole("button", { name: "社員1の評価を開く" }).textContent,
+		).toContain("二次評価する"),
+	);
+	// 確定後は一次評価を変更できない
+	expect(
+		(view.getByRole("textbox", { name: "一次評価者の総評" }) as HTMLTextAreaElement).readOnly,
+	).toBe(true);
+});
+it("lets a secondary evaluator read but not evaluate before the primary evaluation is confirmed", async () => {
+	const view = setup(
+		[reviewerRow(1, { status: "submitted", firstRank: null })],
+		"/review?period=10&sheet=101&mode=evaluate",
+	);
+	const second = await view.findByRole("textbox", { name: "二次評価者の総評" });
+	expect((second as HTMLTextAreaElement).readOnly).toBe(true);
+	expect(view.queryByRole("button", { name: /確定する/ })).toBeNull();
+	expect(view.getByText(/一次評価を確定すると、二次評価を入力できるようになります/)).toBeTruthy();
+});
+it("blocks finalization of unsaved comments without losing the draft", async () => {
 	const view = setup([reviewerRow(1)], "/review?period=10&sheet=101&mode=evaluate");
 	const textarea = await view.findByRole("textbox", { name: "二次評価者の総評" });
 	fireEvent.input(textarea, { target: { value: "書きかけの判断" } });
-	fireEvent.click(view.getByRole("button", { name: "確認して次へ" }));
-	expect(view.controller.setReviewed).not.toHaveBeenCalled();
+	fireEvent.click(view.getByRole("button", { name: "二次評価を確定する" }));
+	expect(view.queryByRole("dialog")).toBeNull();
 	expect((textarea as HTMLTextAreaElement).value).toBe("書きかけの判断");
 });
-it("preserves an editor draft when an unrelated save refreshes the caseload", async () => {
-	const view = setup([reviewerRow(1)], "/review?period=10&sheet=101&mode=evaluate");
+it("preserves an editor draft when a refresh reloads the caseload", async () => {
+	const view = setup([reviewerRow(1), reviewerRow(2)], "/review?period=10&sheet=101&mode=evaluate");
 	const textarea = await view.findByRole("textbox", { name: "二次評価者の総評" });
 	fireEvent.input(textarea, { target: { value: "残したい下書き" } });
-	fireEvent.change(view.getByLabelText("最終評価ランク"), { target: { value: "B|none" } });
-	await waitFor(() => expect(view.controller.load).toHaveBeenCalledTimes(2));
+	fireEvent.click(view.getByRole("button", { name: "受け持ちを再読み込み" }));
+	expect(view.controller.load).toHaveBeenCalledTimes(1);
 	expect(
 		(view.getByRole("textbox", { name: "二次評価者の総評" }) as HTMLTextAreaElement).value,
 	).toBe("残したい下書き");
@@ -216,14 +266,11 @@ it("discards a stale period response when the reviewer changes periods quickly",
 	expect(view.queryByRole("button", { name: /社員1.*E001/ })).toBeNull();
 	expect(view.getByRole("button", { name: /社員2.*E002/ })).toBeTruthy();
 });
-it("keeps the editor available but blocks confirmation when refresh fails", async () => {
+it("keeps the editor available when refresh fails", async () => {
 	const view = setup([reviewerRow(1)], "/review?period=10&sheet=101&mode=evaluate");
 	await view.findByRole("textbox", { name: "二次評価者の総評" });
 	view.controller.load.mockRejectedValueOnce(new Error("接続できません"));
 	fireEvent.click(view.getByRole("button", { name: "受け持ちを再読み込み" }));
 	await view.findByRole("alert");
 	expect(view.getByRole("textbox", { name: "二次評価者の総評" })).toBeTruthy();
-	expect((view.getByRole("button", { name: "確認して次へ" }) as HTMLButtonElement).disabled).toBe(
-		true,
-	);
 });

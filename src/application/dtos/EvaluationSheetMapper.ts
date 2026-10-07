@@ -37,6 +37,7 @@ export function toEvaluationSheetDto(
 		},
 		primaryEvaluator: sheet.primaryEvaluatorName,
 		secondaryEvaluator: sheet.secondaryEvaluatorName,
+		primaryIsFinalEvaluator: sheet.primaryIsFinalEvaluator(),
 		firstOverallComment: canViewCommon ? sheet.firstOverallComment : "",
 		secondOverallComment: canViewSecond ? sheet.secondOverallComment : "",
 		objectives: sheet.objectives.map((objective) => ({
@@ -86,13 +87,19 @@ export function toEvaluationSheetDto(
 		},
 		status: sheet.status.toString(),
 		isEditable: sheet.isEditable(),
-		finalEvaluationRank:
-			canViewFinal && sheet.finalEvaluationRank
-				? {
-						letter: sheet.finalEvaluationRank.letter,
-						level: sheet.finalEvaluationRank.level,
-						displayText: sheet.finalEvaluationRank.toDisplayText(),
-					}
-				: undefined,
+		firstEvaluationRank: canViewCommon
+			? {
+					displayText: sheet.resolveFirstEvaluationRank().toDisplayText(),
+					score: sheet.firstEvaluationScore(),
+					confirmed: sheet.status.isFirstEvaluationConfirmed(),
+				}
+			: undefined,
+		finalEvaluationRank: canViewFinal
+			? {
+					displayText: sheet.resolveFinalEvaluationRank().toDisplayText(),
+					score: sheet.allocatedScores.totalEvaluationScore,
+					confirmed: sheet.status.isFinalized(),
+				}
+			: undefined,
 	};
 }

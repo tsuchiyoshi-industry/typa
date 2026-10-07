@@ -2,6 +2,9 @@ import type { EvaluationScoreTotals } from "./EvaluationScoreTotals";
 
 export const OBJECTIVE_EVALUATION_ALLOCATION_SCORE = 20;
 export const COMMON_EVALUATION_ALLOCATION_SCORE = 80;
+/** 評価点の満点。評価ランクはこの満点に対する得点率で決まる。 */
+export const TOTAL_EVALUATION_ALLOCATION_SCORE =
+	OBJECTIVE_EVALUATION_ALLOCATION_SCORE + COMMON_EVALUATION_ALLOCATION_SCORE;
 
 export class EvaluationAllocatedScores {
 	private constructor(

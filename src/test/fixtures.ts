@@ -11,8 +11,8 @@ import type { EmployeeMasterRepository } from "../domain/repositories/EmployeeMa
 import type { EmployeeRepository } from "../domain/repositories/EmployeeRepository";
 import type { EvaluationSheetRepository } from "../domain/repositories/EvaluationSheetRepository";
 import type { MilestoneRepository } from "../domain/repositories/MilestoneRepository";
+import { EvaluationRank } from "../domain/valueObjects/EvaluationRank";
 import { EvaluationStatus } from "../domain/valueObjects/EvaluationStatus";
-import { FinalEvaluationRank } from "../domain/valueObjects/FinalEvaluationRank";
 
 // Synthetic data only. Each factory returns fresh entities and mocks.
 export const period = () =>
@@ -68,7 +68,7 @@ export const sheet = (status = EvaluationStatus.SUBMITTED) =>
 		objectives: [milestone()],
 		commonEvaluationResults: [commonResult()],
 		status,
-		finalEvaluationRank: FinalEvaluationRank.from("A", "plus"),
+		finalEvaluationRank: EvaluationRank.from("A", "plus"),
 	});
 export const output = <T>() => ({ present: vi.fn<(response: T) => void>() });
 
@@ -79,9 +79,6 @@ export function sheetRepository() {
 		updateScoreTotals: vi
 			.fn<EvaluationSheetRepository["updateScoreTotals"]>()
 			.mockResolvedValue(undefined),
-		updateFinalEvaluationRank: vi
-			.fn<EvaluationSheetRepository["updateFinalEvaluationRank"]>()
-			.mockResolvedValue(sheet()),
 		updateOverallComment: vi
 			.fn<EvaluationSheetRepository["updateOverallComment"]>()
 			.mockResolvedValue(sheet()),

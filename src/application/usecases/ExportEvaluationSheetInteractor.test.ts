@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
+import { EvaluationStatus } from "../../domain/valueObjects/EvaluationStatus";
 import { exportData } from "../../test/exportFixture";
-import { output, sheetRepository } from "../../test/fixtures";
+import { output, sheetRepository as repositoryWithSheet, sheet } from "../../test/fixtures";
 import type { SheetPdfGateway } from "../ports/SheetPdfGateway";
 import { ExportEvaluationSheetInteractor } from "./ExportEvaluationSheetInteractor";
 
@@ -10,6 +11,12 @@ const request = (id: number) => ({
 	periodId: 10,
 	currentEmployeeId: id,
 });
+/** 出力できるのは評価が確定したシートだけ。 */
+const sheetRepository = (status = EvaluationStatus.FINALIZED) => {
+	const repo = repositoryWithSheet();
+	repo.findById.mockResolvedValue(sheet(status));
+	return repo;
+};
 const gateway = () => ({
 	selectDestination: vi
 		.fn<SheetPdfGateway["selectDestination"]>()
@@ -28,6 +35,20 @@ describe("PDF use case with an injected gateway", () => {
 		expect(pdf.generate).not.toHaveBeenCalled();
 		expect(out.present).toHaveBeenCalledWith(expect.objectContaining({ success: false }));
 	});
+	it.each([EvaluationStatus.DRAFT, EvaluationStatus.SUBMITTED, EvaluationStatus.FIRST_EVALUATED])(
+		"denies evaluators before the evaluation is finalized (%s)",
+		async (status) => {
+			for (const id of [2, 3]) {
+				const repo = sheetRepository(status),
+					pdf = gateway(),
+					out = output<never>();
+				await new ExportEvaluationSheetInteractor(repo, pdf).execute(request(id), out);
+				expect(repo.findExportData).not.toHaveBeenCalled();
+				expect(pdf.selectDestination).not.toHaveBeenCalled();
+				expect(out.present).toHaveBeenCalledWith(expect.objectContaining({ success: false }));
+			}
+		},
+	);
 	it.each([2, 3])("masks every secondary export field for role %s", async (id) => {
 		const repo = sheetRepository(),
 			pdf = gateway(),

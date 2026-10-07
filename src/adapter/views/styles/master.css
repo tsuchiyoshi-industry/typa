@@ -25,21 +25,6 @@
 	color: var(--hr-text-muted);
 	font-size: 0.875rem;
 }
-.master-role-badge {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	padding: 8px 12px;
-	border: 1px solid var(--hr-border);
-	border-radius: 8px;
-	background: var(--hr-surface);
-	font-size: 0.8rem;
-}
-.master-role-icon {
-	width: 16px;
-	height: 16px;
-	color: var(--hr-accent-hover);
-}
 .master-profile,
 .master-list {
 	border: 1px solid var(--hr-border);
@@ -423,9 +408,6 @@
 	}
 	.master-header h1 {
 		font-size: 1.25rem;
-	}
-	.master-role-badge {
-		padding: 7px 8px;
 	}
 	.master-profile,
 	.master-list-head {

@@ -10,15 +10,4 @@ export class SupabaseReviewerWorkspaceRepository implements ReviewerWorkspaceRep
 		}
 		return (data ?? []) as ReviewerRowDto[];
 	}
-
-	async setReviewed(sheetId: number, revision: string, reviewed: boolean): Promise<void> {
-		const { error } = await supabase.rpc("set_sheet_reviewed", {
-			p_sheet_id: sheetId,
-			p_revision: revision,
-			p_reviewed: reviewed,
-		});
-		if (error) {
-			throw error;
-		}
-	}
 }

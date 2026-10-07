@@ -12,6 +12,8 @@ export interface SheetSummaryDto {
 	endDate: string;
 	employeeName: string;
 	employeeNo: string;
+	/** シートを作成したときの等級。社員の等級は変わっていくので、今の等級ではない。 */
+	gradeName: string;
 }
 
 export interface CategorizedSheetsDto {

@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { commonResult, employee, milestone, period, profile, sheet } from "../../test/fixtures";
+import { EvaluationSheet } from "../entities/EvaluationSheet";
 import { Comment } from "./Comment";
 import { EvaluationAllocatedScores } from "./EvaluationAllocatedScores";
+import { EvaluationRank } from "./EvaluationRank";
 import { EvaluationScoreTotals } from "./EvaluationScoreTotals";
 import { EvaluationStatus } from "./EvaluationStatus";
-import { FinalEvaluationRank } from "./FinalEvaluationRank";
 import { Score } from "./Score";
 
 describe("value objects and immutable entities", () => {
@@ -15,9 +16,7 @@ describe("value objects and immutable entities", () => {
 		},
 	);
 	it("validates rank even when runtime values bypass TypeScript", () => {
-		expect(() => FinalEvaluationRank.from("X" as "A", "none")).toThrow(
-			"Invalid final evaluation rank",
-		);
+		expect(() => EvaluationRank.from("X", "none")).toThrow("Invalid evaluation rank");
 	});
 	it.each([NaN, Infinity, -Infinity, -1])("rejects invalid score %s", (value) =>
 		expect(() => Score.from(value)).toThrow(),
@@ -35,28 +34,88 @@ describe("value objects and immutable entities", () => {
 		expect(Comment.from("  <script>x</script>  ").value).toBe("<script>x</script>");
 		expect(Comment.from(" x ").equals(Comment.from("x"))).toBe(true);
 	});
-	it.each(["draft", "submitted", "finalized"])("round trips status %s", (value) => {
-		const status = EvaluationStatus.from(value);
-		expect(status.toString()).toBe(value);
-		expect(status.isDraft()).toBe(value === "draft");
-		expect(status.isSubmitted()).toBe(value !== "draft");
-		expect(status.isUnderEvaluation()).toBe(value === "submitted");
-		expect(status.isFinalizedBySecondEvaluator()).toBe(value === "finalized");
-		expect(status.equals(EvaluationStatus.from(value))).toBe(true);
+	it.each(["draft", "submitted", "first_evaluated", "finalized"])(
+		"round trips status %s",
+		(value) => {
+			const status = EvaluationStatus.from(value);
+			expect(status.toString()).toBe(value);
+			expect(status.isDraft()).toBe(value === "draft");
+			expect(status.isSubmitted()).toBe(value !== "draft");
+			expect(status.isAwaitingFirstEvaluation()).toBe(value === "submitted");
+			expect(status.isAwaitingSecondEvaluation()).toBe(value === "first_evaluated");
+			expect(status.isFirstEvaluationConfirmed()).toBe(
+				value === "first_evaluated" || value === "finalized",
+			);
+			expect(status.isFinalized()).toBe(value === "finalized");
+			expect(status.equals(EvaluationStatus.from(value))).toBe(true);
+		},
+	);
+	it.each([
+		[100, "S"],
+		[95, "S"],
+		[94.9, "A"],
+		[90, "A"],
+		[89, "B+"],
+		[80, "B+"],
+		[79, "B"],
+		[60, "B"],
+		[59, "B-"],
+		[50, "B-"],
+		[49, "C"],
+		[40, "C"],
+		[39, "D"],
+		[0, "D"],
+	])("decides the rank mechanically from a score rate of %s%% as %s", (rate, rank) => {
+		expect(EvaluationRank.fromScoreRate(rate).toDisplayText()).toBe(rank);
 	});
-	it("enumerates all 21 ranks with display symbols", () => {
-		expect(FinalEvaluationRank.options()).toHaveLength(21);
-		expect(FinalEvaluationRank.from("S", "plus").toDisplayText()).toBe("S＋");
-		expect(FinalEvaluationRank.from("F", "minus").toDisplayText()).toBe("F－");
-		expect(FinalEvaluationRank.fromOptional("A", "none")?.toDisplayText()).toBe("A");
-		expect(FinalEvaluationRank.fromOptional()).toBeUndefined();
+	it("rates a score against the full score, and treats no full score as zero", () => {
+		expect(EvaluationRank.fromScore(19, 20).toDisplayText()).toBe("S");
+		expect(EvaluationRank.fromScore(58, 100).toDisplayText()).toBe("B-");
+		expect(EvaluationRank.fromScore(5, 0).toDisplayText()).toBe("D");
+	});
+	it("round trips ranks through display text, including ranks entered by hand in the past", () => {
+		for (const text of ["S", "A", "B+", "B", "B-", "C", "D", "F-"]) {
+			expect(EvaluationRank.fromText(text)?.toDisplayText()).toBe(text);
+		}
+		expect(EvaluationRank.from("S", "plus").toDisplayText()).toBe("S+");
+		expect(EvaluationRank.fromOptional("A", "none")?.toDisplayText()).toBe("A");
+		expect(EvaluationRank.fromOptional()).toBeUndefined();
+		expect(EvaluationRank.fromText(null)).toBeUndefined();
+		expect(EvaluationRank.fromText("")).toBeUndefined();
+		expect(() => EvaluationRank.fromText("Z")).toThrow();
 	});
 	it.each([
 		["X", "none"],
 		["A", "bad"],
 	])("rejects rank %s/%s", (letter, level) =>
-		expect(() => FinalEvaluationRank.fromOptional(letter, level)).toThrow(),
+		expect(() => EvaluationRank.fromOptional(letter, level)).toThrow(),
 	);
+	it("uses the stored rank only for a confirmed stage, otherwise the rank of the current score", () => {
+		// フィクスチャの保存値は A+。一次評価 58点 → B-、二次評価 100点 → S
+		const stored = (status: EvaluationStatus) =>
+			EvaluationSheet.create({
+				sheetId: 100,
+				subject: employee(),
+				evaluationPeriod: period(),
+				primaryEvaluatorName: "一次",
+				secondaryEvaluatorName: "二次",
+				objectives: [milestone()],
+				commonEvaluationResults: [commonResult()],
+				status,
+				firstEvaluationRank: EvaluationRank.from("A", "none"),
+				finalEvaluationRank: EvaluationRank.from("A", "plus"),
+			});
+		const submitted = stored(EvaluationStatus.SUBMITTED);
+		expect(submitted.firstEvaluationScore()).toBe(58);
+		expect(submitted.resolveFirstEvaluationRank().toDisplayText()).toBe("B-");
+		expect(submitted.resolveFinalEvaluationRank().toDisplayText()).toBe("S");
+		const firstEvaluated = stored(EvaluationStatus.FIRST_EVALUATED);
+		expect(firstEvaluated.resolveFirstEvaluationRank().toDisplayText()).toBe("A");
+		expect(firstEvaluated.resolveFinalEvaluationRank().toDisplayText()).toBe("S");
+		const finalized = stored(EvaluationStatus.FINALIZED);
+		expect(finalized.resolveFirstEvaluationRank().toDisplayText()).toBe("A");
+		expect(finalized.resolveFinalEvaluationRank().toDisplayText()).toBe("A+");
+	});
 	it("calculates rates using objective maximum and common item weights", () => {
 		expect(EvaluationScoreTotals.fromObjectives([milestone()])).toMatchObject({
 			firstTotalScore: 2,

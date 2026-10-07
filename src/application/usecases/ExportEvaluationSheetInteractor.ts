@@ -21,7 +21,7 @@ export class ExportEvaluationSheetInteractor
 		presenter: ExportEvaluationSheetOutputPort,
 	): Promise<void> {
 		try {
-			// ① 権限チェック: 被評価者は出力不可、評価者(一次・二次)のみ出力可能
+			// ① 権限チェック: 被評価者は出力不可、評価者(一次・二次)のみ、評価が確定したシートを出力可能
 			const sheet = await this.sheetRepository.findById(request.sheetId);
 			if (!sheet) {
 				presenter.present({
@@ -37,7 +37,9 @@ export class ExportEvaluationSheetInteractor
 					success: false,
 					message: policy.isSubject()
 						? "本人は評価シートを出力できません。"
-						: "評価者のみ評価シートを出力できます。",
+						: policy.canViewSheet() && !sheet.status.isFinalized()
+							? "評価が確定したシートのみ出力できます。"
+							: "評価者のみ評価シートを出力できます。",
 				});
 				return;
 			}

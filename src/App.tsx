@@ -39,7 +39,6 @@ import { ResetEmployeeRegistrationInteractor } from "./application/usecases/Rese
 import { UpdateEmployeeEvaluatorInteractor } from "./application/usecases/UpdateEmployeeEvaluatorInteractor";
 import { UpdateEmployeeGradeInteractor } from "./application/usecases/UpdateEmployeeGradeInteractor";
 import { UpdateEvaluationStatusInteractor } from "./application/usecases/UpdateEvaluationStatusInteractor";
-import { UpdateFinalEvaluationRankInteractor } from "./application/usecases/UpdateFinalEvaluationRankInteractor";
 import { UpdateMilestoneInteractor } from "./application/usecases/UpdateMilestoneInteractor";
 import { UpdateOverallCommentInteractor } from "./application/usecases/UpdateOverallCommentInteractor";
 import { UpsertCommonEvaluationInteractor } from "./application/usecases/UpsertCommonEvaluationInteractor";
@@ -115,10 +114,6 @@ const updateOverallCommentUseCase = new UpdateOverallCommentInteractor(
 	evaluationSheetRepository,
 	employeeRepository,
 );
-const updateFinalEvaluationRankUseCase = new UpdateFinalEvaluationRankInteractor(
-	evaluationSheetRepository,
-	employeeRepository,
-);
 const updateEvaluationStatusUseCase = new UpdateEvaluationStatusInteractor(
 	evaluationSheetRepository,
 	employeeRepository,
@@ -161,7 +156,6 @@ const sheetEditorController = new SheetEditorController(
 	checkEvaluatorRoleUseCase,
 	fetchCategorizedSheetsUseCase,
 	updateOverallCommentUseCase,
-	updateFinalEvaluationRankUseCase,
 	updateEvaluationStatusUseCase,
 	sheetEditorPresenter,
 	employeeRepository,
@@ -200,6 +194,8 @@ const DashboardLayout: Component<{ children?: JSX.Element | JSX.Element[] }> = (
 	const [menuOpen, setMenuOpen] = createSignal(false);
 	const [userMenuOpen, setUserMenuOpen] = createSignal(false);
 	const [employeeNo, setEmployeeNo] = createSignal<string>("");
+	const [employeeName, setEmployeeName] = createSignal<string>("");
+	const [roleName, setRoleName] = createSignal<string>("");
 	const [canViewMap, setCanViewMap] = createSignal(false);
 	let mounted = true;
 
@@ -223,6 +219,8 @@ const DashboardLayout: Component<{ children?: JSX.Element | JSX.Element[] }> = (
 			.findCurrentEmployeeProfile()
 			.then((person) => {
 				if (mounted) {
+					setEmployeeName(person?.name ?? "");
+					setRoleName(person?.roleName ?? "");
 					setCanViewMap(!!person && canEditEvaluators(person.roleName));
 				}
 			})
@@ -294,7 +292,9 @@ const DashboardLayout: Component<{ children?: JSX.Element | JSX.Element[] }> = (
 						aria-expanded={userMenuOpen()}
 					>
 						<User size={20} />
+						<span class="user-name">{employeeName()}</span>
 						<span class="user-email">{employeeNo()}</span>
+						<span class="user-role">{roleName()}</span>
 					</button>
 					<Show when={userMenuOpen()}>
 						<div class="user-menu-dropdown" role="menu">

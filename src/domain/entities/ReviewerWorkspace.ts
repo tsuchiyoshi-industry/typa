@@ -16,7 +16,10 @@ export interface ReviewCommonItem {
 	firstComment: string;
 }
 
-/** A server-authorized projection. Hidden evaluation values are always null. */
+/**
+ * A server-authorized projection. Hidden evaluation values are always null,
+ * and a draft carries no content: evaluators see a sheet only once it is submitted.
+ */
 export interface ReviewerRow {
 	employeeId: number;
 	employeeName: string;
@@ -26,19 +29,20 @@ export interface ReviewerRow {
 	careerCourse: string;
 	primaryEvaluator: string;
 	primaryEvaluatorId: number | null;
-	role: "primary" | "secondary";
+	/** 自分がこの社員の一次評価者か。 */
+	isPrimary: boolean;
+	/** 自分がこの社員の二次評価者か(二次評価の内容を見られる)。 */
 	canViewSecond: boolean;
 	canViewFinal: boolean;
+	/** 二次評価者「なし」の社員。一次評価の確定がそのまま評価の確定になる。 */
+	primaryIsFinal: boolean;
 	sheetId: number | null;
-	status: "missing" | "draft" | "submitted" | "finalized";
+	status: "missing" | "draft" | "submitted" | "first_evaluated" | "finalized";
 	updatedAt: string | null;
-	revision: string | null;
-	reviewedAt: string | null;
-	reviewed: boolean;
-	needsRecheck: boolean;
-	primaryReviewed: boolean;
 	firstOverallComment: string;
 	secondOverallComment: string | null;
+	/** 確定済みのランク。未確定の段階は null で、現在の点数から見込みを出す。 */
+	firstRank: string | null;
 	finalRank: string | null;
 	finalScore: number | null;
 	objectives: ReviewObjective[];

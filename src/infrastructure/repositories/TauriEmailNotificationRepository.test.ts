@@ -14,6 +14,9 @@ function setup(
 	secondary: string | null = "second@example.jp",
 ) {
 	const recipients = {
+		findFirstEvaluatedSheetRecipient: vi
+			.fn<EvaluationNotificationRecipientRepository["findFirstEvaluatedSheetRecipient"]>()
+			.mockResolvedValue(secondary),
 		findFinalizedSheetRecipients: vi
 			.fn<EvaluationNotificationRecipientRepository["findFinalizedSheetRecipients"]>()
 			.mockResolvedValue([
@@ -100,3 +103,29 @@ it("still attempts secondary delivery when primary SMTP delivery fails", async (
 	await expect(repository.notifySheetFinalized(notification)).rejects.toThrow("送信失敗1件");
 	expect(ipc).toHaveBeenCalledTimes(2);
 });
+it("asks only the secondary evaluator to start once the primary evaluation is confirmed", async () => {
+	const { repository, recipients, ipc } = setup();
+	await repository.notifyFirstEvaluationConfirmed(notification);
+	expect(recipients.findFirstEvaluatedSheetRecipient).toHaveBeenCalledWith(100);
+	expect(ipc).toHaveBeenCalledTimes(1);
+	expect(ipc.mock.calls[0]).toEqual([
+		"send_email",
+		{
+			request: expect.objectContaining({
+				to: "second@example.jp",
+				subject: expect.stringContaining("二次評価のお願い"),
+				body: expect.stringContaining("一次評価が確定しました"),
+			}),
+		},
+	]);
+});
+it.each([null, "", "not-an-address"])(
+	"reports a secondary evaluator without a usable address %j instead of sending",
+	async (address) => {
+		const { repository, ipc } = setup("first@example.jp", address);
+		await expect(repository.notifyFirstEvaluationConfirmed(notification)).rejects.toThrow(
+			"二次評価者",
+		);
+		expect(ipc).not.toHaveBeenCalled();
+	},
+);

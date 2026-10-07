@@ -32,6 +32,7 @@ function toSheetSummaryDto(summary: EvaluationSheetSummary): SheetSummaryDto {
 		endDate: summary.periodEnd,
 		employeeName: summary.employeeName,
 		employeeNo: summary.employeeNo,
+		gradeName: summary.gradeName,
 	};
 }
 
@@ -74,7 +75,10 @@ export class FetchCategorizedSheetsInteractor
 		// 5. DTOへ変換して出力
 		outputPort.present({
 			mySheets: mySheets.map(toSheetSummaryDto),
-			subordinateSheets: subordinateSheets.map(toSheetSummaryDto),
+			// 下書き中のシートは評価者に見せない
+			subordinateSheets: subordinateSheets
+				.filter((summary) => summary.status !== "draft")
+				.map(toSheetSummaryDto),
 		});
 	}
 }

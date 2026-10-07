@@ -9,9 +9,9 @@ import type {
 	EvaluationSheetSummary,
 } from "../../domain/repositories/EvaluationSheetRepository";
 import { EvaluationAllocatedScores } from "../../domain/valueObjects/EvaluationAllocatedScores";
+import { EvaluationRank } from "../../domain/valueObjects/EvaluationRank";
 import { EvaluationScoreTotals } from "../../domain/valueObjects/EvaluationScoreTotals";
 import { EvaluationStatus } from "../../domain/valueObjects/EvaluationStatus";
-import { FinalEvaluationRank } from "../../domain/valueObjects/FinalEvaluationRank";
 import { supabase } from "../db/supabase";
 
 interface MilestoneRow {
@@ -48,6 +48,34 @@ interface EvaluationSheetListRow {
 	updated_at: string;
 	period: PeriodJoinRow | PeriodJoinRow[] | null;
 	employee: EmployeeJoinRow | EmployeeJoinRow[] | null;
+	grade: { grade_name: string } | { grade_name: string }[] | null;
+}
+
+// grade はシート作成時の等級(evaluation_sheets.grade_id)。社員の今の等級ではない
+const SHEET_LIST_SELECT =
+	"id, period_id, employee_id, status, total_score, created_at, updated_at, period:evaluation_periods!inner(period_name, start_date, end_date), employee:employees!inner(name, employee_no), grade:employee_grades(grade_name)";
+
+const first = <T>(joined: T | T[] | null): T | undefined =>
+	Array.isArray(joined) ? joined[0] : (joined ?? undefined);
+
+function toSheetSummary(item: EvaluationSheetListRow): EvaluationSheetSummary {
+	const period = first(item.period);
+	const employee = first(item.employee);
+	return {
+		id: item.id,
+		periodId: item.period_id,
+		employeeId: item.employee_id,
+		status: item.status,
+		totalScore: item.total_score,
+		createdAt: item.created_at,
+		updatedAt: item.updated_at,
+		periodName: period?.period_name ?? "",
+		periodStart: period?.start_date ?? "",
+		periodEnd: period?.end_date ?? "",
+		employeeName: employee?.name ?? "",
+		employeeNo: employee?.employee_no ?? "",
+		gradeName: first(item.grade)?.grade_name ?? "",
+	};
 }
 
 export class SupabaseEvaluationSheetRepository implements EvaluationSheetRepository {
@@ -105,6 +133,7 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 			total_evaluation_score?: number | null;
 			final_rank_letter?: string | null;
 			final_rank_level?: string | null;
+			first_rank?: string | null;
 			created_at: string;
 			updated_at: string;
 		};
@@ -228,10 +257,11 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 						})
 					: undefined,
 			status: EvaluationStatus.from(sheet.status),
-			finalEvaluationRank: FinalEvaluationRank.fromOptional(
+			finalEvaluationRank: EvaluationRank.fromOptional(
 				sheet.final_rank_letter,
 				sheet.final_rank_level,
 			),
+			firstEvaluationRank: EvaluationRank.fromText(sheet.first_rank),
 		});
 	}
 
@@ -278,30 +308,6 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 		}
 	}
 
-	async updateFinalEvaluationRank(
-		sheetId: number,
-		finalEvaluationRank: FinalEvaluationRank | undefined,
-	): Promise<EvaluationSheet> {
-		const { error } = await supabase
-			.from("evaluation_sheets")
-			.update({
-				final_rank_letter: finalEvaluationRank?.letter ?? null,
-				final_rank_level: finalEvaluationRank?.level ?? null,
-			})
-			.eq("id", sheetId);
-
-		if (error) {
-			throw error;
-		}
-
-		const updated = await this.findById(sheetId);
-		if (!updated) {
-			throw new Error("Failed to load updated evaluation sheet.");
-		}
-
-		return updated;
-	}
-
 	async updateOverallComment(
 		sheetId: number,
 		target: "first" | "second",
@@ -325,10 +331,20 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 		return updated;
 	}
 
-	async updateStatus(sheetId: number, status: EvaluationStatus): Promise<EvaluationSheet> {
+	async updateStatus(
+		sheetId: number,
+		status: EvaluationStatus,
+		ranks: { first?: EvaluationRank; final?: EvaluationRank } = {},
+	): Promise<EvaluationSheet> {
 		const { error } = await supabase
 			.from("evaluation_sheets")
-			.update({ status: status.toString() })
+			.update({
+				status: status.toString(),
+				...(ranks.first ? { first_rank: ranks.first.toDisplayText() } : {}),
+				...(ranks.final
+					? { final_rank_letter: ranks.final.letter, final_rank_level: ranks.final.level }
+					: {}),
+			})
 			.eq("id", sheetId);
 
 		if (error) {
@@ -346,39 +362,10 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 	async findByOwner(employeeId: number): Promise<EvaluationSheetSummary[]> {
 		const { data, error } = await supabase
 			.from("evaluation_sheets")
-			.select(
-				`id, period_id, employee_id, status, total_score, created_at, updated_at, period:evaluation_periods!inner(period_name, start_date, end_date), employee:employees!inner(name, employee_no)`,
-			)
+			.select(SHEET_LIST_SELECT)
 			.eq("employee_id", employeeId);
 
-		if (error || !data) {
-			return [];
-		}
-
-		return (data as EvaluationSheetListRow[]).map((item) => ({
-			id: item.id,
-			periodId: item.period_id,
-			employeeId: item.employee_id,
-			status: item.status,
-			totalScore: item.total_score,
-			createdAt: item.created_at,
-			updatedAt: item.updated_at,
-			periodName: Array.isArray(item.period)
-				? (item.period[0]?.period_name ?? "")
-				: (item.period?.period_name ?? ""),
-			periodStart: Array.isArray(item.period)
-				? (item.period[0]?.start_date ?? "")
-				: (item.period?.start_date ?? ""),
-			periodEnd: Array.isArray(item.period)
-				? (item.period[0]?.end_date ?? "")
-				: (item.period?.end_date ?? ""),
-			employeeName: Array.isArray(item.employee)
-				? (item.employee[0]?.name ?? "")
-				: (item.employee?.name ?? ""),
-			employeeNo: Array.isArray(item.employee)
-				? (item.employee[0]?.employee_no ?? "")
-				: (item.employee?.employee_no ?? ""),
-		}));
+		return error || !data ? [] : (data as EvaluationSheetListRow[]).map(toSheetSummary);
 	}
 
 	async findByEmployeeIds(employeeIds: number[]): Promise<EvaluationSheetSummary[]> {
@@ -388,39 +375,10 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 
 		const { data, error } = await supabase
 			.from("evaluation_sheets")
-			.select(
-				`id, period_id, employee_id, status, total_score, created_at, updated_at, period:evaluation_periods!inner(period_name, start_date, end_date), employee:employees!inner(name, employee_no)`,
-			)
+			.select(SHEET_LIST_SELECT)
 			.in("employee_id", employeeIds);
 
-		if (error || !data) {
-			return [];
-		}
-
-		return (data as EvaluationSheetListRow[]).map((item) => ({
-			id: item.id,
-			periodId: item.period_id,
-			employeeId: item.employee_id,
-			status: item.status,
-			totalScore: item.total_score,
-			createdAt: item.created_at,
-			updatedAt: item.updated_at,
-			periodName: Array.isArray(item.period)
-				? (item.period[0]?.period_name ?? "")
-				: (item.period?.period_name ?? ""),
-			periodStart: Array.isArray(item.period)
-				? (item.period[0]?.start_date ?? "")
-				: (item.period?.start_date ?? ""),
-			periodEnd: Array.isArray(item.period)
-				? (item.period[0]?.end_date ?? "")
-				: (item.period?.end_date ?? ""),
-			employeeName: Array.isArray(item.employee)
-				? (item.employee[0]?.name ?? "")
-				: (item.employee?.name ?? ""),
-			employeeNo: Array.isArray(item.employee)
-				? (item.employee[0]?.employee_no ?? "")
-				: (item.employee?.employee_no ?? ""),
-		}));
+		return error || !data ? [] : (data as EvaluationSheetListRow[]).map(toSheetSummary);
 	}
 
 	async findExportData(sheetId: number): Promise<EvaluationSheetExportData | null> {
@@ -558,10 +516,11 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 						commonEvaluationTotals,
 						primaryIsFinal,
 					);
-		const finalEvaluationRank = FinalEvaluationRank.fromOptional(
-			sheet.final_rank_letter,
-			sheet.final_rank_level,
-		);
+		// 確定前は、手入力されていた過去のランクが残っていても出力しない
+		const finalEvaluationRank =
+			sheet.status === "finalized"
+				? EvaluationRank.fromOptional(sheet.final_rank_letter, sheet.final_rank_level)
+				: undefined;
 
 		return {
 			sheetId: sheet.id,

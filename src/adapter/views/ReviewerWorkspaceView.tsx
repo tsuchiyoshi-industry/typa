@@ -1,9 +1,9 @@
 import { useSearchParams } from "@solidjs/router";
 import {
 	ArrowRight,
-	Check,
-	CheckCheck,
+	Award,
 	ChevronLeft,
+	ChevronRight,
 	ClipboardCheck,
 	Columns3,
 	ListFilter,
@@ -24,14 +24,17 @@ import {
 import type { ReviewerRowDto, ReviewPeriodDto } from "../../application/dtos/ReviewerWorkspaceDto";
 import type { ReviewerWorkspaceController } from "../controllers/ReviewerWorkspaceController";
 import {
+	canOpen,
 	filterReviewRows,
 	finalScore,
-	isPending,
-	nextPending,
+	isMyTurn,
+	nextMyTurn,
 	type ReviewFilter,
 	type ReviewSort,
 	reviewLabel,
+	reviewRank,
 	reviewScore,
+	reviewTask,
 } from "../viewmodels/reviewerWorkspace";
 import { clearUnsavedChanges, confirmDiscard, hasUnsavedChanges, showToast } from "./feedback";
 import { formatDateTime } from "./format";
@@ -43,20 +46,40 @@ interface Props {
 }
 
 const scoreText = (value: number | null) => (value === null ? "—" : String(value));
-const roleLabel = (row: ReviewerRowDto) =>
-	row.role === "secondary" ? "二次評価" : row.canViewFinal ? "一次・最終" : "一次評価";
 const Badge: Component<{ row: ReviewerRowDto }> = (props) => (
 	<span
 		class="review-badge"
 		classList={{
-			done: props.row.reviewed || props.row.status === "finalized",
-			attention: props.row.needsRecheck && props.row.status === "submitted",
-			waiting: props.row.status === "missing" || props.row.status === "draft",
+			action: isMyTurn(props.row),
+			done: props.row.status === "finalized",
+			waiting: reviewTask(props.row) === "waiting",
 		}}
 	>
 		{reviewLabel(props.row)}
 	</span>
 );
+/** 評価点とランク。確定前のランクは見込みとして控えめに出す。 */
+const ScoreRank: Component<{ row: ReviewerRowDto; stage: "first" | "final" }> = (props) => {
+	const score = () =>
+		props.stage === "first" ? reviewScore(props.row, "first") : finalScore(props.row);
+	const rank = () => reviewRank(props.row, props.stage);
+	return (
+		<span class="review-score-rank">
+			{scoreText(score())}
+			<Show when={rank()}>
+				{(value) => (
+					<strong
+						class="review-rank"
+						classList={{ provisional: !value().confirmed }}
+						title={value().confirmed ? "確定したランク" : "現在の点数からの見込み"}
+					>
+						{value().text}
+					</strong>
+				)}
+			</Show>
+		</span>
+	);
+};
 
 const ReviewerWorkspaceView: Component<Props> = (props) => {
 	const [params, setParams] = useSearchParams();
@@ -65,12 +88,10 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 	const [loading, setLoading] = createSignal(true);
 	const [refreshing, setRefreshing] = createSignal(false);
 	const [error, setError] = createSignal<string | null>(null);
-	const [marking, setMarking] = createSignal(false);
 	const [editorSaving, setEditorSaving] = createSignal(false);
 	const [editorRefresh, setEditorRefresh] = createSignal(0);
 	const [query, setQuery] = createSignal("");
 	const [grade, setGrade] = createSignal("");
-	const [role, setRole] = createSignal("");
 	const [primaryEvaluator, setPrimaryEvaluator] = createSignal("");
 	const [filter, setFilter] = createSignal<ReviewFilter>("all");
 	const [sort, setSort] = createSignal<ReviewSort>("priority");
@@ -93,18 +114,16 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 		params.mode === "compare" ? "compare" : params.mode === "evaluate" ? "evaluate" : "list",
 	);
 	const current = createMemo(() =>
-		rows().find((row) => row.sheetId !== null && String(row.sheetId) === params.sheet),
+		rows().find((row) => canOpen(row) && String(row.sheetId) === params.sheet),
 	);
-	const visible = createMemo(() =>
-		filterReviewRows(rows(), {
-			query: query(),
-			grade: grade(),
-			role: role(),
-			primaryEvaluator: primaryEvaluator(),
-			filter: filter(),
-			sort: sort(),
-		}),
-	);
+	const filterOptions = () => ({
+		query: query(),
+		grade: grade(),
+		primaryEvaluator: primaryEvaluator(),
+		filter: filter(),
+		sort: sort(),
+	});
+	const visible = createMemo(() => filterReviewRows(rows(), filterOptions()));
 	const grades = createMemo(() => [
 		...new Map(rows().map((row) => [String(row.gradeId ?? "unset"), row.gradeName])).entries(),
 	]);
@@ -121,15 +140,20 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 	const primaryEvaluatorLabel = createMemo(() =>
 		primaryEvaluators().find((label) => label.id === primaryEvaluator()),
 	);
-	const counts = createMemo(() => ({
-		pending: rows().filter(isPending).length,
-		recheck: rows().filter((row) => row.status === "submitted" && row.needsRecheck).length,
-		waiting: rows().filter((row) => row.status === "missing" || row.status === "draft").length,
-		reviewed: rows().filter((row) => row.status === "submitted" && row.reviewed).length,
-		finalized: rows().filter((row) => row.status === "finalized").length,
-	}));
-	const finished = () => counts().reviewed + counts().finalized;
-	const next = createMemo(() => nextPending(visible(), current()?.employeeId));
+	const count = (task: ReviewFilter) => rows().filter((row) => reviewTask(row) === task).length;
+	// 自分に関係のある段階だけを見せる。一次評価しか担当しない人に「二次評価する 0」は出さない。
+	const stats = createMemo(() =>
+		(
+			[
+				["all", "全員", rows().length, true],
+				["first", "一次評価する", count("first"), rows().some((row) => row.isPrimary)],
+				["second", "二次評価する", count("second"), rows().some((row) => row.canViewSecond)],
+				["waiting", "提出・相手の評価待ち", count("waiting"), true],
+				["finalized", "評価確定", count("finalized"), true],
+			] as const
+		).filter(([, , , shown]) => shown),
+	);
+	const next = createMemo(() => nextMyTurn(visible(), current()?.employeeId));
 	const detailedComparison = () => params.detail === "1" && selected().size > 0;
 	const comparisonRows = createMemo(() =>
 		detailedComparison() ? visible().filter((row) => selected().has(row.employeeId)) : visible(),
@@ -142,25 +166,12 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 		}
 		return [...grouped.values()];
 	});
-	const mutationBusy = () => marking() || refreshing() || loading() || editorSaving();
+	const mutationBusy = () => refreshing() || loading() || editorSaving();
 	const currentSheetId = createMemo(() => current()?.sheetId);
 	const editorIdentity = createMemo(() => ({
 		sheetId: currentSheetId(),
 		refresh: editorRefresh(),
 	}));
-	const confirmationBlocked = () => {
-		const model = props.editor.viewModel();
-		return (
-			mutationBusy() ||
-			!!error() ||
-			model.loadingSheet ||
-			!!model.fetchError ||
-			model.sheet?.sheetId !== current()?.sheetId ||
-			!model.canViewCommonEvaluation ||
-			props.editor.commonEvaluationViewModel().loading ||
-			!!props.editor.commonEvaluationViewModel().loadError
-		);
-	};
 
 	const load = async (id: number, initial = false): Promise<ReviewerRowDto[] | null> => {
 		const request = ++generation;
@@ -238,9 +249,6 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 	});
 
 	const navigate = async (values: Record<string, string | number | undefined>) => {
-		if (marking()) {
-			return;
-		}
 		if (editorSaving()) {
 			showToast("info", "保存が完了するまでお待ちください");
 			return;
@@ -252,8 +260,12 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 		setParams(values, { scroll: false });
 	};
 	const open = (row: ReviewerRowDto) => {
-		if (row.sheetId !== null) {
-			void navigate({ sheet: row.sheetId, mode: "evaluate", period: periodId() ?? undefined });
+		if (canOpen(row)) {
+			void navigate({
+				sheet: row.sheetId as number,
+				mode: "evaluate",
+				period: periodId() ?? undefined,
+			});
 		}
 	};
 	const updateRows = () => {
@@ -279,53 +291,19 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 			await load(id);
 		}
 	};
-	const mark = async (advance: boolean) => {
-		const row = current();
+	/** 一次評価・評価を確定したら、一覧を取り直して次の「自分の番」へ進む。 */
+	const advance = async () => {
 		const id = periodId();
-		if (!row?.sheetId || !row.revision || !id || confirmationBlocked()) {
+		const finished = current()?.employeeId;
+		const loaded = id ? await load(id) : null;
+		if (!alive || !loaded) {
 			return;
 		}
-		if (hasUnsavedChanges()) {
-			showToast("info", "先に入力内容を保存してください");
-			return;
-		}
-		setMarking(true);
-		try {
-			await props.controller.setReviewed(row.sheetId, row.revision, advance || !row.reviewed);
-			const loaded = await load(id);
-			if (!alive) {
-				return;
-			}
-			showToast(
-				"success",
-				!advance && row.reviewed ? "確認済みを解除しました" : "確認済みにしました",
-			);
-			if (advance && loaded) {
-				const filtered = filterReviewRows(loaded, {
-					query: query(),
-					grade: grade(),
-					role: role(),
-					primaryEvaluator: primaryEvaluator(),
-					filter: filter(),
-					sort: sort(),
-				});
-				const target = nextPending(filtered, row.employeeId);
-				if (target?.sheetId) {
-					setParams({ sheet: target.sheetId, mode: "evaluate" }, { scroll: false });
-				} else {
-					showToast("success", "この一覧の未確認はすべて確認できました");
-				}
-			}
-		} catch (reason) {
-			showToast(
-				"error",
-				"確認を記録できませんでした",
-				(reason as { message?: string })?.message ?? "再読み込みしてお試しください。",
-			);
-		} finally {
-			if (alive) {
-				setMarking(false);
-			}
+		const target = nextMyTurn(filterReviewRows(loaded, filterOptions()), finished);
+		if (target?.sheetId) {
+			setParams({ sheet: target.sheetId, mode: "evaluate" }, { scroll: false });
+		} else {
+			showToast("success", "この一覧で自分の番のシートはすべて確定しました");
 		}
 	};
 	const toggleSelection = (row: ReviewerRowDto) => {
@@ -342,7 +320,6 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 	const clearFilters = () => {
 		setQuery("");
 		setGrade("");
-		setRole("");
 		setPrimaryEvaluator("");
 		setFilter("all");
 	};
@@ -371,34 +348,29 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 					<For each={grades()}>{([id, name]) => <option value={id}>{name}</option>}</For>
 				</select>
 			</label>
-			<label>
-				<span class="visually-hidden">一次評価者で絞り込み</span>
-				<select
-					value={primaryEvaluator()}
-					onChange={(e) => setPrimaryEvaluator(e.currentTarget.value)}
-				>
-					<option value="">すべての一次評価者</option>
-					<For each={primaryEvaluators()}>
-						{(label) => (
-							<option value={label.id}>
-								{label.name} · {label.count}人
-							</option>
-						)}
-					</For>
-				</select>
-			</label>
-			<label>
-				<span class="visually-hidden">担当で絞り込み</span>
-				<select value={role()} onChange={(e) => setRole(e.currentTarget.value)}>
-					<option value="">すべての担当</option>
-					<option value="primary">一次評価</option>
-					<option value="secondary">二次評価</option>
-				</select>
-			</label>
+			{/* 一次評価者が自分だけなら、選ぶものがない */}
+			<Show when={primaryEvaluators().length > 1}>
+				<label>
+					<span class="visually-hidden">一次評価者で絞り込み</span>
+					<select
+						value={primaryEvaluator()}
+						onChange={(e) => setPrimaryEvaluator(e.currentTarget.value)}
+					>
+						<option value="">すべての一次評価者</option>
+						<For each={primaryEvaluators()}>
+							{(label) => (
+								<option value={label.id}>
+									{label.name} · {label.count}人
+								</option>
+							)}
+						</For>
+					</select>
+				</label>
+			</Show>
 			<label>
 				<span class="visually-hidden">表示順</span>
 				<select value={sort()} onChange={(e) => setSort(e.currentTarget.value as ReviewSort)}>
-					<option value="priority">対応が必要な順</option>
+					<option value="priority">自分の番が先</option>
 					<option value="name">氏名順</option>
 					<option value="firstScore">一次評価点順</option>
 					<option value="finalScore">最終評価点順</option>
@@ -406,30 +378,6 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 				</select>
 			</label>
 		</div>
-	);
-	const FilterTabs = () => (
-		<fieldset class="review-filter-tabs">
-			<legend class="visually-hidden">確認状況で絞り込み</legend>
-			<For
-				each={
-					[
-						["all", "全員", rows().length],
-						["pending", "未確認", counts().pending],
-						["recheck", "再確認", counts().recheck],
-						["waiting", "提出待ち", counts().waiting],
-						["reviewed", "確認済み", counts().reviewed],
-						["finalized", "確定済み", counts().finalized],
-					] as const
-				}
-			>
-				{([key, label, count]) => (
-					<button type="button" aria-pressed={filter() === key} onClick={() => setFilter(key)}>
-						{label}
-						<span>{count}</span>
-					</button>
-				)}
-			</For>
-		</fieldset>
 	);
 	const Empty = () => (
 		<div class="review-empty">
@@ -451,8 +399,11 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 		<button
 			type="button"
 			class="review-person-link"
-			disabled={person.row.sheetId === null || marking()}
-			onClick={() => open(person.row)}
+			disabled={!canOpen(person.row)}
+			onClick={(event) => {
+				event.stopPropagation();
+				open(person.row);
+			}}
 		>
 			<strong>{person.row.employeeName}</strong>
 			<small>{person.row.employeeNo}</small>
@@ -467,72 +418,75 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 							<span class="visually-hidden">比較に選択</span>
 						</th>
 						<th scope="col">評価対象者</th>
-						<th scope="col">等級 / 担当</th>
-						<th scope="col">一次評価</th>
-						<th scope="col">自分の確認</th>
+						<th scope="col">等級</th>
+						<th scope="col">状態</th>
+						<th scope="col">一次評価者</th>
 						<th scope="col" class="numeric">
-							一次評価点
+							一次評価
 						</th>
 						<th scope="col" class="numeric">
-							二次評価点
-						</th>
-						<th scope="col" class="numeric">
-							最終評価点
-						</th>
-						<th scope="col" class="numeric">
-							最終ランク
+							最終評価
 						</th>
 						<th scope="col">最終更新</th>
+						<th scope="col">
+							<span class="visually-hidden">開く</span>
+						</th>
 					</tr>
 				</thead>
 				<tbody>
 					<For each={table.people}>
 						{(row) => (
-							<tr>
+							// 行のどこを押しても開ける。キーボード操作の入口として氏名のボタンも残す
+							<tr
+								class="review-row"
+								classList={{ openable: canOpen(row), mine: isMyTurn(row) }}
+								title={canOpen(row) ? undefined : "本人が提出すると開けるようになります"}
+								onClick={() => open(row)}
+							>
 								<td>
 									<input
 										type="checkbox"
 										aria-label={`${row.employeeName}を比較に選択`}
 										checked={selected().has(row.employeeId)}
 										disabled={
-											row.sheetId === null ||
-											(!selected().has(row.employeeId) && selected().size >= 6)
+											!canOpen(row) || (!selected().has(row.employeeId) && selected().size >= 6)
 										}
+										onClick={(event) => event.stopPropagation()}
 										onChange={() => toggleSelection(row)}
 									/>
 								</td>
 								<td>
 									<PersonButton row={row} />
 								</td>
+								<td>{row.gradeName}</td>
 								<td>
-									<span>{row.gradeName}</span>
-									<small>{roleLabel(row)}</small>
+									<Badge row={row} />
 								</td>
 								<td>
-									<span classList={{ "review-positive": row.primaryReviewed }}>
-										{row.sheetId === null ? "—" : row.primaryReviewed ? "確認済み" : "未確認"}
-									</span>
 									<button
 										type="button"
 										class="review-evaluator-label"
 										aria-label={`一次評価者 ${row.primaryEvaluator}の受け持ちで絞り込む`}
-										onClick={() =>
-											setPrimaryEvaluator(String(row.primaryEvaluatorId ?? "unassigned"))
-										}
+										onClick={(event) => {
+											event.stopPropagation();
+											setPrimaryEvaluator(String(row.primaryEvaluatorId ?? "unassigned"));
+										}}
 									>
 										{row.primaryEvaluator}
 									</button>
 								</td>
-								<td>
-									<Badge row={row} />
-								</td>
-								<td class="numeric">{scoreText(reviewScore(row, "first"))}</td>
-								<td class="numeric">{scoreText(reviewScore(row, "second"))}</td>
-								<td class="numeric">{scoreText(finalScore(row))}</td>
 								<td class="numeric">
-									<strong>{row.finalRank ?? "—"}</strong>
+									<ScoreRank row={row} stage="first" />
+								</td>
+								<td class="numeric">
+									<ScoreRank row={row} stage="final" />
 								</td>
 								<td class="review-date">{row.updatedAt ? formatDateTime(row.updatedAt) : "—"}</td>
+								<td class="review-row__chevron">
+									<Show when={canOpen(row)}>
+										<ChevronRight size={18} />
+									</Show>
+								</td>
 							</tr>
 						)}
 					</For>
@@ -548,6 +502,14 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 				comparison.people.flatMap((row) => row.commonItems.map((item) => [item.id, item] as const)),
 			).values(),
 		]);
+		const gap = (row: ReviewerRowDto) => {
+			const second = reviewScore(row, "second");
+			if (second === null) {
+				return "—";
+			}
+			const difference = second - (reviewScore(row, "first") ?? 0);
+			return `${difference > 0 ? "+" : ""}${difference}`;
+		};
 		return (
 			<section class="review-comparison-group">
 				<header>
@@ -575,25 +537,20 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 							<tbody>
 								<tr>
 									<th scope="row">一次評価者</th>
+									<For each={comparison.people}>{(row) => <td>{row.primaryEvaluator}</td>}</For>
+								</tr>
+								<tr>
+									<th scope="row">一次評価点 / ランク</th>
 									<For each={comparison.people}>
 										{(row) => (
-											<td>
-												{row.primaryEvaluator}
-												<small>{row.primaryReviewed ? "一次確認済み" : "一次未確認"}</small>
+											<td class="review-score-large">
+												<ScoreRank row={row} stage="first" />
 											</td>
 										)}
 									</For>
 								</tr>
 								<tr>
-									<th scope="row">一次評価点 / 100</th>
-									<For each={comparison.people}>
-										{(row) => (
-											<td class="review-score-large">{scoreText(reviewScore(row, "first"))}</td>
-										)}
-									</For>
-								</tr>
-								<tr>
-									<th scope="row">二次評価点 / 100</th>
+									<th scope="row">二次評価点</th>
 									<For each={comparison.people}>
 										{(row) => (
 											<td class="review-score-large">{scoreText(reviewScore(row, "second"))}</td>
@@ -602,24 +559,14 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 								</tr>
 								<tr>
 									<th scope="row">一次・二次の差</th>
-									<For each={comparison.people}>
-										{(row) => (
-											<td>
-												{row.canViewSecond
-													? `${(reviewScore(row, "second") ?? 0) - (reviewScore(row, "first") ?? 0) > 0 ? "+" : ""}${(reviewScore(row, "second") ?? 0) - (reviewScore(row, "first") ?? 0)}`
-													: "—"}
-											</td>
-										)}
-									</For>
+									<For each={comparison.people}>{(row) => <td>{gap(row)}</td>}</For>
 								</tr>
 								<tr>
 									<th scope="row">最終評価点 / ランク</th>
 									<For each={comparison.people}>
 										{(row) => (
-											<td>
-												<strong>
-													{scoreText(finalScore(row))} / {row.finalRank ?? "—"}
-												</strong>
+											<td class="review-score-large">
+												<ScoreRank row={row} stage="final" />
 											</td>
 										)}
 									</For>
@@ -719,7 +666,6 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 						<select
 							aria-label="評価期間"
 							value={periodId() ?? ""}
-							disabled={marking()}
 							onChange={(e) => void navigate({ period: e.currentTarget.value, sheet: undefined })}
 						>
 							<For each={periods()}>
@@ -744,6 +690,7 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 					</button>
 				</div>
 			</header>
+			{/* 「自分の番」ごとの件数が、そのまま一覧の絞り込みになる */}
 			<div class="review-overview">
 				<div class="review-progress">
 					<div>
@@ -752,35 +699,27 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 							受け持ち <strong>{rows().length}</strong> 人
 						</span>
 						<span class="review-progress-count">
-							確認・確定 <strong>{finished()}</strong> / {rows().length}
+							評価確定 <strong>{count("finalized")}</strong> / {rows().length}
 						</span>
 					</div>
 					<progress
-						aria-label="受け持ちの確認・確定進捗"
-						value={finished()}
+						aria-label="受け持ちの評価確定の進捗"
+						value={count("finalized")}
 						max={Math.max(1, rows().length)}
 					/>
 				</div>
-				<For
-					each={
-						[
-							["pending", "未確認", counts().pending],
-							["waiting", "提出待ち・未作成", counts().waiting],
-							["reviewed", "確認済み", counts().reviewed],
-							["finalized", "確定済み", counts().finalized],
-						] as const
-					}
-				>
-					{([key, label, count]) => (
+				<For each={stats()}>
+					{([key, label, total]) => (
 						<button
 							type="button"
 							class="review-stat"
+							classList={{ action: (key === "first" || key === "second") && total > 0 }}
 							aria-pressed={filter() === key}
 							onClick={() => setFilter(key)}
 						>
 							<span>{label}</span>
 							<strong>
-								{count}
+								{total}
 								<small>人</small>
 							</strong>
 						</button>
@@ -802,7 +741,6 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 							<button
 								type="button"
 								aria-pressed={mode() === key}
-								disabled={marking()}
 								onClick={() =>
 									void navigate({
 										mode: key,
@@ -841,7 +779,6 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 				}
 			>
 				<Filters />
-				<FilterTabs />
 				<Show when={primaryEvaluatorLabel()}>
 					{(label) => (
 						<div class="review-active-filter">
@@ -885,19 +822,24 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 														class="review-caseload-person"
 														aria-label={`${row.employeeName}の評価を開く`}
 														aria-pressed={current()?.employeeId === row.employeeId}
-														disabled={row.sheetId === null || marking()}
+														disabled={!canOpen(row)}
 														onClick={() => open(row)}
 													>
 														<span class="review-avatar">{row.employeeName.slice(0, 1)}</span>
 														<span class="review-caseload-person-info">
 															<strong>{row.employeeName}</strong>
-															<small>
-																{row.gradeName} · {roleLabel(row)}
-															</small>
+															<small>{row.gradeName}</small>
 															<Badge row={row} />
 														</span>
-														<Show when={row.canViewFinal && row.finalRank}>
-															<span class="review-mini-rank">{row.finalRank}</span>
+														<Show when={reviewRank(row, "final") ?? reviewRank(row, "first")}>
+															{(rank) => (
+																<span
+																	class="review-mini-rank"
+																	classList={{ provisional: !rank().confirmed }}
+																>
+																	{rank().text}
+																</span>
+															)}
 														</Show>
 													</button>
 												)}
@@ -911,7 +853,7 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 										fallback={
 											<div class="review-empty">
 												<ClipboardCheck size={34} />
-												<h2>確認する対象者を選んでください</h2>
+												<h2>評価する対象者を選んでください</h2>
 												<p>左の一覧から選択すると、ここで評価を進められます。</p>
 												<Show when={next()}>
 													{(target) => (
@@ -920,7 +862,7 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 															class="primary-action"
 															onClick={() => open(target())}
 														>
-															未確認から開始 <ArrowRight size={16} />
+															自分の番のシートから開始 <ArrowRight size={16} />
 														</button>
 													)}
 												</Show>
@@ -932,10 +874,7 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 												<div class="review-detail-toolbar">
 													<div>
 														<Badge row={row()} />
-														<span>{roleLabel(row())}</span>
-														<Show when={row().reviewedAt}>
-															<small>{formatDateTime(row().reviewedAt as string)} に確認</small>
-														</Show>
+														<span>一次評価者 {row().primaryEvaluator}</span>
 													</div>
 													<button
 														type="button"
@@ -948,23 +887,18 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 															}
 														}}
 													>
-														次の未確認者へ <ArrowRight size={16} />
+														次の自分の番へ <ArrowRight size={16} />
 													</button>
 												</div>
-												<Show when={row().needsRecheck && row().status === "submitted"}>
-													<p class="review-notice">
-														前回の確認後に内容が更新されています。変更内容を確認してください。
+												<Show when={row().status === "submitted" && !row().isPrimary}>
+													<p class="review-notice muted">
+														一次評価者（{row().primaryEvaluator}
+														）が一次評価を確定すると、二次評価を入力できるようになります。
 													</p>
 												</Show>
-												<Show
-													when={
-														row().status === "submitted" &&
-														row().role === "secondary" &&
-														!row().primaryReviewed
-													}
-												>
+												<Show when={row().status === "first_evaluated" && !row().canViewFinal}>
 													<p class="review-notice muted">
-														一次評価者の確認はまだ記録されていません。点数の入力と確認記録は別に扱います。
+														一次評価は確定済みです。二次評価者の確定を待っています。
 													</p>
 												</Show>
 												<Show when={editorIdentity()} keyed>
@@ -975,35 +909,9 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 															selectedSheetId={identity.sheetId as number}
 															onUpdated={updateRows}
 															onSavingChange={setEditorSaving}
+															onStageCompleted={() => void advance()}
 														/>
 													)}
-												</Show>
-												<Show when={row().status === "submitted"}>
-													<footer class="review-action-bar">
-														<div>
-															<CheckCheck size={18} />
-															<span>{row().employeeName}の内容を確認して記録</span>
-															<small>確認記録後も、確定するまでは評価を編集できます。</small>
-														</div>
-														<button
-															type="button"
-															class="secondary-action"
-															disabled={confirmationBlocked()}
-															onClick={() => void mark(false)}
-														>
-															{row().reviewed ? "確認済みを解除" : "確認済みにする"}
-														</button>
-														<button
-															type="button"
-															class="primary-action"
-															disabled={confirmationBlocked()}
-															onClick={() => void mark(true)}
-														>
-															<Check size={16} />
-															{marking() ? "記録中…" : "確認して次へ"}
-															<ArrowRight size={16} />
-														</button>
-													</footer>
 												</Show>
 											</>
 										)}
@@ -1037,7 +945,7 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 						<Show when={visible().length} fallback={<Empty />}>
 							<Show when={mode() === "compare"} fallback={<SummaryTable people={visible()} />}>
 								<p class="review-comparison-help">
-									一次・二次評価点は目標20点＋共通評価80点で換算。点数と確認記録を分けて表示しています。詳細は一覧で最大6人を選択して比較できます。
+									評価点は目標20点＋共通評価80点で換算。詳細は一覧で最大6人を選択して比較できます。
 								</p>
 								<Show
 									when={groups().length}
@@ -1055,9 +963,10 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 				</Show>
 			</Show>
 			<footer class="review-footnote">
-				<CheckCheck size={14} />
+				<Award size={14} />
 				<span>
-					確認記録は評価者ごとに保存されます。確認後の内容変更は再確認として表示されます。
+					評価ランクは評価点（100点満点）の得点率で自動的に決まります。95%以上 S / 90% A / 80% B+ /
+					60% B / 50% B- / 40% C / それ未満 D。薄い表示は確定前の見込みです。
 				</span>
 				<button type="button" onClick={() => void navigate({ mode: "list" })}>
 					<ChevronLeft size={14} />

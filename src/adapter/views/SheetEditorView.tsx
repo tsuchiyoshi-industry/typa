@@ -1,5 +1,5 @@
 import { A, useBeforeLeave, useNavigate, useParams } from "@solidjs/router";
-import { Award, CalendarDays, FileText, User, Users } from "lucide-solid";
+import { Award, CalendarDays, FileText, ShieldCheck, User, Users } from "lucide-solid";
 import {
 	type Component,
 	createEffect,
@@ -10,12 +10,9 @@ import {
 	onCleanup,
 	Show,
 } from "solid-js";
+import type { EvaluationRankDto } from "../../application/dtos/EvaluationSheetDto";
 import type { SheetSummaryDto } from "../../application/dtos/SheetListDto";
-import {
-	FINAL_EVALUATION_RANK_LETTERS,
-	FINAL_EVALUATION_RANK_LEVEL_SYMBOLS,
-	FINAL_EVALUATION_RANK_LEVELS,
-} from "../../domain/valueObjects/FinalEvaluationRank";
+import type { EvaluationStatusValue } from "../../domain/valueObjects/EvaluationStatus";
 import type { ChallengeEvaluationController } from "../controllers/ChallengeEvaluationController";
 import type { CommonEvaluationController } from "../controllers/CommonEvaluationController";
 import type { SheetEditorController } from "../controllers/SheetEditorController";
@@ -43,6 +40,8 @@ export interface SheetEditorViewProps {
 	selectedSheetId?: number;
 	onUpdated?: () => void;
 	onSavingChange?: (saving: boolean) => void;
+	/** 一次評価の確定・評価の確定が済んだとき。受け持ち画面が次の対象者へ進むのに使う。 */
+	onStageCompleted?: () => void;
 	controller: SheetEditorController;
 	viewModel: () => SheetEditorViewModel;
 	commonEvaluationController: CommonEvaluationController;
@@ -76,27 +75,29 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 		savingChallenge() ||
 		savingCommon() ||
 		savingOverallTarget() !== null ||
-		viewModel().updatingStatus ||
-		viewModel().updatingFinalEvaluationRank;
+		viewModel().updatingStatus;
 	createEffect(() => props.onSavingChange?.(saving()));
 	onCleanup(() => props.onSavingChange?.(false));
-	const finalRankOptions = createMemo(() =>
-		FINAL_EVALUATION_RANK_LETTERS.flatMap((letter) =>
-			FINAL_EVALUATION_RANK_LEVELS.map((level) => ({
-				letter,
-				level,
-				value: `${letter}|${level}`,
-				label: `${letter}${FINAL_EVALUATION_RANK_LEVEL_SYMBOLS[level]}`,
-			})),
-		),
-	);
-	const selectedFinalRankValue = createMemo(() => {
-		const finalEvaluationRank = sheet()?.finalEvaluationRank;
-		if (!finalEvaluationRank) {
-			return "";
+	// 評価ランクは得点率で決まる。最終評価ランクは、最終評価者の評価が始まる段階から意味を持つ。
+	const evaluationRanks = createMemo(() => {
+		const current = sheet();
+		const ranks: { label: string; rank: EvaluationRankDto }[] = [];
+		if (!current) {
+			return ranks;
 		}
-		return `${finalEvaluationRank.letter}|${finalEvaluationRank.level}`;
+		if (current.firstEvaluationRank && !current.primaryIsFinalEvaluator) {
+			ranks.push({ label: "一次評価ランク", rank: current.firstEvaluationRank });
+		}
+		if (
+			current.finalEvaluationRank &&
+			(current.primaryIsFinalEvaluator || current.finalEvaluationRank.confirmed || canEditSecond())
+		) {
+			ranks.push({ label: "最終評価ランク", rank: current.finalEvaluationRank });
+		}
+		return ranks;
 	});
+	const rankText = (rank: EvaluationRankDto | undefined) =>
+		rank ? `${rank.displayText}（${rank.score} 点 / 100 点）` : "—";
 
 	createEffect(() => {
 		if (isNew()) {
@@ -204,16 +205,18 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 		return false;
 	};
 
-	const changeStatus = async (
-		status: "draft" | "submitted",
-		asFinalization: boolean,
-		doneMessage: string,
-	) => {
-		const success = await props.controller.updateStatus(status, asFinalization);
+	const changeStatus = async (status: EvaluationStatusValue, doneMessage: string) => {
+		const success = await props.controller.updateStatus(status);
 		if (success) {
 			showToast("success", doneMessage);
+			// 通知メールを送れなかったときの警告。受け持ち画面は次の対象者へ進むので、トーストでも残す
+			const warning = viewModel().statusUpdateError;
+			if (warning) {
+				showToast("error", "通知メールを送信できませんでした", warning);
+			}
 			reloadCurrentSheetFromRoute();
 		}
+		return success;
 	};
 
 	const handleSubmitSheet = async () => {
@@ -223,11 +226,11 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 		const confirmed = await confirmAction({
 			title: "評価シートを提出しますか？",
 			message:
-				"提出すると目標は編集できなくなり、評価者が評価を入力できるようになります。評価が確定するまでは、下書きに戻して編集し直せます。",
+				"提出すると目標は編集できなくなり、評価者に表示されて一次評価が始まります。一次評価が確定するまでは、下書きに戻して編集し直せます。",
 			confirmLabel: "提出する",
 		});
 		if (confirmed) {
-			await changeStatus("submitted", false, "評価シートを提出しました");
+			await changeStatus("submitted", "評価シートを提出しました");
 		}
 	};
 
@@ -237,11 +240,27 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 		}
 		const confirmed = await confirmAction({
 			title: "下書きに戻しますか？",
-			message: "下書きに戻すと目標を編集できるようになります。編集後はもう一度提出してください。",
+			message:
+				"下書きに戻すと目標を編集できるようになり、評価者には表示されなくなります。編集後はもう一度提出してください。",
 			confirmLabel: "下書きに戻す",
 		});
 		if (confirmed) {
-			await changeStatus("draft", false, "下書きに戻しました");
+			await changeStatus("draft", "下書きに戻しました");
+		}
+	};
+
+	const handleConfirmFirst = async () => {
+		if (!ensureNothingUnsaved()) {
+			return;
+		}
+		const confirmed = await confirmAction({
+			title: "一次評価を確定しますか？",
+			message: `一次評価ランクは ${rankText(sheet()?.firstEvaluationRank)} です。確定すると一次評価は変更できなくなり、二次評価者（${sheet()?.secondaryEvaluator ?? "未設定"}）に通知メールを送ります。この操作は取り消せません。`,
+			confirmLabel: "一次評価を確定する",
+			tone: "danger",
+		});
+		if (confirmed && (await changeStatus("first_evaluated", "一次評価を確定しました"))) {
+			props.onStageCompleted?.();
 		}
 	};
 
@@ -251,25 +270,12 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 		}
 		const confirmed = await confirmAction({
 			title: "評価を確定しますか？",
-			message:
-				"確定すると評価シートはロックされ、本人も評価者も変更できなくなります。確定の通知メールも送信されます。この操作は取り消せません。",
+			message: `最終評価ランクは ${rankText(sheet()?.finalEvaluationRank)} です。確定すると評価シートはロックされ、本人も評価者も変更できなくなります。確定の通知メールも送信されます。この操作は取り消せません。`,
 			confirmLabel: "評価を確定する",
 			tone: "danger",
 		});
-		if (confirmed) {
-			await changeStatus("submitted", true, "評価を確定しました");
-		}
-	};
-
-	const handleFinalRankChange = async (value: string) => {
-		const option = finalRankOptions().find((item) => item.value === value);
-		if (!option) {
-			return;
-		}
-		const success = await props.controller.decideFinalEvaluationRank(option.letter, option.level);
-		if (success) {
-			showToast("success", `最終評価ランクを ${option.label} に保存しました`);
-			props.onUpdated?.();
+		if (confirmed && (await changeStatus("finalized", "評価を確定しました"))) {
+			props.onStageCompleted?.();
 		}
 	};
 
@@ -436,37 +442,33 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 		</section>
 	);
 
-	const FinalEvaluationRankSection = () => (
-		<Show when={viewModel().canDecideFinalEvaluationRank}>
+	const EvaluationRankSection = () => (
+		<Show when={evaluationRanks().length}>
 			<section class="final-rank-panel">
 				<div class="final-rank-panel__title">
 					<Award class="section-icon" />
 					<div>
-						<h2>最終評価ランク</h2>
-						<p>最終評価者が決定します。選ぶとすぐに保存されます。</p>
+						<h2>評価ランク</h2>
+						<p>
+							得点率で自動的に決まります（95%以上 S / 90% A / 80% B+ / 60% B / 50% B- / 40% C /
+							それ未満 D）。
+						</p>
 					</div>
 				</div>
-				<label class="final-rank-selector" for="final-rank-select">
-					<span class="visually-hidden">最終評価ランク</span>
-					<select
-						id="final-rank-select"
-						value={selectedFinalRankValue()}
-						disabled={viewModel().updatingFinalEvaluationRank}
-						onChange={(event) => void handleFinalRankChange(event.currentTarget.value)}
-					>
-						<option value="" disabled>
-							未決定
-						</option>
-						<For each={finalRankOptions()}>
-							{(option) => <option value={option.value}>{option.label}</option>}
-						</For>
-					</select>
-				</label>
-				<Show when={viewModel().finalEvaluationRankUpdateError}>
-					<p class="error-message" role="alert">
-						{viewModel().finalEvaluationRankUpdateError}
-					</p>
-				</Show>
+				<dl class="rank-summary">
+					<For each={evaluationRanks()}>
+						{(item) => (
+							<div class="rank-summary__item" classList={{ confirmed: item.rank.confirmed }}>
+								<dt>{item.label}</dt>
+								<dd>
+									<strong>{item.rank.displayText}</strong>
+									<span>{item.rank.score} 点 / 100 点</span>
+									<small>{item.rank.confirmed ? "確定" : "確定前の見込み"}</small>
+								</dd>
+							</div>
+						)}
+					</For>
+				</dl>
 			</section>
 		</Show>
 	);
@@ -539,13 +541,17 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 				<Show when={!isNew() && sheet()}>
 					<SheetStatusTrack
 						status={sheet()?.status ?? "draft"}
+						primaryIsFinal={sheet()?.primaryIsFinalEvaluator ?? false}
 						canSubmit={viewModel().canSubmitOwnSheet}
 						canRevert={viewModel().canRevertOwnSheetToDraft}
-						canFinalize={viewModel().canFinalizeEvaluation}
+						// 受け持ち画面では、評価の確定は入力を終えた先(末尾のバー)に置く
+						canConfirmFirst={!props.embedded && viewModel().canConfirmFirstEvaluation}
+						canFinalize={!props.embedded && viewModel().canFinalizeEvaluation}
 						updating={viewModel().updatingStatus}
 						notice={viewModel().statusUpdateError}
 						onSubmit={() => void handleSubmitSheet()}
 						onRevert={() => void handleRevertSheet()}
+						onConfirmFirst={() => void handleConfirmFirst()}
 						onFinalize={() => void handleFinalize()}
 					/>
 				</Show>
@@ -573,7 +579,7 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 						{(subject) => (
 							<>
 								<ProfileCards />
-								<FinalEvaluationRankSection />
+								<EvaluationRankSection />
 								<ChallengeEvaluationView
 									sheetId={sheetId()}
 									objectives={sheet()?.objectives ?? []}
@@ -615,6 +621,50 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 									onSave={(target) => void saveOverallComment(target)}
 									updateError={viewModel().overallCommentUpdateError}
 								/>
+								<Show
+									when={
+										props.embedded &&
+										(viewModel().canConfirmFirstEvaluation || viewModel().canFinalizeEvaluation)
+									}
+								>
+									<footer class="review-action-bar">
+										<div>
+											<ShieldCheck size={18} />
+											<Show
+												when={viewModel().canFinalizeEvaluation}
+												fallback={
+													<>
+														<span>一次評価ランク {rankText(sheet()?.firstEvaluationRank)}</span>
+														<small>
+															確定すると一次評価は変更できなくなり、二次評価者に通知します。
+														</small>
+													</>
+												}
+											>
+												<span>最終評価ランク {rankText(sheet()?.finalEvaluationRank)}</span>
+												<small>確定すると評価シートはロックされ、変更できなくなります。</small>
+											</Show>
+										</div>
+										<button
+											type="button"
+											class="primary-action finalize"
+											disabled={saving()}
+											onClick={() =>
+												void (viewModel().canFinalizeEvaluation
+													? handleFinalize()
+													: handleConfirmFirst())
+											}
+										>
+											{viewModel().updatingStatus
+												? "確定中..."
+												: viewModel().canFinalizeEvaluation
+													? sheet()?.primaryIsFinalEvaluator
+														? "評価を確定する"
+														: "二次評価を確定する"
+													: "一次評価を確定する"}
+										</button>
+									</footer>
+								</Show>
 							</>
 						)}
 					</Show>

@@ -39,6 +39,7 @@ export class FetchEvaluationSheetInteractor
 				evaluationPeriod: null,
 				primaryEvaluator: "未設定",
 				secondaryEvaluator: "未設定",
+				primaryIsFinalEvaluator: false,
 				firstOverallComment: "",
 				secondOverallComment: "",
 				objectives: [],

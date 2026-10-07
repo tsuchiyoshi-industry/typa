@@ -38,7 +38,6 @@ it("ignores a late sheet response after the reviewer has moved to another person
 		{} as Args[4],
 		{} as Args[5],
 		{} as Args[6],
-		{} as Args[7],
 		presenter,
 		employeeRepository(),
 	);
@@ -75,8 +74,8 @@ it("resets edit permissions on navigation and rejects late permissions for the p
 		canViewSecondEvaluation: true,
 		canSubmitOwnSheet: false,
 		canRevertOwnSheetToDraft: false,
+		canConfirmFirstEvaluation: false,
 		canFinalizeEvaluation: true,
-		canDecideFinalEvaluationRank: true,
 	};
 	presenter.outputPort.role.present(permissions);
 	type Args = ConstructorParameters<typeof SheetEditorController>;
@@ -93,7 +92,6 @@ it("resets edit permissions on navigation and rejects late permissions for the p
 		{} as Args[4],
 		{} as Args[5],
 		{} as Args[6],
-		{} as Args[7],
 		presenter,
 		employeeRepository(),
 	);

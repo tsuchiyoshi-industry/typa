@@ -1,27 +1,35 @@
 import { Check, FileCheck, ShieldCheck, Undo2 } from "lucide-solid";
 import { type Component, For, Show } from "solid-js";
-import { SHEET_STATUS_ORDER, statusLabel, statusRank } from "../format";
+import { SHEET_STATUS_ORDER, type SheetStatus, statusHint, statusLabel } from "../format";
 
 interface SheetStatusTrackProps {
 	status: string;
+	/** 二次評価者「なし」の社員は「一次評価済み」の段を通らない。 */
+	primaryIsFinal: boolean;
 	canSubmit: boolean;
 	canRevert: boolean;
+	canConfirmFirst: boolean;
 	canFinalize: boolean;
 	updating: boolean;
 	notice: string | null;
 	onSubmit: () => void;
 	onRevert: () => void;
+	onConfirmFirst: () => void;
 	onFinalize: () => void;
 }
 
-/** 下書き → 提出済み → 評価確定 の進行と、いま自分ができる次の操作を示す。 */
+/** 下書き → 提出済み → 一次評価済み → 評価確定 の進行と、いま自分ができる次の操作を示す。 */
 const SheetStatusTrack: Component<SheetStatusTrackProps> = (props) => {
-	const currentRank = () => statusRank(props.status);
+	const steps = () =>
+		SHEET_STATUS_ORDER.filter(
+			(step) => step !== "first_evaluated" || !props.primaryIsFinal || step === props.status,
+		);
+	const currentRank = () => steps().indexOf(props.status as SheetStatus);
 
 	return (
 		<div class="status-track">
 			<ol class="status-track__steps" aria-label="評価シートの進行状況">
-				<For each={SHEET_STATUS_ORDER}>
+				<For each={steps()}>
 					{(step, index) => (
 						<li
 							class="status-track__step"
@@ -65,6 +73,17 @@ const SheetStatusTrack: Component<SheetStatusTrackProps> = (props) => {
 						{props.updating ? "処理中..." : "下書きに戻す"}
 					</button>
 				</Show>
+				<Show when={props.canConfirmFirst}>
+					<button
+						type="button"
+						class="primary-action finalize"
+						onClick={props.onConfirmFirst}
+						disabled={props.updating}
+					>
+						<ShieldCheck class="action-icon" />
+						{props.updating ? "確定中..." : "一次評価を確定する"}
+					</button>
+				</Show>
 				<Show when={props.canFinalize}>
 					<button
 						type="button"
@@ -73,10 +92,16 @@ const SheetStatusTrack: Component<SheetStatusTrackProps> = (props) => {
 						disabled={props.updating}
 					>
 						<ShieldCheck class="action-icon" />
-						{props.updating ? "確定中..." : "評価を確定する"}
+						{props.updating
+							? "確定中..."
+							: props.primaryIsFinal
+								? "評価を確定する"
+								: "二次評価を確定する"}
 					</button>
 				</Show>
 			</div>
+
+			<p class="status-track__hint">{statusHint(props.status)}</p>
 
 			<Show when={props.notice}>
 				<p class="status-track__notice" role="alert">

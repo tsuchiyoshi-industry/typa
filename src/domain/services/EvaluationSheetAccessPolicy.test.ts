@@ -46,7 +46,7 @@ describe("EvaluationSheetAccessPolicy", () => {
 			).toBe(false);
 		});
 
-		it("下書き中は評価者も閲覧のみで、スコアは編集できない", () => {
+		it("下書き中は評価者に見せず、スコアも編集できない", () => {
 			const sheet = buildSheet(EvaluationStatus.DRAFT);
 			expect(
 				EvaluationSheetAccessPolicy.for(PRIMARY_EVALUATOR_ID, sheet).canEditMilestoneFirstScore(),
@@ -57,22 +57,40 @@ describe("EvaluationSheetAccessPolicy", () => {
 					sheet,
 				).canEditMilestoneSecondScore(),
 			).toBe(false);
+			expect(EvaluationSheetAccessPolicy.for(PRIMARY_EVALUATOR_ID, sheet).canViewSheet()).toBe(
+				false,
+			);
 			expect(
 				EvaluationSheetAccessPolicy.for(PRIMARY_EVALUATOR_ID, sheet).canViewCommonEvaluation(),
-			).toBe(true);
+			).toBe(false);
 		});
 
-		it("本人が提出した後、一次/二次評価者はそれぞれのスコアを編集できる", () => {
+		it("提出後は一次評価者が、一次評価の確定後は二次評価者がスコアを編集できる", () => {
 			const sheet = buildSheet(EvaluationStatus.SUBMITTED);
 			expect(
 				EvaluationSheetAccessPolicy.for(PRIMARY_EVALUATOR_ID, sheet).canEditMilestoneFirstScore(),
 			).toBe(true);
+			// 一次評価が確定するまで、二次評価者は入力できない
 			expect(
 				EvaluationSheetAccessPolicy.for(
 					SECONDARY_EVALUATOR_ID,
 					sheet,
 				).canEditMilestoneSecondScore(),
+			).toBe(false);
+			const firstEvaluated = buildSheet(EvaluationStatus.FIRST_EVALUATED);
+			expect(
+				EvaluationSheetAccessPolicy.for(
+					SECONDARY_EVALUATOR_ID,
+					firstEvaluated,
+				).canEditMilestoneSecondScore(),
 			).toBe(true);
+			// 確定した一次評価は、一次評価者も変更できない
+			expect(
+				EvaluationSheetAccessPolicy.for(
+					PRIMARY_EVALUATOR_ID,
+					firstEvaluated,
+				).canEditMilestoneFirstScore(),
+			).toBe(false);
 			expect(EvaluationSheetAccessPolicy.for(SUBJECT_ID, sheet).canEditMilestoneFirstScore()).toBe(
 				false,
 			);
@@ -99,8 +117,8 @@ describe("EvaluationSheetAccessPolicy", () => {
 	});
 
 	describe("共通評価(CommonEvaluation)", () => {
-		it("評価者のみ閲覧でき、本人は閲覧できない(下書き中でも閲覧は可能)", () => {
-			const sheet = buildSheet(EvaluationStatus.DRAFT);
+		it("提出後は評価者のみ閲覧でき、本人は閲覧できない", () => {
+			const sheet = buildSheet(EvaluationStatus.SUBMITTED);
 			expect(
 				EvaluationSheetAccessPolicy.for(PRIMARY_EVALUATOR_ID, sheet).canViewCommonEvaluation(),
 			).toBe(true);
@@ -128,7 +146,7 @@ describe("EvaluationSheetAccessPolicy", () => {
 			).toBe(false);
 		});
 
-		it("本人が提出した後は評価者がスコアを編集できる", () => {
+		it("提出後は一次評価者が、一次評価の確定後は二次評価者がスコアを編集できる", () => {
 			const sheet = buildSheet(EvaluationStatus.SUBMITTED);
 			expect(
 				EvaluationSheetAccessPolicy.for(PRIMARY_EVALUATOR_ID, sheet).canEditCommonEvaluationFirst(),
@@ -137,6 +155,12 @@ describe("EvaluationSheetAccessPolicy", () => {
 				EvaluationSheetAccessPolicy.for(
 					SECONDARY_EVALUATOR_ID,
 					sheet,
+				).canEditCommonEvaluationSecond(),
+			).toBe(false);
+			expect(
+				EvaluationSheetAccessPolicy.for(
+					SECONDARY_EVALUATOR_ID,
+					buildSheet(EvaluationStatus.FIRST_EVALUATED),
 				).canEditCommonEvaluationSecond(),
 			).toBe(true);
 		});
@@ -158,58 +182,66 @@ describe("EvaluationSheetAccessPolicy", () => {
 		});
 	});
 
-	describe("シートロック(提出・確定)", () => {
-		it("本人は下書きを提出できるが、二次評価者はまだ確定できない", () => {
-			const sheet = buildSheet(EvaluationStatus.DRAFT);
-			expect(EvaluationSheetAccessPolicy.for(SUBJECT_ID, sheet).canChangeStatusTo(true)).toBe(true);
-			expect(
-				EvaluationSheetAccessPolicy.for(SECONDARY_EVALUATOR_ID, sheet).canChangeStatusTo(true),
-			).toBe(false);
-			expect(
-				EvaluationSheetAccessPolicy.for(PRIMARY_EVALUATOR_ID, sheet).canChangeStatusTo(true),
-			).toBe(false);
-		});
+	describe("シートロック(提出・一次評価の確定・評価の確定)", () => {
+		const can = (id: number, status: EvaluationStatus) =>
+			EvaluationSheetAccessPolicy.for(id, buildSheet(status));
 
-		it("提出済み(評価入力段階)は本人が下書きに戻せ、二次評価者は確定できる", () => {
-			const sheet = buildSheet(EvaluationStatus.SUBMITTED);
-			expect(EvaluationSheetAccessPolicy.for(SUBJECT_ID, sheet).canChangeStatusTo(false)).toBe(
-				true,
-			);
-			expect(
-				EvaluationSheetAccessPolicy.for(SECONDARY_EVALUATOR_ID, sheet).canChangeStatusTo(false),
-			).toBe(false);
-			expect(
-				EvaluationSheetAccessPolicy.for(SECONDARY_EVALUATOR_ID, sheet).canChangeStatusTo(true),
-			).toBe(true);
-			expect(
-				EvaluationSheetAccessPolicy.for(PRIMARY_EVALUATOR_ID, sheet).canChangeStatusTo(true),
-			).toBe(false);
-		});
-
-		it("二次評価者が確定した後は、本人も下書きに戻せない", () => {
-			const sheet = buildSheet(EvaluationStatus.FINALIZED);
-			expect(EvaluationSheetAccessPolicy.for(SUBJECT_ID, sheet).canChangeStatusTo(false)).toBe(
+		it("本人は下書きを提出できるが、評価者はまだ何も確定できない", () => {
+			expect(can(SUBJECT_ID, EvaluationStatus.DRAFT).canSubmitOwnSheet()).toBe(true);
+			expect(can(PRIMARY_EVALUATOR_ID, EvaluationStatus.DRAFT).canConfirmFirstEvaluation()).toBe(
 				false,
 			);
-			expect(EvaluationSheetAccessPolicy.for(SUBJECT_ID, sheet).canRevertOwnSheetToDraft()).toBe(
+			expect(can(SECONDARY_EVALUATOR_ID, EvaluationStatus.DRAFT).canFinalizeEvaluation()).toBe(
 				false,
 			);
 		});
 
-		it("確定済みシートは誰も再確定・再提出できない", () => {
-			const sheet = buildSheet(EvaluationStatus.FINALIZED);
-			expect(EvaluationSheetAccessPolicy.for(SUBJECT_ID, sheet).canChangeStatusTo(true)).toBe(
-				false,
-			);
-			expect(
-				EvaluationSheetAccessPolicy.for(SECONDARY_EVALUATOR_ID, sheet).canChangeStatusTo(true),
-			).toBe(false);
+		it("提出済みは本人が下書きに戻せ、一次評価者だけが一次評価を確定できる", () => {
+			const status = EvaluationStatus.SUBMITTED;
+			expect(can(SUBJECT_ID, status).canRevertOwnSheetToDraft()).toBe(true);
+			expect(can(PRIMARY_EVALUATOR_ID, status).canConfirmFirstEvaluation()).toBe(true);
+			expect(can(SECONDARY_EVALUATOR_ID, status).canConfirmFirstEvaluation()).toBe(false);
+			expect(can(SUBJECT_ID, status).canConfirmFirstEvaluation()).toBe(false);
+			// 一次評価が確定するまで、二次評価者は確定できない
+			expect(can(SECONDARY_EVALUATOR_ID, status).canFinalizeEvaluation()).toBe(false);
+		});
+
+		it("一次評価済みは本人も一次評価者も戻せず、二次評価者だけが評価を確定できる", () => {
+			const status = EvaluationStatus.FIRST_EVALUATED;
+			expect(can(SUBJECT_ID, status).canRevertOwnSheetToDraft()).toBe(false);
+			expect(can(PRIMARY_EVALUATOR_ID, status).canConfirmFirstEvaluation()).toBe(false);
+			expect(can(PRIMARY_EVALUATOR_ID, status).canFinalizeEvaluation()).toBe(false);
+			expect(can(SECONDARY_EVALUATOR_ID, status).canFinalizeEvaluation()).toBe(true);
+		});
+
+		it("確定済みシートは誰も戻せず、再確定・再提出もできない", () => {
+			const status = EvaluationStatus.FINALIZED;
+			expect(can(SUBJECT_ID, status).canRevertOwnSheetToDraft()).toBe(false);
+			expect(can(SUBJECT_ID, status).canSubmitOwnSheet()).toBe(false);
+			expect(can(PRIMARY_EVALUATOR_ID, status).canConfirmFirstEvaluation()).toBe(false);
+			expect(can(SECONDARY_EVALUATOR_ID, status).canFinalizeEvaluation()).toBe(false);
 		});
 	});
 
 	describe("出力(PDFエクスポート)", () => {
+		it("評価が確定するまでは、評価者も出力できない", () => {
+			for (const status of [
+				EvaluationStatus.DRAFT,
+				EvaluationStatus.SUBMITTED,
+				EvaluationStatus.FIRST_EVALUATED,
+			]) {
+				const sheet = buildSheet(status);
+				expect(EvaluationSheetAccessPolicy.for(PRIMARY_EVALUATOR_ID, sheet).canExportSheet()).toBe(
+					false,
+				);
+				expect(
+					EvaluationSheetAccessPolicy.for(SECONDARY_EVALUATOR_ID, sheet).canExportSheet(),
+				).toBe(false);
+			}
+		});
+
 		it("被評価者と無関係者は出力できず、評価者のみ出力できる", () => {
-			const sheet = buildSheet(EvaluationStatus.SUBMITTED);
+			const sheet = buildSheet(EvaluationStatus.FINALIZED);
 			expect(EvaluationSheetAccessPolicy.for(SUBJECT_ID, sheet).canExportSheet()).toBe(false);
 			expect(EvaluationSheetAccessPolicy.for(UNRELATED_ID, sheet).canExportSheet()).toBe(false);
 			expect(EvaluationSheetAccessPolicy.for(PRIMARY_EVALUATOR_ID, sheet).canExportSheet()).toBe(

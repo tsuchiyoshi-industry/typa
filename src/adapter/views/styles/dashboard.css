@@ -123,12 +123,34 @@
 	background: var(--hr-bg-elevated);
 	color: var(--hr-text);
 	font-size: 0.8rem;
-	max-width: 220px;
+	max-width: 380px;
 }
 
 .user-menu-trigger:hover {
 	border-color: var(--hr-border-strong);
 	background: var(--hr-surface-hover);
+}
+
+.user-name {
+	font-weight: 600;
+	white-space: nowrap;
+}
+
+.user-name:empty,
+.user-role:empty {
+	display: none;
+}
+
+/* 権限(Admin / Reviewer / Employee) */
+.user-role {
+	padding: 0.1rem 0.45rem;
+	border: 1px solid var(--hr-accent);
+	border-radius: 999px;
+	font-size: 0.68rem;
+	font-weight: 600;
+	white-space: nowrap;
+	color: var(--hr-accent-hover);
+	background: var(--hr-accent-muted);
 }
 
 .user-email {
@@ -597,6 +619,12 @@
 	border-color: var(--hr-accent);
 }
 
+.status-chip.first_evaluated {
+	color: var(--hr-warning-text);
+	background: color-mix(in srgb, var(--hr-warning) 12%, transparent);
+	border-color: color-mix(in srgb, var(--hr-warning) 40%, transparent);
+}
+
 .status-chip.finalized {
 	color: var(--hr-success-text);
 	background: rgba(61, 122, 92, 0.14);
@@ -620,13 +648,15 @@
 		background 0.15s ease;
 }
 
-.export-button:hover:not(:disabled) {
+.export-button:hover:not(:disabled, [aria-disabled="true"]) {
 	color: var(--hr-accent-hover);
 	border-color: var(--hr-accent);
 	background: var(--hr-accent-muted);
 }
 
-.export-button:disabled {
+/* aria-disabled: 評価が確定する前のシート。押せない理由を title で示す */
+.export-button:disabled,
+.export-button[aria-disabled="true"] {
 	opacity: 0.5;
 	cursor: not-allowed;
 }
@@ -779,7 +809,7 @@
 	cursor: wait;
 }
 
-/* 進行トラック: 下書き → 提出済み → 評価確定 */
+/* 進行トラック: 下書き → 提出済み → 一次評価済み → 評価確定 */
 .status-track {
 	display: flex;
 	flex-wrap: wrap;
@@ -865,6 +895,15 @@
 
 .status-track__actions:empty {
 	display: none;
+}
+
+/* いま誰の番かの一文 */
+.status-track__hint {
+	flex-basis: 100%;
+	margin: 0;
+	font-size: 0.76rem;
+	text-align: right;
+	color: var(--hr-text-muted);
 }
 
 .status-track__notice {
@@ -1056,30 +1095,54 @@
 	color: var(--hr-text-muted);
 }
 
-.final-rank-selector {
-	min-width: min(100%, 220px);
-}
-
-.final-rank-selector select {
-	width: 100%;
-	min-height: 2.45rem;
-	padding: 0.55rem 0.75rem;
-	border-radius: var(--hr-radius-sm);
-	border: 1px solid var(--hr-border);
-	background: var(--hr-bg-elevated);
-	color: var(--hr-text);
-	cursor: pointer;
-}
-
-.final-rank-selector select:focus {
-	outline: none;
-	border-color: var(--hr-accent);
-	box-shadow: 0 0 0 3px var(--hr-accent-muted);
-}
-
-.final-rank-panel > .error-message {
-	flex-basis: 100%;
+/* 得点率から決まる評価ランク。確定前は見込みとして控えめに出す */
+.rank-summary {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.75rem;
 	margin: 0;
+}
+
+.rank-summary__item {
+	min-width: 9.5rem;
+	padding: 0.55rem 0.9rem;
+	border: 1px solid var(--hr-border);
+	border-radius: var(--hr-radius-sm);
+	background: var(--hr-bg-elevated);
+	/* ランクの文字色。確定前は見込みとして薄く出す */
+	color: var(--hr-text-muted);
+}
+
+.rank-summary__item dt {
+	font-size: 0.72rem;
+	color: var(--hr-text-muted);
+}
+
+.rank-summary__item dd {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 0.15rem 0.6rem;
+	margin: 0.15rem 0 0;
+	font-size: 0.78rem;
+	font-variant-numeric: tabular-nums;
+}
+
+.rank-summary__item strong {
+	font-size: 1.5rem;
+	font-weight: 600;
+	line-height: 1.1;
+}
+
+.rank-summary__item small {
+	flex-basis: 100%;
+	font-size: 0.68rem;
+	color: var(--hr-text-muted);
+}
+
+.rank-summary__item.confirmed {
+	border-color: var(--hr-accent);
+	color: var(--hr-text);
 }
 
 /* ----- チャレンジ目標評価 ----- */

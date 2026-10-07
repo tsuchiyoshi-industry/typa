@@ -3,5 +3,6 @@ dist
 coverage
 *.tsbuildinfo
 .env.local
+.env.*.local
 
 tables.md

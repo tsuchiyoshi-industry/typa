@@ -53,3 +53,26 @@ it.each([
 		new SupabaseEvaluationNotificationRecipientRepository().findFinalizedSheetRecipients(100),
 	).rejects.toThrow("不正");
 });
+it.each(["second@example.jp", null])(
+	"resolves the secondary evaluator's address %j for a first-evaluated sheet",
+	async (data) => {
+		db.rpc.mockResolvedValueOnce({ data, error: null });
+		expect(
+			await new SupabaseEvaluationNotificationRecipientRepository().findFirstEvaluatedSheetRecipient(
+				100,
+			),
+		).toBe(data);
+		expect(db.rpc).toHaveBeenCalledWith("get_first_evaluated_sheet_notification_recipient", {
+			p_sheet_id: 100,
+		});
+	},
+);
+it("rejects a denied or malformed first-evaluated recipient", async () => {
+	const repository = new SupabaseEvaluationNotificationRecipientRepository();
+	db.rpc.mockResolvedValueOnce({ data: null, error: new Error("permission denied") });
+	await expect(repository.findFirstEvaluatedSheetRecipient(100)).rejects.toThrow(
+		"permission denied",
+	);
+	db.rpc.mockResolvedValueOnce({ data: [{ email: "x@example.jp" }], error: null });
+	await expect(repository.findFirstEvaluatedSheetRecipient(100)).rejects.toThrow("不正");
+});

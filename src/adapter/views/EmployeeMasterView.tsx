@@ -1,4 +1,4 @@
-import { Search, ShieldCheck, Trash2, Users } from "lucide-solid";
+import { Search, Trash2, Users } from "lucide-solid";
 import {
 	type Component,
 	createEffect,
@@ -436,10 +436,6 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 							? "社員ごとの等級と評価者を管理します。"
 							: "あなたの等級と評価者を確認できます。"}
 					</p>
-				</div>
-				<div class="master-role-badge">
-					<ShieldCheck class="master-role-icon" />
-					<span>{me()?.roleName ?? "Employee"}</span>
 				</div>
 			</header>
 

@@ -1,22 +1,29 @@
-export class EvaluationStatus {
-	private constructor(private readonly value: "draft" | "submitted" | "finalized") {}
+export type EvaluationStatusValue = "draft" | "submitted" | "first_evaluated" | "finalized";
 
+/** 下書き → 提出済み(一次評価待ち) → 一次評価済み(二次評価待ち) → 評価確定。 */
+export class EvaluationStatus {
+	private constructor(private readonly value: EvaluationStatusValue) {}
+
+	/** 本人が編集中。評価者はまだ内容を見られない。 */
 	static readonly DRAFT = new EvaluationStatus("draft");
+	/** 本人が提出済みで、一次評価者の評価を待っている。 */
 	static readonly SUBMITTED = new EvaluationStatus("submitted");
-	/** 二次評価者による確定ロック。本人による差し戻しも不可になる。 */
+	/** 一次評価者が確定済み。一次評価は変更できず、二次評価者の評価を待っている。 */
+	static readonly FIRST_EVALUATED = new EvaluationStatus("first_evaluated");
+	/** 最終評価者による確定ロック。本人による差し戻しも不可になる。 */
 	static readonly FINALIZED = new EvaluationStatus("finalized");
 
 	static from(value: string): EvaluationStatus {
-		if (value === "finalized") {
-			return EvaluationStatus.FINALIZED;
+		const status = [
+			EvaluationStatus.DRAFT,
+			EvaluationStatus.SUBMITTED,
+			EvaluationStatus.FIRST_EVALUATED,
+			EvaluationStatus.FINALIZED,
+		].find((candidate) => candidate.value === value);
+		if (!status) {
+			throw new Error("Invalid evaluation status.");
 		}
-		if (value === "submitted") {
-			return EvaluationStatus.SUBMITTED;
-		}
-		if (value === "draft") {
-			return EvaluationStatus.DRAFT;
-		}
-		throw new Error("Invalid evaluation status.");
+		return status;
 	}
 
 	isDraft(): boolean {
@@ -24,19 +31,27 @@ export class EvaluationStatus {
 	}
 
 	isSubmitted(): boolean {
-		return this.value === "submitted" || this.value === "finalized";
+		return this.value !== "draft";
 	}
 
-	/** 本人が提出済みで、まだ二次評価者が確定していない、評価者による評価入力が可能な段階。 */
-	isUnderEvaluation(): boolean {
+	isAwaitingFirstEvaluation(): boolean {
 		return this.value === "submitted";
 	}
 
-	isFinalizedBySecondEvaluator(): boolean {
+	isAwaitingSecondEvaluation(): boolean {
+		return this.value === "first_evaluated";
+	}
+
+	/** 一次評価が確定している(一次評価済み、または評価確定)。 */
+	isFirstEvaluationConfirmed(): boolean {
+		return this.value === "first_evaluated" || this.value === "finalized";
+	}
+
+	isFinalized(): boolean {
 		return this.value === "finalized";
 	}
 
-	toString(): string {
+	toString(): EvaluationStatusValue {
 		return this.value;
 	}
 

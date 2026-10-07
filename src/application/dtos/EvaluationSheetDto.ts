@@ -19,10 +19,11 @@ export interface EvaluationAllocatedScoresDto {
 	totalEvaluationScore: number | null;
 }
 
-export interface FinalEvaluationRankDto {
-	letter: string;
-	level: string;
+/** 評価ランク。得点率から機械的に決まる。confirmed: 確定して保存済みか(false は現在の点数からの見込み)。 */
+export interface EvaluationRankDto {
 	displayText: string;
+	score: number;
+	confirmed: boolean;
 }
 
 export interface EvaluationSheetDto {
@@ -31,6 +32,8 @@ export interface EvaluationSheetDto {
 	evaluationPeriod: EvaluationPeriodDto | null;
 	primaryEvaluator: string;
 	secondaryEvaluator: string;
+	/** 二次評価者「なし」の社員。一次評価者の確定がそのまま評価の確定になる。 */
+	primaryIsFinalEvaluator: boolean;
 	firstOverallComment: string;
 	secondOverallComment: string;
 	objectives: MilestoneDto[];
@@ -39,5 +42,8 @@ export interface EvaluationSheetDto {
 	allocatedScores: EvaluationAllocatedScoresDto;
 	status: string;
 	isEditable: boolean;
-	finalEvaluationRank?: FinalEvaluationRankDto;
+	/** 評価者にだけ見せる。本人には渡さない。 */
+	firstEvaluationRank?: EvaluationRankDto;
+	/** 最終評価者にだけ見せる。 */
+	finalEvaluationRank?: EvaluationRankDto;
 }

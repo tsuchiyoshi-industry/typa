@@ -240,6 +240,7 @@ describe("lists and permission queries", () => {
 				periodEnd: "end",
 				employeeName: "test",
 				employeeNo: "TEST001",
+				gradeName: "作成時の等級",
 			};
 			sheets.findByOwner.mockResolvedValue([summary]);
 			sheets.findByEmployeeIds.mockResolvedValue([summary]);
@@ -253,7 +254,12 @@ describe("lists and permission queries", () => {
 			expect(out.present).toHaveBeenCalledWith(
 				expect.objectContaining({
 					mySheets: [
-						expect.objectContaining({ startDate: "start", endDate: "end", totalScore: null }),
+						expect.objectContaining({
+							startDate: "start",
+							endDate: "end",
+							totalScore: null,
+							gradeName: "作成時の等級",
+						}),
 					],
 				}),
 			);
@@ -297,6 +303,7 @@ describe("lists and permission queries", () => {
 		const employees = employeeRepository();
 		employees.findCurrentEmployeeId.mockResolvedValue({ data: id, error: null });
 		const out = output<never>();
+		// 提出済みは一次評価の段階。二次評価者は読めるが、一次評価が確定するまで入力できない
 		await new CheckEvaluatorRoleInteractor(employees, sheetRepository()).execute(
 			{ sheetId: 100 },
 			out,
@@ -305,8 +312,22 @@ describe("lists and permission queries", () => {
 			expect.objectContaining({
 				isSubject: id === 1,
 				canEditFirst: id === 2,
-				canEditSecond: id === 3,
+				canEditSecond: false,
 				canViewCommonEvaluation: id === 2 || id === 3,
+				canConfirmFirstEvaluation: id === 2,
+				canFinalizeEvaluation: false,
+			}),
+		);
+		const sheets = sheetRepository();
+		sheets.findById.mockResolvedValue(sheet(EvaluationStatus.FIRST_EVALUATED));
+		const next = output<never>();
+		await new CheckEvaluatorRoleInteractor(employees, sheets).execute({ sheetId: 100 }, next);
+		expect(next.present).toHaveBeenCalledWith(
+			expect.objectContaining({
+				canEditFirst: false,
+				canEditSecond: id === 3,
+				canConfirmFirstEvaluation: false,
+				canFinalizeEvaluation: id === 3,
 			}),
 		);
 	});

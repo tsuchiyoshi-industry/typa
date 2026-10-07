@@ -4,7 +4,7 @@ import type { SheetEditorController } from "../adapter/controllers/SheetEditorCo
 import { createChallengeEvaluationPresenter } from "../adapter/presenters/ChallengeEvaluationPresenter";
 import { createCommonEvaluationPresenter } from "../adapter/presenters/CommonEvaluationPresenter";
 import { createSheetEditorPresenter } from "../adapter/presenters/SheetEditorPresenter";
-import { finalScore } from "../adapter/viewmodels/reviewerWorkspace";
+import { finalScore, reviewRank, reviewScore } from "../adapter/viewmodels/reviewerWorkspace";
 import type { SheetEditorViewProps } from "../adapter/views/SheetEditorView";
 import type { EvaluationSheetDto } from "../application/dtos/EvaluationSheetDto";
 import type { ReviewerRowDto } from "../application/dtos/ReviewerWorkspaceDto";
@@ -46,6 +46,7 @@ export function reviewerEditorFixture(
 		},
 		primaryEvaluator: row.primaryEvaluator,
 		secondaryEvaluator: "徳永 優",
+		primaryIsFinalEvaluator: row.primaryIsFinal,
 		firstOverallComment: row.firstOverallComment,
 		secondOverallComment: row.secondOverallComment ?? "",
 		objectives: row.objectives.map((goal) => ({
@@ -76,16 +77,27 @@ export function reviewerEditorFixture(
 		},
 		status: row.status,
 		isEditable: false,
-		finalEvaluationRank: row.finalRank
-			? { letter: row.finalRank[0], level: "none", displayText: row.finalRank }
+		firstEvaluationRank: {
+			displayText: reviewRank(row, "first")?.text ?? "D",
+			score: reviewScore(row, "first") ?? 0,
+			confirmed: row.firstRank !== null,
+		},
+		finalEvaluationRank: row.canViewFinal
+			? {
+					displayText: reviewRank(row, "final")?.text ?? "D",
+					score: finalScore(row) ?? 0,
+					confirmed: row.status === "finalized",
+				}
 			: undefined,
 	});
-	const touch = (row: ReviewerRowDto) => {
-		row.revision += "-saved";
-		row.reviewed = false;
-		row.needsRecheck = !!row.reviewedAt;
+	const touch = (_row: ReviewerRowDto) => {
 		changed?.();
 	};
+	const canConfirmFirst = (row: ReviewerRowDto) =>
+		row.isPrimary && !row.primaryIsFinal && row.status === "submitted";
+	const canFinalize = (row: ReviewerRowDto) =>
+		row.canViewFinal &&
+		(row.status === "first_evaluated" || (row.primaryIsFinal && row.status === "submitted"));
 	const controller = {
 		async loadSheet(id: number, silent = false) {
 			presenter.beginSheetLoad(silent);
@@ -96,15 +108,15 @@ export function reviewerEditorFixture(
 			const row = find(id);
 			presenter.outputPort.role.present({
 				isSubject: false,
-				canEditFirst: row.role === "primary" && row.status === "submitted",
-				canEditSecond: row.role === "secondary" && row.status === "submitted",
+				canEditFirst: row.isPrimary && row.status === "submitted",
+				canEditSecond: row.canViewSecond && row.status === "first_evaluated",
 				canEditMilestoneGoal: false,
 				canViewCommonEvaluation: true,
 				canViewSecondEvaluation: row.canViewSecond,
 				canSubmitOwnSheet: false,
 				canRevertOwnSheetToDraft: false,
-				canFinalizeEvaluation: row.canViewFinal && row.status === "submitted",
-				canDecideFinalEvaluationRank: row.canViewFinal && row.status === "submitted",
+				canConfirmFirstEvaluation: canConfirmFirst(row),
+				canFinalizeEvaluation: canFinalize(row),
 			});
 		},
 		async updateOverallComment(target: "first" | "second", comment: string) {
@@ -118,17 +130,17 @@ export function reviewerEditorFixture(
 			presenter.outputPort.sheet.present(dto(row));
 			return true;
 		},
-		async decideFinalEvaluationRank(letter: string) {
+		async updateStatus(status: string) {
 			const row = find(presenter.viewModel().sheet?.sheetId as number);
-			row.finalRank = letter;
-			touch(row);
-			presenter.outputPort.sheet.present(dto(row));
-			return true;
-		},
-		async updateStatus(_status: string, finalize: boolean) {
-			const row = find(presenter.viewModel().sheet?.sheetId as number);
-			if (finalize) {
+			if (status === "first_evaluated" && canConfirmFirst(row)) {
+				row.firstRank = reviewRank(row, "first")?.text ?? null;
+				row.status = "first_evaluated";
+			} else if (status === "finalized" && canFinalize(row)) {
+				row.finalRank = reviewRank(row, "final")?.text ?? null;
+				row.finalScore = finalScore(row);
 				row.status = "finalized";
+			} else {
+				return false;
 			}
 			touch(row);
 			presenter.outputPort.sheet.present(dto(row));

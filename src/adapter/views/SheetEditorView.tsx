@@ -1,6 +1,15 @@
-import { useBeforeLeave, useNavigate, useParams } from "@solidjs/router";
+import { A, useBeforeLeave, useNavigate, useParams } from "@solidjs/router";
 import { Award, CalendarDays, FileText, User, Users } from "lucide-solid";
-import { type Component, createEffect, createMemo, createSignal, For, on, Show } from "solid-js";
+import {
+	type Component,
+	createEffect,
+	createMemo,
+	createSignal,
+	For,
+	on,
+	onCleanup,
+	Show,
+} from "solid-js";
 import type { SheetSummaryDto } from "../../application/dtos/SheetListDto";
 import {
 	FINAL_EVALUATION_RANK_LETTERS,
@@ -28,7 +37,12 @@ import {
 	trackUnsaved,
 } from "./feedback";
 
-interface SheetEditorViewProps {
+export interface SheetEditorViewProps {
+	/** Used by the review workspace to keep its caseload visible while editing. */
+	embedded?: boolean;
+	selectedSheetId?: number;
+	onUpdated?: () => void;
+	onSavingChange?: (saving: boolean) => void;
 	controller: SheetEditorController;
 	viewModel: () => SheetEditorViewModel;
 	commonEvaluationController: CommonEvaluationController;
@@ -40,7 +54,9 @@ interface SheetEditorViewProps {
 const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 	const params = useParams();
 	const navigate = useNavigate();
-	const idParam = createMemo(() => params.id ?? "");
+	const idParam = createMemo(() =>
+		props.selectedSheetId != null ? String(props.selectedSheetId) : (params.id ?? ""),
+	);
 	const isNew = createMemo(() => idParam() === "new");
 	const viewModel = props.viewModel;
 
@@ -54,6 +70,16 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 	const [savingOverallTarget, setSavingOverallTarget] = createSignal<OverallCommentTarget | null>(
 		null,
 	);
+	const [savingChallenge, setSavingChallenge] = createSignal(false);
+	const [savingCommon, setSavingCommon] = createSignal(false);
+	const saving = () =>
+		savingChallenge() ||
+		savingCommon() ||
+		savingOverallTarget() !== null ||
+		viewModel().updatingStatus ||
+		viewModel().updatingFinalEvaluationRank;
+	createEffect(() => props.onSavingChange?.(saving()));
+	onCleanup(() => props.onSavingChange?.(false));
 	const finalRankOptions = createMemo(() =>
 		FINAL_EVALUATION_RANK_LETTERS.flatMap((letter) =>
 			FINAL_EVALUATION_RANK_LEVELS.map((level) => ({
@@ -81,8 +107,10 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 
 		const routeSheetId = Number(idParam());
 		if (!Number.isNaN(routeSheetId)) {
-			void props.controller.loadPeriods();
-			void props.controller.loadAccessibleSheets();
+			if (!props.embedded) {
+				void props.controller.loadPeriods();
+				void props.controller.loadAccessibleSheets();
+			}
 			void props.controller.loadSheet(routeSheetId);
 		}
 	});
@@ -114,6 +142,11 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 
 	// 未保存の入力があるままページを離れようとしたら確認する
 	useBeforeLeave((event) => {
+		if (saving()) {
+			event.preventDefault();
+			showToast("info", "保存が完了するまでお待ちください");
+			return;
+		}
 		if (event.defaultPrevented || !hasUnsavedChanges()) {
 			return;
 		}
@@ -139,6 +172,7 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 		const id = Number(idParam());
 		if (!Number.isNaN(id)) {
 			void props.controller.loadSheet(id, true);
+			props.onUpdated?.();
 		}
 	};
 
@@ -157,6 +191,7 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 				setSecondOverallDraft(sheet()?.secondOverallComment ?? "");
 			}
 			showToast("success", "総評を保存しました");
+			props.onUpdated?.();
 		}
 	};
 
@@ -234,6 +269,7 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 		const success = await props.controller.decideFinalEvaluationRank(option.letter, option.level);
 		if (success) {
 			showToast("success", `最終評価ランクを ${option.label} に保存しました`);
+			props.onUpdated?.();
 		}
 	};
 
@@ -480,14 +516,23 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 	);
 
 	return (
-		<div class="dashboard-page">
+		<div class="dashboard-page" classList={{ "review-editor": props.embedded }}>
+			<Show when={!props.embedded && !isNew() && viewModel().canViewCommonEvaluation}>
+				<A
+					class="review-editor-entry"
+					href={`/review?period=${sheet()?.evaluationPeriod?.id}&sheet=${sheetId()}&mode=evaluate`}
+				>
+					<Users size={16} />
+					受け持ち一覧を残して評価する
+				</A>
+			</Show>
 			<header class="sheet-header">
 				<div class="sheet-header__main">
 					<h1>
 						<FileText class="header-icon" />
 						{isNew() ? "新規評価シート" : "評価シート"}
 					</h1>
-					<Show when={!isNew()}>
+					<Show when={!isNew() && !props.embedded}>
 						<SubjectSwitcher />
 					</Show>
 				</div>
@@ -540,6 +585,7 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 									controller={props.challengeEvaluationController}
 									viewModel={props.challengeEvaluationViewModel}
 									onUpdated={reloadCurrentSheetFromRoute}
+									onSavingChange={setSavingChallenge}
 								/>
 								<Show when={viewModel().canViewCommonEvaluation}>
 									<CommonEvaluationView
@@ -551,11 +597,14 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 										controller={props.commonEvaluationController}
 										viewModel={props.commonEvaluationViewModel}
 										onUpdated={reloadCurrentSheetFromRoute}
+										onSavingChange={setSavingCommon}
 									/>
 								</Show>
 								<OverallCommentSection
 									canEditFirst={canEditFirst()}
 									canEditSecond={canEditSecond()}
+									canViewFirst={viewModel().canViewCommonEvaluation}
+									canViewSecond={viewModel().canViewSecondEvaluation}
 									firstOverallComment={firstOverallDraft()}
 									secondOverallComment={secondOverallDraft()}
 									firstDirty={firstOverallDirty()}

@@ -5,6 +5,7 @@ import { ChallengeEvaluationController } from "./adapter/controllers/ChallengeEv
 import { CommonEvaluationController } from "./adapter/controllers/CommonEvaluationController";
 import { EmployeeMapController } from "./adapter/controllers/EmployeeMapController";
 import { EmployeeMasterController } from "./adapter/controllers/EmployeeMasterController";
+import { ReviewerWorkspaceController } from "./adapter/controllers/ReviewerWorkspaceController";
 import { SheetEditorController } from "./adapter/controllers/SheetEditorController";
 import { SheetListController } from "./adapter/controllers/SheetListController";
 import { createChallengeEvaluationPresenter } from "./adapter/presenters/ChallengeEvaluationPresenter";
@@ -22,6 +23,7 @@ import EmployeeMapView from "./adapter/views/EmployeeMapView";
 import EmployeeMasterView from "./adapter/views/EmployeeMasterView";
 import { clearUnsavedChanges, confirmDiscard } from "./adapter/views/feedback";
 import LoginView from "./adapter/views/LoginView";
+import ReviewerWorkspaceView from "./adapter/views/ReviewerWorkspaceView";
 import SheetEditorView from "./adapter/views/SheetEditorView";
 import SheetListView from "./adapter/views/SheetListView";
 import { CheckEvaluatorRoleInteractor } from "./application/usecases/CheckEvaluatorRoleInteractor";
@@ -52,6 +54,7 @@ import { SupabaseEvaluationNotificationRecipientRepository } from "./infrastruct
 import { SupabaseEvaluationPeriodRepository } from "./infrastructure/repositories/SupabaseEvaluationPeriodRepository";
 import { SupabaseEvaluationSheetRepository } from "./infrastructure/repositories/SupabaseEvaluationSheetRepository";
 import { SupabaseMilestoneRepository } from "./infrastructure/repositories/SupabaseMilestoneRepository";
+import { SupabaseReviewerWorkspaceRepository } from "./infrastructure/repositories/SupabaseReviewerWorkspaceRepository";
 import { TauriEmailNotificationRepository } from "./infrastructure/repositories/TauriEmailNotificationRepository";
 import { TauriSheetPdfGateway } from "./infrastructure/repositories/TauriSheetPdfGateway";
 
@@ -63,6 +66,10 @@ const evaluationSheetRepository = new SupabaseEvaluationSheetRepository(
 	commonEvaluationRepository,
 );
 const evaluationPeriodRepository = new SupabaseEvaluationPeriodRepository();
+const reviewerWorkspaceController = new ReviewerWorkspaceController(
+	new SupabaseReviewerWorkspaceRepository(),
+	evaluationPeriodRepository,
+);
 const milestoneRepository = new SupabaseMilestoneRepository();
 const employeeMasterRepository = new SupabaseEmployeeMasterRepository();
 const emailNotificationRepository = new TauriEmailNotificationRepository(
@@ -264,6 +271,9 @@ const DashboardLayout: Component<{ children?: JSX.Element | JSX.Element[] }> = (
 					<A href="/sheet/new" class="nav-link" onClick={() => setMenuOpen(false)}>
 						新規作成
 					</A>
+					<A href="/review" class="nav-link" onClick={() => setMenuOpen(false)}>
+						受け持ちの評価
+					</A>
 					<A href="/employee-master" class="nav-link" onClick={() => setMenuOpen(false)}>
 						社員マスタ
 					</A>
@@ -373,6 +383,22 @@ const App: Component = () => {
 							<SheetListView
 								controller={sheetListController}
 								viewModel={sheetListPresenter.viewModel}
+							/>
+						)}
+					/>
+					<Route
+						path="/review"
+						component={() => (
+							<ReviewerWorkspaceView
+								controller={reviewerWorkspaceController}
+								editor={{
+									controller: sheetEditorController,
+									viewModel: sheetEditorPresenter.viewModel,
+									commonEvaluationController,
+									commonEvaluationViewModel: commonEvaluationPresenter.viewModel,
+									challengeEvaluationController,
+									challengeEvaluationViewModel: challengeEvaluationPresenter.viewModel,
+								}}
 							/>
 						)}
 					/>

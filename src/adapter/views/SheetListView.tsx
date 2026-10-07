@@ -249,6 +249,16 @@ const SheetListView: Component<SheetListViewProps> = (props) => {
 				</Show>
 
 				<Show when={props.viewModel().subordinateSheets.length > 0}>
+					<A href="/review" class="review-entry-card">
+						<div>
+							<span class="review-eyebrow">REVIEW WORKSPACE</span>
+							<strong>受け持ち全体から、評価を進める</strong>
+							<span>確認状況を見渡す・続きから評価する・等級ごとに比較する</span>
+						</div>
+						<span>
+							受け持ちの評価へ <ChevronRight size={18} />
+						</span>
+					</A>
 					<SheetTable
 						title="部下の評価シート"
 						sheets={props.viewModel().subordinateSheets}

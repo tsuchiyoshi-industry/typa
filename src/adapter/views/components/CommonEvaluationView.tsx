@@ -15,6 +15,7 @@ interface CommonEvaluationViewProps {
 	canEditSecond: boolean;
 	canViewSecondEvaluation: boolean;
 	onUpdated: () => void;
+	onSavingChange?: (saving: boolean) => void;
 }
 
 interface Draft {
@@ -39,6 +40,7 @@ export default function CommonEvaluationView(props: CommonEvaluationViewProps) {
 	const [isEditing, setIsEditing] = createSignal(false);
 	const [drafts, setDrafts] = createSignal<Record<number, Draft>>({});
 	const [submitting, setSubmitting] = createSignal(false);
+	createEffect(() => props.onSavingChange?.(submitting()));
 
 	createEffect(() => {
 		if (props.sheetId != null) {

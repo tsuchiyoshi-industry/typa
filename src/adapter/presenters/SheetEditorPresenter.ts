@@ -302,7 +302,22 @@ export function createSheetEditorPresenter(): {
 	const beginSheetLoad = (silent = false) => {
 		setViewModel((prev) => ({
 			...prev,
-			...(silent ? {} : { loadingSheet: true, sheet: null }),
+			...(silent
+				? {}
+				: {
+						loadingSheet: true,
+						sheet: null,
+						isSubject: false,
+						canEditFirst: false,
+						canEditSecond: false,
+						canEditMilestoneGoal: false,
+						canViewCommonEvaluation: false,
+						canViewSecondEvaluation: false,
+						canSubmitOwnSheet: false,
+						canRevertOwnSheetToDraft: false,
+						canFinalizeEvaluation: false,
+						canDecideFinalEvaluationRank: false,
+					}),
 			fetchError: null,
 			overallCommentUpdateError: null,
 			finalEvaluationRankUpdateError: null,

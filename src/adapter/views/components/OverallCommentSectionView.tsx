@@ -6,6 +6,8 @@ export type OverallCommentTarget = "first" | "second";
 export interface OverallCommentSectionProps {
 	canEditFirst: boolean;
 	canEditSecond: boolean;
+	canViewFirst?: boolean;
+	canViewSecond?: boolean;
 	firstOverallComment: string;
 	secondOverallComment: string;
 	firstDirty: boolean;
@@ -24,6 +26,7 @@ const OverallCommentSection: Component<OverallCommentSectionProps> = (props) => 
 		label: string;
 		value: string;
 		dirty: boolean;
+		editable: boolean;
 		onChange: (comment: string) => void;
 	}> = (fieldProps) => {
 		const saving = () => props.savingTarget === fieldProps.target;
@@ -37,28 +40,37 @@ const OverallCommentSection: Component<OverallCommentSectionProps> = (props) => 
 				<textarea
 					id={inputId}
 					value={fieldProps.value}
-					onInput={(event) => fieldProps.onChange(event.currentTarget.value)}
+					readOnly={!fieldProps.editable}
+					onInput={(event) => {
+						if (fieldProps.editable) {
+							fieldProps.onChange(event.currentTarget.value);
+						}
+					}}
 				/>
-				<div class="overall-comment-field__footer">
-					<button
-						type="button"
-						class="primary-action"
-						onClick={() => props.onSave(fieldProps.target)}
-						disabled={!fieldProps.dirty || props.savingTarget !== null}
-					>
-						<Check class="action-icon" />
-						{saving() ? "保存中..." : "総評を保存"}
-					</button>
-					<span class="save-state" classList={{ dirty: fieldProps.dirty }}>
-						{fieldProps.dirty ? "未保存の変更があります" : fieldProps.value ? "保存済み" : ""}
-					</span>
-				</div>
+				<Show when={fieldProps.editable}>
+					<div class="overall-comment-field__footer">
+						<button
+							type="button"
+							class="primary-action"
+							onClick={() => props.onSave(fieldProps.target)}
+							disabled={!fieldProps.dirty || props.savingTarget !== null}
+						>
+							<Check class="action-icon" />
+							{saving() ? "保存中..." : "総評を保存"}
+						</button>
+						<span class="save-state" classList={{ dirty: fieldProps.dirty }}>
+							{fieldProps.dirty ? "未保存の変更があります" : fieldProps.value ? "保存済み" : ""}
+						</span>
+					</div>
+				</Show>
 			</div>
 		);
 	};
 
 	return (
-		<Show when={props.canEditFirst || props.canEditSecond}>
+		<Show
+			when={props.canEditFirst || props.canEditSecond || props.canViewFirst || props.canViewSecond}
+		>
 			<article class="overall-comment-card">
 				<div class="overall-comment-card__header">
 					<h2>
@@ -67,21 +79,23 @@ const OverallCommentSection: Component<OverallCommentSectionProps> = (props) => 
 					</h2>
 				</div>
 				<div class="overall-comment-fields">
-					<Show when={props.canEditFirst}>
+					<Show when={props.canEditFirst || props.canViewFirst}>
 						<Field
 							target="first"
 							label="一次評価者の総評"
 							value={props.firstOverallComment}
 							dirty={props.firstDirty}
+							editable={props.canEditFirst}
 							onChange={props.onFirstOverallCommentChange}
 						/>
 					</Show>
-					<Show when={props.canEditSecond}>
+					<Show when={props.canEditSecond || props.canViewSecond}>
 						<Field
 							target="second"
 							label="二次評価者の総評"
 							value={props.secondOverallComment}
 							dirty={props.secondDirty}
+							editable={props.canEditSecond}
 							onChange={props.onSecondOverallCommentChange}
 						/>
 					</Show>

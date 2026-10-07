@@ -14,6 +14,7 @@ import type { EmployeeRepository } from "../../domain/repositories/EmployeeRepos
 import type { CommonEvaluationViewModel } from "../presenters/CommonEvaluationPresenter";
 
 export class CommonEvaluationController {
+	private loadGeneration = 0;
 	constructor(
 		private readonly loadUseCase: LoadCommonEvaluationInteractor,
 		private readonly upsertUseCase: UpsertCommonEvaluationInteractor,
@@ -32,11 +33,15 @@ export class CommonEvaluationController {
 	) {}
 
 	async load(sheetId: number, gradeId: number | null): Promise<void> {
+		const generation = ++this.loadGeneration;
 		this.presenter.beginLoad();
 
 		const { data: currentEmployeeId, error: authError } =
 			await this.employeeRepository.findCurrentEmployeeId();
 		if (authError || currentEmployeeId === null) {
+			if (generation !== this.loadGeneration) {
+				return;
+			}
 			this.presenter.presentLoadError(
 				authError ? `認証エラー: ${authError.message}` : "ログインが必要です。",
 			);
@@ -46,12 +51,20 @@ export class CommonEvaluationController {
 		try {
 			await this.loadUseCase.execute(
 				{ sheetId, gradeId, currentEmployeeId },
-				this.presenter.outputPort.load,
+				{
+					present: (response) => {
+						if (generation === this.loadGeneration) {
+							this.presenter.outputPort.load.present(response);
+						}
+					},
+				},
 			);
 		} catch (error) {
-			this.presenter.presentLoadError(
-				error instanceof Error ? error.message : "共通評価の取得に失敗しました",
-			);
+			if (generation === this.loadGeneration) {
+				this.presenter.presentLoadError(
+					error instanceof Error ? error.message : "共通評価の取得に失敗しました",
+				);
+			}
 		}
 	}
 

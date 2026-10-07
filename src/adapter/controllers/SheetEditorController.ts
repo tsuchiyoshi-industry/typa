@@ -34,6 +34,8 @@ import type { EmployeeRepository } from "../../domain/repositories/EmployeeRepos
 import type { SheetEditorViewModel } from "../presenters/SheetEditorPresenter";
 
 export class SheetEditorController {
+	private sheetLoadGeneration = 0;
+	private roleLoadGeneration = 0;
 	constructor(
 		private readonly fetchSheetUseCase: FetchEvaluationSheetInteractor,
 		private readonly fetchPeriodsUseCase: FetchDistinctPeriodsInteractor,
@@ -86,18 +88,30 @@ export class SheetEditorController {
 	}
 
 	async loadSheet(sheetId: number, silent = false): Promise<number | null> {
+		const generation = ++this.sheetLoadGeneration;
+		if (!silent) {
+			++this.roleLoadGeneration;
+		}
 		this.presenter.beginSheetLoad(silent);
 		try {
 			const { data: currentEmployeeId } = await this.employeeRepository.findCurrentEmployeeId();
 			await this.fetchSheetUseCase.execute(
 				{ sheetId, currentEmployeeId },
-				this.presenter.outputPort.sheet,
+				{
+					present: (response) => {
+						if (generation === this.sheetLoadGeneration) {
+							this.presenter.outputPort.sheet.present(response);
+						}
+					},
+				},
 			);
 			return sheetId;
 		} catch (error) {
-			this.presenter.presentSheetError(
-				error instanceof Error ? error.message : "シートを読み込めませんでした",
-			);
+			if (generation === this.sheetLoadGeneration) {
+				this.presenter.presentSheetError(
+					error instanceof Error ? error.message : "シートを読み込めませんでした",
+				);
+			}
 			return null;
 		}
 	}
@@ -131,12 +145,27 @@ export class SheetEditorController {
 	}
 
 	async loadRoles(sheetId: number | null): Promise<void> {
+		const generation = ++this.roleLoadGeneration;
 		try {
-			await this.checkRoleUseCase.execute({ sheetId }, this.presenter.outputPort.role);
-		} catch (error) {
-			this.presenter.presentSheetError(
-				error instanceof Error ? error.message : "権限情報の取得に失敗しました",
+			await this.checkRoleUseCase.execute(
+				{ sheetId },
+				{
+					present: (response) => {
+						if (
+							generation === this.roleLoadGeneration &&
+							this.presenter.viewModel().sheet?.sheetId === sheetId
+						) {
+							this.presenter.outputPort.role.present(response);
+						}
+					},
+				},
 			);
+		} catch (error) {
+			if (generation === this.roleLoadGeneration) {
+				this.presenter.presentSheetError(
+					error instanceof Error ? error.message : "権限情報の取得に失敗しました",
+				);
+			}
 		}
 	}
 

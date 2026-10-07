@@ -1,5 +1,5 @@
 import { Check, SquarePen, X } from "lucide-solid";
-import { type Component, createMemo, createSignal, For, Show } from "solid-js";
+import { type Component, createEffect, createMemo, createSignal, For, Show } from "solid-js";
 import type { EmployeeDto } from "../../../application/dtos/EmployeeDto";
 import type { MilestoneDto } from "../../../application/dtos/MilestoneDto";
 import type { ChallengeEvaluationController } from "../../controllers/ChallengeEvaluationController";
@@ -18,6 +18,7 @@ interface ChallengeEvaluationViewProps {
 	controller: ChallengeEvaluationController;
 	viewModel: () => ChallengeEvaluationViewModel;
 	onUpdated: () => void;
+	onSavingChange?: (saving: boolean) => void;
 }
 
 const MAX_SCORE = 4;
@@ -36,6 +37,7 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 	const [draftScore, setDraftScore] = createSignal({ firstScore: 0, secondScore: 0 });
 	const [textUpdating, setTextUpdating] = createSignal(false);
 	const [scoreUpdating, setScoreUpdating] = createSignal(false);
+	createEffect(() => props.onSavingChange?.(textUpdating() || scoreUpdating()));
 
 	const displayObjectives = createMemo<MilestoneDto[]>(() =>
 		props.objectives.length > 0

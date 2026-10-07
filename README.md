@@ -11,6 +11,7 @@
 - チャレンジ目標・マイルストーンの登録、更新、評価
 - 役職共通評価項目の表示、登録、更新、評価
 - 一次評価者・二次評価者の権限に応じた編集制御
+- 評価者向け「受け持ちの評価」（`/review`）。受け持ち全員の進捗、一次評価者ラベル・等級・確認状況による絞り込み、一覧を残した連続評価、確認記録、同等級の横断比較に対応
 - Reviewer・Admin向けの閲覧専用「マップ」（`/map`）。D3で一次／二次・最終評価者の階層を描画し、社員検索、詳細表示、折りたたみ、拡大縮小に対応
 - Typst テンプレートによる評価シートPDF出力
 
@@ -39,6 +40,8 @@ VITE_SUPABASE_PUBLISHABLE_KEY=...
 ```
 
 DB構成は [tables.md](./tables.md) を正とします。実装では `evaluation_sheets`, `milestones`, `common_evaluation_items`, `common_evaluation_results`, `employees`, `evaluation_periods` などを参照します。
+
+受け持ちの評価には `supabase/migrations/202610070001_reviewer_workspace.sql` の適用が必要です。既存の「二次評価者なし」「共通評価項目セット」のマイグレーションを先に適用してください。確認記録は `sheet_review_checkpoints` に評価者・評価段階ごとに保存し、評価内容が変われば再確認として表示します。0点を未入力・完了の判定には使いません。一次評価者向けの二次評価・最終結果の非表示と、担当者のみの確認操作を RPC 側で制御しています。
 
 ## 開発
 

@@ -712,7 +712,6 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 				<div>
 					<span class="review-eyebrow">REVIEW WORKSPACE</span>
 					<h1>受け持ちの評価</h1>
-					<p>進捗を見渡し、一人ずつ確認。同じ等級で判断を揃える。</p>
 				</div>
 				<div class="review-heading-actions">
 					<label class="review-period">

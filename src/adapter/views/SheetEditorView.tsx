@@ -19,11 +19,13 @@ import type { SheetEditorController } from "../controllers/SheetEditorController
 import type { ChallengeEvaluationViewModel } from "../presenters/ChallengeEvaluationPresenter";
 import type { CommonEvaluationViewModel } from "../presenters/CommonEvaluationPresenter";
 import type { SheetEditorViewModel } from "../presenters/SheetEditorPresenter";
+import { commonEvaluationRadar } from "../viewmodels/commonEvaluationRadar";
 import ChallengeEvaluationView from "./components/ChallengeEvaluationView";
 import CommonEvaluationView from "./components/CommonEvaluationView";
 import OverallCommentSection, {
 	type OverallCommentTarget,
 } from "./components/OverallCommentSectionView";
+import RadarChart from "./components/RadarChart";
 import SheetStatusTrack from "./components/SheetStatusTrack";
 import {
 	clearUnsavedChanges,
@@ -95,6 +97,17 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 			ranks.push({ label: "最終評価ランク", rank: current.finalEvaluationRank });
 		}
 		return ranks;
+	});
+	// 確定した評価の内訳。共通評価を見られる人(評価者)にだけ、項目のタイトルごとの得点を図で見せる
+	const radar = createMemo(() => {
+		const current = sheet();
+		const summary = props.commonEvaluationViewModel().summary;
+		return current &&
+			EvaluationStatus.from(current.status).isFinalized() &&
+			viewModel().canViewCommonEvaluation &&
+			summary?.results[0]?.sheetId === current.sheetId
+			? commonEvaluationRadar(summary.results, current.primaryIsFinalEvaluator)
+			: null;
 	});
 	const rankText = (rank: EvaluationRankDto | undefined) =>
 		rank ? `${rank.displayText}（${rank.score} 点 / 100 点）` : "—";
@@ -472,6 +485,9 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 						)}
 					</For>
 				</dl>
+				<Show when={radar()}>
+					{(data) => <RadarChart title="共通評価の項目別の得点" {...data()} />}
+				</Show>
 			</section>
 		</Show>
 	);

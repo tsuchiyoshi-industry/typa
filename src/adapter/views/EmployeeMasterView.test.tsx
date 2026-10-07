@@ -161,6 +161,25 @@ it("excludes executives from rows and counts but retains them as evaluator candi
 	expect(screen.getByRole("option", { name: /田中\s*E003/ })).toBeTruthy();
 	expect(screen.queryByRole("option", { name: /山田\s*E001/ })).toBeNull();
 });
+it("defaults to the list and switches to the evaluation structure as another view", async () => {
+	const screen = setup();
+	// 既定はリスト。評価構造は同じ社員を、二次評価者 → 一次評価者 → 社員の順にまとめて見せる
+	expect(screen.getByRole("button", { name: "リスト" }).getAttribute("aria-pressed")).toBe("true");
+	expect(screen.getByLabelText("山田さんの一次評価者")).toBeTruthy();
+	fireEvent.click(screen.getByRole("button", { name: "評価構造" }));
+	const group = await screen.findByRole("region", { name: "田中が最終評価をする 2名" });
+	expect(within(group).getByRole("list", { name: "鈴木が一次評価をする社員" })).toBeTruthy();
+	expect(within(group).getByRole("button", { name: "山田" })).toBeTruthy();
+	// 役員(田中)は評価する側としてだけ現れ、評価される社員には含めない
+	expect(within(group).queryByRole("button", { name: "田中" })).toBeNull();
+	expect(screen.queryByLabelText("山田さんの一次評価者")).toBeNull();
+
+	// 社員を選ぶと、その社員に絞ったリストへ戻って設定を変えられる
+	fireEvent.click(within(group).getByRole("button", { name: "山田" }));
+	await waitFor(() => expect(screen.getByLabelText("山田さんの一次評価者")).toBeTruthy());
+	expect(screen.queryByLabelText("鈴木さんの一次評価者")).toBeNull();
+	expect((screen.getByRole("searchbox") as HTMLInputElement).value).toBe("E001");
+});
 it("filters by normalized employee number and chooses with the keyboard", async () => {
 	const screen = setup();
 	const input = screen.getByLabelText("山田さんの一次評価者") as HTMLInputElement;

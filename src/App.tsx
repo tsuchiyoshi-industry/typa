@@ -3,7 +3,6 @@ import { LogOut, Menu, User, X } from "lucide-solid";
 import { type Component, createSignal, type JSX, onCleanup, onMount, Show } from "solid-js";
 import { ChallengeEvaluationController } from "./adapter/controllers/ChallengeEvaluationController";
 import { CommonEvaluationController } from "./adapter/controllers/CommonEvaluationController";
-import { EmployeeMapController } from "./adapter/controllers/EmployeeMapController";
 import { EmployeeMasterController } from "./adapter/controllers/EmployeeMasterController";
 import { ReviewerWorkspaceController } from "./adapter/controllers/ReviewerWorkspaceController";
 import { SettingsController } from "./adapter/controllers/SettingsController";
@@ -20,7 +19,6 @@ import FeedbackHost from "./adapter/views/components/FeedbackHost";
 import LoadingView from "./adapter/views/components/LoadingView";
 import { NotFound } from "./adapter/views/components/NotFound";
 import ThemeToggleButton from "./adapter/views/components/ThemeToggleButton";
-import EmployeeMapView from "./adapter/views/EmployeeMapView";
 import EmployeeMasterView from "./adapter/views/EmployeeMasterView";
 import { clearUnsavedChanges, confirmDiscard } from "./adapter/views/feedback";
 import HelpView from "./adapter/views/HelpView";
@@ -36,7 +34,6 @@ import { FetchCategorizedSheetsInteractor } from "./application/usecases/FetchCa
 import { FetchDistinctPeriodsInteractor } from "./application/usecases/FetchDistinctPeriodsInteractor";
 import { FetchEvaluationSheetInteractor } from "./application/usecases/FetchEvaluationSheetInteractor";
 import { LoadCommonEvaluationInteractor } from "./application/usecases/LoadCommonEvaluationInteractor";
-import { LoadEmployeeMapInteractor } from "./application/usecases/LoadEmployeeMapInteractor";
 import { LoadEmployeeMasterInteractor } from "./application/usecases/LoadEmployeeMasterInteractor";
 import { ResetEmployeeRegistrationInteractor } from "./application/usecases/ResetEmployeeRegistrationInteractor";
 import { UpdateEmployeeEvaluatorInteractor } from "./application/usecases/UpdateEmployeeEvaluatorInteractor";
@@ -48,7 +45,7 @@ import { UpdateMilestoneInteractor } from "./application/usecases/UpdateMileston
 import { UpdateOverallCommentInteractor } from "./application/usecases/UpdateOverallCommentInteractor";
 import { UpsertCommonEvaluationInteractor } from "./application/usecases/UpsertCommonEvaluationInteractor";
 import type { AuthSession } from "./domain/repositories/AuthRepository";
-import { canEditEvaluators, canEditSettings } from "./domain/services/EmployeeMasterAccessService";
+import { canEditSettings } from "./domain/services/EmployeeMasterAccessService";
 import { EvaluationScoreUpdateService } from "./domain/services/EvaluationScoreUpdateService";
 import { SupabaseAuthRepository } from "./infrastructure/auth/SupabaseAuthRepository";
 import { SupabaseCommonEvaluationRepository } from "./infrastructure/repositories/SupabaseCommonEvaluationRepository";
@@ -137,9 +134,6 @@ const exportEvaluationSheetUseCase = new ExportEvaluationSheetInteractor(
 	new TauriSheetPdfGateway(),
 );
 const loadEmployeeMasterUseCase = new LoadEmployeeMasterInteractor(employeeMasterRepository);
-const employeeMapController = new EmployeeMapController(
-	new LoadEmployeeMapInteractor(employeeMasterRepository),
-);
 const updateEmployeeEvaluatorUseCase = new UpdateEmployeeEvaluatorInteractor(
 	employeeMasterRepository,
 );
@@ -211,7 +205,6 @@ const DashboardLayout: Component<{ children?: JSX.Element | JSX.Element[] }> = (
 	const [employeeNo, setEmployeeNo] = createSignal<string>("");
 	const [employeeName, setEmployeeName] = createSignal<string>("");
 	const [roleName, setRoleName] = createSignal<string>("");
-	const [canViewMap, setCanViewMap] = createSignal(false);
 	const [canViewSettings, setCanViewSettings] = createSignal(false);
 	let mounted = true;
 
@@ -237,13 +230,11 @@ const DashboardLayout: Component<{ children?: JSX.Element | JSX.Element[] }> = (
 				if (mounted) {
 					setEmployeeName(person?.name ?? "");
 					setRoleName(person?.role.toString() ?? "");
-					setCanViewMap(!!person && canEditEvaluators(person.role));
 					setCanViewSettings(!!person && canEditSettings(person.role));
 				}
 			})
 			.catch(() => {
 				if (mounted) {
-					setCanViewMap(false);
 					setCanViewSettings(false);
 				}
 			});
@@ -297,11 +288,6 @@ const DashboardLayout: Component<{ children?: JSX.Element | JSX.Element[] }> = (
 					<A href="/employee-master" class="nav-link" onClick={() => setMenuOpen(false)}>
 						社員マスタ
 					</A>
-					<Show when={canViewMap()}>
-						<A href="/map" class="nav-link" onClick={() => setMenuOpen(false)}>
-							マップ
-						</A>
-					</Show>
 					<Show when={canViewSettings()}>
 						<A href="/settings" class="nav-link" onClick={() => setMenuOpen(false)}>
 							設定
@@ -453,10 +439,6 @@ const App: Component = () => {
 								viewModel={employeeMasterPresenter.viewModel}
 							/>
 						)}
-					/>
-					<Route
-						path="/map"
-						component={() => <EmployeeMapView load={() => employeeMapController.load()} />}
 					/>
 					<Route
 						path="/settings"

@@ -506,6 +506,33 @@
 	font-variant-numeric: tabular-nums;
 }
 
+.sheet-section-header__side {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.9rem;
+}
+
+/* 見出しの右端に置く、関連画面への小さな導線 */
+.section-nav-link {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+	padding: 0.3rem 0.65rem;
+	border: 1px solid var(--hr-border-strong);
+	border-radius: var(--hr-radius-sm);
+	background: var(--hr-surface);
+	color: var(--hr-text);
+	font-size: 0.78rem;
+	font-weight: 500;
+	white-space: nowrap;
+}
+
+.section-nav-link:hover {
+	border-color: var(--hr-accent);
+	background: var(--hr-accent-muted);
+	text-decoration: none;
+}
+
 /* 横幅が足りないときは表だけを横スクロールさせる */
 .table-scroll {
 	overflow-x: auto;

@@ -1,4 +1,4 @@
-import { Search, Trash2, Users } from "lucide-solid";
+import { List, Network, Search, Trash2, Users } from "lucide-solid";
 import {
 	type Component,
 	createEffect,
@@ -20,6 +20,7 @@ import {
 } from "../../domain/valueObjects/EmployeeRole";
 import type { EmployeeMasterController } from "../controllers/EmployeeMasterController";
 import type { EmployeeMasterViewModel } from "../presenters/EmployeeMasterPresenter";
+import EvaluationStructure from "./components/EvaluationStructure";
 import SearchableEvaluatorSelect from "./components/SearchableEvaluatorSelect";
 import { confirmAction, showToast } from "./feedback";
 
@@ -29,10 +30,12 @@ interface EmployeeMasterViewProps {
 }
 
 type Scope = "all" | "mine" | "unset";
+/** list: 設定を変える一覧(既定) / structure: 評価の流れを見る図 */
+type ListView = "list" | "structure";
 
 const ROLE_DESCRIPTIONS: Record<EmployeeRoleName, string> = {
 	Admin: "社員マスタで全員の権限・等級・評価者を変更でき、登録の取り消しもできます。",
-	Reviewer: "社員マスタで評価者を変更でき、マップを閲覧できます。",
+	Reviewer: "社員マスタで全員の評価者を変更でき、評価構造を確認できます。",
 	Employee: "社員マスタでは自分の情報だけを閲覧できます。",
 };
 
@@ -42,6 +45,7 @@ const NO_SECONDARY = "__none__";
 const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 	const [keyword, setKeyword] = createSignal("");
 	const [scope, setScope] = createSignal<Scope>("all");
+	const [listView, setListView] = createSignal<ListView>("list");
 	const [savingKey, setSavingKey] = createSignal<string | null>(null);
 
 	onMount(() => {
@@ -98,6 +102,11 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 					relation.name.toLowerCase().includes(text)),
 		);
 	});
+
+	// 評価の流れに出すのは評価される社員。役員は評価する側としてだけ現れる
+	const structureRelations = createMemo(() =>
+		visibleRelations().filter((relation) => !isExecutive(relation)),
+	);
 
 	const employeeNoById = createMemo(
 		() => new Map(relations().map((relation) => [relation.employeeId, relation.employeeNo])),
@@ -411,17 +420,64 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 						)}
 					</For>
 				</fieldset>
-				<span class="master-result-count">{visibleRelations().length}名を表示</span>
+				<div class="master-list-toolbar__side">
+					<span class="master-result-count">{visibleRelations().length}名を表示</span>
+					<fieldset class="master-scope">
+						<legend class="visually-hidden">表示の形式</legend>
+						<button
+							type="button"
+							aria-pressed={listView() === "list"}
+							onClick={() => setListView("list")}
+						>
+							<List size={15} />
+							リスト
+						</button>
+						<button
+							type="button"
+							aria-pressed={listView() === "structure"}
+							onClick={() => setListView("structure")}
+						>
+							<Network size={15} />
+							評価構造
+						</button>
+					</fieldset>
+				</div>
 			</div>
 			<p class="master-list-note">
-				評価者は氏名・社員番号で検索できます。
-				{props.viewModel().canEditRoles
-					? "役員は権限だけ変更できます（等級・評価者は管理対象外です）。Admin が0人になる変更はできません。"
-					: "役員は管理対象から除外しています。"}
+				<Show
+					when={listView() === "list"}
+					fallback="左から、評価を確定する二次評価者、一次評価者、評価される社員の順です。社員名を押すと、リストでその社員の設定を開きます。役員は評価される側には含めていません。"
+				>
+					評価者は氏名・社員番号で検索できます。
+					{props.viewModel().canEditRoles
+						? "役員は権限だけ変更できます（等級・評価者は管理対象外です）。Admin が0人になる変更はできません。"
+						: "役員は管理対象から除外しています。"}
+				</Show>
 			</p>
+			<Show when={listView() === "structure"}>
+				<Show
+					when={structureRelations().length > 0}
+					fallback={<p class="master-empty">{emptyMessage()}</p>}
+				>
+					<EvaluationStructure
+						relations={structureRelations()}
+						currentEmployeeId={me()?.id}
+						onPick={(relation) => {
+							// 図は閲覧用。設定を変えるときは、その社員に絞った一覧へ戻る
+							setKeyword(relation.employeeNo);
+							setScope("all");
+							setListView("list");
+						}}
+					/>
+				</Show>
+			</Show>
 			<Show
-				when={visibleRelations().length > 0}
-				fallback={<p class="master-empty">{emptyMessage()}</p>}
+				when={listView() === "list" && visibleRelations().length > 0}
+				fallback={
+					<Show when={listView() === "list"}>
+						<p class="master-empty">{emptyMessage()}</p>
+					</Show>
+				}
 			>
 				<div class="table-scroll">
 					<table class="master-table">

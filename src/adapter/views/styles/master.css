@@ -168,6 +168,180 @@
 	color: var(--hr-text-muted);
 	white-space: nowrap;
 }
+.master-list-toolbar__side {
+	display: inline-flex;
+	align-items: center;
+	gap: 14px;
+}
+.master-scope button svg {
+	flex-shrink: 0;
+}
+
+/* 評価構造: 二次評価者(最終評価) ← 一次評価者 ← 社員 の3列。縦にだけ伸びる */
+.structure {
+	--structure-node: 200px;
+	--structure-gap: 28px;
+	padding: 0 24px 24px;
+}
+.structure-head,
+.structure-final,
+.structure-primary {
+	display: grid;
+	grid-template-columns: var(--structure-node) minmax(0, 1fr);
+}
+.structure-head {
+	grid-template-columns:
+		calc(var(--structure-node) + var(--structure-gap) * 2)
+		calc(var(--structure-node) + var(--structure-gap))
+		minmax(0, 1fr);
+	padding-bottom: 8px;
+	border-bottom: 1px solid var(--hr-border);
+	font-size: 0.72rem;
+	color: var(--hr-text-muted);
+}
+.structure-final {
+	column-gap: calc(var(--structure-gap) * 2);
+	padding: 14px 0;
+	border-bottom: 1px solid var(--hr-border);
+}
+.structure-final:last-of-type {
+	border-bottom: none;
+}
+.structure-primaries,
+.structure-members {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+.structure-primary {
+	position: relative;
+	column-gap: var(--structure-gap);
+	padding-bottom: 10px;
+}
+.structure-primary:last-child {
+	padding-bottom: 0;
+}
+.structure-node {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-self: start;
+	min-height: 44px;
+	padding: 5px 12px;
+	border: 1px solid var(--hr-border-strong);
+	border-radius: var(--hr-radius-sm);
+	background: var(--hr-bg-elevated);
+}
+.structure-node.final {
+	border-color: var(--hr-accent);
+	background: var(--hr-accent-muted);
+}
+.structure-node strong {
+	font-size: 0.84rem;
+	font-weight: 600;
+	overflow-wrap: anywhere;
+}
+.structure-node small {
+	font-size: 0.7rem;
+	color: var(--hr-text-muted);
+	font-variant-numeric: tabular-nums;
+}
+/* つなぎ線: 評価者の箱から右へ出て、幹で分かれ、次の列の箱に入る。高さ 44px の箱の中央(22px)を通す */
+.structure-node::after,
+.structure-primary::before {
+	content: "";
+	position: absolute;
+	top: 22px;
+	width: var(--structure-gap);
+	border-top: 1px solid var(--hr-border-strong);
+}
+.structure-node::after {
+	left: 100%;
+}
+.structure-primary::before {
+	right: 100%;
+}
+.structure-primary::after {
+	content: "";
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	left: calc(var(--structure-gap) * -1);
+	border-left: 1px solid var(--hr-border-strong);
+}
+.structure-primary:first-child::after {
+	top: 22px;
+}
+.structure-primary:last-child::after {
+	bottom: auto;
+	height: 22px;
+}
+.structure-primary:first-child:last-child::after {
+	display: none;
+}
+.structure-members {
+	display: flex;
+	flex-wrap: wrap;
+	align-content: center;
+	gap: 6px;
+	min-height: 44px;
+}
+.structure-chip {
+	padding: 4px 10px;
+	border: 1px solid var(--hr-border);
+	border-radius: 999px;
+	background: var(--hr-surface);
+	color: var(--hr-text);
+	font-size: 0.78rem;
+	white-space: nowrap;
+}
+.structure-chip:hover {
+	border-color: var(--hr-accent);
+	background: var(--hr-accent-muted);
+}
+.structure-chip.me {
+	border-color: var(--hr-accent);
+	font-weight: 600;
+}
+/* 評価者が決まっていないグループ */
+.structure-final.unset > .structure-node,
+.structure-primary.unset > .structure-node {
+	border-style: dashed;
+	border-color: var(--hr-warning);
+	background: transparent;
+	color: var(--hr-warning-text);
+}
+@media (max-width: 860px) {
+	.structure {
+		--structure-node: 150px;
+		--structure-gap: 16px;
+		padding-inline: 18px;
+	}
+}
+@media (max-width: 620px) {
+	/* 幅が足りないときは列をやめ、字下げで段を示す */
+	.structure-head {
+		display: none;
+	}
+	.structure-final,
+	.structure-primary {
+		grid-template-columns: minmax(0, 1fr);
+		row-gap: 8px;
+	}
+	.structure-primaries {
+		padding-left: 16px;
+		border-left: 1px solid var(--hr-border-strong);
+	}
+	.structure-members {
+		padding-left: 16px;
+	}
+	.structure-node::after,
+	.structure-primary::before,
+	.structure-primary::after {
+		display: none;
+	}
+}
 .master-list-note {
 	padding: 0 24px 18px;
 	margin: 0;

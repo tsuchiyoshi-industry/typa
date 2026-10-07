@@ -3,6 +3,7 @@ import {
 	ArrowDown,
 	ArrowUp,
 	ChevronRight,
+	ClipboardCheck,
 	Download,
 	FilePlus2,
 	Plus,
@@ -14,6 +15,7 @@ import {
 	createMemo,
 	createSignal,
 	For,
+	type JSX,
 	on,
 	onMount,
 	Show,
@@ -55,6 +57,8 @@ const SheetTable: Component<{
 	showName: boolean;
 	exportingId?: number | null;
 	onExport?: (sheet: SheetSummaryDto) => void;
+	/** 見出しの右端に置く、この表に関係する画面への導線。 */
+	action?: JSX.Element;
 }> = (props) => {
 	const navigate = useNavigate();
 	const [sortField, setSortField] = createSignal<SortField>("updated");
@@ -101,7 +105,10 @@ const SheetTable: Component<{
 		<section class="sheet-section">
 			<div class="sheet-section-header">
 				<h2>{props.title}</h2>
-				<span class="sheet-count">{props.sheets.length} 件</span>
+				<div class="sheet-section-header__side">
+					<span class="sheet-count">{props.sheets.length} 件</span>
+					{props.action}
+				</div>
 			</div>
 			<div class="table-scroll">
 				<table class="sheet-table">
@@ -257,22 +264,22 @@ const SheetListView: Component<SheetListViewProps> = (props) => {
 				</Show>
 
 				<Show when={props.viewModel().subordinateSheets.length > 0}>
-					<A href="/review" class="review-entry-card">
-						<div>
-							<span class="review-eyebrow">REVIEW WORKSPACE</span>
-							<strong>受け持ち全体から、評価を進める</strong>
-							<span>進み具合を見渡す・自分の番から評価する・等級ごとに比較する</span>
-						</div>
-						<span>
-							受け持ちの評価へ <ChevronRight size={18} />
-						</span>
-					</A>
 					<SheetTable
 						title="部下の評価シート"
 						sheets={props.viewModel().subordinateSheets}
 						showName
 						exportingId={exportingId()}
 						onExport={(sheet) => void handleExport(sheet)}
+						action={
+							<A
+								href="/review"
+								class="section-nav-link"
+								title="受け持ち全体の進み具合を見て、自分の番から評価を進めます"
+							>
+								<ClipboardCheck size={16} />
+								受け持ちの評価
+							</A>
+						}
 					/>
 				</Show>
 			</Show>

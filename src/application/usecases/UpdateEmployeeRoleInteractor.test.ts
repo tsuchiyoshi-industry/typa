@@ -1,9 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { EmployeeRole } from "../../domain/valueObjects/EmployeeRole";
 import { masterRepository, output, profile } from "../../test/fixtures";
-import type { EmployeeMapDto } from "../dtos/EmployeeMapDto";
 import type { EmployeeMasterDto } from "../dtos/EmployeeMasterDto";
-import { LoadEmployeeMapInteractor } from "./LoadEmployeeMapInteractor";
 import { LoadEmployeeMasterInteractor } from "./LoadEmployeeMasterInteractor";
 import { UpdateEmployeeRoleInteractor } from "./UpdateEmployeeRoleInteractor";
 
@@ -109,16 +107,5 @@ describe("who can see roles", () => {
 		);
 		// 自分の権限は誰でも分かる
 		expect(dto.currentEmployee?.roleName).toBe(role);
-	});
-	it.each([
-		["Admin", true],
-		["Reviewer", false],
-	] as const)("%s sees roles on the map: %s", async (role, visible) => {
-		const { repository } = setup(profile(role, role === "Admin" ? 9 : 2));
-		const out = output<EmployeeMapDto>();
-		await new LoadEmployeeMapInteractor(repository).execute({}, out);
-		expect(out.present.mock.calls[0][0].people.map((person) => person.roleName)).toEqual(
-			visible ? ["Employee", "Reviewer", "Admin"] : [null, null, null],
-		);
 	});
 });

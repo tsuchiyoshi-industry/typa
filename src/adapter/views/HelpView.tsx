@@ -321,7 +321,7 @@ const HelpView: Component<HelpViewProps> = (props) => {
 							</tr>
 							<tr>
 								<th scope="row">Reviewer</th>
-								<td>上に加えて、社員の評価者の変更と「マップ」の閲覧。</td>
+								<td>上に加えて、全社員の評価者の変更と、社員マスタの「評価構造」での確認。</td>
 							</tr>
 							<tr>
 								<th scope="row">Admin</th>

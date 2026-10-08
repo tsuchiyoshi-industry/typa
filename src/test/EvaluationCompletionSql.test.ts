@@ -8,11 +8,11 @@ const read = (file: string) =>
 const migration = read("202610080005_evaluation_completion.sql");
 const sheetGradeMigration = read("202610080007_evaluation_completion_sheet_grade.sql");
 const bySheetEvaluators = read("202610080010_notifications_by_sheet_evaluators.sql");
-const tabsMigration = read("202610080012_challenge_goal_tabs.sql");
-const completion = tabsMigration.slice(
-	tabsMigration.indexOf("create or replace function public.check_evaluation_completion()"),
-	tabsMigration.lastIndexOf("commit;"),
-);
+// 評価者向けの一覧の関数は、この表の定義では作れないので除く(ReviewerWorkspaceSql で確かめる)
+const rules = read("202610080014_challenge_goal_rules.sql");
+const completion =
+	rules.slice(0, rules.indexOf("-- Internal projection")) +
+	rules.slice(rules.indexOf("create or replace function public.check_evaluation_completion()"));
 const status = async (id = 100) =>
 	(
 		await db.query<{ status: string }>(
@@ -39,6 +39,8 @@ beforeAll(async () => {
 		insert into public.milestones (id, sheet_id, goal_number, first_score, second_score) values (11, 100, 1, 4, 0), (12, 100, 2, 4, 0), (21, 200, 1, 4, 0);
 		insert into public.common_evaluation_items values (31, '全員共通', null), (32, '1級共通', 1), (33, '2級共通', 2);
 		grant select, update on public.evaluation_sheets to authenticated;
+		create table public.evaluation_settings (id boolean primary key default true);
+		insert into public.evaluation_settings default values;
 	`);
 	await db.exec(migration);
 	await db.exec(migration);
@@ -47,12 +49,15 @@ beforeAll(async () => {
 	await db.exec(bySheetEvaluators);
 	await db.exec(bySheetEvaluators);
 	await db.exec(completion);
+	// 再適用できること
+	await db.exec(completion);
 }, 30_000);
 beforeEach(async () => {
 	await db.exec(`reset role;
 		update public.evaluation_sheets set status = 'submitted', grade_id = 1;
 		update public.employees set grade_id = 1;
 		delete from public.milestones where goal_number > 2;
+		update public.evaluation_settings set max_challenge_goals = 4;
 		update public.milestones set first_score = 4, second_score = 0, challenge_goal = '目標', midterm_goal = '中間', achievement = '達成';
 		truncate public.common_evaluation_results;
 		insert into public.common_evaluation_results values (41, 100, 31, 4, 0), (42, 100, 32, 4, 0), (43, 200, 31, 4, 0), (44, 200, 32, 4, 0);
@@ -160,14 +165,27 @@ it("checks the third and fourth goals at confirmation", async () => {
 	await db.exec("update public.milestones set first_score = 4 where id = 14");
 	await confirm("first_evaluated");
 });
-it.each(["challenge_goal", "midterm_goal", "achievement"])(
-	"rejects whitespace in %s even with every score saved",
-	async (field) => {
-		await db.exec(`update public.milestones set ${field} = E' \t\n' where id = 12`);
-		await expect(confirm("first_evaluated")).rejects.toThrow("目標 2");
-		expect(await status()).toBe("submitted");
-	},
-);
+it("rejects a whitespace-only challenge goal even with every score saved", async () => {
+	await db.exec("update public.milestones set challenge_goal = E' \t\n' where id = 12");
+	await expect(confirm("first_evaluated")).rejects.toThrow("目標 2：チャレンジ目標");
+	expect(await status()).toBe("submitted");
+});
+it("takes the largest number of goals from the settings", async () => {
+	await db.exec("update public.evaluation_settings set max_challenge_goals = 1");
+	await expect(confirm("first_evaluated")).rejects.toThrow("最大1件");
+	// 上限を上げれば、5件目も置ける(番号の上限は列の制約ではなく設定で決まる)
+	await db.exec(`update public.evaluation_settings set max_challenge_goals = 5;
+		insert into public.milestones (id, sheet_id, goal_number, first_score, second_score) values (13, 100, 3, 4, 0), (14, 100, 4, 4, 0), (15, 100, 5, 4, 0)`);
+	await confirm("first_evaluated");
+	await expect(
+		db.exec("update public.evaluation_settings set max_challenge_goals = 11"),
+	).rejects.toMatchObject({ code: "23514" });
+});
+// 必須なのはチャレンジ目標の欄だけ
+it("lets a sheet through with the midterm goal and the achievement left blank", async () => {
+	await db.exec("update public.milestones set midterm_goal = '', achievement = null");
+	await confirm("first_evaluated");
+});
 it("requires at least one goal on submission", async () => {
 	await confirm("draft");
 	await db.exec("delete from public.milestones where sheet_id = 100");

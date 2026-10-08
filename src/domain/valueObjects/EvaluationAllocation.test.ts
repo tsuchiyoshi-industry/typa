@@ -322,4 +322,3 @@ it.each([3, 4])("awards the same full allocation with %s goals all rated four", 
 		totalEvaluationScore: 100,
 	});
 });
-

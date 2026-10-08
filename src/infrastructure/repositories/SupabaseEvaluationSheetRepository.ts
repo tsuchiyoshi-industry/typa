@@ -239,9 +239,10 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 			commonAllocation: sheet.common_allocation,
 		};
 		// 確定時の配点がなければ、現在の設定を読む(確定済みのシートは設定を読まない)
-		const allocation =
-			EvaluationSheet.storedAllocation(status, stored) ??
-			(await this.settingsRepository.findAllocation());
+		const [allocation, maxObjectives] = await Promise.all([
+			EvaluationSheet.storedAllocation(status, stored) ?? this.settingsRepository.findAllocation(),
+			this.settingsRepository.findMaxChallengeGoals(),
+		]);
 
 		return EvaluationSheet.restore({
 			sheetId: sheet.id,
@@ -257,6 +258,7 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 			allocation,
 			status,
 			gradeId: sheet.grade_id,
+			maxObjectives,
 			finalEvaluationRank: EvaluationRank.fromOptional(
 				sheet.final_rank_letter,
 				sheet.final_rank_level,

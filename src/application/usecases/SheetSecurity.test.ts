@@ -35,6 +35,7 @@ function setup(status = EvaluationStatus.SUBMITTED) {
 const stageOf = (evaluatorId: number) =>
 	evaluatorId === 3 ? EvaluationStatus.FIRST_EVALUATED : EvaluationStatus.SUBMITTED;
 const notificationRepository = () => ({
+	notifySheetSubmitted: vi.fn().mockResolvedValue(undefined),
 	notifyFirstEvaluationConfirmed: vi.fn().mockResolvedValue(undefined),
 	notifySheetFinalized: vi.fn().mockResolvedValue(undefined),
 });
@@ -349,7 +350,10 @@ describe("comments, final rank, status and notifications", () => {
 			EvaluationStatus.from(status),
 			expect.anything(),
 		);
-		// 一次評価の確定は二次評価者へ、評価の確定は評価者へ知らせる
+		// 提出は一次評価者へ、一次評価の確定は二次評価者へ、評価の確定は評価者へ知らせる。下書きに戻すときは知らせない
+		expect(notifications.notifySheetSubmitted).toHaveBeenCalledTimes(
+			status === "submitted" ? 1 : 0,
+		);
 		expect(notifications.notifyFirstEvaluationConfirmed).toHaveBeenCalledTimes(
 			status === "first_evaluated" ? 1 : 0,
 		);
@@ -421,6 +425,7 @@ describe("comments, final rank, status and notifications", () => {
 		expect(out.present).not.toHaveBeenCalled();
 	});
 	it.each([
+		[EvaluationStatus.DRAFT, 1, "submitted", "一次評価者"],
 		[EvaluationStatus.SUBMITTED, 2, "first_evaluated", "二次評価者"],
 		[EvaluationStatus.FIRST_EVALUATED, 3, "finalized", "評価者"],
 	] as const)(
@@ -429,6 +434,7 @@ describe("comments, final rank, status and notifications", () => {
 			const { sheets, employees } = setup(initial);
 			vi.spyOn(console, "error").mockImplementation(() => {});
 			const notifications = {
+				notifySheetSubmitted: vi.fn().mockRejectedValue(new Error("SMTP unavailable")),
 				notifyFirstEvaluationConfirmed: vi.fn().mockRejectedValue(new Error("SMTP unavailable")),
 				notifySheetFinalized: vi.fn().mockRejectedValue(new Error("SMTP unavailable")),
 			};
@@ -451,6 +457,7 @@ describe("comments, final rank, status and notifications", () => {
 		const { sheets, employees } = setup(EvaluationStatus.FIRST_EVALUATED);
 		let deliver!: () => void;
 		const notifications = {
+			notifySheetSubmitted: vi.fn(),
 			notifyFirstEvaluationConfirmed: vi.fn(),
 			notifySheetFinalized: vi.fn(
 				(_notification: unknown, report: (delivery: { recipient: string }) => void) =>
@@ -496,6 +503,7 @@ describe("comments, final rank, status and notifications", () => {
 				out,
 			);
 			expect(out.present).toHaveBeenCalledWith({ sheet: expect.objectContaining({ status }) });
+			expect(notifications.notifySheetSubmitted).not.toHaveBeenCalled();
 			expect(notifications.notifyFirstEvaluationConfirmed).not.toHaveBeenCalled();
 			expect(notifications.notifySheetFinalized).not.toHaveBeenCalled();
 		},

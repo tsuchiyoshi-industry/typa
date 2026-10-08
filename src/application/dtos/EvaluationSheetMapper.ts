@@ -51,6 +51,7 @@ export function toEvaluationSheetDto(
 			firstScore: objective.firstScore.toNumber(),
 			secondScore: canViewSecondMilestoneScore ? objective.secondScore.toNumber() : null,
 		})),
+		maxObjectives: sheet.maxObjectives,
 		objectiveScoreTotals: {
 			firstTotalScore: sheet.objectiveScoreTotals.firstTotalScore,
 			firstTotalRate: sheet.objectiveScoreTotals.firstTotalRate,

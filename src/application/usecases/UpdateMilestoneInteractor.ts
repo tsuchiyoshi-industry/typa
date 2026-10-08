@@ -62,7 +62,7 @@ export class UpdateMilestoneInteractor
 			request.goalNumber !== undefined &&
 			(!Number.isSafeInteger(request.goalNumber) ||
 				request.goalNumber < 1 ||
-				request.goalNumber > 4)
+				request.goalNumber > sheet.maxObjectives)
 		) {
 			throw new Error("目標番号が不正です。");
 		}
@@ -108,8 +108,12 @@ export class UpdateMilestoneInteractor
 			await this.milestoneRepository.delete(currentObjective.id);
 			updated = currentObjective;
 		}
-		if (!currentObjective && request.goalNumber !== undefined && sheet.objectives.length >= 4) {
-			throw new Error("チャレンジ目標は最大4件です。");
+		if (
+			!currentObjective &&
+			request.goalNumber !== undefined &&
+			sheet.objectives.length >= sheet.maxObjectives
+		) {
+			throw new Error(`チャレンジ目標は最大${sheet.maxObjectives}件です。`);
 		}
 
 		if (

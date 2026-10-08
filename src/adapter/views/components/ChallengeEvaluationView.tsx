@@ -14,6 +14,8 @@ import ScoreScale from "./ScoreScale";
 interface ChallengeEvaluationViewProps {
 	sheetId: number | null;
 	objectives: MilestoneDto[];
+	/** 1枚のシートに置ける目標の数の上限(設定値)。 */
+	maxObjectives: number;
 	subject: EmployeeDto;
 	canEditFirst: boolean;
 	canEditSecond: boolean;
@@ -154,7 +156,7 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 			!props.canEditMilestoneGoal ||
 			textUpdating() ||
 			scoreUpdating() ||
-			displayObjectives().length >= 4
+			displayObjectives().length >= props.maxObjectives
 		) {
 			return;
 		}
@@ -176,7 +178,8 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 					{ ...first, id: props.viewModel().updatedMilestoneId ?? 0 },
 				]);
 			}
-			const number = [1, 2, 3, 4].find(
+			// 空いているいちばん小さい番号
+			const number = Array.from({ length: props.maxObjectives }, (_, index) => index + 1).find(
 				(number) => !displayObjectives().some((item) => item.goalNumber === number),
 			);
 			if (
@@ -329,7 +332,7 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 			<div class="challenge-card__title">
 				<h2>チャレンジ目標評価</h2>
 				<p class="challenge-helper">
-					目標は1〜4件。目標ごとに 1〜{MAX_SCORE} の4段階で評価します。
+					目標は1〜{props.maxObjectives}件。目標ごとに 1〜{MAX_SCORE} の4段階で評価します。
 				</p>
 			</div>
 

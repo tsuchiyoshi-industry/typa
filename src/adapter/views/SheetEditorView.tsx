@@ -267,24 +267,17 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 
 	const ensureObjectiveFieldsComplete = () => {
 		const objectives = sheet()?.objectives ?? [];
-		const missing = objectives.flatMap((objective) =>
-			(
-				[
-					["チャレンジ目標", objective.challengeGoal],
-					["中間目標", objective.midtermGoal],
-					["達成状況", objective.achievement],
-				] as const
-			)
-				.filter(([, value]) => !value.trim())
-				.map(([label]) => `目標 ${objective.goalNumber}：${label}`),
-		);
-		if (objectives.length >= 1 && objectives.length <= 4 && missing.length === 0) {
+		// 必須なのはチャレンジ目標の欄だけ。中間目標と達成状況は空欄でもよい
+		const missing = objectives
+			.filter((objective) => !objective.challengeGoal.trim())
+			.map((objective) => `目標 ${objective.goalNumber}：チャレンジ目標`);
+		const max = sheet()?.maxObjectives ?? 0;
+		if (objectives.length >= 1 && objectives.length <= max && missing.length === 0) {
 			return true;
 		}
 		void confirmAction({
-			title: "空欄のある目標は提出・確定できません",
-			message:
-				"目標は1〜4件必要です。すべての欄を入力して保存するか、不要なタブを削除してください。",
+			title: "チャレンジ目標が空欄の目標は提出・確定できません",
+			message: `目標は1〜${max}件必要です。チャレンジ目標を入力して保存するか、不要なタブを削除してください。`,
 			details: missing,
 			confirmLabel: "閉じる",
 			acknowledgeOnly: true,
@@ -300,14 +293,21 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 		if (!ensureNothingUnsaved()) {
 			return;
 		}
+		let notify = true;
 		const confirmed = await confirmAction({
 			title: "評価シートを提出しますか？",
 			message:
 				"提出すると目標は編集できなくなり、評価者に表示されて一次評価が始まります。一次評価が確定するまでは、下書きに戻して編集し直せます。",
+			checkbox: {
+				label: `一次評価者（${sheet()?.primaryEvaluator ?? "未設定"}）に通知メールを送る`,
+				onChange: (checked) => {
+					notify = checked;
+				},
+			},
 			confirmLabel: "提出する",
 		});
 		if (confirmed) {
-			await changeStatus(EvaluationStatus.SUBMITTED, "評価シートを提出しました");
+			await changeStatus(EvaluationStatus.SUBMITTED, "評価シートを提出しました", notify);
 		}
 	};
 
@@ -728,6 +728,7 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 								<ChallengeEvaluationView
 									sheetId={sheetId()}
 									objectives={sheet()?.objectives ?? []}
+									maxObjectives={sheet()?.maxObjectives ?? 0}
 									subject={subject()}
 									canEditFirst={canEditFirst()}
 									canEditSecond={canEditSecond()}

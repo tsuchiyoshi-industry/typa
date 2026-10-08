@@ -64,7 +64,7 @@ export class UpdateEvaluationStatusInteractor
 			const missing = sheet.pendingObjectiveFields();
 			if (missing.length) {
 				throw new Error(
-					`空欄のある目標は提出・確定できません。すべての欄を入力して保存するか、不要なタブを削除してください。\n${missing.map((item) => `・${item}`).join("\n")}`,
+					`チャレンジ目標が空欄の目標は提出・確定できません。入力して保存するか、不要なタブを削除してください。\n${missing.map((item) => `・${item}`).join("\n")}`,
 				);
 			}
 		}
@@ -109,10 +109,15 @@ export class UpdateEvaluationStatusInteractor
 		}
 	}
 
-	/** 一次評価の確定は二次評価者へ、評価の確定は評価者へメールで知らせる。送信の失敗で確定は取り消さない。 */
+	/**
+	 * 提出は一次評価者へ、一次評価の確定は二次評価者へ、評価の確定は評価者へメールで知らせる。
+	 * 送信の失敗で提出・確定は取り消さない。下書きに戻したときは知らせない。
+	 */
 	private async notify(sheet: EvaluationSheet, report: ReportDelivery): Promise<void> {
+		const repository = this.emailNotificationRepository;
+		const submitted = sheet.status.isAwaitingFirstEvaluation();
 		const firstConfirmed = sheet.status.isAwaitingSecondEvaluation();
-		if (!this.emailNotificationRepository || !(firstConfirmed || sheet.status.isFinalized())) {
+		if (!repository || !(submitted || firstConfirmed || sheet.status.isFinalized())) {
 			return;
 		}
 
@@ -125,15 +130,17 @@ export class UpdateEvaluationStatusInteractor
 			secondaryEvaluatorName: sheet.secondaryEvaluatorName,
 		};
 		try {
-			await (firstConfirmed
-				? this.emailNotificationRepository.notifyFirstEvaluationConfirmed(notification, report)
-				: this.emailNotificationRepository.notifySheetFinalized(notification, report));
+			await (submitted
+				? repository.notifySheetSubmitted(notification, report)
+				: firstConfirmed
+					? repository.notifyFirstEvaluationConfirmed(notification, report)
+					: repository.notifySheetFinalized(notification, report));
 		} catch (error) {
 			// 宛先や SMTP 設定を読めず、誰にも送れなかった
 			console.error("評価の通知メールの送信に失敗しました:", error);
 			const message = (error as { message?: unknown } | null)?.message;
 			report({
-				recipient: firstConfirmed ? "二次評価者" : "評価者",
+				recipient: submitted ? "一次評価者" : firstConfirmed ? "二次評価者" : "評価者",
 				error: typeof message === "string" ? message : "通知メールを送信できませんでした。",
 			});
 		}

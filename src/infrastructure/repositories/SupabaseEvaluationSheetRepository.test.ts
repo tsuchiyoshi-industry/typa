@@ -77,6 +77,8 @@ function setup(status = "first_evaluated") {
 	const settings = {
 		findAllocation: vi.fn().mockResolvedValue(EvaluationAllocation.of(31, 69)),
 		saveAllocation: vi.fn(),
+		findMaxChallengeGoals: vi.fn().mockResolvedValue(4),
+		saveMaxChallengeGoals: vi.fn(),
 	};
 	const common = commonRepository();
 	common.findResultsBySheetId.mockResolvedValue({

@@ -19,6 +19,8 @@ export type ReportDelivery = (delivery: NotificationDelivery) => void;
 
 /** 送信の結果は、宛先ごとに結果が出るたび report で知らせる。宛先や SMTP 設定を読めないときは reject する。 */
 export interface EmailNotificationRepository {
+	/** シートが提出され、一次評価を始められることを一次評価者へ知らせる。 */
+	notifySheetSubmitted(notification: SheetNotification, report: ReportDelivery): Promise<void>;
 	/** 一次評価が確定し、二次評価を始められることを二次評価者へ知らせる。 */
 	notifyFirstEvaluationConfirmed(
 		notification: SheetNotification,

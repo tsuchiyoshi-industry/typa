@@ -60,6 +60,7 @@ export function reviewerEditorFixture(
 			sheetId: row.sheetId as number,
 			midtermGoal: "中間面談で達成状況を確認",
 		})),
+		maxObjectives: 4,
 		objectiveScoreTotals: {
 			firstTotalScore: 2,
 			firstTotalRate: 50,

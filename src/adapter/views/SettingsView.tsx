@@ -3,7 +3,10 @@ import Settings from "lucide-solid/icons/settings";
 import { type Component, createSignal, onCleanup, onMount, Show } from "solid-js";
 import { EvaluationAllocation } from "../../domain/valueObjects/EvaluationAllocation";
 import type { EvaluationPeriodController } from "../controllers/EvaluationPeriodController";
-import type { SettingsController } from "../controllers/SettingsController";
+import {
+	MAX_CHALLENGE_GOALS_RANGE,
+	type SettingsController,
+} from "../controllers/SettingsController";
 import type { SmtpSettingsController } from "../controllers/SmtpSettingsController";
 import EvaluationPeriodSettings from "./components/EvaluationPeriodSettings";
 import SmtpSettings from "./components/SmtpSettings";
@@ -26,6 +29,8 @@ const SettingsView: Component<SettingsViewProps> = (props) => {
 	const [saved, setSaved] = createSignal({ objective: 0, common: 0 });
 	const [objective, setObjective] = createSignal(0);
 	const [common, setCommon] = createSignal(0);
+	const [savedMaxGoals, setSavedMaxGoals] = createSignal(0);
+	const [maxGoals, setMaxGoals] = createSignal(0);
 	const [saving, setSaving] = createSignal(false);
 	const [confirming, setConfirming] = createSignal(false);
 	const busy = () => saving() || confirming();
@@ -47,6 +52,8 @@ const SettingsView: Component<SettingsViewProps> = (props) => {
 			setSaved({ objective: settings.objective, common: settings.common });
 			setObjective(settings.objective);
 			setCommon(settings.common);
+			setSavedMaxGoals(settings.maxChallengeGoals);
+			setMaxGoals(settings.maxChallengeGoals);
 		} catch {
 			if (mounted) {
 				setError("設定を読み込めませんでした。再読み込みしてください。");
@@ -122,6 +129,29 @@ const SettingsView: Component<SettingsViewProps> = (props) => {
 			if (mounted) {
 				setSaving(false);
 				setConfirming(false);
+			}
+		}
+	};
+
+	const saveMaxGoals = async (event: Event) => {
+		event.preventDefault();
+		if (busy()) {
+			return;
+		}
+		setSaving(true);
+		try {
+			const next = maxGoals();
+			const result = await props.controller.saveMaxChallengeGoals(next);
+			if (!mounted) {
+				return;
+			}
+			showToast(result.success ? "success" : "error", result.message);
+			if (result.success) {
+				setSavedMaxGoals(next);
+			}
+		} finally {
+			if (mounted) {
+				setSaving(false);
 			}
 		}
 	};
@@ -286,6 +316,49 @@ const SettingsView: Component<SettingsViewProps> = (props) => {
 								{saving() ? "保存中..." : confirming() ? "確認中..." : "配点を保存する"}
 							</button>
 						</div>
+					</section>
+					<section class="info-card" aria-labelledby="max-goals-heading">
+						<h2 id="max-goals-heading">チャレンジ目標の数</h2>
+						<p>
+							1枚の評価シートに置ける目標の数の上限です。目標は最低 1
+							件必要で、上限を超えるシートは提出・確定できません。
+						</p>
+						<p class="allocation-note">
+							チャレンジ目標の得点率は「点数の合計 ÷（そのシートの目標の数 ×
+							4）」で、上限を変えても変わりません。上限を下げると、それより多い目標を持つ未確定のシートは、目標を減らすまで提出・確定できなくなります。
+						</p>
+						<form class="allocation-form" onSubmit={(event) => void saveMaxGoals(event)}>
+							<label>
+								<span id="max-goals-label">上限</span>
+								<span class="allocation-input">
+									<input
+										aria-labelledby="max-goals-label"
+										type="number"
+										required
+										min={MAX_CHALLENGE_GOALS_RANGE.min}
+										max={MAX_CHALLENGE_GOALS_RANGE.max}
+										step="1"
+										value={Number.isNaN(maxGoals()) ? "" : maxGoals()}
+										disabled={busy()}
+										onInput={(event) =>
+											setMaxGoals(
+												event.currentTarget.value === ""
+													? Number.NaN
+													: Number(event.currentTarget.value),
+											)
+										}
+									/>
+									件
+								</span>
+							</label>
+							<button
+								type="submit"
+								class="primary-action"
+								disabled={busy() || maxGoals() === savedMaxGoals()}
+							>
+								上限を保存する
+							</button>
+						</form>
 					</section>
 					<SmtpSettings controller={props.smtpController} />
 				</Show>

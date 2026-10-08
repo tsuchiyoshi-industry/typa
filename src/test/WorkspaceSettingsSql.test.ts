@@ -142,3 +142,37 @@ it("keeps the company domain out of reach of clients, and the row single and val
 		db.query("update public.workspace_settings set smtp_port = 70000 where id"),
 	).rejects.toMatchObject({ code: "23514" });
 });
+
+// 提出の通知(202610080015)。上のテストの後に適用する: 適用すると、評価される本人も SMTP 設定を読める
+it("lets the subject of a submitted sheet notify the primary evaluator", async () => {
+	await db.exec(`reset role;
+		alter table auth.users add column email_confirmed_at timestamptz default now(), add column raw_user_meta_data jsonb;
+		update auth.users set raw_user_meta_data = jsonb_build_object('contact_email', 'contact-' || email);
+		alter table public.evaluation_sheets add column status text default 'submitted';
+	`);
+	const submission = readFileSync(
+		new URL("../../supabase/migrations/202610080015_submission_notification.sql", import.meta.url),
+		"utf8",
+	);
+	await db.exec(submission);
+	await db.exec(submission);
+	await db.exec("set role authenticated");
+	const recipient = () =>
+		db.query("select public.get_submitted_sheet_notification_recipient(100) as email");
+
+	await login(4);
+	expect((await recipient()).rows).toEqual([{ email: "contact-typa-e2@example.jp" }]);
+	expect(await smtp()).toEqual(saved);
+	// 評価者や無関係の社員は、提出の通知先を引けない。シートのない社員は SMTP 設定も読めない
+	for (const id of [2, 5]) {
+		await login(id);
+		await expect(recipient()).rejects.toMatchObject({ code: "42501" });
+	}
+	await expect(smtp()).rejects.toMatchObject({ code: "42501" });
+	// 提出済みでなくなったシートでは引けない
+	await db.exec(
+		"reset role; update public.evaluation_sheets set status = 'first_evaluated'; set role authenticated",
+	);
+	await login(4);
+	await expect(recipient()).rejects.toMatchObject({ code: "42501" });
+});

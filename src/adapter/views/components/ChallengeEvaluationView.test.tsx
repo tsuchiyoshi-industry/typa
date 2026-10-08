@@ -57,6 +57,7 @@ function setup(initial: MilestoneDto[] = [], editable = true) {
 		<ChallengeEvaluationView
 			sheetId={100}
 			objectives={objectives()}
+			maxObjectives={4}
 			subject={{} as never}
 			canEditFirst={false}
 			canEditSecond={false}

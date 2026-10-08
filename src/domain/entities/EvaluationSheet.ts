@@ -59,7 +59,12 @@ export class EvaluationSheet {
 		 * 変わっても変わらない。未設定の社員のシートは null。
 		 */
 		public readonly gradeId: number | null = null,
+		/** 1枚のシートに置けるチャレンジ目標の数の上限(設定値)。 */
+		public readonly maxObjectives: number = EvaluationSheet.DEFAULT_MAX_OBJECTIVES,
 	) {}
+
+	/** 設定を読まずにシートを作るとき(テストなど)の上限。DB の初期値と同じ。 */
+	static readonly DEFAULT_MAX_OBJECTIVES = 4;
 
 	static create(params: {
 		sheetId: number;
@@ -80,6 +85,7 @@ export class EvaluationSheet {
 		allocation?: EvaluationAllocation;
 		/** 省略すると、社員の今の等級(新しく作るシートと同じ)。 */
 		gradeId?: number | null;
+		maxObjectives?: number;
 	}): EvaluationSheet {
 		const commonEvaluationResults = params.commonEvaluationResults ?? [];
 		const objectiveScoreTotals =
@@ -111,6 +117,7 @@ export class EvaluationSheet {
 			params.firstEvaluationRank,
 			params.allocation,
 			params.gradeId === undefined ? params.subject.gradeId : params.gradeId,
+			params.maxObjectives,
 		);
 	}
 
@@ -200,21 +207,14 @@ export class EvaluationSheet {
 		return this.subject.primaryIsFinalEvaluator();
 	}
 
+	/** 必須なのはチャレンジ目標の欄だけ。中間目標と達成状況は空欄のまま提出・確定できる。 */
 	pendingObjectiveFields(): string[] {
-		if (this.objectives.length < 1 || this.objectives.length > 4) {
-			return ["チャレンジ目標は1〜4件必要です。"];
+		if (this.objectives.length < 1 || this.objectives.length > this.maxObjectives) {
+			return [`チャレンジ目標は1〜${this.maxObjectives}件必要です。`];
 		}
-		return this.objectives.flatMap((objective) =>
-			(
-				[
-					["チャレンジ目標", objective.challengeGoal],
-					["中間目標", objective.midtermGoal],
-					["達成状況", objective.achievement],
-				] as const
-			)
-				.filter(([, value]) => !value.trim())
-				.map(([label]) => `目標 ${objective.goalNumber}：${label}`),
-		);
+		return this.objectives
+			.filter((objective) => !objective.challengeGoal.trim())
+			.map((objective) => `目標 ${objective.goalNumber}：チャレンジ目標`);
 	}
 
 	/** 確定する評価者自身の、まだ評価されていない項目。0 は未評価。 */

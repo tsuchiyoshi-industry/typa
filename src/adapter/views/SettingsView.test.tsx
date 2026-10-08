@@ -28,6 +28,8 @@ function setup(role = "Admin") {
 	const settings = {
 		findAllocation: vi.fn().mockResolvedValue(EvaluationAllocation.DEFAULT),
 		saveAllocation: vi.fn().mockResolvedValue(true),
+		findMaxChallengeGoals: vi.fn().mockResolvedValue(4),
+		saveMaxChallengeGoals: vi.fn().mockResolvedValue(true),
 	};
 	const employees = masterRepository();
 	employees.findCurrentEmployeeProfile.mockResolvedValue(profile(role, 9));

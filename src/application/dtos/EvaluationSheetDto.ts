@@ -38,6 +38,8 @@ export interface EvaluationSheetDto {
 	firstOverallComment: string;
 	secondOverallComment: string;
 	objectives: MilestoneDto[];
+	/** 1枚のシートに置けるチャレンジ目標の数の上限(設定値)。 */
+	maxObjectives: number;
 	objectiveScoreTotals: EvaluationScoreTotalsDto;
 	commonEvaluationScoreTotals: EvaluationScoreTotalsDto;
 	allocatedScores: EvaluationAllocatedScoresDto;

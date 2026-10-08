@@ -68,7 +68,11 @@ function setup(testCase: (typeof cases)[number], goalScore = 4, commonScore = 4)
 	});
 	const sheets = sheetRepository();
 	sheets.findById.mockResolvedValue(current);
-	const notifications = { notifyFirstEvaluationConfirmed: vi.fn(), notifySheetFinalized: vi.fn() };
+	const notifications = {
+		notifySheetSubmitted: vi.fn(),
+		notifyFirstEvaluationConfirmed: vi.fn(),
+		notifySheetFinalized: vi.fn(),
+	};
 	const request = { sheetId: 100, currentEmployeeId: testCase.employeeId, status: testCase.next };
 	const useCase = new UpdateEvaluationStatusInteractor(sheets, employeeRepository(), notifications);
 	return { current, sheets, notifications, request, useCase, out: output<never>() };

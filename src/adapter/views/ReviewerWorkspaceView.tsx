@@ -553,11 +553,13 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 									</For>
 								</tr>
 								<For
-									each={[1, 2, 3, 4].filter((number) =>
-										comparison.people.some((row) =>
-											row.objectives.some((goal) => goal.goalNumber === number),
+									each={[
+										...new Set(
+											comparison.people.flatMap((row) =>
+												row.objectives.map((goal) => goal.goalNumber),
+											),
 										),
-									)}
+									].sort((a, b) => a - b)}
 								>
 									{(goalNumber) => (
 										<tr>

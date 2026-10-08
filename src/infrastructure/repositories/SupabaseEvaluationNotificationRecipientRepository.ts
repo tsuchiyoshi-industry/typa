@@ -7,6 +7,19 @@ import { supabase } from "../db/supabase";
 export class SupabaseEvaluationNotificationRecipientRepository
 	implements EvaluationNotificationRecipientRepository
 {
+	async findSubmittedSheetRecipient(sheetId: number): Promise<string | null> {
+		const { data, error } = await supabase.rpc("get_submitted_sheet_notification_recipient", {
+			p_sheet_id: sheetId,
+		});
+		if (error) {
+			throw error;
+		}
+		if (data !== null && typeof data !== "string") {
+			throw new Error("一次評価者の通知先情報が不正です。");
+		}
+		return data;
+	}
+
 	async findFirstEvaluatedSheetRecipient(sheetId: number): Promise<string | null> {
 		const { data, error } = await supabase.rpc("get_first_evaluated_sheet_notification_recipient", {
 			p_sheet_id: sheetId,

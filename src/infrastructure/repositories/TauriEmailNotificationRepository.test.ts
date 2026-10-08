@@ -24,6 +24,9 @@ function setup(
 	secondary: string | null = "second@example.jp",
 ) {
 	const recipients = {
+		findSubmittedSheetRecipient: vi
+			.fn<EvaluationNotificationRecipientRepository["findSubmittedSheetRecipient"]>()
+			.mockResolvedValue(primary),
 		findFirstEvaluatedSheetRecipient: vi
 			.fn<EvaluationNotificationRecipientRepository["findFirstEvaluatedSheetRecipient"]>()
 			.mockResolvedValue(secondary),
@@ -147,6 +150,30 @@ it("reports the SMTP error of one evaluator and still delivers to the other", as
 		error: "メール送信に失敗しました: 535 authentication failed",
 	});
 	expect(report).toHaveBeenCalledWith({ recipient: "二次 花子（二次評価者）" });
+});
+it("asks the primary evaluator to start once the sheet is submitted", async () => {
+	const { repository, recipients, ipc, report } = setup();
+	await repository.notifySheetSubmitted(notification, report);
+	expect(recipients.findSubmittedSheetRecipient).toHaveBeenCalledWith(100);
+	expect(ipc.mock.calls[0]).toEqual([
+		"send_email",
+		{
+			request: expect.objectContaining({
+				to: "first@example.jp",
+				subject: expect.stringContaining("一次評価のお願い"),
+			}),
+		},
+	]);
+	expect(report).toHaveBeenCalledExactlyOnceWith({ recipient: "一次 太郎（一次評価者）" });
+});
+it("reports a primary evaluator without an address instead of sending the submission notice", async () => {
+	const { repository, ipc, report } = setup(null);
+	await repository.notifySheetSubmitted(notification, report);
+	expect(ipc).not.toHaveBeenCalled();
+	expect(report).toHaveBeenCalledExactlyOnceWith({
+		recipient: "一次 太郎（一次評価者）",
+		error: expect.stringContaining("登録メール"),
+	});
 });
 it("asks only the secondary evaluator to start once the primary evaluation is confirmed", async () => {
 	const { repository, recipients, ipc, report } = setup();

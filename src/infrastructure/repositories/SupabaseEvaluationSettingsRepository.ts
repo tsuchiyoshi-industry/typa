@@ -36,4 +36,33 @@ export class SupabaseEvaluationSettingsRepository implements EvaluationSettingsR
 		// RLSで拒否された更新はエラーにならず0件で返る
 		return (data?.length ?? 0) > 0;
 	}
+
+	async findMaxChallengeGoals(): Promise<number> {
+		const { data, error } = await supabase
+			.from("evaluation_settings")
+			.select("max_challenge_goals")
+			.maybeSingle();
+
+		if (error) {
+			throw error;
+		}
+		const max = (data as { max_challenge_goals: number } | null)?.max_challenge_goals;
+		if (!Number.isInteger(max)) {
+			throw new Error("チャレンジ目標の上限が登録されていません。");
+		}
+		return max as number;
+	}
+
+	async saveMaxChallengeGoals(max: number): Promise<boolean> {
+		const { data, error } = await supabase
+			.from("evaluation_settings")
+			.update({ max_challenge_goals: max, updated_at: new Date().toISOString() })
+			.eq("id", true)
+			.select("id");
+
+		if (error) {
+			throw error;
+		}
+		return (data?.length ?? 0) > 0;
+	}
 }

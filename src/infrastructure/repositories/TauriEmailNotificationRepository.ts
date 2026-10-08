@@ -55,6 +55,34 @@ export class TauriEmailNotificationRepository implements EmailNotificationReposi
 		};
 	}
 
+	async notifySheetSubmitted(
+		notification: SheetNotification,
+		report: ReportDelivery,
+	): Promise<void> {
+		const [email, send] = await Promise.all([
+			this.recipients.findSubmittedSheetRecipient(notification.sheetId),
+			this.sender(report),
+		]);
+		const recipient = `${notification.primaryEvaluatorName}（一次評価者）`;
+		const to = validAddress(email);
+		if (!to) {
+			report({ recipient, error: NO_ADDRESS });
+			return;
+		}
+		await send(
+			recipient,
+			to,
+			`【TYPA】一次評価のお願い（${notification.employeeName} / ${notification.periodName}）`,
+			[
+				`${notification.employeeName}（${notification.employeeNo}）が評価シートを提出しました。`,
+				"一次評価を入力し、確定してください。",
+				"",
+				`評価期間: ${notification.periodName}`,
+				`シートID: ${notification.sheetId}`,
+			],
+		);
+	}
+
 	async notifyFirstEvaluationConfirmed(
 		notification: SheetNotification,
 		report: ReportDelivery,

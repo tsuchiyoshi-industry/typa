@@ -71,6 +71,8 @@ beforeAll(async () => {
 	await db.exec(migration("202610080010_notifications_by_sheet_evaluators.sql"));
 	await db.exec(migration("202610080010_notifications_by_sheet_evaluators.sql"));
 	await db.exec(migration("202610080012_challenge_goal_tabs.sql"));
+	await db.exec(migration("202610080014_challenge_goal_rules.sql"));
+	await db.exec(migration("202610080014_challenge_goal_rules.sql"));
 }, 30_000);
 beforeEach(async () => {
 	await db.exec(`reset role;

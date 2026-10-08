@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { reviewScore } from "../../adapter/viewmodels/reviewerWorkspace";
+import { toSheetExportDataDto } from "../../application/dtos/ExportSheetMapper";
 import {
 	commonRepository,
 	commonResult,
@@ -13,6 +14,7 @@ import { reviewerRow } from "../../test/reviewerFixture";
 import { CommonEvaluationItem } from "../entities/CommonEvaluationItem";
 import { CommonEvaluationResult } from "../entities/CommonEvaluationResult";
 import { EvaluationSheet } from "../entities/EvaluationSheet";
+import { Milestone } from "../entities/Milestone";
 import { EvaluationScoreUpdateService } from "../services/EvaluationScoreUpdateService";
 import { createSheetWithCommonEvaluation } from "../services/EvaluationSheetDomainService";
 import { EvaluationAllocatedScores } from "./EvaluationAllocatedScores";
@@ -214,3 +216,110 @@ it("rounds an exact half point up even when dividing first would fall just short
 	expect(EvaluationAllocation.fromTotal(80, 5, 6)).toBe(67);
 	expect(EvaluationAllocation.fromTotal(80, 3, 0)).toBe(0);
 });
+
+// Three/four goals must use 12/16 as the denominator throughout the calculation path.
+it.each([
+	{ scores: [1, 2, 4], allocation: 6, rate: 58, points: 4 },
+	{ scores: [1, 2, 3, 4], allocation: 31, rate: 63, points: 19 },
+])(
+	"calculates both stages, reviewer totals, persistence and export for $scores",
+	async ({ scores, allocation: objectiveAllocation, rate, points }) => {
+		const allocation = EvaluationAllocation.of(objectiveAllocation, 100 - objectiveAllocation);
+		const objectives = scores.map((score, index) =>
+			Milestone.create({
+				id: 11 + index,
+				sheetId: 100,
+				goalNumber: index + 1,
+				challengeGoal: "目標",
+				midtermGoal: "中間",
+				achievement: "達成",
+				firstScore: score,
+				secondScore: score,
+			}),
+		);
+		const totals = EvaluationScoreTotals.fromObjectives(objectives);
+		const sum = scores.reduce((total, score) => total + score, 0);
+		expect(totals).toMatchObject({
+			firstTotalScore: sum,
+			secondTotalScore: sum,
+			firstTotalRate: rate,
+			secondTotalRate: rate,
+		});
+		for (const primaryIsFinal of [false, true]) {
+			expect(
+				EvaluationAllocatedScores.fromTotals(
+					totals,
+					EvaluationScoreTotals.zero(),
+					primaryIsFinal,
+					allocation,
+				).objectiveEvaluationScore,
+			).toBe(points);
+		}
+		const current = EvaluationSheet.create({
+			sheetId: 100,
+			subject: employee(),
+			evaluationPeriod: period(),
+			primaryEvaluatorName: "一次",
+			secondaryEvaluatorName: "二次",
+			objectives,
+			commonEvaluationResults: [commonResult()],
+			allocation,
+		});
+		const row = reviewerRow();
+		row.objectiveAllocation = allocation.objective;
+		row.commonAllocation = allocation.common;
+		row.objectives = objectives.map((goal) => ({
+			id: goal.id,
+			goalNumber: goal.goalNumber,
+			challengeGoal: goal.challengeGoal,
+			achievement: goal.achievement,
+			firstScore: goal.firstScore.toNumber(),
+			secondScore: goal.secondScore.toNumber(),
+		}));
+		row.commonItems = [{ ...row.commonItems[0], firstScore: 3, secondScore: 4 }];
+		expect(reviewScore(row, "first")).toBe(current.firstEvaluationScore());
+		expect(reviewScore(row, "second")).toBe(current.allocatedScores.totalEvaluationScore);
+		expect(current.allocatedScores.totalEvaluationScore).toBe(points + allocation.common);
+		const sheets = sheetRepository();
+		sheets.findById.mockResolvedValue(current);
+		const milestones = milestoneRepository();
+		milestones.findBySheetId.mockResolvedValue(objectives);
+		milestones.updateScore.mockResolvedValue(objectives[objectives.length - 1]);
+		await new EvaluationScoreUpdateService(
+			sheets,
+			milestones,
+			commonRepository(),
+		).updateObjectiveScore(
+			objectives[objectives.length - 1].id,
+			undefined,
+			scores[scores.length - 1],
+		);
+		expect(sheets.updateScoreTotals).toHaveBeenCalledWith(
+			100,
+			expect.objectContaining({
+				objectives: expect.objectContaining({
+					firstTotalScore: sum,
+					secondTotalScore: sum,
+					firstTotalRate: rate,
+					secondTotalRate: rate,
+				}),
+				allocatedScores: expect.objectContaining({
+					objectiveEvaluationScore: points,
+					totalEvaluationScore: points + allocation.common,
+				}),
+			}),
+		);
+		const exported = toSheetExportDataDto(current, "等級");
+		expect(exported.objectives).toHaveLength(scores.length);
+		expect(exported.objectiveSecondRate).toBe(String(rate));
+		expect(exported.objectiveEvaluationScore).toBe(String(points));
+	},
+);
+it.each([3, 4])("awards the same full allocation with %s goals all rated four", (count) => {
+	expect(calculate(Array(count).fill(4))).toMatchObject({
+		objectiveSecondRate: 100,
+		objectiveEvaluationScore: 20,
+		totalEvaluationScore: 100,
+	});
+});
+

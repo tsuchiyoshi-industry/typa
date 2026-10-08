@@ -32,6 +32,13 @@ const ConfirmDialog: Component = () => {
 					<div class="confirm-dialog__body">
 						<h2 id="confirm-dialog-title">{request().title}</h2>
 						<p id="confirm-dialog-message">{request().message}</p>
+						<Show when={request().details}>
+							{(details) => (
+								<ul class="confirm-dialog__details">
+									<For each={details()}>{(detail) => <li>{detail}</li>}</For>
+								</ul>
+							)}
+						</Show>
 						<div class="confirm-dialog__actions">
 							{/* 取り消せない操作で Enter を押しても実行されないよう、キャンセル側に初期フォーカス */}
 							<Show when={!request().acknowledgeOnly}>

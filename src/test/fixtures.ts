@@ -10,6 +10,7 @@ import type { AuthRepository } from "../domain/repositories/AuthRepository";
 import type { CommonEvaluationRepository } from "../domain/repositories/CommonEvaluationRepository";
 import type { EmployeeMasterRepository } from "../domain/repositories/EmployeeMasterRepository";
 import type { EmployeeRepository } from "../domain/repositories/EmployeeRepository";
+import type { EvaluationPeriodRepository } from "../domain/repositories/EvaluationPeriodRepository";
 import type { EvaluationSheetRepository } from "../domain/repositories/EvaluationSheetRepository";
 import type { MilestoneRepository } from "../domain/repositories/MilestoneRepository";
 import { EmployeeRole } from "../domain/valueObjects/EmployeeRole";
@@ -17,8 +18,8 @@ import { EvaluationRank } from "../domain/valueObjects/EvaluationRank";
 import { EvaluationStatus } from "../domain/valueObjects/EvaluationStatus";
 
 // Synthetic data only. Each factory returns fresh entities and mocks.
-export const period = () =>
-	new EvaluationPeriod(10, "テスト期間", "2026-04-01", "2026-09-30", true);
+export const period = (isActive = true) =>
+	new EvaluationPeriod(10, "テスト期間", "2026-04-01", "2026-09-30", isActive);
 export const employee = () => new Employee(1, "テスト社員", "TEST001", 1, "技術", 5, 2, 3);
 export const profile = (role = "Employee", id = 1, registered = true) =>
 	new EmployeeProfile(
@@ -60,12 +61,16 @@ export const commonResult = () =>
 		firstComment: "一次コメント",
 		item: new CommonEvaluationItem(31, "共通項目", "説明", 5, 5),
 	});
-/** gradeId: シート作成時の等級。省略すると社員の今の等級(5)。 */
-export const sheet = (status = EvaluationStatus.SUBMITTED, gradeId?: number | null) =>
+/** gradeId: シート作成時の等級。省略すると社員の今の等級(5)。periodClosed: 締めた評価期間のシート。 */
+export const sheet = (
+	status = EvaluationStatus.SUBMITTED,
+	gradeId?: number | null,
+	periodClosed = false,
+) =>
 	EvaluationSheet.create({
 		sheetId: 100,
 		subject: employee(),
-		evaluationPeriod: period(),
+		evaluationPeriod: period(!periodClosed),
 		primaryEvaluatorName: "一次",
 		secondaryEvaluatorName: "二次",
 		firstOverallComment: "一次総評",
@@ -92,9 +97,7 @@ export function sheetRepository() {
 			.fn<EvaluationSheetRepository["updateStatus"]>()
 			.mockImplementation(async (_id, status) => sheet(status)),
 		findByOwner: vi.fn<EvaluationSheetRepository["findByOwner"]>().mockResolvedValue([]),
-		findByEmployeeIds: vi
-			.fn<EvaluationSheetRepository["findByEmployeeIds"]>()
-			.mockResolvedValue([]),
+		findByEvaluator: vi.fn<EvaluationSheetRepository["findByEvaluator"]>().mockResolvedValue([]),
 	} satisfies EvaluationSheetRepository;
 }
 export function employeeRepository() {
@@ -104,7 +107,6 @@ export function employeeRepository() {
 			.mockResolvedValue({ data: 1, error: null }),
 		findById: vi.fn<EmployeeRepository["findById"]>().mockResolvedValue(employee()),
 		findByEmployeeNo: vi.fn<EmployeeRepository["findByEmployeeNo"]>().mockResolvedValue(employee()),
-		findSubordinateIds: vi.fn<EmployeeRepository["findSubordinateIds"]>().mockResolvedValue([]),
 		findEvaluatorNames: vi
 			.fn<EmployeeRepository["findEvaluatorNames"]>()
 			.mockResolvedValue({ primaryEvaluator: "一次", secondaryEvaluator: "二次" }),
@@ -189,4 +191,27 @@ export function authRepository() {
 			.mockResolvedValue({ status: "created", userId: "auth-user" }),
 		signOut: vi.fn<AuthRepository["signOut"]>().mockResolvedValue(undefined),
 	} satisfies AuthRepository;
+}
+/** 締めた「前期」(1)、実施中の「今期」(2)、まだ始めていない「来期」(3)。今期のシートはすべて確定済み。 */
+export function periodRepository() {
+	const periods = [
+		new EvaluationPeriod(1, "前期", "2025-04-01", "2026-03-31", false),
+		new EvaluationPeriod(2, "今期", "2026-04-01", "2027-03-31", true),
+		new EvaluationPeriod(3, "来期", "2027-04-01", "2028-03-31", false),
+	];
+	return {
+		findDistinctPeriods: vi
+			.fn<EvaluationPeriodRepository["findDistinctPeriods"]>()
+			.mockResolvedValue(periods),
+		findById: vi
+			.fn<EvaluationPeriodRepository["findById"]>()
+			.mockImplementation(async (id) => periods.find((item) => item.id === id) ?? null),
+		create: vi.fn<EvaluationPeriodRepository["create"]>().mockResolvedValue(true),
+		update: vi.fn<EvaluationPeriodRepository["update"]>().mockResolvedValue(true),
+		delete: vi.fn<EvaluationPeriodRepository["delete"]>().mockResolvedValue(true),
+		activate: vi.fn<EvaluationPeriodRepository["activate"]>().mockResolvedValue(true),
+		countSheetsByStatus: vi
+			.fn<EvaluationPeriodRepository["countSheetsByStatus"]>()
+			.mockImplementation(async (id) => (id === 3 ? {} : { finalized: 4 })),
+	} satisfies EvaluationPeriodRepository;
 }

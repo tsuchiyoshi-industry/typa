@@ -47,7 +47,20 @@ const renderSettings = (controller: SettingsController) =>
 				</>
 			)}
 		>
-			<Route path="/" component={() => <SettingsView controller={controller} />} />
+			<Route
+				path="/"
+				component={() => (
+					<SettingsView
+						controller={controller}
+						periodController={{
+							load: vi.fn().mockResolvedValue([]),
+							save: vi.fn(),
+							remove: vi.fn(),
+							close: vi.fn(),
+						}}
+					/>
+				)}
+			/>
 			<Route path="/away" component={() => <p>移動しました</p>} />
 		</MemoryRouter>
 	));

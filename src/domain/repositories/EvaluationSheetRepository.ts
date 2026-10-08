@@ -44,5 +44,6 @@ export interface EvaluationSheetRepository {
 		ranks?: { first?: EvaluationRank; final?: EvaluationRank },
 	): Promise<EvaluationSheet>;
 	findByOwner(employeeId: number): Promise<EvaluationSheetSummary[]>;
-	findByEmployeeIds(employeeIds: number[]): Promise<EvaluationSheetSummary[]>;
+	/** シートの評価者(一次・二次)がその社員であるシート。本人のシートは含まない。 */
+	findByEvaluator(employeeId: number): Promise<EvaluationSheetSummary[]>;
 }

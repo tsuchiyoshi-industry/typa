@@ -155,6 +155,36 @@
 	margin-top: 1.4rem;
 }
 
+/* 評価期間の一覧と、追加・変更のフォーム */
+.period-badge {
+	padding: 0.2rem 0.55rem;
+	border-radius: 999px;
+	background: var(--hr-accent-muted);
+	color: var(--hr-text);
+	font-size: 0.8125rem;
+	white-space: nowrap;
+}
+.period-actions {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	gap: 0.4rem;
+}
+.period-form input {
+	min-height: 2.5rem;
+	padding: 0.4rem 0.6rem;
+	border: 1px solid var(--hr-border-input);
+	border-radius: var(--hr-radius-sm);
+	background: var(--hr-bg-elevated);
+	color: var(--hr-text);
+	font-size: 0.9rem;
+}
+.period-form input:focus {
+	outline: none;
+	border-color: var(--hr-accent);
+	box-shadow: 0 0 0 3px var(--hr-accent-muted);
+}
+
 /* ヘルプ */
 .help-toc {
 	display: flex;

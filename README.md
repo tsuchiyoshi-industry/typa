@@ -41,13 +41,17 @@ VITE_SUPABASE_URL=...
 VITE_SUPABASE_PUBLISHABLE_KEY=...
 ```
 
-DB構成は [tables.md](./tables.md) を正とします。実装では `evaluation_sheets`, `milestones`, `common_evaluation_items`, `common_evaluation_results`, `employees`, `evaluation_periods` などを参照します。
+DB 構成は [基本設計書の 8 章](docs/basic-design.md#8-データ設計) と `supabase/migrations/` を参照してください。実装では `evaluation_sheets`, `milestones`, `common_evaluation_items`, `common_evaluation_results`, `employees`, `evaluation_periods` などを参照します。
 
 受け持ちの評価には `supabase/migrations/202610070001_reviewer_workspace.sql` と `202610080001_evaluation_stages.sql` の適用が必要です。既存の「二次評価者なし」「共通評価項目セット」のマイグレーションを先に適用してください。`202610080001` は `evaluation_sheets.first_rank`（一次評価ランク）と状態 `first_evaluated` を追加し、評価者ごとの確認記録（`sheet_review_checkpoints` と `set_sheet_reviewed`）を削除します。0点を未入力・完了の判定には使いません。一次評価者向けの二次評価・最終結果の非表示、下書きの非表示、一次評価確定の通知先の取得を RPC 側で制御しています。状態の遷移と評価の編集可否はアプリ側のポリシーで判定しており、DB 側の強制は SEC-002 の対象のままです。
 
 `202610080002_sheet_grade.sql` は `evaluation_sheets.grade_id`（シート作成時の等級）を追加します。等級は挿入時に DB のトリガーが社員の等級から設定し、その後に社員の等級が変わっても書き換えません。評価シート一覧にはこの等級を表示します。PDF を出力できるのは、評価が確定したシートの本人と評価者（一次・二次）です。評価関係のない社員は出力できません。PDF は誰が出力しても同じ内容で、伏せ字にはしません。
 
 `202610080006_reviewer_workspace_sheet_grade.sql` と `202610080007_evaluation_completion_sheet_grade.sql` は、「部下の評価」の一覧と確定時の未評価チェックが使う共通評価の項目を、社員の現在の等級ではなくシート作成時の等級（`evaluation_sheets.grade_id`）に揃えます。昇級後に過去のシートを開いても、作成時の等級の項目のままです。
+
+`202610080008_evaluation_period_management.sql` は、評価期間の管理と期間締めです。Admin が設定画面で評価期間を追加・変更・削除し、「この期間を開始する」で次の期間を実施中にすると、それまで実施中だった期間が同時に締められます（DB 関数 `activate_evaluation_period`）。実施中の期間は常に 1 つで、`is_active` はクライアントから直接は書き換えられません。締める期間に未確定の評価シートが残っていると締められません。締めた期間の評価シート・チャレンジ目標・共通評価の結果は、DB のトリガーが追加・更新・削除を拒否します（閲覧と PDF 出力はできます）。間違えて締めた場合は、元の期間をもう一度開始すれば戻せます。適用時に実施中の期間が複数あるとマイグレーションが失敗するので、先に 1 つにしてください。締めた期間のシートを後からマイグレーションで書き換える場合は、そのマイグレーションの中でトリガーを一時的に無効にする必要があります。
+
+`202610080009_sheet_evaluators.sql` は、評価シートに評価者（`primary_evaluator_id`、`secondary_evaluator_id`、`no_secondary_evaluator`）を持たせます。シートの作成時に社員マスタの評価者が入り、未確定の間は社員マスタでの付け替えが反映されます。評価が確定したシートの評価者は変わらないので、次の期間に向けて評価者を付け替えても、過去のシートは評価した人のまま閲覧・PDF 出力できます。既存のシートには、適用時点の社員マスタの評価者が入ります。`202610080008` の後に適用してください。
 
 `202610080003_employee_roles.sql` は、Admin が社員マスタから TYPA の権限（Admin / Reviewer / Employee）を変えるための DB 関数 `set_employee_role` を追加します。最後の Admin は外せません。あわせて、クライアントから `employees.role_id` を直接更新する権限を外します（`employees` に列を追加したら、クライアントから更新させる列はこのマイグレーションと同じ形で `grant update` が必要です）。誰がどの権限かは Admin の画面にだけ表示しますが、`role_id` の読み取り自体は DB 側で制限していません（SEC-002 の対象）。
 
@@ -87,7 +91,7 @@ bun run fix
 
 PDF出力は以下の流れです。
 
-1. `ExportEvaluationSheetInteractor` が `EvaluationSheetRepository.findExportData` から帳票データを取得
+1. `ExportEvaluationSheetInteractor` が、画面と同じ評価シート（`EvaluationSheetRepository.findById`）から `ExportSheetMapper` で帳票データを作る
 2. Tauri の `generate_pdf_with_typst` コマンドへデータと保存先を渡す
 3. Rust 側で `src-tauri/src/templates/template.typ` にデータを注入
 4. Typst でPDFを生成して保存
@@ -95,18 +99,17 @@ PDF出力は以下の流れです。
 帳票デザインは [template.typ](./src-tauri/src/templates/template.typ) に集約しています。PDFに追加したい項目がある場合は、以下を合わせて更新してください。
 
 - `src/application/dtos/ExportSheetDto.ts`
-- `src/domain/repositories/EvaluationSheetRepository.ts`
-- `src/infrastructure/repositories/SupabaseEvaluationSheetRepository.ts`
+- `src/application/dtos/ExportSheetMapper.ts`
 - `src-tauri/src/lib.rs`
 - `src-tauri/src/templates/template.typ`
 
 ## 実装メモ
 
-リリース前の問題一覧・単体テスト・DB/認証の追加検証は [セキュリティ監査](security/RELEASE-AUDIT.md) を参照してください。`bun run test:coverage`、`bun run typecheck`、`bun run test:rust` を配布前に実行します。通知専用SMTPパスワードの配布リスクは受容済みとし、その他の秘密鍵・Supabase管理キー等を `VITE_*` に含めるビルドは拒否します。
+未解決のセキュリティ課題（SEC-001 など）とテストの構成は、[基本設計書](docs/basic-design.md) の 12 章・13 章にまとめています。`bun run test:coverage`、`bun run typecheck`、`bun run test:rust` を配布前に実行します。通知専用SMTPパスワードの配布リスクは受容済みとし、その他の秘密鍵・Supabase管理キー等を `VITE_*` に含めるビルドは拒否します。
 
 ## 評価確定メール
 
-二次評価者が評価を確定した後、対象社員の一次・二次評価者が新規登録時に認証コードを受け取ったメールアドレスへ個別に通知します。同じ宛先は1通にまとめます。固定宛先の `VITE_SHEET_FINALIZED_NOTIFY_TO` は使用しません。提出時・一次評価完了時の通知はありません。登録メール未設定や送信失敗の場合も確定は維持し、画面に通知警告を表示します。自動再送はありません。
+二次評価者が評価を確定した後、対象社員の一次・二次評価者が新規登録時に認証コードを受け取ったメールアドレスへ個別に通知します。同じ宛先は1通にまとめます。固定宛先の `VITE_SHEET_FINALIZED_NOTIFY_TO` は使用しません。一次評価者が一次評価を確定したときは、二次評価者へ二次評価の依頼を通知します。本人が提出したときの通知はありません。登録メール未設定や送信失敗の場合も確定は維持し、画面に通知警告を表示します。自動再送はありません。
 
 配布前に [通知先取得マイグレーション](supabase/migrations/202610050001_evaluation_notification_recipients.sql) と、後続の `supabase/migrations/` 内のマイグレーションをステージングで確認してからSupabaseへ適用してください。Supabase Authの「Confirm email」は無効にし、メールテンプレートに `{{ .Token }}` を含めます。社員の `user_id` が登録ユーザーに紐付いている必要があります。追加email列は不要です。このDB関数は確定済みシートの二次評価者だけに宛先取得を許可します。
 

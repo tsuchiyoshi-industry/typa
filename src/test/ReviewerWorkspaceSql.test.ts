@@ -9,6 +9,7 @@ const migration = (file: string) =>
 const stages = migration("202610080001_evaluation_stages.sql");
 const settingsMigration = migration("202610080004_evaluation_settings.sql");
 const sheetGradeMigration = migration("202610080006_reviewer_workspace_sheet_grade.sql");
+const sheetEvaluatorsMigration = migration("202610080009_sheet_evaluators.sql");
 const uid = (id: number) => `00000000-0000-0000-0000-${String(id).padStart(12, "0")}`;
 const login = async (id: number) => {
 	await db.query("select set_config('request.jwt.claim.sub', $1, false)", [uid(id)]);
@@ -42,6 +43,8 @@ beforeAll(async () => {
 		create table public.common_evaluation_items (id bigint primary key, title text, description text, weight integer, item_set_id smallint);
 		create table public.common_evaluation_results (id bigint primary key, sheet_id bigint, item_id bigint, first_score integer, second_score integer, first_comment text);
 		insert into public.employee_grades values (1, '技術1級', 1), (2, '技術2級', 2);
+		create table public.evaluation_periods (id bigint primary key, is_active boolean not null default false);
+		insert into public.evaluation_periods values (10, true);
 		insert into auth.users select ('00000000-0000-0000-0000-' || lpad(id::text, 12, '0'))::uuid, now(),
 			jsonb_build_object('contact_email', 'employee' || id || '@example.jp') from generate_series(1, 8) id;
 		insert into public.employees (id, user_id, name, employee_no, grade_id, career_course, primary_evaluator_id, secondary_evaluator_id)
@@ -61,14 +64,19 @@ beforeAll(async () => {
 	await db.exec(migration("202610080002_sheet_grade.sql"));
 	await db.exec(sheetGradeMigration);
 	await db.exec(sheetGradeMigration);
+	// 既存のシートには、いまの評価者(一次 2・二次 3)が入る
+	await db.exec(sheetEvaluatorsMigration);
+	await db.exec(sheetEvaluatorsMigration);
 }, 30_000);
 beforeEach(async () => {
 	await db.exec(`reset role;
 		update auth.users set email_confirmed_at = now();
 		update public.employees set role_id = case when id = 8 then 3 when id in (2, 3) then 2 else 1 end;
 		update public.evaluation_settings set objective_allocation = 20, common_allocation = 80;
-		update public.employees set primary_evaluator_id = 2, secondary_evaluator_id = 3, no_secondary_evaluator = false, grade_id = 1;
+		delete from public.evaluation_sheets where id = 105;
 		update public.evaluation_sheets set status = 'submitted', first_rank = null, final_rank_letter = 'A', final_rank_level = 'plus', total_evaluation_score = 80 where id = 100;
+		-- 未確定のシートの評価者は、社員マスタの変更に追従して元に戻る
+		update public.employees set primary_evaluator_id = 2, secondary_evaluator_id = 3, no_secondary_evaluator = false, grade_id = 1;
 		set role authenticated;`);
 	await login(3);
 });
@@ -113,6 +121,55 @@ it("keeps a sheet on the grade it was created with after the employee is promote
 		sheetId: null,
 		gradeId: 2,
 		gradeName: "技術2級",
+	});
+});
+
+it("keeps a finalized sheet with the evaluators who evaluated it, while open sheets follow the employee master", async () => {
+	// 社員1(提出済み)と社員6(評価確定)の一次評価者を、2 から 7 に付け替える
+	await asAdmin("update public.employees set primary_evaluator_id = 7 where id in (1, 6)");
+	await login(7);
+	const mine = await workspace();
+	expect(mine.map((row) => row.employeeId)).toEqual([1]);
+	expect(mine[0]).toMatchObject({
+		isPrimary: true,
+		primaryEvaluatorId: 7,
+		primaryEvaluator: "社員7",
+	});
+	// 評価した人の一覧には、確定済みのシートが残る
+	await login(2);
+	const former = await workspace();
+	expect(former.find((row) => row.employeeId === 1)).toBeUndefined();
+	expect(former.find((row) => row.employeeId === 6)).toMatchObject({
+		status: "finalized",
+		isPrimary: true,
+		primaryEvaluatorId: 2,
+		primaryEvaluator: "社員2",
+	});
+
+	// 新しく作るシートは、そのときの評価者を持つ。クライアントが渡した値は使わない
+	await asAdmin(
+		"update public.employees set secondary_evaluator_id = 8 where id = 5; insert into public.evaluation_sheets (id, employee_id, period_id, status, primary_evaluator_id, secondary_evaluator_id) values (105, 5, 10, 'draft', 7, 7)",
+	);
+	await login(7);
+	expect((await workspace()).map((row) => row.employeeId)).toEqual([1]);
+	await login(8);
+	expect((await workspace()).find((row) => row.employeeId === 5)).toMatchObject({
+		sheetId: 105,
+		isPrimary: false,
+		canViewSecond: true,
+		primaryEvaluatorId: 2,
+	});
+	// 二次評価者を「なし」にすると、未確定のシートでは一次評価者が最終評価者になる
+	await asAdmin(
+		"update public.employees set secondary_evaluator_id = null, no_secondary_evaluator = true where id = 5",
+	);
+	expect((await workspace()).find((row) => row.employeeId === 5)).toBeUndefined();
+	await login(2);
+	expect((await workspace()).find((row) => row.employeeId === 5)).toMatchObject({
+		sheetId: 105,
+		isPrimary: true,
+		canViewFinal: true,
+		primaryIsFinal: true,
 	});
 });
 

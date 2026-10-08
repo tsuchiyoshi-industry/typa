@@ -55,26 +55,6 @@ export class SupabaseEmployeeRepository implements EmployeeRepository {
 		}
 	}
 
-	// 引数で userId (AuthのUID) を直接受け取る
-	async findEmployeeIdByAuthId(
-		authUserId: string,
-	): Promise<{ data: number | null; error: Error | null }> {
-		try {
-			const { data, error } = await supabase
-				.from("employees")
-				.select("id")
-				.eq("user_id", authUserId)
-				.maybeSingle();
-
-			if (error) {
-				throw error;
-			}
-			return { data: data ? (data as { id: number }).id : null, error: null };
-		} catch (e) {
-			return { data: null, error: e instanceof Error ? e : new Error(String(e)) };
-		}
-	}
-
 	async findById(employeeId: number): Promise<Employee | null> {
 		const { data, error } = await supabase
 			.from("employees")
@@ -109,20 +89,6 @@ export class SupabaseEmployeeRepository implements EmployeeRepository {
 			employee.secondary_evaluator_id,
 			employee.no_secondary_evaluator ?? false,
 		);
-	}
-
-	async findSubordinateIds(employeeId: number): Promise<number[]> {
-		const { data, error } = await supabase
-			.from("employees")
-			.select("id")
-			.or(`primary_evaluator_id.eq.${employeeId},secondary_evaluator_id.eq.${employeeId}`)
-			.neq("id", employeeId);
-
-		if (error || !data) {
-			return [];
-		}
-
-		return (data as Array<{ id: number }>).map((employee) => employee.id);
 	}
 
 	async findEvaluatorNames(

@@ -49,6 +49,7 @@ export class UpdateEvaluationStatusInteractor
 		}
 
 		const policy = EvaluationSheetAccessPolicy.for(request.currentEmployeeId, sheet);
+		policy.assertPeriodOpen();
 
 		const newStatus = this.resolveNewStatus(request, policy);
 		if (newStatus.isFirstEvaluationConfirmed()) {

@@ -8,6 +8,8 @@ import { isPrimaryEvaluator, isSecondaryEvaluator, isSubject } from "./Evaluator
  * 二次評価者が未設定なだけの社員には最終評価者がおらず、設定されるまで確定できない。
  * 評価は「提出済み → 一次評価(一次評価者が確定) → 二次評価(最終評価者が確定)」の順に進み、
  * 下書き中のシートは評価者に見せない。一次評価は確定すると変更できない。
+ * 記入・評価・状態の変更ができるのは、シートの評価期間が実施中の間だけ。締めた期間のシートは、
+ * 閲覧と確定済みシートの出力だけになる。
  * 本人・一次評価者・二次評価者の役割はシートごとに解決するため、
  * 「自分が誰かの評価者であり、かつ自分自身の被評価者でもある」場合でも
  * シート間で判定が混ざることはない。
@@ -16,6 +18,8 @@ export class EvaluationSheetAccessPolicy {
 	private readonly viewerIsFinalEvaluator: boolean;
 	/** 評価者として、提出済みのシートを見ている。下書き中は評価者に内容を見せない。 */
 	private readonly viewerIsEvaluatorOfSubmittedSheet: boolean;
+	/** シートの評価期間が実施中か。締めた期間のシートは誰も変更できない。 */
+	private readonly periodIsOpen: boolean;
 
 	private constructor(
 		private readonly sheet: EvaluationSheet,
@@ -29,6 +33,7 @@ export class EvaluationSheetAccessPolicy {
 			!viewerIsSubject &&
 			(viewerIsPrimaryEvaluator || viewerIsSecondaryEvaluator) &&
 			sheet.status.isSubmitted();
+		this.periodIsOpen = sheet.evaluationPeriod.isActive;
 	}
 
 	static for(
@@ -54,16 +59,26 @@ export class EvaluationSheetAccessPolicy {
 		return this.viewerIsSubject || this.viewerIsEvaluatorOfSubmittedSheet;
 	}
 
+	/** 締めた評価期間のシートを変更しようとしたら、役割より先にその理由で止める。 */
+	assertPeriodOpen(): void {
+		if (!this.periodIsOpen) {
+			throw new Error(
+				"この評価期間は締められているため、評価シートを変更できません。変更が必要な場合は、TYPA の管理担当者に連絡してください。",
+			);
+		}
+	}
+
 	// --- チャレンジ目標(Milestone) ---
 
 	/** 目標文言(チャレンジ目標・中間目標・達成状況)を編集できるのは本人のみ。 */
 	canEditMilestoneGoal(): boolean {
-		return this.viewerIsSubject && this.sheet.isEditable();
+		return this.periodIsOpen && this.viewerIsSubject && this.sheet.isEditable();
 	}
 
 	/** 一次評価者は、本人の提出後から一次評価を確定するまで編集できる。 */
 	canEditMilestoneFirstScore(): boolean {
 		return (
+			this.periodIsOpen &&
 			!this.viewerIsSubject &&
 			this.viewerIsPrimaryEvaluator &&
 			this.sheet.status.isAwaitingFirstEvaluation()
@@ -73,6 +88,7 @@ export class EvaluationSheetAccessPolicy {
 	/** 二次評価者は、一次評価が確定してから評価を確定するまで編集できる。 */
 	canEditMilestoneSecondScore(): boolean {
 		return (
+			this.periodIsOpen &&
 			!this.viewerIsSubject &&
 			this.viewerIsSecondaryEvaluator &&
 			this.sheet.status.isAwaitingSecondEvaluation()
@@ -121,12 +137,14 @@ export class EvaluationSheetAccessPolicy {
 
 	/** 本人は自分の下書きを提出できる。 */
 	canSubmitOwnSheet(): boolean {
-		return this.viewerIsSubject && this.sheet.status.isDraft();
+		return this.periodIsOpen && this.viewerIsSubject && this.sheet.status.isDraft();
 	}
 
 	/** 本人は一次評価が確定するまで、提出済みを下書きに戻せる。 */
 	canRevertOwnSheetToDraft(): boolean {
-		return this.viewerIsSubject && this.sheet.status.isAwaitingFirstEvaluation();
+		return (
+			this.periodIsOpen && this.viewerIsSubject && this.sheet.status.isAwaitingFirstEvaluation()
+		);
 	}
 
 	/**
@@ -135,6 +153,7 @@ export class EvaluationSheetAccessPolicy {
 	 */
 	canConfirmFirstEvaluation(): boolean {
 		return (
+			this.periodIsOpen &&
 			!this.viewerIsSubject &&
 			this.viewerIsPrimaryEvaluator &&
 			!this.sheet.primaryIsFinalEvaluator() &&
@@ -148,6 +167,7 @@ export class EvaluationSheetAccessPolicy {
 	 */
 	canFinalizeEvaluation(): boolean {
 		return (
+			this.periodIsOpen &&
 			this.canViewFinalEvaluation() &&
 			(this.sheet.status.isAwaitingSecondEvaluation() ||
 				(this.sheet.primaryIsFinalEvaluator() && this.sheet.status.isAwaitingFirstEvaluation()))

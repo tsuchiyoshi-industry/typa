@@ -2,11 +2,14 @@ import { useBeforeLeave } from "@solidjs/router";
 import Settings from "lucide-solid/icons/settings";
 import { type Component, createSignal, onCleanup, onMount, Show } from "solid-js";
 import { EvaluationAllocation } from "../../domain/valueObjects/EvaluationAllocation";
+import type { EvaluationPeriodController } from "../controllers/EvaluationPeriodController";
 import type { SettingsController } from "../controllers/SettingsController";
+import EvaluationPeriodSettings from "./components/EvaluationPeriodSettings";
 import { confirmAction, confirmDiscard, showToast, trackUnsaved } from "./feedback";
 
 interface SettingsViewProps {
 	controller: SettingsController;
+	periodController: Pick<EvaluationPeriodController, "load" | "save" | "remove" | "close">;
 }
 
 const TOTAL = EvaluationAllocation.TOTAL;
@@ -131,7 +134,7 @@ const SettingsView: Component<SettingsViewProps> = (props) => {
 						<Settings class="header-icon" />
 						設定
 					</h1>
-					<p>評価の計算に使う、会社ごとの基準です。Admin だけが変更できます。</p>
+					<p>評価期間と、評価の計算に使う会社ごとの基準です。Admin だけが変更できます。</p>
 				</div>
 			</header>
 
@@ -153,6 +156,7 @@ const SettingsView: Component<SettingsViewProps> = (props) => {
 						</Show>
 					}
 				>
+					<EvaluationPeriodSettings controller={props.periodController} />
 					<section class="info-card" aria-labelledby="allocation-heading">
 						<h2 id="allocation-heading">評価点の配点</h2>
 						<p>

@@ -44,6 +44,32 @@ describe("authorization matrix", () => {
 			},
 		);
 	}
+	it("freezes every change once the period is closed, and keeps viewing and export", () => {
+		for (const status of statuses) {
+			for (const id of [1, 2, 3]) {
+				const open = EvaluationSheetAccessPolicy.for(id, sheet(status));
+				const closed = EvaluationSheetAccessPolicy.for(id, sheet(status, undefined, true));
+				expect(closed.canEditMilestoneGoal()).toBe(false);
+				expect(closed.canEditMilestoneFirstScore()).toBe(false);
+				expect(closed.canEditMilestoneSecondScore()).toBe(false);
+				expect(closed.canEditCommonEvaluationFirst()).toBe(false);
+				expect(closed.canEditCommonEvaluationSecond()).toBe(false);
+				expect(closed.canEditOverallComment("first")).toBe(false);
+				expect(closed.canEditOverallComment("second")).toBe(false);
+				expect(closed.canSubmitOwnSheet()).toBe(false);
+				expect(closed.canRevertOwnSheetToDraft()).toBe(false);
+				expect(closed.canConfirmFirstEvaluation()).toBe(false);
+				expect(closed.canFinalizeEvaluation()).toBe(false);
+				expect(() => closed.assertPeriodOpen()).toThrow("この評価期間は締められているため");
+				expect(() => open.assertPeriodOpen()).not.toThrow();
+				// 見られる範囲と、確定済みシートの出力は変わらない
+				expect(closed.canViewSheet()).toBe(open.canViewSheet());
+				expect(closed.canViewCommonEvaluation()).toBe(open.canViewCommonEvaluation());
+				expect(closed.canViewFinalEvaluation()).toBe(open.canViewFinalEvaluation());
+				expect(closed.canExportSheet()).toBe(open.canExportSheet());
+			}
+		}
+	});
 	for (const status of statuses) {
 		it.each([1, 2, 3, null])(
 			`with secondary explicitly set to none, the primary is the final evaluator in ${status.toString()} for %s`,

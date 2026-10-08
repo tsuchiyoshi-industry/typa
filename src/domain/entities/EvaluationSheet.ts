@@ -33,6 +33,10 @@ const anyStored = (...values: (number | null | undefined)[]) =>
 export class EvaluationSheet {
 	constructor(
 		public readonly sheetId: number,
+		/**
+		 * 被評価者。評価者(一次・二次・二次評価者「なし」)は、社員マスタの今の評価者ではなく、
+		 * このシートが持つ評価者。未確定の間は社員マスタの変更に追従し、確定後は変わらない。
+		 */
 		public readonly subject: Employee,
 		public readonly evaluationPeriod: EvaluationPeriod,
 		public readonly primaryEvaluatorName: string,

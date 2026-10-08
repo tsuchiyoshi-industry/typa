@@ -501,6 +501,25 @@ a:hover {
 	color: var(--hr-text-muted);
 }
 
+/* 留意事項が多い確認は、幅を広げ、長ければ箇条書きの中でスクロールする */
+.confirm-dialog:has(.confirm-dialog__details) {
+	width: min(620px, calc(100vw - 2rem));
+}
+
+.confirm-dialog__details {
+	max-height: 50vh;
+	margin: 0.8rem 0 0;
+	padding-left: 1.25rem;
+	overflow-y: auto;
+	font-size: 0.875rem;
+	line-height: 1.7;
+	color: var(--hr-text-muted);
+}
+
+.confirm-dialog__details li + li {
+	margin-top: 0.4rem;
+}
+
 .confirm-dialog__actions {
 	display: flex;
 	flex-wrap: wrap;

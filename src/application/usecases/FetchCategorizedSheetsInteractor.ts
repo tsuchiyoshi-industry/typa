@@ -60,19 +60,14 @@ export class FetchCategorizedSheetsInteractor
 			return outputPort.present({ mySheets: [], subordinateSheets: [] });
 		}
 
-		// 3. データの並行取得（Promise.all を使って高速化）
-		const [mySheets, subordinateIds] = await Promise.all([
+		// 3. 自分のシートと、自分が評価者になっているシート。評価者はシートが持つもので引くので、
+		// 評価者を付け替えたあとも、確定済みのシートは評価した人の一覧に残る
+		const [mySheets, subordinateSheets] = await Promise.all([
 			this.evaluationSheetRepository.findByOwner(currentEmployeeId),
-			this.employeeRepository.findSubordinateIds(currentEmployeeId),
+			this.evaluationSheetRepository.findByEvaluator(currentEmployeeId),
 		]);
 
-		// 4. 部下がいる場合のみシートを取得
-		const subordinateSheets =
-			subordinateIds.length > 0
-				? await this.evaluationSheetRepository.findByEmployeeIds(subordinateIds)
-				: [];
-
-		// 5. DTOへ変換して出力
+		// 4. DTOへ変換して出力
 		outputPort.present({
 			mySheets: mySheets.map(toSheetSummaryDto),
 			// 下書き中のシートは評価者に見せない

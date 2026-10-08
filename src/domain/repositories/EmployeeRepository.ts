@@ -4,7 +4,6 @@ export interface EmployeeRepository {
 	findCurrentEmployeeId(): Promise<{ data: number | null; error: Error | null }>;
 	findById(employeeId: number): Promise<Employee | null>;
 	findByEmployeeNo(employeeNo: string): Promise<Employee | null>;
-	findSubordinateIds(employeeId: number): Promise<number[]>;
 	findEvaluatorNames(
 		primaryEvaluatorId: number | null,
 		secondaryEvaluatorId: number | null,

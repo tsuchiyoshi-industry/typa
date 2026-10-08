@@ -34,6 +34,8 @@ export function showToast(kind: ToastKind, message: string, detail?: string): vo
 export interface ConfirmRequest {
 	title: string;
 	message: string;
+	/** 実行する前に確かめてもらうこと。本文の下に箇条書きで出す。 */
+	details?: string[];
 	confirmLabel: string;
 	cancelLabel?: string;
 	/** 選択肢のないお知らせは true にする。キャンセルボタンを出さない。 */

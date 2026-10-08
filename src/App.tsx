@@ -4,6 +4,7 @@ import { AccountController } from "./adapter/controllers/AccountController";
 import { ChallengeEvaluationController } from "./adapter/controllers/ChallengeEvaluationController";
 import { CommonEvaluationController } from "./adapter/controllers/CommonEvaluationController";
 import { EmployeeMasterController } from "./adapter/controllers/EmployeeMasterController";
+import { EvaluationPeriodController } from "./adapter/controllers/EvaluationPeriodController";
 import { ReviewerWorkspaceController } from "./adapter/controllers/ReviewerWorkspaceController";
 import { SettingsController } from "./adapter/controllers/SettingsController";
 import { SheetEditorController } from "./adapter/controllers/SheetEditorController";
@@ -27,7 +28,9 @@ import SettingsView from "./adapter/views/SettingsView";
 import SheetEditorView from "./adapter/views/SheetEditorView";
 import SheetListView from "./adapter/views/SheetListView";
 import { CheckEvaluatorRoleInteractor } from "./application/usecases/CheckEvaluatorRoleInteractor";
+import { CloseEvaluationPeriodInteractor } from "./application/usecases/CloseEvaluationPeriodInteractor";
 import { CreateEvaluationSheetInteractor } from "./application/usecases/CreateEvaluationSheetInteractor";
+import { DeleteEvaluationPeriodInteractor } from "./application/usecases/DeleteEvaluationPeriodInteractor";
 import { ExportEvaluationSheetInteractor } from "./application/usecases/ExportEvaluationSheetInteractor";
 import { FetchCategorizedSheetsInteractor } from "./application/usecases/FetchCategorizedSheetsInteractor";
 import { FetchDistinctPeriodsInteractor } from "./application/usecases/FetchDistinctPeriodsInteractor";
@@ -36,6 +39,7 @@ import { LoadCommonEvaluationInteractor } from "./application/usecases/LoadCommo
 import { LoadEmployeeMasterInteractor } from "./application/usecases/LoadEmployeeMasterInteractor";
 import { RegisterEmployeeAccountInteractor } from "./application/usecases/RegisterEmployeeAccountInteractor";
 import { ResetEmployeeRegistrationInteractor } from "./application/usecases/ResetEmployeeRegistrationInteractor";
+import { SaveEvaluationPeriodInteractor } from "./application/usecases/SaveEvaluationPeriodInteractor";
 import { SignInEmployeeInteractor } from "./application/usecases/SignInEmployeeInteractor";
 import { UpdateEmployeeEvaluatorInteractor } from "./application/usecases/UpdateEmployeeEvaluatorInteractor";
 import { UpdateEmployeeGradeInteractor } from "./application/usecases/UpdateEmployeeGradeInteractor";
@@ -80,6 +84,12 @@ const settingsController = new SettingsController(
 	evaluationSettingsRepository,
 	employeeMasterRepository,
 	new UpdateEvaluationAllocationInteractor(evaluationSettingsRepository, employeeMasterRepository),
+);
+const evaluationPeriodController = new EvaluationPeriodController(
+	evaluationPeriodRepository,
+	new SaveEvaluationPeriodInteractor(evaluationPeriodRepository, employeeMasterRepository),
+	new DeleteEvaluationPeriodInteractor(evaluationPeriodRepository, employeeMasterRepository),
+	new CloseEvaluationPeriodInteractor(evaluationPeriodRepository, employeeMasterRepository),
 );
 const emailNotificationRepository = new TauriEmailNotificationRepository(
 	new SupabaseEvaluationNotificationRecipientRepository(),
@@ -215,10 +225,7 @@ const App: Component = () => {
 		setSession(currentSession);
 
 		if (currentSession) {
-			const { data: employeeId } = await employeeRepository.findEmployeeIdByAuthId(
-				currentSession.userId,
-			);
-			setIsLinked(employeeId !== null);
+			setIsLinked(await employeeRepository.checkUserLinked(currentSession.userId));
 		} else {
 			setIsLinked(false);
 		}
@@ -316,7 +323,12 @@ const App: Component = () => {
 					/>
 					<Route
 						path="/settings"
-						component={() => <SettingsView controller={settingsController} />}
+						component={() => (
+							<SettingsView
+								controller={settingsController}
+								periodController={evaluationPeriodController}
+							/>
+						)}
 					/>
 					<Route path="/help" component={HelpView} />
 					<Route path="*404" component={NotFound} />

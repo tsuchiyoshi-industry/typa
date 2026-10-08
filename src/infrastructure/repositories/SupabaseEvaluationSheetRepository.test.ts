@@ -40,6 +40,9 @@ function setup(status = "first_evaluated") {
 		common_allocation: 80,
 		final_rank_letter: "A",
 		final_rank_level: "none",
+		primary_evaluator_id: 2,
+		secondary_evaluator_id: 3,
+		no_secondary_evaluator: false,
 		period: { period_name: "テスト期間", start_date: "2026-04-01", end_date: "2026-09-30" },
 		employee,
 	};
@@ -84,8 +87,9 @@ function setup(status = "first_evaluated") {
 		firstRate: 75,
 		secondRate: 100,
 	});
-	const repo = new SupabaseEvaluationSheetRepository(employeeRepository(), common, settings);
-	return { sheet, repo, settings, common };
+	const employees = employeeRepository();
+	const repo = new SupabaseEvaluationSheetRepository(employees, common, settings);
+	return { sheet, repo, settings, common, employees };
 }
 
 beforeEach(() => vi.clearAllMocks());
@@ -105,6 +109,19 @@ describe("restoring a sheet from stored rows", () => {
 			return query;
 		});
 		await expect(repo.findById(100)).rejects.toThrow("goal read failed");
+	});
+	it("uses the evaluators the sheet carries, not the employee's current ones", async () => {
+		// 社員マスタでは評価者が 2・3 に付け替わっていても、シートは 7 が評価して二次評価者「なし」
+		const { sheet: row, repo, employees } = setup("finalized");
+		Object.assign(row, {
+			primary_evaluator_id: 7,
+			secondary_evaluator_id: null,
+			no_secondary_evaluator: true,
+		});
+		const sheet = await repo.findById(100);
+		expect(sheet?.subject).toMatchObject({ primaryEvaluatorId: 7, secondaryEvaluatorId: null });
+		expect(sheet?.primaryIsFinalEvaluator()).toBe(true);
+		expect(employees.findEvaluatorNames).toHaveBeenCalledWith(7, null, true);
 	});
 	it("uses current settings and the exact fraction in an open sheet and export", async () => {
 		const { repo } = setup();

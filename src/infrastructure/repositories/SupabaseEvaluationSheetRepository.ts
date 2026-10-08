@@ -1,3 +1,4 @@
+import { Employee } from "../../domain/entities/Employee";
 import { EvaluationPeriod } from "../../domain/entities/EvaluationPeriod";
 import { EvaluationSheet, type StoredSheetScores } from "../../domain/entities/EvaluationSheet";
 import { Milestone } from "../../domain/entities/Milestone";
@@ -139,6 +140,10 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 			common_allocation?: number | null;
 			/** シート作成時の等級(DB のトリガーが作成時に固定する)。 */
 			grade_id: number | null;
+			/** シートの評価者。未確定の間は DB のトリガーが社員マスタに合わせ、確定後は変わらない。 */
+			primary_evaluator_id?: number | null;
+			secondary_evaluator_id?: number | null;
+			no_secondary_evaluator?: boolean | null;
 			created_at: string;
 			updated_at: string;
 		};
@@ -148,10 +153,22 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 			return null;
 		}
 
+		// 評価者は、社員マスタの今の評価者ではなく、シートが持つ評価者
+		const subject = new Employee(
+			employee.id,
+			employee.name,
+			employee.employeeNo,
+			employee.roleId,
+			employee.careerCourse,
+			employee.gradeId,
+			sheet.primary_evaluator_id ?? null,
+			sheet.secondary_evaluator_id ?? null,
+			sheet.no_secondary_evaluator ?? false,
+		);
 		const evaluatorNames = await this.employeeRepository.findEvaluatorNames(
-			employee.primaryEvaluatorId,
-			employee.secondaryEvaluatorId,
-			employee.noSecondaryEvaluator,
+			subject.primaryEvaluatorId,
+			subject.secondaryEvaluatorId,
+			subject.noSecondaryEvaluator,
 		);
 
 		const { data: periodData } = await supabase
@@ -228,7 +245,7 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 
 		return EvaluationSheet.restore({
 			sheetId: sheet.id,
-			subject: employee,
+			subject,
 			evaluationPeriod,
 			primaryEvaluatorName: evaluatorNames.primaryEvaluator,
 			secondaryEvaluatorName: evaluatorNames.secondaryEvaluator,
@@ -354,15 +371,12 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 		return error || !data ? [] : (data as EvaluationSheetListRow[]).map(toSheetSummary);
 	}
 
-	async findByEmployeeIds(employeeIds: number[]): Promise<EvaluationSheetSummary[]> {
-		if (employeeIds.length === 0) {
-			return [];
-		}
-
+	async findByEvaluator(employeeId: number): Promise<EvaluationSheetSummary[]> {
 		const { data, error } = await supabase
 			.from("evaluation_sheets")
 			.select(SHEET_LIST_SELECT)
-			.in("employee_id", employeeIds);
+			.or(`primary_evaluator_id.eq.${employeeId},secondary_evaluator_id.eq.${employeeId}`)
+			.neq("employee_id", employeeId);
 
 		return error || !data ? [] : (data as EvaluationSheetListRow[]).map(toSheetSummary);
 	}

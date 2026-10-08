@@ -42,6 +42,7 @@ export class UpsertCommonEvaluationInteractor
 			throw new Error("評価シートが見つかりません。");
 		}
 		const policy = EvaluationSheetAccessPolicy.for(request.currentEmployeeId, sheet);
+		policy.assertPeriodOpen();
 		const canEditFirst = policy.canEditCommonEvaluationFirst();
 		const canEditSecond = policy.canEditCommonEvaluationSecond();
 

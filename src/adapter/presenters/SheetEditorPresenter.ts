@@ -137,8 +137,10 @@ export function createSheetEditorPresenter(): {
 		present(response: FetchDistinctPeriodsResponse) {
 			setViewModel((prev) => ({
 				...prev,
-				periods: response.periods,
-				selectedPeriodId: prev.selectedPeriodId ?? response.periods[0]?.id ?? null,
+				// 評価シートを作成できるのは、実施中の評価期間だけ
+				periods: response.periods.filter((period) => period.isActive),
+				selectedPeriodId:
+					prev.selectedPeriodId ?? response.periods.find((period) => period.isActive)?.id ?? null,
 			}));
 		},
 	};

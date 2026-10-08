@@ -6,6 +6,7 @@ import {
 	masterRepository,
 	output,
 	period,
+	periodRepository,
 	profile,
 	sheet,
 	sheetRepository,
@@ -221,12 +222,11 @@ describe("lists and permission queries", () => {
 		expect(out.present).toHaveBeenCalledWith({ mySheets: [], subordinateSheets: [] });
 		expect(sheets.findByOwner).not.toHaveBeenCalled();
 	});
-	it.each([{ ids: [] }, { ids: [7, 8] }])(
-		"queries only assigned subordinate IDs %j",
-		async ({ ids }) => {
+	it.each([{ evaluated: 0 }, { evaluated: 1 }])(
+		"lists own sheets and the sheets that name the current employee as evaluator %j",
+		async ({ evaluated }) => {
 			const employees = employeeRepository();
 			const sheets = sheetRepository();
-			employees.findSubordinateIds.mockResolvedValue(ids);
 			const summary = {
 				id: 100,
 				periodId: 10,
@@ -243,14 +243,15 @@ describe("lists and permission queries", () => {
 				gradeName: "作成時の等級",
 			};
 			sheets.findByOwner.mockResolvedValue([summary]);
-			sheets.findByEmployeeIds.mockResolvedValue([summary]);
+			sheets.findByEvaluator.mockResolvedValue(evaluated ? [summary] : []);
 			const out = output<never>();
 			await new FetchCategorizedSheetsInteractor(employees, sheets).execute({}, out);
 			expect(sheets.findByOwner).toHaveBeenCalledWith(1);
-			expect(sheets.findByEmployeeIds).toHaveBeenCalledTimes(ids.length ? 1 : 0);
-			if (ids.length) {
-				expect(sheets.findByEmployeeIds).toHaveBeenCalledWith(ids);
-			}
+			// 評価者はシートが持つもので引く(社員マスタの今の部下ではない)
+			expect(sheets.findByEvaluator).toHaveBeenCalledExactlyOnceWith(1);
+			expect(out.present.mock.calls[0][0]).toMatchObject({
+				subordinateSheets: { length: evaluated },
+			});
 			expect(out.present).toHaveBeenCalledWith(
 				expect.objectContaining({
 					mySheets: [
@@ -266,7 +267,8 @@ describe("lists and permission queries", () => {
 		},
 	);
 	it("maps periods and propagates repository failures", async () => {
-		const repo = { findDistinctPeriods: vi.fn().mockResolvedValue([period()]), findById: vi.fn() };
+		const repo = periodRepository();
+		repo.findDistinctPeriods.mockResolvedValue([period()]);
 		const out = output<never>();
 		const interactor = new FetchDistinctPeriodsInteractor(repo);
 		await interactor.execute({}, out);

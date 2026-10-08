@@ -1,5 +1,9 @@
 import type { EvaluationSheet } from "../../domain/entities/EvaluationSheet";
-import type { EmailNotificationRepository } from "../../domain/repositories/EmailNotificationRepository";
+import type {
+	EmailNotificationRepository,
+	NotificationDelivery,
+	ReportDelivery,
+} from "../../domain/repositories/EmailNotificationRepository";
 import type { EmployeeRepository } from "../../domain/repositories/EmployeeRepository";
 import type { EvaluationSheetRepository } from "../../domain/repositories/EvaluationSheetRepository";
 import { EvaluationSheetAccessPolicy } from "../../domain/services/EvaluationSheetAccessPolicy";
@@ -20,15 +24,19 @@ export interface UpdateEvaluationStatusRequest {
 	 */
 	status: EvaluationStatus;
 	currentEmployeeId: number;
+	/** false なら、確定しても通知メールを送らない。省略すると送る。 */
+	notify?: boolean;
 }
 
 export interface UpdateEvaluationStatusResponse {
 	sheet: EvaluationSheetDto;
-	notificationWarning?: string;
 }
 
 export interface UpdateEvaluationStatusOutputPort
-	extends OutputPort<UpdateEvaluationStatusResponse> {}
+	extends OutputPort<UpdateEvaluationStatusResponse> {
+	/** 通知メールの宛先ごとの送信結果。確定を present した後、送信が終わるたびに届く。 */
+	presentNotificationDelivery?(delivery: NotificationDelivery): void;
+}
 
 export class UpdateEvaluationStatusInteractor
 	implements UseCase<UpdateEvaluationStatusRequest, UpdateEvaluationStatusOutputPort>
@@ -93,16 +101,16 @@ export class UpdateEvaluationStatusInteractor
 		});
 		const gradeName = await this.employeeRepository.findGradeName(updated.gradeId);
 
-		const notificationWarning = await this.notify(updated);
+		outputPort.present({ sheet: toEvaluationSheetDto(updated, gradeName, policy) });
 
-		outputPort.present({
-			sheet: toEvaluationSheetDto(updated, gradeName, policy),
-			...(notificationWarning ? { notificationWarning } : {}),
-		});
+		// 送信の完了は待たない。確定は済んでおり、結果は宛先ごとに後から知らせる
+		if (request.notify !== false) {
+			void this.notify(updated, (delivery) => outputPort.presentNotificationDelivery?.(delivery));
+		}
 	}
 
 	/** 一次評価の確定は二次評価者へ、評価の確定は評価者へメールで知らせる。送信の失敗で確定は取り消さない。 */
-	private async notify(sheet: EvaluationSheet): Promise<string | undefined> {
+	private async notify(sheet: EvaluationSheet, report: ReportDelivery): Promise<void> {
 		const firstConfirmed = sheet.status.isAwaitingSecondEvaluation();
 		if (!this.emailNotificationRepository || !(firstConfirmed || sheet.status.isFinalized())) {
 			return;
@@ -113,16 +121,21 @@ export class UpdateEvaluationStatusInteractor
 			employeeName: sheet.subject.name,
 			employeeNo: sheet.subject.employeeNo,
 			periodName: sheet.evaluationPeriod.periodName,
+			primaryEvaluatorName: sheet.primaryEvaluatorName,
+			secondaryEvaluatorName: sheet.secondaryEvaluatorName,
 		};
 		try {
 			await (firstConfirmed
-				? this.emailNotificationRepository.notifyFirstEvaluationConfirmed(notification)
-				: this.emailNotificationRepository.notifySheetFinalized(notification));
+				? this.emailNotificationRepository.notifyFirstEvaluationConfirmed(notification, report)
+				: this.emailNotificationRepository.notifySheetFinalized(notification, report));
 		} catch (error) {
+			// 宛先や SMTP 設定を読めず、誰にも送れなかった
 			console.error("評価の通知メールの送信に失敗しました:", error);
-			return firstConfirmed
-				? "一次評価は確定しましたが、二次評価者へ通知メールを送信できませんでした。二次評価者に直接お知らせください。"
-				: "評価は確定しましたが、通知メールを送信できなかった評価者がいます。登録メールとSMTP設定を確認してください。";
+			const message = (error as { message?: unknown } | null)?.message;
+			report({
+				recipient: firstConfirmed ? "二次評価者" : "評価者",
+				error: typeof message === "string" ? message : "通知メールを送信できませんでした。",
+			});
 		}
 	}
 

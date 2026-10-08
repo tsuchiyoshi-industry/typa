@@ -1,5 +1,5 @@
 import { useNavigate } from "@solidjs/router";
-import { createMemo, createSignal, Show } from "solid-js";
+import { createMemo, createSignal, onMount, Show } from "solid-js";
 import type { AccountController } from "../controllers/AccountController";
 import LoadingView from "./components/LoadingView";
 import { confirmAction } from "./feedback";
@@ -32,7 +32,17 @@ const LoginView = (props: LoginViewProps) => {
 
 	const [viewMode, setViewMode] = createSignal<ViewMode>("login");
 
-	const requiredDomain = import.meta.env.VITE_REQUIRED_DOMAIN;
+	// 会社のメールドメイン(例: @example.jp)。DB の設定から読む
+	const [requiredDomain, setRequiredDomain] = createSignal("");
+	onMount(async () => {
+		const suffix = await props.controller.requiredEmailSuffix().catch(() => "");
+		setRequiredDomain(suffix);
+		if (!suffix) {
+			setErrorMessage(
+				"会社ドメインの設定を読み込めませんでした。通信状況を確認して、アプリを開き直してください。",
+			);
+		}
+	});
 
 	const passwordMismatch = createMemo(
 		() =>
@@ -44,10 +54,14 @@ const LoginView = (props: LoginViewProps) => {
 	/** ドメイン違いでボタンが押せない理由を、入力欄の下に出すための判定。 */
 	const emailDomainError = createMemo(() => {
 		const currentEmail = email().trim();
-		if (!requiredDomain || !currentEmail.includes("@") || currentEmail.endsWith(requiredDomain)) {
+		if (
+			!requiredDomain() ||
+			!currentEmail.includes("@") ||
+			currentEmail.endsWith(requiredDomain())
+		) {
 			return null;
 		}
-		return `${requiredDomain} で終わる会社のメールアドレスを入力してください。`;
+		return `${requiredDomain()} で終わる会社のメールアドレスを入力してください。`;
 	});
 
 	const isSubmitDisabled = createMemo(() => {
@@ -59,7 +73,7 @@ const LoginView = (props: LoginViewProps) => {
 		// これにより、正しいドメインを打ち切るまでボタンは活性化しません
 		if (viewMode() === "signup") {
 			const currentEmail = email().trim();
-			return !(currentEmail && requiredDomain && currentEmail.endsWith(requiredDomain));
+			return !(currentEmail && requiredDomain() && currentEmail.endsWith(requiredDomain()));
 		}
 
 		if (!employeeNo().trim() || !password()) {
@@ -307,7 +321,7 @@ const LoginView = (props: LoginViewProps) => {
 									autocomplete="email"
 									value={email()}
 									onInput={(e) => setEmail(e.currentTarget.value)}
-									placeholder={requiredDomain ? `name${requiredDomain}` : undefined}
+									placeholder={requiredDomain() ? `name${requiredDomain()}` : undefined}
 									aria-invalid={emailDomainError() !== null}
 									required
 								/>

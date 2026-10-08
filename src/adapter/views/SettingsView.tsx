@@ -4,12 +4,15 @@ import { type Component, createSignal, onCleanup, onMount, Show } from "solid-js
 import { EvaluationAllocation } from "../../domain/valueObjects/EvaluationAllocation";
 import type { EvaluationPeriodController } from "../controllers/EvaluationPeriodController";
 import type { SettingsController } from "../controllers/SettingsController";
+import type { SmtpSettingsController } from "../controllers/SmtpSettingsController";
 import EvaluationPeriodSettings from "./components/EvaluationPeriodSettings";
+import SmtpSettings from "./components/SmtpSettings";
 import { confirmAction, confirmDiscard, showToast, trackUnsaved } from "./feedback";
 
 interface SettingsViewProps {
 	controller: SettingsController;
 	periodController: Pick<EvaluationPeriodController, "load" | "save" | "remove" | "close">;
+	smtpController: Pick<SmtpSettingsController, "load" | "save">;
 }
 
 const TOTAL = EvaluationAllocation.TOTAL;
@@ -134,7 +137,10 @@ const SettingsView: Component<SettingsViewProps> = (props) => {
 						<Settings class="header-icon" />
 						設定
 					</h1>
-					<p>評価期間と、評価の計算に使う会社ごとの基準です。Admin だけが変更できます。</p>
+					<p>
+						評価期間、評価の計算に使う会社ごとの基準、通知メールの送信元です。Admin
+						だけが変更できます。
+					</p>
 				</div>
 			</header>
 
@@ -281,6 +287,7 @@ const SettingsView: Component<SettingsViewProps> = (props) => {
 							</button>
 						</div>
 					</section>
+					<SmtpSettings controller={props.smtpController} />
 				</Show>
 			</Show>
 		</div>

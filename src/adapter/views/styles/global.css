@@ -520,6 +520,21 @@ a:hover {
 	margin-top: 0.4rem;
 }
 
+.confirm-dialog__checkbox {
+	display: flex;
+	align-items: flex-start;
+	gap: 0.5rem;
+	margin-top: 1rem;
+	font-size: 0.9rem;
+	line-height: 1.5;
+	cursor: pointer;
+}
+
+.confirm-dialog__checkbox input {
+	margin-top: 0.25rem;
+	accent-color: var(--hr-accent);
+}
+
 .confirm-dialog__actions {
 	display: flex;
 	flex-wrap: wrap;

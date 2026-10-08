@@ -39,6 +39,18 @@ const ConfirmDialog: Component = () => {
 								</ul>
 							)}
 						</Show>
+						<Show when={request().checkbox}>
+							{(checkbox) => (
+								<label class="confirm-dialog__checkbox">
+									<input
+										type="checkbox"
+										checked
+										onChange={(event) => checkbox().onChange(event.currentTarget.checked)}
+									/>
+									{checkbox().label}
+								</label>
+							)}
+						</Show>
 						<div class="confirm-dialog__actions">
 							{/* 取り消せない操作で Enter を押しても実行されないよう、キャンセル側に初期フォーカス */}
 							<Show when={!request().acknowledgeOnly}>

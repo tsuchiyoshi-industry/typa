@@ -55,6 +55,8 @@ DB 構成は [基本設計書の 8 章](docs/basic-design.md#8-データ設計) 
 
 `202610080010_notifications_by_sheet_evaluators.sql` は、通知先の取得（一次評価の確定・評価の確定）と確定時の未評価チェックを、社員マスタではなくシートの評価者で判定するように直します。`202610080011_unique_rows.sql` は、評価期間・社員ごとに 1 シート、シート・目標番号ごとに 1 目標、シート・項目ごとに 1 結果の一意制約を揃えます（本番に既にあるものはそのまま、`milestones` の分を追加）。`milestones` に同じシート・同じ目標番号の行が重複していると失敗するので、その場合は先に重複を解消してください。目標の保存はこの制約を使うため、アプリの配布前に適用が必要です。
 
+`202610080013_workspace_settings.sql` は、ワークスペース全体の設定（`workspace_settings`、常に1行）を追加します。会社のメールドメイン（旧 `VITE_REQUIRED_DOMAIN`）と、通知メールの SMTP 設定（旧 `VITE_SMTP_*`）をここに持ちます。ログイン画面がこのマイグレーションの DB 関数で会社ドメインを読むため、**アプリの配布前に適用が必要です**。会社ドメインは、登録済みアカウントの内部用アドレスから自動で入ります。SMTP 設定は空で始まるので、適用後に Admin が設定画面の「通知メール」で登録してください（登録するまで通知メールは送れず、確定のたびにエラーのトーストが出ます）。アカウントが1件もない環境では、`update public.workspace_settings set required_domain = 'example.jp';` を実行してください。
+
 `202610080003_employee_roles.sql` は、Admin が社員マスタから TYPA の権限（Admin / Reviewer / Employee）を変えるための DB 関数 `set_employee_role` を追加します。最後の Admin は外せません。あわせて、クライアントから `employees.role_id` を直接更新する権限を外します（`employees` に列を追加したら、クライアントから更新させる列はこのマイグレーションと同じ形で `grant update` が必要です）。誰がどの権限かは Admin の画面にだけ表示しますが、`role_id` の読み取り自体は DB 側で制限していません（SEC-002 の対象）。
 
 ## 開発
@@ -107,15 +109,15 @@ PDF出力は以下の流れです。
 
 ## 実装メモ
 
-未解決のセキュリティ課題（SEC-001 など）とテストの構成は、[基本設計書](docs/basic-design.md) の 12 章・13 章にまとめています。`bun run test:coverage`、`bun run typecheck`、`bun run test:rust` を配布前に実行します。通知専用SMTPパスワードの配布リスクは受容済みとし、その他の秘密鍵・Supabase管理キー等を `VITE_*` に含めるビルドは拒否します。
+未解決のセキュリティ課題（SEC-001 など）とテストの構成は、[基本設計書](docs/basic-design.md) の 12 章・13 章にまとめています。`bun run test:coverage`、`bun run typecheck`、`bun run test:rust` を配布前に実行します。秘密鍵・SMTPパスワード・Supabase管理キー等を `VITE_*` に含めるビルドは拒否します。
 
 ## 評価確定メール
 
-二次評価者が評価を確定した後、対象社員の一次・二次評価者が新規登録時に認証コードを受け取ったメールアドレスへ個別に通知します。同じ宛先は1通にまとめます。固定宛先の `VITE_SHEET_FINALIZED_NOTIFY_TO` は使用しません。一次評価者が一次評価を確定したときは、二次評価者へ二次評価の依頼を通知します。本人が提出したときの通知はありません。登録メール未設定や送信失敗の場合も確定は維持し、画面に通知警告を表示します。自動再送はありません。
+二次評価者が評価を確定した後、対象社員の一次・二次評価者が新規登録時に認証コードを受け取ったメールアドレスへ個別に通知します。同じ宛先は1通にまとめます。一次評価者が一次評価を確定したときは、二次評価者へ二次評価の依頼を通知します。本人が提出したときの通知はありません。通知を送るかどうかは、確定の確認ダイアログのチェックボックスで選べます（初めは「送る」）。送信は確定の後に行い、結果は宛先ごとにトーストで表示します。登録メール未設定や送信失敗の場合も確定は維持します。自動再送はありません。
 
 配布前に [通知先取得マイグレーション](supabase/migrations/202610050001_evaluation_notification_recipients.sql) と、後続の `supabase/migrations/` 内のマイグレーションをステージングで確認してからSupabaseへ適用してください。Supabase Authの「Confirm email」は無効にし、メールテンプレートに `{{ .Token }}` を含めます。社員の `user_id` が登録ユーザーに紐付いている必要があります。追加email列は不要です。このDB関数は確定済みシートの二次評価者だけに宛先取得を許可します。
 
-GitHub Actions Secretsに `VITE_SMTP_HOST`、`VITE_SMTP_PORT`、`VITE_SMTP_USER`、`VITE_SMTP_PASSWORD` を設定します。実際の送信はTauriのRust側です。資格情報は配布アプリへ含まれるため、パスワードの定期更新時はアプリも更新配布します。
+SMTP のホスト・ポート・送信元メールアドレス・パスワードは、Admin が設定画面の「通知メール」で登録します（DB の `workspace_settings`）。送信元の変更やパスワードの更新に、アプリの再配布は要りません。GitHub Actions Secrets の `VITE_SMTP_*` と `VITE_REQUIRED_DOMAIN` は使わなくなったので、削除してかまいません。実際の送信はTauriのRust側で、送信するアプリが SMTP 設定を DB から読みます。読めるのは評価シートの評価者だけです。
 
 - `evaluation_sheets`（評価期間・社員）、`milestones`（シート・目標番号）、`common_evaluation_results`（シート・項目）は、それぞれ一意制約を持ちます。シートの作成と、目標・共通評価の保存は、この制約を使った `upsert(... onConflict)` で行います。
 - 共通評価は `common_evaluation_results` が0件でも、`common_evaluation_items` を基準に未入力行を表示します。

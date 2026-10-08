@@ -3,6 +3,7 @@ import { createMemoryHistory, MemoryRouter, Route } from "@solidjs/router";
 import { cleanup, fireEvent, render, waitFor, within } from "@solidjs/testing-library";
 import { afterEach, expect, it, vi } from "vitest";
 import type { ReviewerRowDto } from "../../application/dtos/ReviewerWorkspaceDto";
+import { EvaluationStatus } from "../../domain/valueObjects/EvaluationStatus";
 import { reviewerEditorFixture } from "../../test/reviewerEditorFixture";
 import { reviewerRow } from "../../test/reviewerFixture";
 import type { ReviewerWorkspaceController } from "../controllers/ReviewerWorkspaceController";
@@ -71,7 +72,7 @@ function setup(people: ReviewerRowDto[], url = "/review") {
 		</MemoryRouter>
 	));
 
-	return { ...view, controller, history };
+	return { ...view, controller, editor, history };
 }
 
 const submittedToPrimary = { status: "submitted", isPrimary: true, firstRank: null } as const;
@@ -194,23 +195,38 @@ it("finalizes after confirmation and advances to the reviewer's next turn", asyn
 	// ランクは選ばせず、点数から決まった結果を確定前に見せる
 	const dialog = await view.findByRole("dialog");
 	expect(dialog.textContent).toContain("最終評価ランクは S（95 点 / 100 点）");
+	expect(
+		(within(dialog).getByRole("checkbox", { name: /通知メールを送る/ }) as HTMLInputElement)
+			.checked,
+	).toBe(true);
+	const updateStatus = vi.spyOn(view.editor.controller, "updateStatus");
 	fireEvent.click(within(dialog).getByRole("button", { name: "評価を確定する" }));
+	await waitFor(() => expect(updateStatus).toHaveBeenCalledWith(EvaluationStatus.FINALIZED, true));
 	await waitFor(() => expect(view.history.get()).toContain("sheet=103"));
 	const sidebar = view.getByRole("complementary", { name: "部下の一覧" });
 	expect(within(sidebar).getByRole("button", { name: "社員1の評価を開く" }).textContent).toContain(
 		"評価確定",
 	);
 });
-it("confirms the primary evaluation with a notice that the secondary evaluator is notified", async () => {
+it("confirms the primary evaluation and notifies the secondary evaluator unless turned off", async () => {
 	const view = setup(
 		[reviewerRow(1, submittedToPrimary)],
 		"/review?period=10&sheet=101&mode=evaluate",
 	);
+	const updateStatus = vi.spyOn(view.editor.controller, "updateStatus");
 	fireEvent.click(await view.findByRole("button", { name: "一次評価を確定する" }));
 	const dialog = await view.findByRole("dialog");
 	expect(dialog.textContent).toContain("一次評価ランクは B（70 点 / 100 点）");
-	expect(dialog.textContent).toContain("二次評価者（徳永 優）に通知メールを送ります");
+	// 通知は初めから「送る」。送らないときだけチェックを外す
+	const notify = within(dialog).getByRole("checkbox", {
+		name: "二次評価者（徳永 優）に通知メールを送る",
+	}) as HTMLInputElement;
+	expect(notify.checked).toBe(true);
+	fireEvent.click(notify);
 	fireEvent.click(within(dialog).getByRole("button", { name: "一次評価を確定する" }));
+	await waitFor(() =>
+		expect(updateStatus).toHaveBeenCalledWith(EvaluationStatus.FIRST_EVALUATED, false),
+	);
 	const sidebar = view.getByRole("complementary", { name: "部下の一覧" });
 	await waitFor(() =>
 		expect(

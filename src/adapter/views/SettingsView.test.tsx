@@ -3,9 +3,12 @@ import { A, MemoryRouter, Route } from "@solidjs/router";
 import { cleanup, fireEvent, render, waitFor } from "@solidjs/testing-library";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { UpdateEvaluationAllocationInteractor } from "../../application/usecases/UpdateEvaluationAllocationInteractor";
+import { UpdateSmtpSettingsInteractor } from "../../application/usecases/UpdateSmtpSettingsInteractor";
+import type { WorkspaceSettingsRepository } from "../../domain/repositories/WorkspaceSettingsRepository";
 import { EvaluationAllocation } from "../../domain/valueObjects/EvaluationAllocation";
 import { masterRepository, profile } from "../../test/fixtures";
 import { SettingsController } from "../controllers/SettingsController";
+import { SmtpSettingsController } from "../controllers/SmtpSettingsController";
 import { confirmAction, confirmDiscard, showToast } from "./feedback";
 import HelpView from "./HelpView";
 import SettingsView from "./SettingsView";
@@ -35,9 +38,31 @@ function setup(role = "Admin") {
 	);
 	return { settings, controller };
 }
+const smtp = { host: "smtp.example.jp", port: 587, user: "old@example.jp" };
+function smtpSetup(role = "Admin") {
+	const repository = {
+		findSmtpSummary: vi
+			.fn<WorkspaceSettingsRepository["findSmtpSummary"]>()
+			.mockResolvedValue({ ...smtp, passwordSet: true }),
+		saveSmtp: vi.fn<WorkspaceSettingsRepository["saveSmtp"]>().mockResolvedValue(true),
+	};
+	const employees = masterRepository();
+	employees.findCurrentEmployeeProfile.mockResolvedValue(profile(role, 9));
+	const controller = new SmtpSettingsController(
+		repository,
+		new UpdateSmtpSettingsInteractor(repository, employees),
+	);
+	return { repository, controller };
+}
 const number = (view: ReturnType<typeof render>, name: string) =>
 	view.getByRole("spinbutton", { name }) as HTMLInputElement;
-const renderSettings = (controller: SettingsController) =>
+const renderSettings = (
+	controller: SettingsController,
+	smtpController: Pick<SmtpSettingsController, "load" | "save"> = {
+		load: vi.fn().mockResolvedValue(null),
+		save: vi.fn(),
+	},
+) =>
 	render(() => (
 		<MemoryRouter
 			root={(props) => (
@@ -58,6 +83,7 @@ const renderSettings = (controller: SettingsController) =>
 							remove: vi.fn(),
 							close: vi.fn(),
 						}}
+						smtpController={smtpController}
 					/>
 				)}
 			/>
@@ -168,6 +194,76 @@ describe("settings", () => {
 		confirm(true);
 		await waitFor(() => expect(settings.saveAllocation).toHaveBeenCalledOnce());
 		expect(settings.saveAllocation).toHaveBeenCalledWith(EvaluationAllocation.of(31, 69));
+	});
+});
+
+describe("notification mail settings", () => {
+	it("changes the sender and keeps the stored password when the field is left blank", async () => {
+		const { repository, controller } = smtpSetup();
+		const view = renderSettings(setup().controller, controller);
+		const sender = (await view.findByLabelText("送信元メールアドレス")) as HTMLInputElement;
+		expect(sender.value).toBe("old@example.jp");
+		// 保存済みのパスワードは画面に出さない
+		const password = view.getByLabelText("パスワード") as HTMLInputElement;
+		expect(password.value).toBe("");
+		expect(password.required).toBe(false);
+		fireEvent.input(sender, { target: { value: " new@example.jp " } });
+		fireEvent.click(view.getByRole("button", { name: "通知メールの設定を保存する" }));
+		await waitFor(() =>
+			expect(repository.saveSmtp).toHaveBeenCalledWith({
+				...smtp,
+				user: "new@example.jp",
+				password: "",
+			}),
+		);
+		expect(showToast).toHaveBeenCalledWith("success", expect.stringContaining("new@example.jp"));
+	});
+	it("requires a password until one is stored", async () => {
+		const { repository, controller } = smtpSetup();
+		repository.findSmtpSummary.mockResolvedValue({
+			host: "",
+			port: 587,
+			user: "",
+			passwordSet: false,
+		});
+		const view = renderSettings(setup().controller, controller);
+		expect(((await view.findByLabelText("パスワード")) as HTMLInputElement).required).toBe(true);
+	});
+	it.each([
+		[{ host: " " }, "ホスト"],
+		[{ host: "smtp example.jp" }, "ホスト"],
+		[{ port: 0 }, "ポート"],
+		[{ port: 70000 }, "ポート"],
+		[{ port: 58.7 }, "ポート"],
+		[{ user: "not-an-address" }, "メールアドレス"],
+		[{ user: "a@example.jp, b@example.jp" }, "メールアドレス"],
+	])("rejects %j before saving", async (change, message) => {
+		const { repository, controller } = smtpSetup();
+		expect(await controller.save({ ...smtp, password: "", ...change })).toEqual({
+			success: false,
+			message: expect.stringContaining(message),
+		});
+		expect(repository.saveSmtp).not.toHaveBeenCalled();
+	});
+	it("saves only for an Admin and reports a save the database refused", async () => {
+		const reviewer = smtpSetup("Reviewer");
+		expect(await reviewer.controller.save({ ...smtp, password: "secret" })).toMatchObject({
+			success: false,
+			message: expect.stringContaining("Admin"),
+		});
+		expect(reviewer.repository.saveSmtp).not.toHaveBeenCalled();
+
+		const { repository, controller } = smtpSetup();
+		repository.saveSmtp.mockResolvedValueOnce(false);
+		expect(await controller.save({ ...smtp, password: "secret" })).toMatchObject({
+			success: false,
+		});
+		expect(repository.saveSmtp).toHaveBeenCalledWith({ ...smtp, password: "secret" });
+		repository.saveSmtp.mockRejectedValueOnce(new Error("offline"));
+		vi.spyOn(console, "error").mockImplementation(() => {});
+		expect(await controller.save({ ...smtp, password: "secret" })).toMatchObject({
+			success: false,
+		});
 	});
 });
 

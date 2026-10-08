@@ -232,15 +232,11 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 		return false;
 	};
 
-	const changeStatus = async (status: EvaluationStatus, doneMessage: string) => {
-		const success = await props.controller.updateStatus(status);
+	/** notify: 確定の通知メールを送るか。送信の結果は、宛先ごとに後からトーストで届く。 */
+	const changeStatus = async (status: EvaluationStatus, doneMessage: string, notify = true) => {
+		const success = await props.controller.updateStatus(status, notify);
 		if (success) {
 			showToast("success", doneMessage);
-			// 通知メールを送れなかったときの警告。受け持ち画面は次の対象者へ進むので、トーストでも残す
-			const warning = viewModel().statusUpdateError;
-			if (warning) {
-				showToast("error", "通知メールを送信できませんでした", warning);
-			}
 			reloadCurrentSheetFromRoute();
 		} else if (viewModel().statusUpdateError) {
 			await confirmAction({
@@ -322,15 +318,22 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 		if (!ensureNothingUnsaved() || !ensureEvaluationComplete()) {
 			return;
 		}
+		let notify = true;
 		const confirmed = await confirmAction({
 			title: "一次評価を確定しますか？",
-			message: `一次評価ランクは ${rankText(sheet()?.firstEvaluationRank)} です。確定すると一次評価は変更できなくなり、二次評価者（${sheet()?.secondaryEvaluator ?? "未設定"}）に通知メールを送ります。この操作は取り消せません。`,
+			message: `一次評価ランクは ${rankText(sheet()?.firstEvaluationRank)} です。確定すると一次評価は変更できなくなります。この操作は取り消せません。`,
+			checkbox: {
+				label: `二次評価者（${sheet()?.secondaryEvaluator ?? "未設定"}）に通知メールを送る`,
+				onChange: (checked) => {
+					notify = checked;
+				},
+			},
 			confirmLabel: "一次評価を確定する",
 			tone: "danger",
 		});
 		if (
 			confirmed &&
-			(await changeStatus(EvaluationStatus.FIRST_EVALUATED, "一次評価を確定しました"))
+			(await changeStatus(EvaluationStatus.FIRST_EVALUATED, "一次評価を確定しました", notify))
 		) {
 			props.onStageCompleted?.();
 		}
@@ -343,13 +346,30 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 		if (!ensureNothingUnsaved() || !ensureEvaluationComplete()) {
 			return;
 		}
+		// 二次評価者「なし」の社員では、確定を知らせる相手は一次評価者だけ
+		const evaluators = [
+			sheet()?.primaryEvaluator,
+			sheet()?.primaryIsFinalEvaluator ? null : sheet()?.secondaryEvaluator,
+		]
+			.filter(Boolean)
+			.join("・");
+		let notify = true;
 		const confirmed = await confirmAction({
 			title: "評価を確定しますか？",
-			message: `最終評価ランクは ${rankText(sheet()?.finalEvaluationRank)} です。確定すると評価シートはロックされ、本人も評価者も変更できなくなります。確定の通知メールも送信されます。この操作は取り消せません。`,
+			message: `最終評価ランクは ${rankText(sheet()?.finalEvaluationRank)} です。確定すると評価シートはロックされ、本人も評価者も変更できなくなります。この操作は取り消せません。`,
+			checkbox: {
+				label: `評価者（${evaluators}）に通知メールを送る`,
+				onChange: (checked) => {
+					notify = checked;
+				},
+			},
 			confirmLabel: "評価を確定する",
 			tone: "danger",
 		});
-		if (confirmed && (await changeStatus(EvaluationStatus.FINALIZED, "評価を確定しました"))) {
+		if (
+			confirmed &&
+			(await changeStatus(EvaluationStatus.FINALIZED, "評価を確定しました", notify))
+		) {
 			props.onStageCompleted?.();
 		}
 	};
@@ -744,7 +764,7 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 													<>
 														<span>一次評価ランク {rankText(sheet()?.firstEvaluationRank)}</span>
 														<small>
-															確定すると一次評価は変更できなくなり、二次評価者に通知します。
+															確定すると一次評価は変更できなくなります。二次評価者に通知するかは、確定のときに選べます。
 														</small>
 													</>
 												}

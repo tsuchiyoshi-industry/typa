@@ -3,10 +3,23 @@ import type {
 	AuthSession,
 	SignUpResult,
 } from "../../domain/repositories/AuthRepository";
+import type { WorkspaceSettingsRepository } from "../../domain/repositories/WorkspaceSettingsRepository";
 import { supabase } from "../db/supabase";
 import { toAuthEmail } from "./authEmail";
 
 export class SupabaseAuthRepository implements AuthRepository {
+	constructor(private readonly settings: Pick<WorkspaceSettingsRepository, "findRequiredDomain">) {}
+
+	/** 会社ドメインを読めないとき、社員番号の形式が違うときは null。 */
+	private async authEmail(employeeNo: string): Promise<string | null> {
+		try {
+			return toAuthEmail(employeeNo, await this.settings.findRequiredDomain());
+		} catch (error) {
+			console.error("Failed to load the required domain:", error);
+			return null;
+		}
+	}
+
 	async getSession(): Promise<AuthSession | null> {
 		const {
 			data: { session },
@@ -33,7 +46,7 @@ export class SupabaseAuthRepository implements AuthRepository {
 		employeeNo: string,
 		password: string,
 	): Promise<{ userId: string | null; error: Error | null }> {
-		const email = toAuthEmail(employeeNo);
+		const email = await this.authEmail(employeeNo);
 		if (!email) {
 			return { userId: null, error: new Error("社員番号の形式が正しくありません。") };
 		}
@@ -58,7 +71,7 @@ export class SupabaseAuthRepository implements AuthRepository {
 	}
 
 	async signUp(employeeNo: string, password: string, contactEmail: string): Promise<SignUpResult> {
-		const email = toAuthEmail(employeeNo);
+		const email = await this.authEmail(employeeNo);
 		if (!email) {
 			return { status: "error", error: new Error("社員番号の形式が正しくありません。") };
 		}

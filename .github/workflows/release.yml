@@ -114,13 +114,8 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          VITE_REQUIRED_DOMAIN: ${{ secrets.VITE_REQUIRED_DOMAIN }}
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
-          VITE_SMTP_HOST: ${{ secrets.VITE_SMTP_HOST }}
-          VITE_SMTP_PORT: ${{ secrets.VITE_SMTP_PORT }}
-          VITE_SMTP_USER: ${{ secrets.VITE_SMTP_USER }}
-          VITE_SMTP_PASSWORD: ${{ secrets.VITE_SMTP_PASSWORD }}
         run: bun run tauri build
 
       - name: Create tag (workflow_dispatch only)

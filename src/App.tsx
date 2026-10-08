@@ -18,6 +18,7 @@ import { ReviewerWorkspaceController } from "./adapter/controllers/ReviewerWorks
 import { SettingsController } from "./adapter/controllers/SettingsController";
 import { SheetEditorController } from "./adapter/controllers/SheetEditorController";
 import { SheetListController } from "./adapter/controllers/SheetListController";
+import { SmtpSettingsController } from "./adapter/controllers/SmtpSettingsController";
 import { createChallengeEvaluationPresenter } from "./adapter/presenters/ChallengeEvaluationPresenter";
 import { createCommonEvaluationPresenter } from "./adapter/presenters/CommonEvaluationPresenter";
 import { createEmployeeMasterPresenter } from "./adapter/presenters/EmployeeMasterPresenter";
@@ -51,6 +52,7 @@ import { UpdateEvaluationAllocationInteractor } from "./application/usecases/Upd
 import { UpdateEvaluationStatusInteractor } from "./application/usecases/UpdateEvaluationStatusInteractor";
 import { UpdateMilestoneInteractor } from "./application/usecases/UpdateMilestoneInteractor";
 import { UpdateOverallCommentInteractor } from "./application/usecases/UpdateOverallCommentInteractor";
+import { UpdateSmtpSettingsInteractor } from "./application/usecases/UpdateSmtpSettingsInteractor";
 import { UpsertCommonEvaluationInteractor } from "./application/usecases/UpsertCommonEvaluationInteractor";
 import type { AuthSession } from "./domain/repositories/AuthRepository";
 import { EvaluationScoreUpdateService } from "./domain/services/EvaluationScoreUpdateService";
@@ -64,6 +66,7 @@ import { SupabaseEvaluationSettingsRepository } from "./infrastructure/repositor
 import { SupabaseEvaluationSheetRepository } from "./infrastructure/repositories/SupabaseEvaluationSheetRepository";
 import { SupabaseMilestoneRepository } from "./infrastructure/repositories/SupabaseMilestoneRepository";
 import { SupabaseReviewerWorkspaceRepository } from "./infrastructure/repositories/SupabaseReviewerWorkspaceRepository";
+import { SupabaseWorkspaceSettingsRepository } from "./infrastructure/repositories/SupabaseWorkspaceSettingsRepository";
 import { TauriEmailNotificationRepository } from "./infrastructure/repositories/TauriEmailNotificationRepository";
 import { TauriSheetPdfGateway } from "./infrastructure/repositories/TauriSheetPdfGateway";
 
@@ -75,7 +78,8 @@ const SettingsView = lazy(() => import("./adapter/views/SettingsView"));
 const SheetEditorView = lazy(() => import("./adapter/views/SheetEditorView"));
 const SheetListView = lazy(() => import("./adapter/views/SheetListView"));
 
-const authRepository = new SupabaseAuthRepository();
+const workspaceSettingsRepository = new SupabaseWorkspaceSettingsRepository();
+const authRepository = new SupabaseAuthRepository(workspaceSettingsRepository);
 const employeeRepository = new SupabaseEmployeeRepository();
 const commonEvaluationRepository = new SupabaseCommonEvaluationRepository();
 const evaluationSettingsRepository = new SupabaseEvaluationSettingsRepository();
@@ -102,8 +106,13 @@ const evaluationPeriodController = new EvaluationPeriodController(
 	new DeleteEvaluationPeriodInteractor(evaluationPeriodRepository, employeeMasterRepository),
 	new CloseEvaluationPeriodInteractor(evaluationPeriodRepository, employeeMasterRepository),
 );
+const smtpSettingsController = new SmtpSettingsController(
+	workspaceSettingsRepository,
+	new UpdateSmtpSettingsInteractor(workspaceSettingsRepository, employeeMasterRepository),
+);
 const emailNotificationRepository = new TauriEmailNotificationRepository(
 	new SupabaseEvaluationNotificationRecipientRepository(),
+	workspaceSettingsRepository,
 );
 const evaluationScoreUpdateService = new EvaluationScoreUpdateService(
 	evaluationSheetRepository,
@@ -208,6 +217,7 @@ const accountController = new AccountController(
 	new RegisterEmployeeAccountInteractor(authRepository, employeeRepository),
 	authRepository,
 	employeeMasterRepository,
+	workspaceSettingsRepository,
 );
 const employeeMasterController = new EmployeeMasterController(
 	loadEmployeeMasterUseCase,
@@ -341,6 +351,7 @@ const App: Component = () => {
 							<SettingsView
 								controller={settingsController}
 								periodController={evaluationPeriodController}
+								smtpController={smtpSettingsController}
 							/>
 						)}
 					/>

@@ -9,6 +9,7 @@ import type {
 } from "../../application/usecases/SignInEmployeeInteractor";
 import type { AuthRepository } from "../../domain/repositories/AuthRepository";
 import type { EmployeeMasterRepository } from "../../domain/repositories/EmployeeMasterRepository";
+import type { WorkspaceSettingsRepository } from "../../domain/repositories/WorkspaceSettingsRepository";
 import { canEditSettings } from "../../domain/services/EmployeeMasterAccessService";
 
 /** トップバーに出す、ログイン中の社員。 */
@@ -26,7 +27,17 @@ export class AccountController {
 		private readonly registerUseCase: RegisterEmployeeAccountInteractor,
 		private readonly authRepository: AuthRepository,
 		private readonly employeeMasterRepository: EmployeeMasterRepository,
+		private readonly workspaceSettingsRepository: Pick<
+			WorkspaceSettingsRepository,
+			"findRequiredDomain"
+		>,
 	) {}
+
+	/** 認証コードを送ってよいメールアドレスの末尾(例: @example.jp)。未設定なら空文字。 */
+	async requiredEmailSuffix(): Promise<string> {
+		const domain = await this.workspaceSettingsRepository.findRequiredDomain();
+		return domain && `@${domain}`;
+	}
 
 	async currentUser(): Promise<CurrentUserDto | null> {
 		const person = await this.employeeMasterRepository.findCurrentEmployeeProfile();

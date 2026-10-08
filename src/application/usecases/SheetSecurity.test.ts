@@ -421,27 +421,83 @@ describe("comments, final rank, status and notifications", () => {
 		expect(out.present).not.toHaveBeenCalled();
 	});
 	it.each([
-		[EvaluationStatus.SUBMITTED, 2, "first_evaluated", "一次評価は確定しました"],
-		[EvaluationStatus.FIRST_EVALUATED, 3, "finalized", "評価は確定しました"],
+		[EvaluationStatus.SUBMITTED, 2, "first_evaluated", "二次評価者"],
+		[EvaluationStatus.FIRST_EVALUATED, 3, "finalized", "評価者"],
 	] as const)(
 		"notification failure does not undo the saved stage %s by %s to %s",
-		async (initial, id, status, warning) => {
-			const { sheets, employees, out } = setup(initial);
+		async (initial, id, status, recipient) => {
+			const { sheets, employees } = setup(initial);
 			vi.spyOn(console, "error").mockImplementation(() => {});
 			const notifications = {
 				notifyFirstEvaluationConfirmed: vi.fn().mockRejectedValue(new Error("SMTP unavailable")),
 				notifySheetFinalized: vi.fn().mockRejectedValue(new Error("SMTP unavailable")),
 			};
+			const out = { present: vi.fn(), presentNotificationDelivery: vi.fn() };
 			await new UpdateEvaluationStatusInteractor(sheets, employees, notifications).execute(
 				{ sheetId: 100, currentEmployeeId: id, status: EvaluationStatus.from(status) },
 				out,
 			);
-			expect(out.present).toHaveBeenCalledWith(
-				expect.objectContaining({
-					sheet: expect.objectContaining({ status }),
-					notificationWarning: expect.stringContaining(warning),
+			expect(out.present).toHaveBeenCalledWith({ sheet: expect.objectContaining({ status }) });
+			// 誰にも送れなかった理由を、確定とは別に後から知らせる
+			await vi.waitFor(() =>
+				expect(out.presentNotificationDelivery).toHaveBeenCalledExactlyOnceWith({
+					recipient,
+					error: "SMTP unavailable",
 				}),
 			);
+		},
+	);
+	it("presents the saved stage without waiting for mail, then each delivery as it finishes", async () => {
+		const { sheets, employees } = setup(EvaluationStatus.FIRST_EVALUATED);
+		let deliver!: () => void;
+		const notifications = {
+			notifyFirstEvaluationConfirmed: vi.fn(),
+			notifySheetFinalized: vi.fn(
+				(_notification: unknown, report: (delivery: { recipient: string }) => void) =>
+					new Promise<void>((resolve) => {
+						deliver = () => {
+							report({ recipient: "一次（一次評価者）" });
+							resolve();
+						};
+					}),
+			),
+		};
+		const out = { present: vi.fn(), presentNotificationDelivery: vi.fn() };
+		await new UpdateEvaluationStatusInteractor(sheets, employees, notifications).execute(
+			{ sheetId: 100, currentEmployeeId: 3, status: EvaluationStatus.FINALIZED },
+			out,
+		);
+		expect(out.present).toHaveBeenCalledOnce();
+		expect(notifications.notifySheetFinalized).toHaveBeenCalledWith(
+			expect.objectContaining({ primaryEvaluatorName: "一次", secondaryEvaluatorName: "二次" }),
+			expect.any(Function),
+		);
+		expect(out.presentNotificationDelivery).not.toHaveBeenCalled();
+		deliver();
+		expect(out.presentNotificationDelivery).toHaveBeenCalledExactlyOnceWith({
+			recipient: "一次（一次評価者）",
+		});
+	});
+	it.each([
+		[EvaluationStatus.SUBMITTED, 2, "first_evaluated"],
+		[EvaluationStatus.FIRST_EVALUATED, 3, "finalized"],
+	] as const)(
+		"confirms %s by %s to %s without mail when notification is turned off",
+		async (initial, id, status) => {
+			const { sheets, employees, out } = setup(initial);
+			const notifications = notificationRepository();
+			await new UpdateEvaluationStatusInteractor(sheets, employees, notifications).execute(
+				{
+					sheetId: 100,
+					currentEmployeeId: id,
+					status: EvaluationStatus.from(status),
+					notify: false,
+				},
+				out,
+			);
+			expect(out.present).toHaveBeenCalledWith({ sheet: expect.objectContaining({ status }) });
+			expect(notifications.notifyFirstEvaluationConfirmed).not.toHaveBeenCalled();
+			expect(notifications.notifySheetFinalized).not.toHaveBeenCalled();
 		},
 	);
 	it("primary evaluator finalizes with their own evaluation when secondary is explicitly none", async () => {

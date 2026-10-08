@@ -24,6 +24,7 @@ import type {
 	UpdateOverallCommentOutputPort,
 	UpdateOverallCommentResponse,
 } from "../../application/usecases/UpdateOverallCommentInteractor";
+import { showToast } from "../views/feedback";
 
 export interface SheetEditorViewModel {
 	loadingSheet: boolean;
@@ -191,8 +192,16 @@ export function createSheetEditorPresenter(): {
 				...prev,
 				sheet: response.sheet,
 				updatingStatus: false,
-				statusUpdateError: response.notificationWarning ?? null,
+				statusUpdateError: null,
 			}));
+		},
+		// 送信が終わる頃には別のシートや画面に移っていることがあるので、画面に依らないトーストで知らせる
+		presentNotificationDelivery({ recipient, error }) {
+			if (error) {
+				showToast("error", `${recipient}に通知メールを送信できませんでした`, error);
+			} else {
+				showToast("success", `${recipient}に通知メールを送信しました`);
+			}
 		},
 	};
 

@@ -36,6 +36,8 @@ export interface ConfirmRequest {
 	message: string;
 	/** 実行する前に確かめてもらうこと。本文の下に箇条書きで出す。 */
 	details?: string[];
+	/** 実行と一緒に選んでもらうこと。チェックを入れた状態で出し、変えたら onChange で知らせる。 */
+	checkbox?: { label: string; onChange: (checked: boolean) => void };
 	confirmLabel: string;
 	cancelLabel?: string;
 	/** 選択肢のないお知らせは true にする。キャンセルボタンを出さない。 */

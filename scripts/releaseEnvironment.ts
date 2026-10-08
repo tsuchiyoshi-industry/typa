@@ -1,10 +1,6 @@
 // VITE_* is public renderer configuration, never a secret store.
 export function assertPublicBuildEnvironment(env: Record<string, string>, csp: string): void {
 	for (const [name, value] of Object.entries(env)) {
-		// Dedicated notification account: exposure in distributed apps is accepted.
-		if (name === "VITE_SMTP_PASSWORD") {
-			continue;
-		}
 		if (value && /^VITE_.*(?:PASSWORD|PRIVATE_KEY|SERVICE_ROLE|SECRET|ACCESS_TOKEN)$/i.test(name)) {
 			throw new Error(
 				`Public frontend environment must not contain ${name}. Move credentials to a server.`,

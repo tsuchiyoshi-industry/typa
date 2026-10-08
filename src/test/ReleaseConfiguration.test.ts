@@ -23,6 +23,8 @@ describe("release security configuration", () => {
 		"VITE_SIGNING_PRIVATE_KEY",
 		"VITE_CLIENT_SECRET",
 		"VITE_ACCESS_TOKEN",
+		// SMTP の設定は DB(workspace_settings)にあり、アプリには埋め込まない
+		"VITE_SMTP_PASSWORD",
 	])("rejects public secret %s without printing its value", (name) => {
 		expect(() => assertPublicBuildEnvironment({ [name]: "synthetic-secret" }, "")).toThrow(name);
 		try {
@@ -30,11 +32,6 @@ describe("release security configuration", () => {
 		} catch (error) {
 			expect(String(error)).not.toContain("synthetic-secret");
 		}
-	});
-	it("allows the risk-accepted notification SMTP password", () => {
-		expect(() =>
-			assertPublicBuildEnvironment({ VITE_SMTP_PASSWORD: "synthetic-password" }, ""),
-		).not.toThrow();
 	});
 	it("rejects Supabase service keys", () => {
 		expect(() =>

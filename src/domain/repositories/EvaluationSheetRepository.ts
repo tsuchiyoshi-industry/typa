@@ -32,6 +32,11 @@ export interface EvaluationSheetOverviewRow extends EvaluationSheetSummary {
 	/** 確定した評価点(100点満点)と最終評価ランク(「B+」のような表示)。確定前は null。 */
 	finalScore: number | null;
 	finalRank: string | null;
+	/** 確定した一次評価ランク。一次評価の確定前は null。 */
+	firstRank: string | null;
+	/** 一次・二次の総評。一覧の帳票に載せる(画面の一覧には出さない)。 */
+	firstOverallComment: string;
+	secondOverallComment: string;
 }
 
 export interface EvaluationSheetRepository {

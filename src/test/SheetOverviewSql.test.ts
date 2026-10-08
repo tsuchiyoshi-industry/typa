@@ -6,6 +6,7 @@ let db: PGlite;
 const migration = (file: string) =>
 	readFileSync(new URL(`../../supabase/migrations/${file}`, import.meta.url), "utf8");
 const overviewMigration = migration("202610080016_sheet_overview.sql");
+const evaluationsMigration = migration("202610080017_sheet_overview_evaluations.sql");
 const uid = (id: number) => `00000000-0000-0000-0000-${String(id).padStart(12, "0")}`;
 /** 1: Admin, 2: Reviewer(社員3・4 の一次評価者), 3・4: Employee */
 const login = async (id: number) => {
@@ -35,7 +36,7 @@ beforeAll(async () => {
 		-- 本番と同じ: クライアントは、自分に関係のないシートを表から直接は読めない
 		create table public.evaluation_sheets (id bigint primary key, period_id bigint, employee_id integer, status text, grade_id smallint,
 			primary_evaluator_id integer, secondary_evaluator_id integer, no_secondary_evaluator boolean not null default false,
-			first_overall_comment text, total_evaluation_score integer, final_rank_letter text, final_rank_level text,
+			first_overall_comment text, second_overall_comment text, first_rank text, total_evaluation_score integer, final_rank_letter text, final_rank_level text,
 			created_at timestamptz default '2026-04-01T00:00:00Z', updated_at timestamptz default '2026-10-05T00:00:00Z');
 		alter table public.evaluation_sheets enable row level security;
 		create table public.milestones (id bigint primary key, sheet_id bigint, first_score integer default 0);
@@ -56,6 +57,14 @@ beforeAll(async () => {
 	await db.exec(migration("202610080008_evaluation_period_management.sql"));
 	await db.exec(overviewMigration);
 	await db.exec(overviewMigration);
+	// 一覧の帳票に載せるランクと総評を足した版に置き換える(引数が同じなので、関数は1つのまま)
+	await db.exec(evaluationsMigration);
+	await db.exec(evaluationsMigration);
+	await db.exec(`reset role; set session_replication_role = replica;
+		update public.evaluation_sheets set first_rank = 'B', second_overall_comment = '二次の根拠' where id = 100;
+		update public.evaluation_sheets set first_rank = 'B-', first_overall_comment = '一次の途中' where id = 202;
+		update public.evaluation_sheets set first_rank = 'C', first_overall_comment = '書きかけ' where id = 201;
+		set session_replication_role = origin;`);
 }, 30_000);
 beforeEach(async () => {
 	await db.exec("reset role; set role authenticated;");
@@ -88,15 +97,24 @@ it("gives an Admin every sheet of every period, newest period first, by employee
 		// 確定したシートには、その結果が付く
 		finalScore: 88,
 		finalRank: "B+",
+		firstRank: "B",
+		firstOverallComment: "一次の根拠",
+		secondOverallComment: "二次の根拠",
 	});
 	// 二次評価者「なし」と、未設定(null のまま「なし」ではない)を区別できる
 	expect(rows[2]).toMatchObject({ secondaryEvaluator: null, noSecondaryEvaluator: true });
 	expect(rows[1]).toMatchObject({ secondaryEvaluator: null, noSecondaryEvaluator: false });
+	// 確定前の一次ランクは見込みなので出さない。総評は書きかけでも Admin には見える
+	expect(rows[1]).toMatchObject({ firstRank: null, firstOverallComment: "書きかけ" });
 	expect(rows[0]).toMatchObject({
 		gradeName: "",
 		primaryEvaluator: null,
 		finalScore: null,
 		finalRank: null,
+		// 一次評価が確定していれば、一次ランクは付く
+		firstRank: "B-",
+		firstOverallComment: "一次の途中",
+		secondOverallComment: "",
 	});
 });
 

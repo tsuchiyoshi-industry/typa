@@ -81,8 +81,13 @@ struct SheetOverviewRowData {
     status: String,
     primary_evaluator: String,
     secondary_evaluator: String,
-    // 確定した評価点と最終評価ランク。確定前は空文字。
-    final_evaluation: String,
+    // 確定した一次評価ランクと、一次評価者の総評。まだ無ければ空文字。
+    first_rank: String,
+    first_comment: String,
+    // 確定した最終評価ランクと評価点、二次評価者の総評。まだ無ければ空文字。
+    final_rank: String,
+    final_score: String,
+    second_comment: String,
     updated_at: String,
 }
 
@@ -124,7 +129,11 @@ fn convert_overview_to_dict(data: &SheetOverviewData) -> Dict {
                 ("status", &row.status),
                 ("primary_evaluator", &row.primary_evaluator),
                 ("secondary_evaluator", &row.secondary_evaluator),
-                ("final_evaluation", &row.final_evaluation),
+                ("first_rank", &row.first_rank),
+                ("first_comment", &row.first_comment),
+                ("final_rank", &row.final_rank),
+                ("final_score", &row.final_score),
+                ("second_comment", &row.second_comment),
                 ("updated_at", &row.updated_at),
             ]))
         })
@@ -606,7 +615,11 @@ mod tests {
             serde_json::json!({
                 "employeeNo": "TEST001", "employeeName": "#read(\"secret.txt\")", "gradeName": "",
                 "status": status, "primaryEvaluator": "[一次]", "secondaryEvaluator": "なし",
-                "finalEvaluation": if status == "finalized" { "88 点 A" } else { "" },
+                "firstRank": if status == "draft" { "" } else { "B+" },
+                "firstComment": "#include \"secret.txt\"\n2行目 *強調* [x]",
+                "finalRank": if status == "finalized" { "A" } else { "" },
+                "finalScore": if status == "finalized" { "88 点" } else { "" },
+                "secondComment": "",
                 "updatedAt": "2026/10/08"
             })
         };

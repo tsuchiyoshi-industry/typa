@@ -28,8 +28,14 @@ export interface SheetOverviewExportDto {
 		status: EvaluationStatusValue;
 		primaryEvaluator: string;
 		secondaryEvaluator: string;
-		/** 確定した評価点と最終評価ランク(「88 点 A」)。確定前は空文字。 */
-		finalEvaluation: string;
+		/** 確定した一次評価ランクと、一次評価者の総評。まだ無ければ空文字。 */
+		firstRank: string;
+		firstComment: string;
+		/** 確定した最終評価ランク(二次評価。二次評価者「なし」のシートは一次評価)と評価点(「88 点」)。確定前は空文字。 */
+		finalRank: string;
+		finalScore: string;
+		/** 二次評価者の総評。 */
+		secondComment: string;
 		updatedAt: string;
 	}[];
 }

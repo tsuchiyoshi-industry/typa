@@ -85,8 +85,12 @@ export class ExportSheetOverviewInteractor
 						status: row.status.toString(),
 						primaryEvaluator: row.primaryEvaluatorName,
 						secondaryEvaluator: row.secondaryEvaluatorName,
-						finalEvaluation:
-							row.finalScore === null ? "" : `${row.finalScore} 点 ${row.finalRank ?? ""}`.trim(),
+						// 帳票にだけ載せる、段ごとのランクと総評
+						firstRank: row.firstRank ?? "",
+						firstComment: row.firstOverallComment,
+						finalRank: row.finalRank ?? "",
+						finalScore: row.finalScore === null ? "" : `${row.finalScore} 点`,
+						secondComment: row.secondOverallComment,
 						updatedAt: dateFormat.format(new Date(row.updatedAt)),
 					})),
 				},

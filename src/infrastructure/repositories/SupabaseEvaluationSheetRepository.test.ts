@@ -115,12 +115,22 @@ describe("the overview of every sheet", () => {
 		noSecondaryEvaluator: false,
 		finalScore: null,
 		finalRank: null,
+		firstRank: null,
+		firstOverallComment: "",
+		secondOverallComment: "",
 		...overrides,
 	});
 	it("names the evaluators, telling 'none by decision' from 'not assigned yet'", async () => {
 		db.rpc.mockResolvedValue({
 			data: [
-				row({ status: "finalized", finalScore: 88, finalRank: "B+" }),
+				row({
+					status: "finalized",
+					finalScore: 88,
+					finalRank: "B+",
+					firstRank: "B",
+					firstOverallComment: "一次の総評",
+					secondOverallComment: "二次の総評",
+				}),
 				row({ secondaryEvaluator: null, noSecondaryEvaluator: true }),
 				row({ primaryEvaluator: null, secondaryEvaluator: null }),
 			],
@@ -134,7 +144,13 @@ describe("the overview of every sheet", () => {
 			["未設定", "未設定"],
 		]);
 		expect(rows[0].status.isFinalized()).toBe(true);
-		expect(rows[0]).toMatchObject({ finalScore: 88, finalRank: "B+" });
+		expect(rows[0]).toMatchObject({
+			finalScore: 88,
+			finalRank: "B+",
+			firstRank: "B",
+			firstOverallComment: "一次の総評",
+			secondOverallComment: "二次の総評",
+		});
 		expect(rows[1]).toMatchObject({ finalScore: null, finalRank: null });
 		expect(rows[0]).not.toHaveProperty("noSecondaryEvaluator");
 	});

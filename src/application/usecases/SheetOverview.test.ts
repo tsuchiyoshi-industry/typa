@@ -35,6 +35,9 @@ const row = (
 	secondaryEvaluatorName: "なし",
 	finalScore: status.isFinalized() ? 88 : null,
 	finalRank: status.isFinalized() ? "A" : null,
+	firstRank: status.isFirstEvaluationConfirmed() ? "B+" : null,
+	firstOverallComment: status.isDraft() ? "" : "一次の総評",
+	secondOverallComment: status.isFinalized() ? "二次の総評" : "",
 });
 /** role: ログイン中の人の権限。null は社員を特定できない。 */
 const setup = (role: string | null) => {
@@ -101,6 +104,12 @@ describe("the overview of every employee's sheets", () => {
 		});
 		// 確定していないシートに、結果はない
 		expect(listed?.[1]).toMatchObject({ finalScore: null, finalRank: null });
+		// 段ごとのランクと総評は帳票にだけ載せる。画面の一覧には渡さない
+		for (const sheet of listed ?? []) {
+			expect(sheet).not.toHaveProperty("firstRank");
+			expect(sheet).not.toHaveProperty("firstOverallComment");
+			expect(sheet).not.toHaveProperty("secondOverallComment");
+		}
 	});
 
 	it("does not present an empty list when the overview cannot be read", async () => {
@@ -140,7 +149,21 @@ describe("the overview PDF", () => {
 				issuedAt: "2026/10/08 14:30",
 				issuedBy: "テスト9",
 				rows: [
-					expect.objectContaining({ employeeNo: "E001", status: "draft", finalEvaluation: "" }),
+					{
+						employeeNo: "E001",
+						employeeName: "社員1",
+						gradeName: "総合Ⅱ級",
+						status: "draft",
+						primaryEvaluator: "一次",
+						secondaryEvaluator: "なし",
+						// まだ無いものは空欄にする
+						firstRank: "",
+						firstComment: "",
+						finalRank: "",
+						finalScore: "",
+						secondComment: "",
+						updatedAt: expect.any(String),
+					},
 					{
 						employeeNo: "E003",
 						employeeName: "社員3",
@@ -148,7 +171,11 @@ describe("the overview PDF", () => {
 						status: "finalized",
 						primaryEvaluator: "一次",
 						secondaryEvaluator: "なし",
-						finalEvaluation: "88 点 A",
+						firstRank: "B+",
+						firstComment: "一次の総評",
+						finalRank: "A",
+						finalScore: "88 点",
+						secondComment: "二次の総評",
 						updatedAt: expect.stringMatching(/^2026\/10\/0[45]$/),
 					},
 				],

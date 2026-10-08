@@ -1,6 +1,7 @@
 #import sys: inputs
 
-// 全社の評価シート一覧(Admin 向け)。1つの評価期間の全シートの進み具合と、確定した結果を載せる。
+// 全社の評価シート一覧(Admin 向け)。1つの評価期間の全シートについて、進み具合と、
+// 一次ランク・一次コメント・二次ランク・二次コメントをこの順に載せる。
 
 #let ink = rgb("#1f2328")
 #let muted = rgb("#6b7178")
@@ -43,6 +44,8 @@
 
 #set page(
   paper: "a4",
+  // 総評を2列載せるので横置き
+  flipped: true,
   margin: (x: 14mm, top: 15mm, bottom: 17mm),
   footer: context grid(
     columns: (1fr, auto),
@@ -98,14 +101,26 @@
 #v(11pt)
 
 // ----- 一覧: 社員番号順 -----
+// 総評は長くなるので小さめの字で折り返す。行は上揃えにして、どの行の総評かを追いやすくする
+#let comment(value) = {
+  set par(leading: 0.5em)
+  text(size: 7pt, dash(value))
+}
+// ランクは一目で拾えるよう大きめに。評価点があれば下に添える
+#let rank(value, score: "") = stack(
+  spacing: 3.5pt,
+  if value == "" { text(fill: muted)[—] } else { text(size: 10.5pt, value) },
+  if score != "" { text(size: 6.5pt, fill: muted, score) },
+)
+
 #table(
-  columns: (auto, auto, 1.25fr, 1fr, auto, 1fr, 1fr, auto, auto),
-  inset: (x: 5pt, y: 5.5pt),
-  align: (x, _) => if x == 0 { right + horizon } else { left + horizon },
+  columns: (auto, auto, auto, auto, auto, auto, 1fr, auto, 1fr, auto),
+  inset: (x: 5pt, y: 6pt),
+  align: (x, _) => if x == 0 { right + top } else { left + top },
   stroke: (_, y) => (bottom: if y == 0 { 0.8pt + ink } else { 0.4pt + hairline }),
   fill: (_, y) => if y > 0 and calc.even(y) { wash },
   table.header(
-    ..("No.", "社員番号", "氏名", "作成時の等級", "ステータス", "一次評価者", "二次評価者", "最終評価", "最終更新").map(title => text(
+    ..("No.", "氏名", "作成時の等級", "ステータス", "評価者", "一次ランク", "一次コメント", "二次ランク", "二次コメント", "最終更新").map(title => text(
       size: 7pt,
       fill: muted,
       title,
@@ -118,8 +133,7 @@
       let stage = stages.at(stage-of(row.status))
       (
         text(fill: muted)[#(entry.at(0) + 1)],
-        [#row.employee_no],
-        [#row.employee_name],
+        stack(spacing: 4pt, text(row.employee_name), text(size: 6.5pt, fill: muted, row.employee_no)),
         [#dash(row.grade_name)],
         grid(
           columns: 2,
@@ -127,9 +141,17 @@
           align: horizon,
           pips(row.status), text(stage.label),
         ),
-        [#row.primary_evaluator],
-        [#row.secondary_evaluator],
-        [#dash(row.final_evaluation)],
+        grid(
+          columns: 2,
+          column-gutter: 4pt,
+          row-gutter: 4pt,
+          text(size: 6.5pt, fill: muted)[一次], text(row.primary_evaluator),
+          text(size: 6.5pt, fill: muted)[二次], text(row.secondary_evaluator),
+        ),
+        rank(row.first_rank),
+        comment(row.first_comment),
+        rank(row.final_rank, score: row.final_score),
+        comment(row.second_comment),
         text(fill: muted)[#row.updated_at],
       )
     })
@@ -137,4 +159,4 @@
 )
 
 #v(8pt)
-#small[最終評価は、評価が確定したシートの評価点（100点満点）と評価ランクです。]
+#small[ランクは、その段の評価が確定したシートにだけ載ります。二次ランクは最終評価ランクで、下の点数は評価点（100点満点）です。二次評価者「なし」のシートは、一次評価がそのまま最終評価になります。]

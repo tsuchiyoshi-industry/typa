@@ -638,7 +638,7 @@
 	background: var(--hr-surface-hover);
 }
 
-.sheet-table tbody tr:last-child td {
+.sheet-table :where(tbody tr:last-child) td {
 	border-bottom: none;
 }
 

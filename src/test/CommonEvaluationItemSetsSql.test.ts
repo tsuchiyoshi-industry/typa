@@ -63,6 +63,6 @@ it("lets a second grade share the same item set", async () => {
 		where grade_name = '一般1級'
 	`);
 	const items = await itemsByGrade();
-	expect(items["一般1級"]).toEqual(items["技術1級"]);
-	expect(items["一般1級"]).toEqual(["全等級共通", "1級の項目A", "1級の項目B"]);
+	expect(items.一般1級).toEqual(items.技術1級);
+	expect(items.一般1級).toEqual(["全等級共通", "1級の項目A", "1級の項目B"]);
 });

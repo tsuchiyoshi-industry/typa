@@ -50,7 +50,7 @@
 }
 .employee-master-page .employee-no {
 	color: var(--hr-text-muted);
-	font-size: 0.75rem;
+	font-size: 0.8125rem;
 	font-variant-numeric: tabular-nums;
 	letter-spacing: 0.03em;
 }
@@ -67,7 +67,7 @@
 }
 .master-profile-facts dt {
 	color: var(--hr-text-muted);
-	font-size: 0.73rem;
+	font-size: 0.8125rem;
 }
 .master-profile-facts dd {
 	margin: 7px 0 0;
@@ -92,7 +92,7 @@
 }
 .master-list-head p {
 	margin: 6px 0 0;
-	font-size: 0.8rem;
+	font-size: 0.8125rem;
 	color: var(--hr-text-muted);
 }
 .master-search {
@@ -115,7 +115,7 @@
 	width: 100%;
 	height: 40px;
 	padding: 8px 12px 8px 38px;
-	border: 1px solid var(--hr-border-strong);
+	border: 1px solid var(--hr-border-input);
 	border-radius: 8px;
 	color: var(--hr-text);
 	background: var(--hr-bg);
@@ -146,7 +146,7 @@
 	border: 1px solid transparent;
 	border-radius: 6px;
 	color: var(--hr-text-muted);
-	font-size: 0.8rem;
+	font-size: 0.8125rem;
 	white-space: nowrap;
 }
 .master-scope button:hover {
@@ -159,12 +159,12 @@
 	box-shadow: 0 1px 3px #0000000d;
 }
 .master-scope :where(button) span {
-	font-size: 0.74rem;
+	font-size: 0.8125rem;
 	font-variant-numeric: tabular-nums;
 	color: var(--hr-text-muted);
 }
 .master-result-count {
-	font-size: 0.78rem;
+	font-size: 0.8125rem;
 	color: var(--hr-text-muted);
 	white-space: nowrap;
 }
@@ -196,7 +196,7 @@
 		minmax(0, 1fr);
 	padding-bottom: 8px;
 	border-bottom: 1px solid var(--hr-border);
-	font-size: 0.72rem;
+	font-size: 0.8125rem;
 	color: var(--hr-text-muted);
 }
 .structure-final {
@@ -243,7 +243,7 @@
 	overflow-wrap: anywhere;
 }
 .structure-node small {
-	font-size: 0.7rem;
+	font-size: 0.8125rem;
 	color: var(--hr-text-muted);
 	font-variant-numeric: tabular-nums;
 }
@@ -293,7 +293,7 @@
 	border-radius: 999px;
 	background: var(--hr-surface);
 	color: var(--hr-text);
-	font-size: 0.78rem;
+	font-size: 0.8125rem;
 	white-space: nowrap;
 }
 .structure-chip:hover {
@@ -345,7 +345,7 @@
 .master-list-note {
 	padding: 0 24px 18px;
 	margin: 0;
-	font-size: 0.75rem;
+	font-size: 0.8125rem;
 	color: var(--hr-text-muted);
 }
 .master-empty {
@@ -366,7 +366,7 @@
 .master-table thead th {
 	padding: 12px 16px;
 	text-align: left;
-	font-size: 0.73rem;
+	font-size: 0.8125rem;
 	font-weight: 600;
 	color: var(--hr-text-muted);
 	background: var(--hr-bg-elevated);
@@ -428,7 +428,7 @@
 	border: 1px solid transparent;
 	border-radius: 6px;
 	color: var(--hr-text-muted);
-	font-size: 0.72rem;
+	font-size: 0.8125rem;
 }
 .row-action:hover:not(:disabled),
 .row-action:focus-visible {
@@ -462,7 +462,7 @@
 	width: 100%;
 	min-height: 40px;
 	padding: 9px 30px 9px 10px;
-	border: 1px solid var(--hr-border-strong);
+	border: 1px solid var(--hr-border-input);
 	border-radius: 7px;
 	color: var(--hr-text);
 	background: var(--hr-surface);
@@ -523,7 +523,7 @@
 	gap: 7px;
 	padding: 9px 8px 12px;
 	color: var(--hr-text-muted);
-	font-size: 0.72rem;
+	font-size: 0.8125rem;
 }
 .evaluator-search-hint span {
 	margin-left: auto;
@@ -547,19 +547,19 @@
 .evaluator-menu [role="option"] small {
 	display: block;
 	margin-top: 3px;
-	font-size: 0.72rem;
+	font-size: 0.8125rem;
 	color: var(--hr-text-muted);
 }
 .evaluator-menu [role="option"].active {
 	background: var(--hr-accent-muted);
 }
 .evaluator-menu [role="option"][aria-selected="true"] svg {
-	color: var(--hr-accent-hover);
+	color: var(--hr-link);
 }
 .evaluator-no-results {
 	padding: 16px 8px;
 	margin: 0;
-	font-size: 0.8rem;
+	font-size: 0.8125rem;
 	color: var(--hr-text-muted);
 }
 @media (max-width: 900px) {

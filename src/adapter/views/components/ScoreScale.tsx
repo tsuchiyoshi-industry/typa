@@ -9,7 +9,10 @@ interface ScoreScaleProps {
 	onChange: (value: number) => void;
 }
 
-/** 1〜max の段階をボタンで選ぶ。選択中をもう一度押すと未評価(0)に戻る。 */
+/**
+ * 1〜max の段階をボタンで選ぶ。選択中をもう一度押しても変わらない(押し直しやダブルクリックで、
+ * 気づかないうちに未評価へ戻らないようにする)。入力をやめるときは「キャンセル」で元に戻す。
+ */
 const ScoreScale: Component<ScoreScaleProps> = (props) => (
 	<fieldset class="score-scale" disabled={props.disabled}>
 		<legend class="visually-hidden">{props.label}</legend>
@@ -21,7 +24,7 @@ const ScoreScale: Component<ScoreScaleProps> = (props) => (
 					classList={{ selected: props.value === step, filled: step < props.value }}
 					aria-pressed={props.value === step}
 					aria-label={`${props.label} ${step}`}
-					onClick={() => props.onChange(props.value === step ? 0 : step)}
+					onClick={() => props.value !== step && props.onChange(step)}
 				>
 					{step}
 				</button>

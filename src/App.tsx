@@ -318,7 +318,7 @@ const App: Component = () => {
 						path="/settings"
 						component={() => <SettingsView controller={settingsController} />}
 					/>
-					<Route path="/help" component={() => <HelpView controller={settingsController} />} />
+					<Route path="/help" component={HelpView} />
 					<Route path="*404" component={NotFound} />
 				</Route>
 			</Router>

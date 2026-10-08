@@ -164,6 +164,25 @@ export default function CommonEvaluationView(props: CommonEvaluationViewProps) {
 		);
 	};
 
+	// 長い表を下まで入力したあと、上に戻らずに保存できるよう、表の下にも同じ操作を置く
+	const EditActions = () => (
+		<div class="edit-actions">
+			<button
+				type="button"
+				class="primary-action"
+				onClick={handleSubmit}
+				disabled={submitting() || !hasChanges() || hasInvalidRow()}
+			>
+				<Check class="action-icon" />
+				{submitting() ? "保存中..." : "評価を保存"}
+			</button>
+			<button type="button" class="secondary-action" onClick={cancelEdit} disabled={submitting()}>
+				<X class="action-icon" />
+				キャンセル
+			</button>
+		</div>
+	);
+
 	return (
 		<article class="common-evaluation-card">
 			<div class="common-evaluation-card__header">
@@ -183,26 +202,7 @@ export default function CommonEvaluationView(props: CommonEvaluationViewProps) {
 							</button>
 						}
 					>
-						<div class="edit-actions">
-							<button
-								type="button"
-								class="primary-action"
-								onClick={handleSubmit}
-								disabled={submitting() || !hasChanges() || hasInvalidRow()}
-							>
-								<Check class="action-icon" />
-								{submitting() ? "保存中..." : "評価を保存"}
-							</button>
-							<button
-								type="button"
-								class="secondary-action"
-								onClick={cancelEdit}
-								disabled={submitting()}
-							>
-								<X class="action-icon" />
-								キャンセル
-							</button>
-						</div>
+						<EditActions />
 					</Show>
 				</Show>
 			</div>
@@ -304,6 +304,17 @@ export default function CommonEvaluationView(props: CommonEvaluationViewProps) {
 							</tr>
 						</tfoot>
 					</table>
+				</div>
+			</Show>
+
+			<Show when={isEditing()}>
+				<div class="edit-actions-footer">
+					<p>
+						{hasChanges()
+							? "保存していない評価があります。"
+							: "点数を選ぶと、ここから保存できます。"}
+					</p>
+					<EditActions />
 				</div>
 			</Show>
 

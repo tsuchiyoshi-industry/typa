@@ -159,35 +159,39 @@ describe("settings", () => {
 });
 
 describe("help", () => {
-	it("reports unavailable settings without displaying guessed allocations, and retries", async () => {
-		const { settings, controller } = setup("Employee");
-		settings.findAllocation.mockRejectedValueOnce(new Error("offline"));
-		const view = render(() => (
+	const renderHelp = () =>
+		render(() => (
 			<MemoryRouter>
-				<Route path="/" component={() => <HelpView controller={controller} />} />
+				<Route path="/" component={HelpView} />
 			</MemoryRouter>
 		));
-		await view.findByRole("alert");
-		expect(view.queryByText("チャレンジ目標（20 点）")).toBeNull();
-		expect(view.getByRole("heading", { name: "評価の流れ" })).toBeTruthy();
-		fireEvent.click(view.getByRole("button", { name: "再読み込み" }));
-		await view.findByText("チャレンジ目標（20 点）");
-		expect(view.queryByRole("alert")).toBeNull();
+	it("guides employees without loading administrative settings", () => {
+		const view = renderHelp();
+		expect(view.getByRole("button", { name: /記入方法/ }).getAttribute("aria-pressed")).toBe(
+			"true",
+		);
+		expect(view.getByRole("link", { name: "評価シート一覧へ" }).getAttribute("href")).toBe("/");
+		expect(view.getByRole("heading", { name: "記入方法について" })).toBeTruthy();
+		expect(
+			view.getByText("保存だけでは提出されません。提出するまでは、評価者に内容は表示されません。"),
+		).toBeTruthy();
+		expect(view.getByText("期間内に目指すこと")).toBeTruthy();
+		expect(view.queryByText("社員マスタと権限")).toBeNull();
 	});
-	it("explains the flow to everyone, with the configured allocation", async () => {
-		const { settings, controller } = setup("Employee");
-		settings.findAllocation.mockResolvedValue(EvaluationAllocation.of(30, 70));
-		const view = render(() => (
-			<MemoryRouter>
-				<Route path="/" component={() => <HelpView controller={controller} />} />
-			</MemoryRouter>
-		));
-		await view.findByRole("heading", { name: "評価の流れ" });
-		for (const stage of ["下書き", "提出済み", "一次評価済み", "評価確定"]) {
-			expect(view.getAllByText(stage).length).toBeGreaterThan(0);
-		}
-		await view.findByText("チャレンジ目標（30 点）");
-		expect(view.getByText("共通評価（70 点）")).toBeTruthy();
-		expect(view.getByRole("rowheader", { name: "B+" })).toBeTruthy();
+	it("switches the steps, examples, questions and destination for reviewers", () => {
+		const view = renderHelp();
+		fireEvent.click(view.getByRole("button", { name: /評価方法/ }));
+		expect(view.getByRole("button", { name: /評価方法/ }).getAttribute("aria-pressed")).toBe(
+			"true",
+		);
+		expect(view.getByRole("heading", { name: "評価方法について" })).toBeTruthy();
+		expect(view.getByRole("link", { name: "部下の評価へ" }).getAttribute("href")).toBe("/review");
+		const question = view.getByText("確定ボタンを押せない");
+		fireEvent.click(question);
+		expect(question.closest("details")?.open).toBe(true);
+		expect(view.queryByText("期間内に目指すこと")).toBeNull();
+		fireEvent.click(view.getByRole("button", { name: /記入方法/ }));
+		expect(view.getByText("期間内に目指すこと")).toBeTruthy();
+		expect(view.queryByText("確定ボタンを押せない")).toBeNull();
 	});
 });

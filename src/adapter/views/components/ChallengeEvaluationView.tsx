@@ -68,6 +68,11 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 	/** まだ保存されていない(本人が目標を未入力の)目標は、評価の対象にできない。 */
 	const isSaved = () => (activeObjective()?.id ?? 0) > 0;
 	const canScore = () => isSaved() && (props.canEditFirst || props.canEditSecond);
+	/** 自分が評価する段階で、まだ点数を付けていない目標か。タブに出し、2つ目の目標の付け忘れを防ぐ。 */
+	const needsMyScore = (objective: MilestoneDto) =>
+		objective.id > 0 &&
+		((props.canEditSecond && !objective.secondScore) ||
+			(!props.canEditSecond && props.canEditFirst && !objective.firstScore));
 
 	const textChanged = () => {
 		const objective = activeObjective();
@@ -212,6 +217,9 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 							onClick={() => void selectTab(Number(item.goalNumber))}
 						>
 							目標 {item.goalNumber}
+							<Show when={needsMyScore(item)}>
+								<span class="challenge-tab__pending">未評価</span>
+							</Show>
 						</button>
 					)}
 				</For>

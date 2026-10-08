@@ -101,7 +101,7 @@
 	border: 1px solid var(--hr-border);
 	background: var(--hr-bg-elevated);
 	color: var(--hr-text);
-	font-size: 0.8rem;
+	font-size: 0.8125rem;
 }
 
 .user-menu-trigger:hover {
@@ -131,7 +131,7 @@
 	padding: 0.5rem 0.75rem 0.65rem;
 	margin-bottom: 0.35rem;
 	border-bottom: 1px solid var(--hr-border);
-	font-size: 0.8rem;
+	font-size: 0.8125rem;
 	color: var(--hr-text-muted);
 }
 
@@ -151,10 +151,10 @@
 	padding: 0.1rem 0.45rem;
 	border: 1px solid var(--hr-accent);
 	border-radius: 999px;
-	font-size: 0.68rem;
+	font-size: 0.8125rem;
 	font-weight: 600;
 	white-space: nowrap;
-	color: var(--hr-accent-hover);
+	color: var(--hr-link);
 	background: var(--hr-accent-muted);
 }
 
@@ -245,7 +245,7 @@
 	height: 1.15rem;
 	margin-top: 0.15rem;
 	flex-shrink: 0;
-	color: var(--hr-accent-hover);
+	color: var(--hr-link);
 }
 
 .auto-update-notification.error .auto-update-icon {
@@ -275,7 +275,7 @@
 	margin: 0.2rem 0 0;
 	max-height: 4.8rem;
 	overflow: hidden;
-	font-size: 0.78rem;
+	font-size: 0.8125rem;
 	line-height: 1.45;
 	color: var(--hr-text-muted);
 	white-space: pre-wrap;
@@ -309,7 +309,7 @@
 	gap: 0.35rem;
 	min-height: 2rem;
 	padding: 0.4rem 0.65rem;
-	font-size: 0.8rem;
+	font-size: 0.8125rem;
 	font-weight: 600;
 	color: #fff;
 	background: var(--hr-accent);
@@ -325,7 +325,7 @@
 	align-items: center;
 	min-height: 2rem;
 	padding: 0.4rem 0.65rem;
-	font-size: 0.8rem;
+	font-size: 0.8125rem;
 	font-weight: 600;
 	color: var(--hr-text-muted);
 	border: 1px solid var(--hr-border);
@@ -503,7 +503,7 @@
 }
 
 .sheet-count {
-	font-size: 0.78rem;
+	font-size: 0.8125rem;
 	color: var(--hr-text-muted);
 	font-variant-numeric: tabular-nums;
 }
@@ -524,7 +524,7 @@
 	border-radius: var(--hr-radius-sm);
 	background: var(--hr-surface);
 	color: var(--hr-text);
-	font-size: 0.78rem;
+	font-size: 0.8125rem;
 	font-weight: 500;
 	white-space: nowrap;
 }
@@ -570,7 +570,7 @@
 	padding: 0.75rem 1rem;
 	text-align: left;
 	font-weight: 600;
-	font-size: 0.75rem;
+	font-size: 0.8125rem;
 	letter-spacing: 0.04em;
 	color: var(--hr-text-muted);
 	border-bottom: 1px solid var(--hr-border);
@@ -603,7 +603,7 @@
 
 .sheet-row__sub {
 	margin-left: 0.5rem;
-	font-size: 0.78rem;
+	font-size: 0.8125rem;
 	color: var(--hr-text-muted);
 }
 
@@ -628,7 +628,7 @@
 	align-items: center;
 	gap: 0.4rem;
 	padding: 0.2rem 0.65rem;
-	font-size: 0.78rem;
+	font-size: 0.8125rem;
 	font-weight: 600;
 	color: var(--hr-text-muted);
 	background: var(--hr-bg-elevated);
@@ -646,7 +646,7 @@
 }
 
 .status-chip.submitted {
-	color: var(--hr-accent-hover);
+	color: var(--hr-link);
 	background: var(--hr-accent-muted);
 	border-color: var(--hr-accent);
 }
@@ -663,12 +663,18 @@
 	border-color: rgba(61, 122, 92, 0.45);
 }
 
+.export-hint {
+	font-size: 0.8125rem;
+	color: var(--hr-text-muted);
+	white-space: nowrap;
+}
+
 .export-button {
 	display: inline-flex;
 	align-items: center;
 	gap: 0.35rem;
 	padding: 0.35rem 0.75rem;
-	font-size: 0.8rem;
+	font-size: 0.8125rem;
 	font-weight: 600;
 	color: var(--hr-text);
 	background: var(--hr-bg-elevated);
@@ -680,20 +686,20 @@
 		background 0.15s ease;
 }
 
-.export-button:hover:not(:disabled, [aria-disabled="true"]) {
-	color: var(--hr-accent-hover);
+.export-button:hover:not(:disabled) {
+	color: var(--hr-link);
 	border-color: var(--hr-accent);
 	background: var(--hr-accent-muted);
 }
 
-/* aria-disabled: 評価が確定する前のシート。押せない理由を title で示す */
-.export-button:disabled,
-.export-button[aria-disabled="true"] {
+/* 別のシートを出力している間 */
+.export-button:disabled {
 	opacity: 0.5;
 	cursor: not-allowed;
 }
 
-.action-buttons .export-button {
+.action-buttons .export-button,
+.action-buttons .export-hint {
 	margin-right: 0.5rem;
 	vertical-align: middle;
 }
@@ -819,7 +825,7 @@
 	min-width: 220px;
 	padding: 0.35rem 0.6rem;
 	border-radius: var(--hr-radius-sm);
-	border: 1px solid var(--hr-border);
+	border: 1px solid var(--hr-border-input);
 	background: var(--hr-surface);
 	color: var(--hr-text);
 	font-size: 0.875rem;
@@ -933,7 +939,7 @@
 .status-track__hint {
 	flex-basis: 100%;
 	margin: 0;
-	font-size: 0.76rem;
+	font-size: 0.8125rem;
 	text-align: right;
 	color: var(--hr-text-muted);
 }
@@ -941,7 +947,7 @@
 .status-track__notice {
 	flex-basis: 100%;
 	margin: 0;
-	font-size: 0.8rem;
+	font-size: 0.8125rem;
 	text-align: right;
 	color: var(--hr-danger-text);
 }
@@ -975,7 +981,7 @@
 	display: flex;
 	align-items: center;
 	gap: 0.5rem;
-	font-size: 0.8rem;
+	font-size: 0.8125rem;
 	font-weight: 600;
 	color: var(--hr-text-muted);
 	text-transform: uppercase;
@@ -986,7 +992,7 @@
 	width: 100%;
 	padding: 0.65rem 0.85rem;
 	border-radius: var(--hr-radius-sm);
-	border: 1px solid var(--hr-border);
+	border: 1px solid var(--hr-border-input);
 	background: var(--hr-bg-elevated);
 	color: var(--hr-text);
 	cursor: pointer;
@@ -1046,7 +1052,7 @@
 }
 
 .info-label {
-	font-size: 0.6875rem;
+	font-size: 0.8125rem;
 	font-weight: 600;
 	text-transform: uppercase;
 	letter-spacing: 0.05em;
@@ -1086,7 +1092,7 @@
 	align-items: center;
 	justify-content: center;
 	padding: 0.125rem 0.5rem;
-	font-size: 0.6875rem;
+	font-size: 0.8125rem;
 	font-weight: 600;
 	color: var(--hr-text-muted);
 	background: var(--hr-bg-elevated);
@@ -1123,7 +1129,7 @@
 
 .final-rank-panel__title p {
 	margin: 0.1rem 0 0;
-	font-size: 0.76rem;
+	font-size: 0.8125rem;
 	color: var(--hr-text-muted);
 }
 
@@ -1146,7 +1152,7 @@
 }
 
 .rank-summary__item dt {
-	font-size: 0.72rem;
+	font-size: 0.8125rem;
 	color: var(--hr-text-muted);
 }
 
@@ -1156,7 +1162,7 @@
 	align-items: baseline;
 	gap: 0.15rem 0.6rem;
 	margin: 0.15rem 0 0;
-	font-size: 0.78rem;
+	font-size: 0.8125rem;
 	font-variant-numeric: tabular-nums;
 }
 
@@ -1168,7 +1174,7 @@
 
 .rank-summary__item small {
 	flex-basis: 100%;
-	font-size: 0.68rem;
+	font-size: 0.8125rem;
 	color: var(--hr-text-muted);
 }
 
@@ -1212,7 +1218,7 @@
 	margin: 0.4rem 0 0;
 	padding: 0;
 	list-style: none;
-	font-size: 0.76rem;
+	font-size: 0.8125rem;
 	color: var(--hr-text-muted);
 }
 
@@ -1313,7 +1319,7 @@
 .radar-readout {
 	min-height: 1.4em;
 	margin: 0.25rem 0 0;
-	font-size: 0.78rem;
+	font-size: 0.8125rem;
 	text-align: center;
 	color: var(--hr-text-muted);
 	font-variant-numeric: tabular-nums;
@@ -1344,7 +1350,7 @@
 
 .challenge-helper {
 	margin: 0;
-	font-size: 0.8rem;
+	font-size: 0.8125rem;
 	color: var(--hr-text-muted);
 }
 
@@ -1357,10 +1363,23 @@
 	border-bottom: 1px solid var(--hr-border);
 }
 
+.challenge-tab__pending {
+	padding: 0.05rem 0.5rem;
+	border-radius: 999px;
+	font-size: 0.8125rem;
+	font-weight: 600;
+	color: var(--hr-warning-text);
+	border: 1px solid currentColor;
+}
+
 .challenge-tab {
-	padding: 0.45rem 0.95rem;
-	font-size: 0.8rem;
-	font-weight: 500;
+	display: inline-flex;
+	align-items: center;
+	gap: 0.5rem;
+	min-height: 2.5rem;
+	padding: 0.45rem 1rem;
+	font-size: 0.9375rem;
+	font-weight: 600;
 	color: var(--hr-text-muted);
 	border-radius: var(--hr-radius-sm);
 	border: 1px solid var(--hr-border);
@@ -1435,7 +1454,7 @@
 }
 
 .score-label {
-	font-size: 0.7rem;
+	font-size: 0.8125rem;
 	font-weight: 600;
 	text-transform: uppercase;
 	letter-spacing: 0.05em;
@@ -1455,13 +1474,13 @@
 }
 
 .score-value small {
-	font-size: 0.72rem;
+	font-size: 0.8125rem;
 	font-weight: 500;
 	color: var(--hr-text-muted);
 }
 
 .score-value.empty {
-	font-size: 0.8rem;
+	font-size: 0.8125rem;
 	font-weight: 500;
 	color: var(--hr-text-muted);
 }
@@ -1472,19 +1491,19 @@
 	min-width: 0;
 	margin: 0;
 	padding: 0;
-	border: 1px solid var(--hr-border-strong);
+	border: 1px solid var(--hr-border-input);
 	border-radius: var(--hr-radius-sm);
 	overflow: hidden;
 }
 
 .score-scale__step {
-	min-width: 2.1rem;
-	height: 2rem;
-	padding: 0 0.5rem;
-	font-size: 0.875rem;
+	min-width: 2.75rem;
+	height: 2.5rem;
+	padding: 0 0.6rem;
+	font-size: 1rem;
 	font-weight: 600;
 	font-variant-numeric: tabular-nums;
-	color: var(--hr-text-muted);
+	color: var(--hr-text);
 	background: var(--hr-bg);
 	border-left: 1px solid var(--hr-border);
 	transition:
@@ -1529,7 +1548,7 @@
 	padding: 0.35rem 0.5rem;
 	text-align: center;
 	border-radius: var(--hr-radius-sm);
-	border: 1px solid var(--hr-border);
+	border: 1px solid var(--hr-border-input);
 	background: var(--hr-bg);
 	color: var(--hr-text);
 }
@@ -1548,9 +1567,11 @@
 .secondary-action {
 	display: inline-flex;
 	align-items: center;
+	justify-content: center;
 	gap: 0.4rem;
-	padding: 0.5rem 0.9rem;
-	font-size: 0.8rem;
+	min-height: 2.5rem;
+	padding: 0.5rem 1rem;
+	font-size: 0.9375rem;
 	font-weight: 600;
 	border-radius: var(--hr-radius-sm);
 	transition:
@@ -1569,8 +1590,8 @@
 
 .secondary-action {
 	background: transparent;
-	color: var(--hr-text-muted);
-	border: 1px solid var(--hr-border);
+	color: var(--hr-text);
+	border: 1px solid var(--hr-border-input);
 }
 
 .secondary-action:hover:not(:disabled) {
@@ -1615,12 +1636,13 @@
 	display: inline-flex;
 	align-items: center;
 	gap: 0.4rem;
-	padding: 0.45rem 0.85rem;
-	font-size: 0.8rem;
+	min-height: 2.5rem;
+	padding: 0.5rem 1rem;
+	font-size: 0.9375rem;
 	font-weight: 600;
 	color: var(--hr-text);
 	background: var(--hr-bg-elevated);
-	border: 1px solid var(--hr-border);
+	border: 1px solid var(--hr-border-input);
 	border-radius: var(--hr-radius-sm);
 }
 
@@ -1630,9 +1652,9 @@
 }
 
 .editing-label {
-	font-size: 0.75rem;
+	font-size: 0.8125rem;
 	font-weight: 600;
-	color: var(--hr-accent-hover);
+	color: var(--hr-link);
 	text-transform: uppercase;
 	letter-spacing: 0.06em;
 }
@@ -1650,7 +1672,7 @@
 }
 
 .objective-fields.editing label > span {
-	font-size: 0.75rem;
+	font-size: 0.8125rem;
 	font-weight: 600;
 	color: var(--hr-text-muted);
 	text-transform: uppercase;
@@ -1661,7 +1683,7 @@
 	min-height: 88px;
 	padding: 0.65rem 0.85rem;
 	border-radius: var(--hr-radius-sm);
-	border: 1px solid var(--hr-border);
+	border: 1px solid var(--hr-border-input);
 	background: var(--hr-bg-elevated);
 	color: var(--hr-text);
 	resize: vertical;
@@ -1684,7 +1706,7 @@
 
 .objective-field__label {
 	display: block;
-	font-size: 0.72rem;
+	font-size: 0.8125rem;
 	font-weight: 600;
 	text-transform: uppercase;
 	letter-spacing: 0.05em;
@@ -1713,6 +1735,33 @@
 	flex-wrap: wrap;
 	gap: 0.5rem;
 	margin-top: 0.5rem;
+}
+
+/* 入力中だけ表の下に出す操作。スクロールしても画面の下端に残る */
+.edit-actions-footer {
+	position: sticky;
+	bottom: 0;
+	z-index: 5;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.75rem;
+	padding: 0.75rem 1.25rem;
+	border-top: 1px solid var(--hr-border-strong);
+	border-radius: 0 0 var(--hr-radius-lg) var(--hr-radius-lg);
+	background: var(--hr-surface);
+	box-shadow: 0 -8px 20px rgba(0, 0, 0, 0.12);
+}
+
+.edit-actions-footer p {
+	margin: 0;
+	font-size: 0.9375rem;
+	color: var(--hr-text);
+}
+
+.edit-actions-footer .edit-actions {
+	margin-top: 0;
 }
 
 /* ----- 共通評価 ----- */
@@ -1785,7 +1834,7 @@
 	padding: 0.65rem 0.75rem;
 	text-align: left;
 	font-weight: 600;
-	font-size: 0.75rem;
+	font-size: 0.8125rem;
 	letter-spacing: 0.04em;
 	color: var(--hr-text-muted);
 	border-bottom: 1px solid var(--hr-border);
@@ -1861,7 +1910,7 @@
 	min-height: 64px;
 	padding: 0.5rem 0.65rem;
 	border-radius: var(--hr-radius-sm);
-	border: 1px solid var(--hr-border);
+	border: 1px solid var(--hr-border-input);
 	background: var(--hr-bg-elevated);
 	color: var(--hr-text);
 	font-size: 0.82rem;
@@ -1921,7 +1970,7 @@
 }
 
 .overall-comment-field__label {
-	font-size: 0.8rem;
+	font-size: 0.8125rem;
 	font-weight: 600;
 	color: var(--hr-text-muted);
 }
@@ -1934,7 +1983,7 @@
 }
 
 .save-state {
-	font-size: 0.78rem;
+	font-size: 0.8125rem;
 	color: var(--hr-text-muted);
 }
 
@@ -1946,7 +1995,7 @@
 	min-height: 140px;
 	padding: 0.7rem 0.85rem;
 	border-radius: var(--hr-radius-sm);
-	border: 1px solid var(--hr-border);
+	border: 1px solid var(--hr-border-input);
 	background: var(--hr-bg-elevated);
 	color: var(--hr-text);
 	font-size: 0.9rem;

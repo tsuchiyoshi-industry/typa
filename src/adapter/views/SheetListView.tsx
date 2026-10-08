@@ -151,25 +151,24 @@ const SheetTable: Component<{
 									<td class="sheet-row__date">{formatDateTime(sheet.updatedAt)}</td>
 									<td class="action-buttons">
 										<Show when={props.onExport}>
-											{/* 確定前は押せないが、理由のヒントを出せるよう disabled にはしない */}
-											<button
-												type="button"
-												class="export-button"
-												aria-disabled={!isFinalized(sheet)}
-												title={
-													isFinalized(sheet) ? undefined : "評価が確定すると PDF を出力できます"
-												}
-												onClick={(event) => {
-													event.stopPropagation();
-													if (isFinalized(sheet)) {
-														props.onExport?.(sheet);
-													}
-												}}
-												disabled={props.exportingId != null}
+											{/* 確定前は、押せないボタンではなく理由をそのまま書く(ツールチップには気づきにくい) */}
+											<Show
+												when={isFinalized(sheet)}
+												fallback={<span class="export-hint">確定後に PDF 出力</span>}
 											>
-												<Download size={16} />
-												<span>{props.exportingId === sheet.id ? "出力中..." : "PDF出力"}</span>
-											</button>
+												<button
+													type="button"
+													class="export-button"
+													onClick={(event) => {
+														event.stopPropagation();
+														props.onExport?.(sheet);
+													}}
+													disabled={props.exportingId != null}
+												>
+													<Download size={16} />
+													<span>{props.exportingId === sheet.id ? "出力中..." : "PDF出力"}</span>
+												</button>
+											</Show>
 										</Show>
 										<ChevronRight class="sheet-row__chevron" size={18} />
 									</td>

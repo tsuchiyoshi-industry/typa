@@ -18,7 +18,7 @@
 	border-radius: 999px;
 	background: var(--hr-accent-muted);
 	color: var(--hr-text);
-	font-size: 0.7rem;
+	font-size: 0.8125rem;
 }
 .allocation-preview {
 	display: flex;
@@ -65,7 +65,7 @@
 	padding-left: 1.25rem;
 }
 .info-card a {
-	color: var(--hr-accent-hover);
+	color: var(--hr-link);
 	text-decoration: underline;
 }
 
@@ -80,7 +80,7 @@
 .allocation-form label {
 	display: grid;
 	gap: 0.35rem;
-	font-size: 0.78rem;
+	font-size: 0.8125rem;
 	color: var(--hr-text-muted);
 }
 .allocation-input {
@@ -94,7 +94,7 @@
 	width: 6rem;
 	min-height: 2.5rem;
 	padding: 0.4rem 0.6rem;
-	border: 1px solid var(--hr-border-strong);
+	border: 1px solid var(--hr-border-input);
 	border-radius: var(--hr-radius-sm);
 	background: var(--hr-bg-elevated);
 	color: var(--hr-text);
@@ -130,7 +130,7 @@
 	background: var(--hr-bg-elevated);
 }
 .allocation-rules dt {
-	font-size: 0.8rem;
+	font-size: 0.8125rem;
 	font-weight: 600;
 }
 .allocation-rules dd {
@@ -141,7 +141,7 @@
 .allocation-rules small {
 	display: block;
 	margin-top: 0.3rem;
-	font-size: 0.76rem;
+	font-size: 0.8125rem;
 	color: var(--hr-text-muted);
 	font-variant-numeric: tabular-nums;
 }
@@ -166,7 +166,7 @@
 	border: 1px solid var(--hr-border);
 	border-radius: 999px;
 	background: var(--hr-surface);
-	font-size: 0.78rem;
+	font-size: 0.8125rem;
 	color: var(--hr-text);
 }
 .help-toc a:hover {
@@ -197,12 +197,12 @@
 	border-radius: 50%;
 	background: var(--hr-accent-hover);
 	color: #fff;
-	font-size: 0.8rem;
+	font-size: 0.8125rem;
 	font-weight: 600;
 }
 .help-stage-actor {
 	margin-left: 0.75rem;
-	font-size: 0.74rem;
+	font-size: 0.8125rem;
 	color: var(--hr-text-muted);
 }
 .help-stages p {
@@ -224,7 +224,7 @@
 	line-height: 1.65;
 }
 .help-table thead th {
-	font-size: 0.74rem;
+	font-size: 0.8125rem;
 	font-weight: 500;
 	color: var(--hr-text-muted);
 	background: var(--hr-bg-elevated);

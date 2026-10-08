@@ -6,8 +6,12 @@
 	--hr-bg-elevated: #12151c;
 	--hr-surface: #161a22;
 	--hr-surface-hover: #1c212c;
-	--hr-border: rgba(255, 255, 255, 0.08);
-	--hr-border-strong: rgba(255, 255, 255, 0.12);
+	--hr-border: rgba(255, 255, 255, 0.1);
+	--hr-border-strong: rgba(255, 255, 255, 0.18);
+	/* 入力欄・押せる部品の枠。背景とのコントラスト 3:1 以上 */
+	--hr-border-input: rgba(255, 255, 255, 0.36);
+	/* 本文中のリンク。背景とのコントラスト 4.5:1 以上 */
+	--hr-link: #6f9fd8;
 	--hr-text: #e6e8ec;
 	--hr-text-muted: #8a9199;
 	--hr-accent: #3d6a9e;
@@ -33,17 +37,19 @@
 }
 
 /* ライトテーマ: 明示指定(data-theme="light")、または未指定時は OS 設定(prefers-color-scheme: light)に従う。
-   目に優しいよう、白/黒ではなくオフホワイト×ソフトな濃灰色で低コントラストに寄せている。 */
+   まぶしくないよう白/黒は避けつつ、補足の文字も背景とのコントラスト 4.5:1 以上を保つ(WCAG AA)。 */
 :root[data-theme="light"] {
 	color-scheme: light;
 	--hr-bg: #f3f2ee;
 	--hr-bg-elevated: #ebe9e1;
 	--hr-surface: #ffffff;
 	--hr-surface-hover: #f6f5f0;
-	--hr-border: rgba(35, 32, 25, 0.08);
-	--hr-border-strong: rgba(35, 32, 25, 0.16);
+	--hr-border: rgba(35, 32, 25, 0.12);
+	--hr-border-strong: rgba(35, 32, 25, 0.24);
+	--hr-border-input: rgba(35, 32, 25, 0.52);
+	--hr-link: #335e8c;
 	--hr-text: #33322d;
-	--hr-text-muted: #7b776d;
+	--hr-text-muted: #625e55;
 	--hr-accent: #3d6a9e;
 	--hr-accent-hover: #335e8c;
 	--hr-accent-muted: rgba(61, 106, 158, 0.14);
@@ -67,10 +73,12 @@
 		--hr-bg-elevated: #ebe9e1;
 		--hr-surface: #ffffff;
 		--hr-surface-hover: #f6f5f0;
-		--hr-border: rgba(35, 32, 25, 0.08);
-		--hr-border-strong: rgba(35, 32, 25, 0.16);
+		--hr-border: rgba(35, 32, 25, 0.12);
+		--hr-border-strong: rgba(35, 32, 25, 0.24);
+		--hr-border-input: rgba(35, 32, 25, 0.52);
+		--hr-link: #335e8c;
 		--hr-text: #33322d;
-		--hr-text-muted: #7b776d;
+		--hr-text-muted: #625e55;
 		--hr-accent: #3d6a9e;
 		--hr-accent-hover: #335e8c;
 		--hr-accent-muted: rgba(61, 106, 158, 0.14);
@@ -102,8 +110,8 @@ body {
 	margin: 0;
 	min-height: 100vh;
 	font-family: var(--hr-font);
-	font-size: 15px;
-	line-height: 1.6;
+	font-size: 16px;
+	line-height: 1.7;
 	color: var(--hr-text);
 	background: var(--hr-bg);
 	background-image:
@@ -127,7 +135,7 @@ button {
 }
 
 a {
-	color: var(--hr-accent-hover);
+	color: var(--hr-link);
 	text-decoration: none;
 }
 
@@ -217,7 +225,7 @@ a:hover {
 .link-button {
 	padding: 0;
 	font-size: 0.85rem;
-	color: var(--hr-accent-hover);
+	color: var(--hr-link);
 }
 
 .link-button:hover:not(:disabled) {
@@ -277,7 +285,7 @@ a:hover {
 }
 
 .login-fieldset label {
-	font-size: 0.8rem;
+	font-size: 0.8125rem;
 	font-weight: 600;
 	color: var(--hr-text-muted);
 }
@@ -289,7 +297,7 @@ a:hover {
 .login-fieldset input {
 	padding: 0.65rem 0.85rem;
 	border-radius: var(--hr-radius-sm);
-	border: 1px solid var(--hr-border);
+	border: 1px solid var(--hr-border-input);
 	background: var(--hr-bg-elevated);
 	color: var(--hr-text);
 	transition:
@@ -354,14 +362,14 @@ a:hover {
 
 .field-hint {
 	margin: 0;
-	font-size: 0.78rem;
+	font-size: 0.8125rem;
 	color: var(--hr-text-muted);
 }
 
 .field-error,
 .field-hint.invalid {
 	margin: 0;
-	font-size: 0.78rem;
+	font-size: 0.8125rem;
 	color: var(--hr-danger-text);
 }
 
@@ -405,7 +413,7 @@ a:hover {
 	height: 1.1rem;
 	margin-top: 0.15rem;
 	flex-shrink: 0;
-	color: var(--hr-accent-hover);
+	color: var(--hr-link);
 }
 
 .toast.success .toast__icon {
@@ -431,7 +439,7 @@ a:hover {
 }
 
 .toast__copy span {
-	font-size: 0.8rem;
+	font-size: 0.8125rem;
 	color: var(--hr-text-muted);
 	overflow-wrap: anywhere;
 }

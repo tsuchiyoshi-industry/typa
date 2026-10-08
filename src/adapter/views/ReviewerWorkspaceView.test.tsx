@@ -298,7 +298,10 @@ it("allows confirmation after the remaining common evaluation is set and saved",
 		.closest(".common-evaluation-card") as HTMLElement;
 	fireEvent.click(within(commonCard).getByRole("button", { name: "評価を入力" }));
 	fireEvent.click(within(commonCard).getByRole("button", { name: "業務遂行 二次評価 3" }));
-	fireEvent.click(within(commonCard).getByRole("button", { name: "評価を保存" }));
+	// 長い表を入力し終えた位置(表の下)からも保存できる
+	const saveButtons = within(commonCard).getAllByRole("button", { name: "評価を保存" });
+	expect(saveButtons).toHaveLength(2);
+	fireEvent.click(saveButtons[1]);
 	await waitFor(() => expect(view.queryByText("自分の評価: あと 1 件")).toBeNull());
 	fireEvent.click(view.getByRole("button", { name: "二次評価を確定する" }));
 	const dialog = await view.findByRole("dialog");

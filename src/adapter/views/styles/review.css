@@ -14,7 +14,7 @@
 .review-eyebrow {
 	display: block;
 	color: var(--hr-text-muted);
-	font-size: 0.65rem;
+	font-size: 0.8125rem;
 	font-weight: 650;
 	letter-spacing: 0.16em;
 }
@@ -38,24 +38,24 @@
 	display: flex;
 	flex-direction: column;
 	gap: 0.35rem;
-	font-size: 0.72rem;
+	font-size: 0.8125rem;
 	color: var(--hr-text-muted);
 }
 .review-workspace select,
 .review-search {
-	border: 1px solid var(--hr-border-strong);
+	border: 1px solid var(--hr-border-input);
 	border-radius: var(--hr-radius-sm);
 	background: var(--hr-surface);
 }
 .review-workspace select {
 	padding: 0.55rem 0.8rem;
 	color: var(--hr-text);
-	font-size: 0.8rem;
+	font-size: 0.8125rem;
 	min-height: 38px;
 	max-width: 100%;
 }
 .review-icon-button {
-	border: 1px solid var(--hr-border-strong);
+	border: 1px solid var(--hr-border-input);
 	border-radius: var(--hr-radius-sm);
 	height: 38px;
 	width: 38px;
@@ -85,11 +85,11 @@
 	display: flex;
 	align-items: center;
 	gap: 0.65rem;
-	font-size: 0.8rem;
+	font-size: 0.8125rem;
 }
 .review-progress-count {
 	margin-left: auto;
-	font-size: 0.7rem;
+	font-size: 0.8125rem;
 	color: var(--hr-text-muted);
 }
 .review-progress progress {
@@ -123,10 +123,10 @@
 }
 /* 自分の番のシートが残っている段階。件数の色だけ変わる(ラベルは下で色を指定している) */
 .review-stat.action {
-	color: var(--hr-accent-hover);
+	color: var(--hr-link);
 }
 .review-stat > span {
-	font-size: 0.72rem;
+	font-size: 0.8125rem;
 	color: var(--hr-text-muted);
 	display: block;
 }
@@ -137,7 +137,7 @@
 }
 .review-stat small {
 	margin-left: 0.4rem;
-	font-size: 0.7rem;
+	font-size: 0.8125rem;
 	font-weight: 400;
 	color: var(--hr-text-muted);
 }
@@ -166,7 +166,7 @@
 }
 .review-sync {
 	color: var(--hr-text-muted);
-	font-size: 0.68rem;
+	font-size: 0.8125rem;
 }
 .review-filters {
 	display: flex;
@@ -188,7 +188,7 @@
 	width: 100%;
 	min-width: 0;
 	padding: 0.6rem 0;
-	font-size: 0.8rem;
+	font-size: 0.8125rem;
 	outline-offset: 3px;
 }
 .review-search input::placeholder {
@@ -210,7 +210,7 @@
 	border: 1px solid transparent;
 	border-radius: 20px;
 	padding: 0.35rem 0.7rem;
-	font-size: 0.75rem;
+	font-size: 0.8125rem;
 	color: var(--hr-text-muted);
 }
 
@@ -224,7 +224,7 @@
 	justify-content: space-between;
 	align-items: center;
 	gap: 0.75rem;
-	font-size: 0.75rem;
+	font-size: 0.8125rem;
 	color: var(--hr-text-muted);
 }
 .review-results-header > div {
@@ -234,7 +234,7 @@
 }
 .review-results-header .secondary-action {
 	padding: 0.4rem 0.7rem;
-	font-size: 0.75rem;
+	font-size: 0.8125rem;
 }
 .review-table-scroll {
 	overflow: auto;
@@ -246,14 +246,14 @@
 .review-matrix {
 	width: 100%;
 	border-collapse: collapse;
-	font-size: 0.8rem;
+	font-size: 0.8125rem;
 }
 .review-table {
 	min-width: 930px;
 }
 .review-table th,
 .review-matrix th {
-	font-size: 0.7rem;
+	font-size: 0.8125rem;
 	font-weight: 500;
 	color: var(--hr-text-muted);
 	background: var(--hr-bg-elevated);
@@ -308,7 +308,7 @@
 .review-matrix small {
 	display: block;
 	color: var(--hr-text-muted);
-	font-size: 0.68rem;
+	font-size: 0.8125rem;
 	margin-top: 0.2rem;
 	font-weight: 400;
 }
@@ -329,7 +329,7 @@
 }
 
 .review-date {
-	font-size: 0.7rem;
+	font-size: 0.8125rem;
 	color: var(--hr-text-muted);
 }
 .review-evaluator-label {
@@ -338,7 +338,7 @@
 	border: 1px solid var(--hr-border);
 	border-radius: 4px;
 	color: var(--hr-text-muted);
-	font-size: 0.66rem;
+	font-size: 0.8125rem;
 	background: var(--hr-bg-elevated);
 }
 .review-evaluator-label:hover {
@@ -352,7 +352,7 @@
 	gap: 0.5rem;
 	flex-wrap: wrap;
 	color: var(--hr-text-muted);
-	font-size: 0.73rem;
+	font-size: 0.8125rem;
 	margin-top: -0.3rem;
 	padding: 0.6rem 0.85rem;
 	background: var(--hr-accent-muted);
@@ -364,7 +364,7 @@
 }
 .review-active-filter button {
 	margin-left: auto;
-	font-size: 0.7rem;
+	font-size: 0.8125rem;
 }
 .review-badge {
 	display: inline-flex;
@@ -372,7 +372,7 @@
 	white-space: nowrap;
 	border: 1px solid var(--hr-border-strong);
 	border-radius: 5px;
-	font-size: 0.66rem;
+	font-size: 0.8125rem;
 	padding: 0.14rem 0.45rem;
 	color: var(--hr-text);
 	background: var(--hr-accent-muted);
@@ -420,7 +420,7 @@
 	align-items: center;
 	padding: 0.8rem 1rem;
 	border-bottom: 1px solid var(--hr-border);
-	font-size: 0.75rem;
+	font-size: 0.8125rem;
 }
 
 .review-caseload-list {
@@ -454,7 +454,7 @@
 	border: 1px solid var(--hr-border);
 	background: var(--hr-bg-elevated);
 	border-radius: 50%;
-	font-size: 0.7rem;
+	font-size: 0.8125rem;
 	color: var(--hr-text-muted);
 }
 .review-caseload-person-info {
@@ -463,14 +463,14 @@
 }
 .review-caseload-person-info > strong {
 	display: block;
-	font-size: 0.8rem;
+	font-size: 0.8125rem;
 	font-weight: 550;
 	overflow-wrap: anywhere;
 }
 .review-caseload-person-info > small {
 	display: block;
 	color: var(--hr-text-muted);
-	font-size: 0.63rem;
+	font-size: 0.8125rem;
 	margin: 0.15rem 0 0.35rem;
 }
 .review-mini-rank {
@@ -492,21 +492,21 @@
 	align-items: center;
 	flex-wrap: wrap;
 	gap: 0.65rem;
-	font-size: 0.75rem;
+	font-size: 0.8125rem;
 	color: var(--hr-text-muted);
 }
 .review-detail-toolbar small {
-	font-size: 0.65rem;
+	font-size: 0.8125rem;
 }
 .review-detail-toolbar button {
-	font-size: 0.75rem;
+	font-size: 0.8125rem;
 }
 .review-notice {
 	border-left: 2px solid var(--hr-warning);
 	padding: 0.7rem 1rem;
 	background: var(--hr-surface);
 	border-radius: 0 var(--hr-radius-sm) var(--hr-radius-sm) 0;
-	font-size: 0.78rem;
+	font-size: 0.8125rem;
 	color: var(--hr-warning-text);
 	margin: 0 0 1rem;
 }
@@ -531,7 +531,7 @@
 	font-size: 0.85rem;
 }
 .review-editor .info-meta {
-	font-size: 0.7rem;
+	font-size: 0.8125rem;
 }
 .review-action-bar {
 	position: sticky;
@@ -554,15 +554,15 @@
 	grid-template-columns: 18px 1fr;
 	align-items: center;
 	gap: 0.1rem 0.6rem;
-	font-size: 0.72rem;
+	font-size: 0.8125rem;
 }
 .review-action-bar small {
 	grid-column: 2;
-	font-size: 0.65rem;
+	font-size: 0.8125rem;
 	color: var(--hr-text-muted);
 }
 .review-action-bar button {
-	font-size: 0.75rem;
+	font-size: 0.8125rem;
 	white-space: nowrap;
 }
 .review-empty {
@@ -584,7 +584,7 @@
 	font-weight: 550;
 }
 .review-empty p {
-	font-size: 0.8rem;
+	font-size: 0.8125rem;
 	margin: 0 0 0.4rem;
 }
 .review-caseload .review-empty {
@@ -607,12 +607,12 @@
 }
 .review-comparison-group header p {
 	color: var(--hr-text-muted);
-	font-size: 0.7rem;
+	font-size: 0.8125rem;
 	margin: 0.1rem 0 0;
 }
 .review-comparison-help {
 	margin: -0.2rem 0 0.5rem;
-	font-size: 0.73rem;
+	font-size: 0.8125rem;
 	color: var(--hr-text-muted);
 }
 .review-matrix {
@@ -637,7 +637,7 @@
 	max-width: 170px;
 }
 .review-matrix thead th {
-	font-size: 0.8rem;
+	font-size: 0.8125rem;
 }
 .review-matrix thead .review-badge {
 	margin-top: 0.6rem;
@@ -654,7 +654,7 @@
 	overflow: auto;
 	scrollbar-width: thin;
 	margin: 0 0 0.5rem;
-	font-size: 0.75rem;
+	font-size: 0.8125rem;
 }
 .review-evidence:last-child {
 	margin-bottom: 0;
@@ -663,7 +663,7 @@
 	display: flex;
 	align-items: center;
 	gap: 0.5rem;
-	font-size: 0.68rem;
+	font-size: 0.8125rem;
 	color: var(--hr-text-muted);
 	padding: 0.2rem 0;
 }
@@ -678,7 +678,7 @@
 	display: flex;
 	align-items: center;
 	gap: 0.5rem;
-	font-size: 0.8rem;
+	font-size: 0.8125rem;
 	margin-bottom: 0.75rem;
 }
 .review-workspace button:disabled {
@@ -686,11 +686,11 @@
 	cursor: default;
 }
 .review-person-link:hover:not(:disabled) strong {
-	color: var(--hr-accent-hover);
+	color: var(--hr-link);
 	text-decoration: underline;
 }
 .review-filter-tabs button span {
-	font-size: 0.68rem;
+	font-size: 0.8125rem;
 	font-variant-numeric: tabular-nums;
 	opacity: 0.85;
 }
@@ -751,7 +751,7 @@
 		padding: 0.7rem 0.6rem;
 	}
 	.review-stat > span {
-		font-size: 0.62rem;
+		font-size: 0.8125rem;
 	}
 	.review-stat > strong {
 		font-size: 1.5rem;

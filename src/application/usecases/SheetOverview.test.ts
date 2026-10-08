@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { EvaluationSheetOverviewRow } from "../../domain/repositories/EvaluationSheetRepository";
-import { canViewSheetOverview } from "../../domain/services/EmployeeMasterAccessService";
+import { canViewAllSheets } from "../../domain/services/EmployeeMasterAccessService";
 import { EmployeeRole } from "../../domain/valueObjects/EmployeeRole";
 import { EvaluationStatus } from "../../domain/valueObjects/EvaluationStatus";
 import { masterRepository, output, profile, sheetRepository } from "../../test/fixtures";
@@ -33,6 +33,8 @@ const row = (
 	gradeName: "総合Ⅱ級",
 	primaryEvaluatorName: "一次",
 	secondaryEvaluatorName: "なし",
+	finalScore: status.isFinalized() ? 88 : null,
+	finalRank: status.isFinalized() ? "A" : null,
 });
 /** role: ログイン中の人の権限。null は社員を特定できない。 */
 const setup = (role: string | null) => {
@@ -64,7 +66,7 @@ const setup = (role: string | null) => {
 
 describe("the overview of every employee's sheets", () => {
 	it("is an Admin-only permission in the domain", () => {
-		expect(EmployeeRole.ALL.filter(canViewSheetOverview)).toEqual([EmployeeRole.ADMIN]);
+		expect(EmployeeRole.ALL.filter(canViewAllSheets)).toEqual([EmployeeRole.ADMIN]);
 	});
 
 	it.each(["Reviewer", "Employee", "unknown", null])(
@@ -78,7 +80,7 @@ describe("the overview of every employee's sheets", () => {
 		},
 	);
 
-	it("gives an Admin every sheet with its stage and evaluators, drafts included, and no scores", async () => {
+	it("gives an Admin every sheet with its stage, evaluators and finalized result, drafts included", async () => {
 		const { master, sheets } = setup("Admin");
 		const out = output<FetchSheetOverviewResponse>();
 		await new FetchSheetOverviewInteractor(master, sheets).execute({}, out);
@@ -94,8 +96,11 @@ describe("the overview of every employee's sheets", () => {
 			gradeName: "総合Ⅱ級",
 			primaryEvaluator: "一次",
 			secondaryEvaluator: "なし",
-			totalScore: null,
+			finalScore: 88,
+			finalRank: "A",
 		});
+		// 確定していないシートに、結果はない
+		expect(listed?.[1]).toMatchObject({ finalScore: null, finalRank: null });
 	});
 
 	it("does not present an empty list when the overview cannot be read", async () => {
@@ -135,7 +140,7 @@ describe("the overview PDF", () => {
 				issuedAt: "2026/10/08 14:30",
 				issuedBy: "テスト9",
 				rows: [
-					expect.objectContaining({ employeeNo: "E001", status: "draft" }),
+					expect.objectContaining({ employeeNo: "E001", status: "draft", finalEvaluation: "" }),
 					{
 						employeeNo: "E003",
 						employeeName: "社員3",
@@ -143,6 +148,7 @@ describe("the overview PDF", () => {
 						status: "finalized",
 						primaryEvaluator: "一次",
 						secondaryEvaluator: "なし",
+						finalEvaluation: "88 点 A",
 						updatedAt: expect.stringMatching(/^2026\/10\/0[45]$/),
 					},
 				],

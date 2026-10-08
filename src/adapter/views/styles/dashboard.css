@@ -611,6 +611,17 @@
 	background: var(--hr-bg-elevated);
 }
 
+/* 確定した評価点と評価ランク */
+.sheet-table .sheet-row__result {
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
+.sheet-row__result strong {
+	margin-left: 0.35rem;
+	font-weight: 600;
+}
+
 /* いまどの段に何枚あるか。帯の幅がその段の割合で、色は表のステータスと同じ */
 .stage-summary {
 	display: grid;

@@ -1,4 +1,6 @@
 import type { EvaluationSheet } from "../entities/EvaluationSheet";
+import type { EmployeeRole } from "../valueObjects/EmployeeRole";
+import { canViewAllSheets } from "./EmployeeMasterAccessService";
 import { isPrimaryEvaluator, isSecondaryEvaluator, isSubject } from "./EvaluatorRoleService";
 
 /**
@@ -13,6 +15,9 @@ import { isPrimaryEvaluator, isSecondaryEvaluator, isSubject } from "./Evaluator
  * 本人・一次評価者・二次評価者の役割はシートごとに解決するため、
  * 「自分が誰かの評価者であり、かつ自分自身の被評価者でもある」場合でも
  * シート間で判定が混ざることはない。
+ * Admin は、他人のシートなら役割がなくても、下書きも含めてすべての内容を閲覧できる(閲覧だけ)。
+ * 記入・評価・提出・確定は役割だけで決まり、Admin であることでは増えない。
+ * Admin 自身のシートは本人として扱い、自分への評価を先に見ることはできない。
  */
 export class EvaluationSheetAccessPolicy {
 	private readonly viewerIsFinalEvaluator: boolean;
@@ -26,6 +31,8 @@ export class EvaluationSheetAccessPolicy {
 		private readonly viewerIsSubject: boolean,
 		private readonly viewerIsPrimaryEvaluator: boolean,
 		private readonly viewerIsSecondaryEvaluator: boolean,
+		/** Admin として、他人のシートの内容をすべて閲覧できる。何かを変更できるようにはならない。 */
+		private readonly viewerReadsEverything: boolean,
 	) {
 		this.viewerIsFinalEvaluator =
 			viewerIsSecondaryEvaluator || (viewerIsPrimaryEvaluator && sheet.primaryIsFinalEvaluator());
@@ -36,18 +43,22 @@ export class EvaluationSheetAccessPolicy {
 		this.periodIsOpen = sheet.evaluationPeriod.isActive;
 	}
 
+	/** viewerRole: 見ている人のアプリの権限。渡さなければ、シート上の役割だけで判定する。 */
 	static for(
 		currentEmployeeId: number | null,
 		sheet: EvaluationSheet,
+		viewerRole?: EmployeeRole,
 	): EvaluationSheetAccessPolicy {
 		if (currentEmployeeId === null) {
-			return new EvaluationSheetAccessPolicy(sheet, false, false, false);
+			return new EvaluationSheetAccessPolicy(sheet, false, false, false, false);
 		}
+		const viewerIsSubject = isSubject(currentEmployeeId, sheet.subject);
 		return new EvaluationSheetAccessPolicy(
 			sheet,
-			isSubject(currentEmployeeId, sheet.subject),
+			viewerIsSubject,
 			isPrimaryEvaluator(currentEmployeeId, sheet.subject),
 			isSecondaryEvaluator(currentEmployeeId, sheet.subject),
+			!viewerIsSubject && !!viewerRole && canViewAllSheets(viewerRole),
 		);
 	}
 
@@ -55,8 +66,19 @@ export class EvaluationSheetAccessPolicy {
 		return this.viewerIsSubject;
 	}
 
+	/** 本人でも評価者でもなく、Admin として閲覧しているだけか。画面で「閲覧のみ」と伝えるのに使う。 */
+	isViewingAsAdmin(): boolean {
+		return (
+			this.viewerReadsEverything &&
+			!this.viewerIsPrimaryEvaluator &&
+			!this.viewerIsSecondaryEvaluator
+		);
+	}
+
 	canViewSheet(): boolean {
-		return this.viewerIsSubject || this.viewerIsEvaluatorOfSubmittedSheet;
+		return (
+			this.viewerIsSubject || this.viewerIsEvaluatorOfSubmittedSheet || this.viewerReadsEverything
+		);
 	}
 
 	/** 締めた評価期間のシートを変更しようとしたら、役割より先にその理由で止める。 */
@@ -97,14 +119,14 @@ export class EvaluationSheetAccessPolicy {
 
 	/** 一次評価者は二次評価者の評価を見ることができない。 */
 	canViewMilestoneSecondScore(): boolean {
-		return this.viewerIsSubject || this.viewerIsSecondaryEvaluator;
+		return this.viewerIsSubject || this.viewerIsSecondaryEvaluator || this.viewerReadsEverything;
 	}
 
 	// --- 共通評価(CommonEvaluation) ---
 
-	/** 共通評価は評価者のみ閲覧可能。本人(被評価者・入力者)は閲覧不可。 */
+	/** 共通評価は評価者と Admin が閲覧できる。本人(被評価者・入力者)は閲覧不可。 */
 	canViewCommonEvaluation(): boolean {
-		return this.viewerIsEvaluatorOfSubmittedSheet;
+		return this.viewerIsEvaluatorOfSubmittedSheet || this.viewerReadsEverything;
 	}
 
 	canEditCommonEvaluationFirst(): boolean {
@@ -117,7 +139,7 @@ export class EvaluationSheetAccessPolicy {
 
 	/** 一次評価者は二次評価の内容を見ることができない(自分の一次評価の出力は可能)。 */
 	canViewCommonEvaluationSecond(): boolean {
-		return !this.viewerIsSubject && this.viewerIsSecondaryEvaluator;
+		return (!this.viewerIsSubject && this.viewerIsSecondaryEvaluator) || this.viewerReadsEverything;
 	}
 
 	// --- 総評・最終評価 ---
@@ -128,8 +150,13 @@ export class EvaluationSheetAccessPolicy {
 			: this.canEditCommonEvaluationSecond();
 	}
 
-	/** 評価点・最終評価ランクなど、最終評価の結果を見られるのは最終評価者のみ。 */
+	/** 評価点・最終評価ランクなど、最終評価の結果を見られるのは最終評価者と Admin。 */
 	canViewFinalEvaluation(): boolean {
+		return this.viewerActsAsFinalEvaluator() || this.viewerReadsEverything;
+	}
+
+	/** 最終評価者として評価・確定する立場か。見られるだけの Admin は含まない。 */
+	private viewerActsAsFinalEvaluator(): boolean {
 		return !this.viewerIsSubject && this.viewerIsFinalEvaluator;
 	}
 
@@ -168,7 +195,7 @@ export class EvaluationSheetAccessPolicy {
 	canFinalizeEvaluation(): boolean {
 		return (
 			this.periodIsOpen &&
-			this.canViewFinalEvaluation() &&
+			this.viewerActsAsFinalEvaluator() &&
 			(this.sheet.status.isAwaitingSecondEvaluation() ||
 				(this.sheet.primaryIsFinalEvaluator() && this.sheet.status.isAwaitingFirstEvaluation()))
 		);
@@ -177,7 +204,7 @@ export class EvaluationSheetAccessPolicy {
 	// --- 出力(PDFエクスポート) ---
 
 	/**
-	 * 本人と評価者(一次・二次)が、評価が確定したシートを出力できる。評価関係のない人は出力できない。
+	 * 本人と評価者(一次・二次)、Admin が、評価が確定したシートを出力できる。それ以外の人は出力できない。
 	 * 帳票は確定した評価の記録で、誰が出力しても同じ内容になる(画面のように役割で伏せない)。
 	 */
 	canExportSheet(): boolean {

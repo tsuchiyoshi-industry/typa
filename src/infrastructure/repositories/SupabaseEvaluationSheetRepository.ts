@@ -54,7 +54,10 @@ interface EvaluationSheetListRow {
 }
 
 /** DB 関数 get_sheet_overview が返す1行。 */
-type OverviewRpcRow = Omit<EvaluationSheetSummary, "status" | "totalScore"> & {
+type OverviewRpcRow = Omit<
+	EvaluationSheetOverviewRow,
+	"status" | "totalScore" | "primaryEvaluatorName" | "secondaryEvaluatorName"
+> & {
 	status: string;
 	primaryEvaluator: string | null;
 	secondaryEvaluator: string | null;

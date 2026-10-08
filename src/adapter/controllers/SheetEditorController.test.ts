@@ -67,6 +67,7 @@ it("resets edit permissions on navigation and rejects late permissions for the p
 	presenter.outputPort.sheet.present(response(101));
 	const permissions = {
 		isSubject: false,
+		viewingAsAdmin: false,
 		canEditFirst: false,
 		canEditSecond: true,
 		canEditMilestoneGoal: false,

@@ -22,13 +22,16 @@ export interface EvaluationSheetSummary {
 }
 
 /**
- * 全社の評価シート一覧の1行。誰の・どの期間のシートが、どの段にあり、誰が評価するかだけを持つ。
- * 評価の内容(目標・点数・コメント・ランク)は持たない。
+ * 全社の評価シート一覧(Admin 向け)の1行。誰の・どの期間のシートが、どの段にあり、誰が評価し、
+ * 確定していればどんな結果だったか。目標やコメントは、シートを開いて見る。
  */
 export interface EvaluationSheetOverviewRow extends EvaluationSheetSummary {
 	/** シートの評価者の名前。決まっていなければ「未設定」、二次評価者を置かないシートは「なし」。 */
 	primaryEvaluatorName: string;
 	secondaryEvaluatorName: string;
+	/** 確定した評価点(100点満点)と最終評価ランク(「B+」のような表示)。確定前は null。 */
+	finalScore: number | null;
+	finalRank: string | null;
 }
 
 export interface EvaluationSheetRepository {
@@ -56,6 +59,6 @@ export interface EvaluationSheetRepository {
 	findByOwner(employeeId: number): Promise<EvaluationSheetSummary[]>;
 	/** シートの評価者(一次・二次)がその社員であるシート。本人のシートは含まない。 */
 	findByEvaluator(employeeId: number): Promise<EvaluationSheetSummary[]>;
-	/** 全社員の評価シート(下書きを含む)。Admin だけが読める。それ以外の人が呼ぶと失敗する。 */
+	/** 全社員の評価シート(下書きを含む)の一覧。Admin だけが読める。それ以外の人が呼ぶと失敗する。 */
 	findOverview(): Promise<EvaluationSheetOverviewRow[]>;
 }

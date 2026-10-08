@@ -143,6 +143,7 @@ const checkEvaluatorRoleUseCase = new CheckEvaluatorRoleInteractor(
 const loadCommonEvaluationUseCase = new LoadCommonEvaluationInteractor(
 	commonEvaluationRepository,
 	evaluationSheetRepository,
+	employeeRepository,
 );
 const upsertCommonEvaluationUseCase = new UpsertCommonEvaluationInteractor(
 	evaluationSheetRepository,

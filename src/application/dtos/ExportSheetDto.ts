@@ -12,7 +12,7 @@ export interface ExportSheetOutputDto {
 	fileName?: string;
 }
 
-/** 全社の評価シート一覧の帳票。1つの評価期間の進み具合だけを載せ、評価の内容は載せない。 */
+/** 全社の評価シート一覧の帳票。1つの評価期間の全シートの進み具合と、確定した結果。 */
 export interface SheetOverviewExportDto {
 	periodName: string;
 	periodStart: string;
@@ -28,6 +28,8 @@ export interface SheetOverviewExportDto {
 		status: EvaluationStatusValue;
 		primaryEvaluator: string;
 		secondaryEvaluator: string;
+		/** 確定した評価点と最終評価ランク(「88 点 A」)。確定前は空文字。 */
+		finalEvaluation: string;
 		updatedAt: string;
 	}[];
 }

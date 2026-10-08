@@ -3,6 +3,7 @@ import { Employee } from "../../domain/entities/Employee";
 import { EvaluationSheet } from "../../domain/entities/EvaluationSheet";
 import { Milestone } from "../../domain/entities/Milestone";
 import { EvaluationScoreUpdateService } from "../../domain/services/EvaluationScoreUpdateService";
+import { EmployeeRole } from "../../domain/valueObjects/EmployeeRole";
 import { EvaluationStatus } from "../../domain/valueObjects/EvaluationStatus";
 import {
 	commonRepository,
@@ -15,6 +16,7 @@ import {
 	sheet,
 	sheetRepository,
 } from "../../test/fixtures";
+import { CheckEvaluatorRoleInteractor } from "./CheckEvaluatorRoleInteractor";
 import { FetchEvaluationSheetInteractor } from "./FetchEvaluationSheetInteractor";
 import { LoadCommonEvaluationInteractor } from "./LoadCommonEvaluationInteractor";
 import { UpdateEvaluationStatusInteractor } from "./UpdateEvaluationStatusInteractor";
@@ -88,7 +90,7 @@ describe("sheet reading and confidentiality", () => {
 	it.each([1, 4])("does not query common evaluation for unauthorized role %s", async (id) => {
 		const { sheets, common, out } = setup();
 		await expect(
-			new LoadCommonEvaluationInteractor(common, sheets).execute(
+			new LoadCommonEvaluationInteractor(common, sheets, employeeRepository()).execute(
 				{ sheetId: 100, gradeId: 99, currentEmployeeId: id },
 				out,
 			),
@@ -98,7 +100,7 @@ describe("sheet reading and confidentiality", () => {
 	it("lists the common evaluation items of the grade held when the sheet was created", async () => {
 		const { sheets, common } = setup();
 		sheets.findById.mockResolvedValue(sheet(EvaluationStatus.SUBMITTED, 3));
-		await new LoadCommonEvaluationInteractor(common, sheets).execute(
+		await new LoadCommonEvaluationInteractor(common, sheets, employeeRepository()).execute(
 			{ sheetId: 100, gradeId: 99, currentEmployeeId: 2 },
 			output(),
 		);
@@ -108,7 +110,7 @@ describe("sheet reading and confidentiality", () => {
 	it.each([2, 3])("uses the sheet grade and masks common secondary scores for %s", async (id) => {
 		const { sheets, common } = setup();
 		const out = output<import("./LoadCommonEvaluationInteractor").LoadCommonEvaluationResponse>();
-		await new LoadCommonEvaluationInteractor(common, sheets).execute(
+		await new LoadCommonEvaluationInteractor(common, sheets, employeeRepository()).execute(
 			{ sheetId: 100, gradeId: 99, currentEmployeeId: id },
 			out,
 		);
@@ -118,6 +120,93 @@ describe("sheet reading and confidentiality", () => {
 			secondRate: id === 3 ? 100 : null,
 			results: [expect.objectContaining({ secondScore: id === 3 ? 4 : null })],
 		});
+	});
+});
+
+describe("an Admin outside the evaluation", () => {
+	/** 4 は本人でも評価者でもない社員。権限だけが Admin。 */
+	const asAdmin = (status = EvaluationStatus.SUBMITTED) => {
+		const context = setup(status);
+		context.employees.findRole.mockResolvedValue(EmployeeRole.ADMIN);
+		return context;
+	};
+	it.each([EvaluationStatus.DRAFT, EvaluationStatus.FIRST_EVALUATED])(
+		"reads the whole sheet in %s, with nothing masked",
+		async (status) => {
+			const { sheets, employees, common } = asAdmin(status);
+			const out = output<import("../dtos/EvaluationSheetDto").EvaluationSheetDto>();
+			await new FetchEvaluationSheetInteractor(sheets, employees).execute(
+				{ sheetId: 100, currentEmployeeId: 4 },
+				out,
+			);
+			expect(employees.findRole).toHaveBeenCalledWith(4);
+			expect(out.present.mock.calls[0][0]).toMatchObject({
+				objectives: [{ challengeGoal: "目標", firstScore: 2, secondScore: 4 }],
+				firstOverallComment: "一次総評",
+				secondOverallComment: "二次総評",
+				commonEvaluationScoreTotals: { firstTotalScore: 15, secondTotalScore: 20 },
+				allocatedScores: { totalEvaluationScore: 100 },
+			});
+			const commonOut =
+				output<import("./LoadCommonEvaluationInteractor").LoadCommonEvaluationResponse>();
+			await new LoadCommonEvaluationInteractor(common, sheets, employees).execute(
+				{ sheetId: 100, gradeId: 99, currentEmployeeId: 4 },
+				commonOut,
+			);
+			expect(commonOut.present.mock.calls[0][0]).toMatchObject({
+				totalSecondScore: 20,
+				results: [expect.objectContaining({ firstScore: 3, secondScore: 4 })],
+			});
+		},
+	);
+	it("is told it is only viewing, and gets no permission to change anything", async () => {
+		const { sheets, employees } = asAdmin();
+		const out = output<import("./CheckEvaluatorRoleInteractor").CheckEvaluatorRoleResponse>();
+		employees.findCurrentEmployeeId.mockResolvedValue({ data: 4, error: null });
+		await new CheckEvaluatorRoleInteractor(employees, sheets).execute({ sheetId: 100 }, out);
+		const { viewingAsAdmin, canViewCommonEvaluation, canViewSecondEvaluation, ...changes } =
+			out.present.mock.calls[0][0];
+		expect({ viewingAsAdmin, canViewCommonEvaluation, canViewSecondEvaluation }).toEqual({
+			viewingAsAdmin: true,
+			canViewCommonEvaluation: true,
+			canViewSecondEvaluation: true,
+		});
+		expect(Object.values(changes).every((allowed) => allowed === false)).toBe(true);
+	});
+	it("cannot evaluate, comment or finalize: the update use cases still refuse", async () => {
+		const { sheets, employees, milestones, scores, out } = asAdmin();
+		await expect(
+			new UpdateMilestoneInteractor(milestones, sheets, scores).execute(
+				{ sheetId: 100, milestoneId: 11, firstScore: 4, currentEmployeeId: 4 },
+				out,
+			),
+		).rejects.toThrow();
+		await expect(
+			new UpsertCommonEvaluationInteractor(sheets, scores).execute(
+				{
+					sheetId: 100,
+					currentEmployeeId: 4,
+					results: [{ id: 21, itemId: 31, firstScore: 4, secondScore: 0, firstComment: "" }],
+				},
+				out,
+			),
+		).rejects.toThrow();
+		await expect(
+			new UpdateOverallCommentInteractor(sheets, employees).execute(
+				{ sheetId: 100, target: "first", comment: "書き換え", currentEmployeeId: 4 },
+				out,
+			),
+		).rejects.toThrow();
+		await expect(
+			new UpdateEvaluationStatusInteractor(sheets, employees, notificationRepository()).execute(
+				{ sheetId: 100, currentEmployeeId: 4, status: EvaluationStatus.FIRST_EVALUATED },
+				out,
+			),
+		).rejects.toThrow();
+		expect(milestones.updateScore).not.toHaveBeenCalled();
+		expect(sheets.updateOverallComment).not.toHaveBeenCalled();
+		expect(sheets.updateStatus).not.toHaveBeenCalled();
+		expect(out.present).not.toHaveBeenCalled();
 	});
 });
 
@@ -596,7 +685,7 @@ describe("comments, final rank, status and notifications", () => {
 							out,
 						);
 					default:
-						return new LoadCommonEvaluationInteractor(common, sheets).execute(
+						return new LoadCommonEvaluationInteractor(common, sheets, employeeRepository()).execute(
 							{ sheetId: 100, currentEmployeeId: 2, gradeId: 5 },
 							out,
 						);

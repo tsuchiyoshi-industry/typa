@@ -107,6 +107,7 @@ export function employeeRepository() {
 			.fn<EmployeeRepository["findCurrentEmployeeId"]>()
 			.mockResolvedValue({ data: 1, error: null }),
 		findById: vi.fn<EmployeeRepository["findById"]>().mockResolvedValue(employee()),
+		findRole: vi.fn<EmployeeRepository["findRole"]>().mockResolvedValue(EmployeeRole.EMPLOYEE),
 		findByEmployeeNo: vi.fn<EmployeeRepository["findByEmployeeNo"]>().mockResolvedValue(employee()),
 		findEvaluatorNames: vi
 			.fn<EmployeeRepository["findEvaluatorNames"]>()

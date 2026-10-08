@@ -34,6 +34,8 @@ export interface SheetEditorViewModel {
 	periods: EvaluationPeriodDto[];
 	selectedPeriodId: number | null;
 	isSubject: boolean;
+	/** 本人でも評価者でもなく、Admin として閲覧しているだけ。 */
+	viewingAsAdmin: boolean;
 	canEditFirst: boolean;
 	canEditSecond: boolean;
 	canEditMilestoneGoal: boolean;
@@ -89,6 +91,7 @@ export function createSheetEditorPresenter(): {
 		periods: [],
 		selectedPeriodId: null,
 		isSubject: false,
+		viewingAsAdmin: false,
 		canEditFirst: false,
 		canEditSecond: false,
 		canEditMilestoneGoal: false,
@@ -162,6 +165,7 @@ export function createSheetEditorPresenter(): {
 			setViewModel((prev) => ({
 				...prev,
 				isSubject: response.isSubject,
+				viewingAsAdmin: response.viewingAsAdmin,
 				canEditFirst: response.canEditFirst,
 				canEditSecond: response.canEditSecond,
 				canEditMilestoneGoal: response.canEditMilestoneGoal,
@@ -280,6 +284,7 @@ export function createSheetEditorPresenter(): {
 						loadingSheet: true,
 						sheet: null,
 						isSubject: false,
+						viewingAsAdmin: false,
 						canEditFirst: false,
 						canEditSecond: false,
 						canEditMilestoneGoal: false,

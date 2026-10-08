@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { Employee } from "../../domain/entities/Employee";
 import { EvaluationPeriod } from "../../domain/entities/EvaluationPeriod";
 import { EvaluationSheet } from "../../domain/entities/EvaluationSheet";
+import { EmployeeRole } from "../../domain/valueObjects/EmployeeRole";
 import { EvaluationStatus } from "../../domain/valueObjects/EvaluationStatus";
 import {
 	employee,
@@ -45,6 +46,19 @@ describe("PDF use case with an injected gateway", () => {
 		expect(pdf.selectDestination).not.toHaveBeenCalled();
 		expect(pdf.generate).not.toHaveBeenCalled();
 		expect(out.present).toHaveBeenCalledWith(expect.objectContaining({ success: false }));
+	});
+	it("lets an Admin outside the evaluation export a finalized sheet, and nothing earlier", async () => {
+		for (const status of [EvaluationStatus.FINALIZED, EvaluationStatus.FIRST_EVALUATED]) {
+			const repo = sheetRepository(status),
+				employees = employeeRepository(),
+				pdf = gateway(),
+				out = output<never>();
+			employees.findRole.mockResolvedValue(EmployeeRole.ADMIN);
+			await new ExportEvaluationSheetInteractor(repo, employees, pdf).execute(request(4), out);
+			const finalized = status === EvaluationStatus.FINALIZED;
+			expect(pdf.generate).toHaveBeenCalledTimes(finalized ? 1 : 0);
+			expect(out.present).toHaveBeenCalledWith(expect.objectContaining({ success: finalized }));
+		}
 	});
 	it.each([EvaluationStatus.DRAFT, EvaluationStatus.SUBMITTED, EvaluationStatus.FIRST_EVALUATED])(
 		"denies the subject and evaluators before the evaluation is finalized (%s)",

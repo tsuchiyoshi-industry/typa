@@ -1,6 +1,6 @@
 #import sys: inputs
 
-// 全社の評価シート一覧(Admin 向け)。1つの評価期間の進み具合だけを載せ、評価の内容は載せない。
+// 全社の評価シート一覧(Admin 向け)。1つの評価期間の全シートの進み具合と、確定した結果を載せる。
 
 #let ink = rgb("#1f2328")
 #let muted = rgb("#6b7178")
@@ -99,13 +99,13 @@
 
 // ----- 一覧: 社員番号順 -----
 #table(
-  columns: (auto, auto, 1.25fr, 1fr, auto, 1fr, 1fr, auto),
+  columns: (auto, auto, 1.25fr, 1fr, auto, 1fr, 1fr, auto, auto),
   inset: (x: 5pt, y: 5.5pt),
   align: (x, _) => if x == 0 { right + horizon } else { left + horizon },
   stroke: (_, y) => (bottom: if y == 0 { 0.8pt + ink } else { 0.4pt + hairline }),
   fill: (_, y) => if y > 0 and calc.even(y) { wash },
   table.header(
-    ..("No.", "社員番号", "氏名", "作成時の等級", "ステータス", "一次評価者", "二次評価者", "最終更新").map(title => text(
+    ..("No.", "社員番号", "氏名", "作成時の等級", "ステータス", "一次評価者", "二次評価者", "最終評価", "最終更新").map(title => text(
       size: 7pt,
       fill: muted,
       title,
@@ -129,6 +129,7 @@
         ),
         [#row.primary_evaluator],
         [#row.secondary_evaluator],
+        [#dash(row.final_evaluation)],
         text(fill: muted)[#row.updated_at],
       )
     })
@@ -136,4 +137,4 @@
 )
 
 #v(8pt)
-#small[この一覧は進み具合の記録です。目標・点数・コメント・評価ランクは含みません。]
+#small[最終評価は、評価が確定したシートの評価点（100点満点）と評価ランクです。]

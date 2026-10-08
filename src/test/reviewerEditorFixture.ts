@@ -127,6 +127,7 @@ export function reviewerEditorFixture(
 			const row = find(id);
 			presenter.outputPort.role.present({
 				isSubject: false,
+				viewingAsAdmin: false,
 				canEditFirst: row.isPrimary && !!sheetStatus(row)?.isAwaitingFirstEvaluation(),
 				canEditSecond: row.canViewSecond && !!sheetStatus(row)?.isAwaitingSecondEvaluation(),
 				canEditMilestoneGoal: false,

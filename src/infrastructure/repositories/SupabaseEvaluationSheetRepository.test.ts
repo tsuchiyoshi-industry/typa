@@ -113,12 +113,14 @@ describe("the overview of every sheet", () => {
 		primaryEvaluator: "一次",
 		secondaryEvaluator: "二次",
 		noSecondaryEvaluator: false,
+		finalScore: null,
+		finalRank: null,
 		...overrides,
 	});
 	it("names the evaluators, telling 'none by decision' from 'not assigned yet'", async () => {
 		db.rpc.mockResolvedValue({
 			data: [
-				row({}),
+				row({ status: "finalized", finalScore: 88, finalRank: "B+" }),
 				row({ secondaryEvaluator: null, noSecondaryEvaluator: true }),
 				row({ primaryEvaluator: null, secondaryEvaluator: null }),
 			],
@@ -131,7 +133,9 @@ describe("the overview of every sheet", () => {
 			["一次", "なし"],
 			["未設定", "未設定"],
 		]);
-		expect(rows[0].status.isAwaitingFirstEvaluation()).toBe(true);
+		expect(rows[0].status.isFinalized()).toBe(true);
+		expect(rows[0]).toMatchObject({ finalScore: 88, finalRank: "B+" });
+		expect(rows[1]).toMatchObject({ finalScore: null, finalRank: null });
 		expect(rows[0]).not.toHaveProperty("noSecondaryEvaluator");
 	});
 	it("does not treat a refused or failed read as an empty company", async () => {

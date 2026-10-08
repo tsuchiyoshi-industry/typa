@@ -69,7 +69,12 @@ export class FetchEvaluationSheetInteractor
 			return;
 		}
 
-		const policy = EvaluationSheetAccessPolicy.for(request.currentEmployeeId, sheet);
+		// Admin は、本人・評価者でないシートも閲覧できる
+		const role =
+			request.currentEmployeeId === null
+				? undefined
+				: await this.employeeRepository.findRole(request.currentEmployeeId);
+		const policy = EvaluationSheetAccessPolicy.for(request.currentEmployeeId, sheet, role);
 		if (!policy.canViewSheet()) {
 			throw new Error("評価シートを閲覧する権限がありません。");
 		}

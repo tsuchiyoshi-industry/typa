@@ -17,10 +17,13 @@ export interface SheetSummaryDto {
 	gradeName: string;
 }
 
-/** 全社の評価シート一覧(Admin)の1行。進み具合と評価者だけで、評価の内容は持たない。 */
+/** 全社の評価シート一覧(Admin)の1行。進み具合と評価者、確定していればその結果。 */
 export interface SheetOverviewDto extends SheetSummaryDto {
 	primaryEvaluator: string;
 	secondaryEvaluator: string;
+	/** 確定した評価点と最終評価ランク。確定前は null。 */
+	finalScore: number | null;
+	finalRank: string | null;
 }
 
 export interface CategorizedSheetsDto {

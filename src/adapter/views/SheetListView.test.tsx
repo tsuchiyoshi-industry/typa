@@ -74,7 +74,7 @@ it("puts my sheets and my reports' sheets under evaluation period tabs, newest p
 	expect(view.queryByRole("heading", { name: /全社の評価シート/ })).toBeNull();
 });
 
-it("adds the company-wide overview for an Admin below the two tables, without links into the sheets", async () => {
+it("adds the company-wide overview for an Admin below the two tables, with every sheet open for reading", async () => {
 	const everyone = (
 		id: number,
 		period: 25 | 26,
@@ -85,6 +85,8 @@ it("adds the company-wide overview for an Admin below the two tables, without li
 		status,
 		primaryEvaluator: "井上 部長",
 		secondaryEvaluator: id === 9 ? "なし" : "松本 本部長",
+		finalScore: status === "finalized" ? 88 : null,
+		finalRank: status === "finalized" ? "B+" : null,
 	});
 	const view = setup([
 		// 自分(2)と部下(4)のシートも全社の一覧に含まれる
@@ -108,8 +110,15 @@ it("adds the company-wide overview for an Admin below the two tables, without li
 	expect(within(overview).getAllByRole("row")).toHaveLength(1 + 4);
 	expect(within(overview).getByRole("columnheader", { name: "二次評価者" })).toBeTruthy();
 	expect(within(overview).getByText("なし")).toBeTruthy();
-	// Admin でも、本人・評価者でないシートの内容は開けない
-	expect(within(overview).queryAllByRole("link")).toEqual([]);
+	// Admin は、本人・評価者でないシートも開ける(閲覧のみ)。確定したシートは、結果が見えて PDF も出せる
+	expect(within(overview).getByRole("link", { name: "他部署X" }).getAttribute("href")).toBe(
+		"/sheet/8",
+	);
+	const finalized = within(overview).getByText("他部署Y").closest("tr") as HTMLElement;
+	expect(finalized.textContent).toContain("88 点 B+");
+	fireEvent.click(within(finalized).getByRole("button", { name: "PDF出力" }));
+	expect(view.controller.exportSheet).toHaveBeenCalledExactlyOnceWith(9, 9, 26);
+	expect(within(overview).getAllByText("確定後に PDF 出力")).toHaveLength(3);
 
 	// 段ごとの件数が、そのまま絞り込みになる。シートのない段は押せない
 	const stage = (name: RegExp) => within(overview).getByRole("button", { name });

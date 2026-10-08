@@ -10,6 +10,8 @@ export interface CheckEvaluatorRoleRequest {
 
 export interface CheckEvaluatorRoleResponse {
 	isSubject: boolean;
+	/** 本人でも評価者でもなく、Admin として閲覧しているだけ(何も変更できない)。 */
+	viewingAsAdmin: boolean;
 	canEditFirst: boolean;
 	canEditSecond: boolean;
 	canEditMilestoneGoal: boolean;
@@ -25,6 +27,7 @@ export interface CheckEvaluatorRoleOutputPort extends OutputPort<CheckEvaluatorR
 
 const NO_PERMISSIONS: CheckEvaluatorRoleResponse = {
 	isSubject: false,
+	viewingAsAdmin: false,
 	canEditFirst: false,
 	canEditSecond: false,
 	canEditMilestoneGoal: false,
@@ -64,10 +67,15 @@ export class CheckEvaluatorRoleInteractor
 			return outputPort.present(NO_PERMISSIONS);
 		}
 
-		const policy = EvaluationSheetAccessPolicy.for(currentEmployeeId, sheet);
+		const policy = EvaluationSheetAccessPolicy.for(
+			currentEmployeeId,
+			sheet,
+			await this.employeeRepository.findRole(currentEmployeeId),
+		);
 
 		outputPort.present({
 			isSubject: policy.isSubject(),
+			viewingAsAdmin: policy.isViewingAsAdmin(),
 			canEditFirst: policy.canEditCommonEvaluationFirst(),
 			canEditSecond: policy.canEditCommonEvaluationSecond(),
 			canEditMilestoneGoal: policy.canEditMilestoneGoal(),

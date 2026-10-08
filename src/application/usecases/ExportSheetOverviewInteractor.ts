@@ -85,6 +85,8 @@ export class ExportSheetOverviewInteractor
 						status: row.status.toString(),
 						primaryEvaluator: row.primaryEvaluatorName,
 						secondaryEvaluator: row.secondaryEvaluatorName,
+						finalEvaluation:
+							row.finalScore === null ? "" : `${row.finalScore} 点 ${row.finalRank ?? ""}`.trim(),
 						updatedAt: dateFormat.format(new Date(row.updatedAt)),
 					})),
 				},

@@ -4,7 +4,7 @@ import type {
 	EvaluationSheetOverviewRow,
 	EvaluationSheetRepository,
 } from "../../domain/repositories/EvaluationSheetRepository";
-import { canViewSheetOverview } from "../../domain/services/EmployeeMasterAccessService";
+import { canViewAllSheets } from "../../domain/services/EmployeeMasterAccessService";
 import type { SheetOverviewDto } from "../dtos/SheetListDto";
 import type { OutputPort } from "../ports/OutputPort";
 import type { UseCase } from "../ports/UseCase";
@@ -29,7 +29,7 @@ export async function loadSheetOverview(
 	evaluationSheetRepository: EvaluationSheetRepository,
 ): Promise<{ viewer: EmployeeProfile; rows: EvaluationSheetOverviewRow[] } | null> {
 	const viewer = await employeeMasterRepository.findCurrentEmployeeProfile();
-	if (!viewer || !canViewSheetOverview(viewer.role)) {
+	if (!viewer || !canViewAllSheets(viewer.role)) {
 		return null;
 	}
 	return { viewer, rows: await evaluationSheetRepository.findOverview() };
@@ -57,6 +57,8 @@ export class FetchSheetOverviewInteractor
 					...toSheetSummaryDto(row),
 					primaryEvaluator: row.primaryEvaluatorName,
 					secondaryEvaluator: row.secondaryEvaluatorName,
+					finalScore: row.finalScore,
+					finalRank: row.finalRank,
 				})) ?? null,
 		});
 	}

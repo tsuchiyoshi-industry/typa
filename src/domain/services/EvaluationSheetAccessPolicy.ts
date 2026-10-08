@@ -156,13 +156,11 @@ export class EvaluationSheetAccessPolicy {
 
 	// --- 出力(PDFエクスポート) ---
 
-	/** 被評価者は出力できない。評価者(一次・二次)のみ、評価が確定したシートを出力できる。 */
+	/**
+	 * 本人と評価者(一次・二次)が、評価が確定したシートを出力できる。評価関係のない人は出力できない。
+	 * 帳票は確定した評価の記録で、誰が出力しても同じ内容になる(画面のように役割で伏せない)。
+	 */
 	canExportSheet(): boolean {
-		return this.viewerIsEvaluatorOfSubmittedSheet && this.sheet.status.isFinalized();
-	}
-
-	/** 最終評価者ではない一次評価者向けの出力では、二次評価と最終評価の内容をすべて伏せる。 */
-	canExportSecondEvaluation(): boolean {
-		return this.canViewFinalEvaluation();
+		return this.canViewSheet() && this.sheet.status.isFinalized();
 	}
 }

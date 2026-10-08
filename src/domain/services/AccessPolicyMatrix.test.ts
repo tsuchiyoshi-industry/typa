@@ -37,9 +37,10 @@ describe("authorization matrix", () => {
 				expect(policy.canRevertOwnSheetToDraft()).toBe(id === 1 && firstStage);
 				expect(policy.canConfirmFirstEvaluation()).toBe(id === 2 && firstStage);
 				expect(policy.canFinalizeEvaluation()).toBe(id === 3 && secondStage);
-				// 出力できるのは評価が確定したシートだけ
-				expect(policy.canExportSheet()).toBe(evaluator && status === EvaluationStatus.FINALIZED);
-				expect(policy.canExportSecondEvaluation()).toBe(id === 3);
+				// 出力できるのは評価が確定したシートだけ。本人も出力できる
+				expect(policy.canExportSheet()).toBe(
+					(id === 1 || evaluator) && status === EvaluationStatus.FINALIZED,
+				);
 			},
 		);
 	}
@@ -72,7 +73,6 @@ describe("authorization matrix", () => {
 				expect(policy.canFinalizeEvaluation()).toBe(
 					id === 2 && (evaluating || status === EvaluationStatus.FIRST_EVALUATED),
 				);
-				expect(policy.canExportSecondEvaluation()).toBe(id === 2);
 				// 一次評価 (目標50% → 10点、共通75% → 60点) がそのまま最終評価になる
 				expect(withoutSecondary.allocatedScores.totalEvaluationScore).toBe(70);
 				if (id === 1 || (id === 2 && !draft)) {
@@ -101,7 +101,6 @@ describe("authorization matrix", () => {
 		// 一次評価は確定できるが、最終評価者がいないので評価は確定できない
 		expect(policy.canConfirmFirstEvaluation()).toBe(true);
 		expect(policy.canFinalizeEvaluation()).toBe(false);
-		expect(policy.canExportSecondEvaluation()).toBe(false);
 		// 最終評価は二次評価のまま(milestone/commonResult の二次評価は満点)
 		expect(pending.allocatedScores.totalEvaluationScore).toBe(100);
 	});
@@ -121,7 +120,6 @@ describe("authorization matrix", () => {
 		expect(policy.canEditCommonEvaluationFirst()).toBe(false);
 		expect(policy.canEditCommonEvaluationSecond()).toBe(false);
 		expect(policy.canFinalizeEvaluation()).toBe(false);
-		expect(policy.canExportSecondEvaluation()).toBe(false);
 	});
 	it("mapper refuses unauthorized callers even outside fetch use case", () => {
 		const data = sheet();

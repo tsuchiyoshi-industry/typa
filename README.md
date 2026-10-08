@@ -45,7 +45,9 @@ DB構成は [tables.md](./tables.md) を正とします。実装では `evaluati
 
 受け持ちの評価には `supabase/migrations/202610070001_reviewer_workspace.sql` と `202610080001_evaluation_stages.sql` の適用が必要です。既存の「二次評価者なし」「共通評価項目セット」のマイグレーションを先に適用してください。`202610080001` は `evaluation_sheets.first_rank`（一次評価ランク）と状態 `first_evaluated` を追加し、評価者ごとの確認記録（`sheet_review_checkpoints` と `set_sheet_reviewed`）を削除します。0点を未入力・完了の判定には使いません。一次評価者向けの二次評価・最終結果の非表示、下書きの非表示、一次評価確定の通知先の取得を RPC 側で制御しています。状態の遷移と評価の編集可否はアプリ側のポリシーで判定しており、DB 側の強制は SEC-002 の対象のままです。
 
-`202610080002_sheet_grade.sql` は `evaluation_sheets.grade_id`（シート作成時の等級）を追加します。等級は挿入時に DB のトリガーが社員の等級から設定し、その後に社員の等級が変わっても書き換えません。評価シート一覧にはこの等級を表示します。PDF を出力できるのは、評価が確定したシートの評価者だけです。
+`202610080002_sheet_grade.sql` は `evaluation_sheets.grade_id`（シート作成時の等級）を追加します。等級は挿入時に DB のトリガーが社員の等級から設定し、その後に社員の等級が変わっても書き換えません。評価シート一覧にはこの等級を表示します。PDF を出力できるのは、評価が確定したシートの本人と評価者（一次・二次）です。評価関係のない社員は出力できません。PDF は誰が出力しても同じ内容で、伏せ字にはしません。
+
+`202610080006_reviewer_workspace_sheet_grade.sql` と `202610080007_evaluation_completion_sheet_grade.sql` は、「部下の評価」の一覧と確定時の未評価チェックが使う共通評価の項目を、社員の現在の等級ではなくシート作成時の等級（`evaluation_sheets.grade_id`）に揃えます。昇級後に過去のシートを開いても、作成時の等級の項目のままです。
 
 `202610080003_employee_roles.sql` は、Admin が社員マスタから TYPA の権限（Admin / Reviewer / Employee）を変えるための DB 関数 `set_employee_role` を追加します。最後の Admin は外せません。あわせて、クライアントから `employees.role_id` を直接更新する権限を外します（`employees` に列を追加したら、クライアントから更新させる列はこのマイグレーションと同じ形で `grant update` が必要です）。誰がどの権限かは Admin の画面にだけ表示しますが、`role_id` の読み取り自体は DB 側で制限していません（SEC-002 の対象）。
 

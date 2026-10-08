@@ -23,7 +23,7 @@ export class ExportEvaluationSheetInteractor
 		presenter: ExportEvaluationSheetOutputPort,
 	): Promise<void> {
 		try {
-			// ① 権限チェック: 被評価者は出力不可、評価者(一次・二次)のみ、評価が確定したシートを出力可能
+			// ① 権限チェック: 本人と評価者(一次・二次)が、評価が確定したシートを出力可能
 			const sheet = await this.sheetRepository.findById(request.sheetId);
 			if (!sheet) {
 				presenter.present({
@@ -37,18 +37,16 @@ export class ExportEvaluationSheetInteractor
 			if (!policy.canExportSheet()) {
 				presenter.present({
 					success: false,
-					message: policy.isSubject()
-						? "本人は評価シートを出力できません。"
-						: policy.canViewSheet() && !sheet.status.isFinalized()
-							? "評価が確定したシートのみ出力できます。"
-							: "評価者のみ評価シートを出力できます。",
+					message: policy.canViewSheet()
+						? "評価が確定したシートのみ出力できます。"
+						: "本人と評価者のみ評価シートを出力できます。",
 				});
 				return;
 			}
 
-			// ② 画面と同じシートから帳票のデータを作り、一次評価者向けには二次評価の内容を伏せる
+			// ② 画面と同じシートから帳票のデータを作る。誰が出力しても同じ内容になる
 			const gradeName = await this.employeeRepository.findGradeName(sheet.gradeId);
-			const exportData = toSheetExportDataDto(sheet, gradeName, policy.canExportSecondEvaluation());
+			const exportData = toSheetExportDataDto(sheet, gradeName);
 
 			// ③ 保存先を選択するダイアログを表示
 			const safePart = (value: string) =>

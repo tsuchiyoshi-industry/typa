@@ -24,7 +24,7 @@ it("uses real Tauri invoke with mocked IPC and save dialog", async () => {
 	const gateway = new TauriSheetPdfGateway();
 	const path = await gateway.selectDestination("test.pdf");
 	expect(path).toBe("C:\\test\\sheet.pdf");
-	const data = toSheetExportDataDto(sheet(EvaluationStatus.FINALIZED), "等級", false);
+	const data = toSheetExportDataDto(sheet(EvaluationStatus.FINALIZED), "等級");
 	await expect(gateway.generate(data, path as string)).resolves.toBe(path);
 	expect(ipc).toHaveBeenCalledWith("generate_pdf_with_typst", { data, outputPath: path });
 	expect(ipc.mock.calls[0][1]).toMatchObject({
@@ -37,7 +37,7 @@ it("preserves IPC rejection", async () => {
 	});
 	await expect(
 		new TauriSheetPdfGateway().generate(
-			toSheetExportDataDto(sheet(EvaluationStatus.FINALIZED), "等級", false),
+			toSheetExportDataDto(sheet(EvaluationStatus.FINALIZED), "等級"),
 			"test.pdf",
 		),
 	).rejects.toThrow("Rust rejected path");

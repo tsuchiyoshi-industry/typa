@@ -8,6 +8,7 @@ const migration = (file: string) =>
 	readFileSync(new URL(`../../supabase/migrations/${file}`, import.meta.url), "utf8");
 const stages = migration("202610080001_evaluation_stages.sql");
 const settingsMigration = migration("202610080004_evaluation_settings.sql");
+const sheetGradeMigration = migration("202610080006_reviewer_workspace_sheet_grade.sql");
 const uid = (id: number) => `00000000-0000-0000-0000-${String(id).padStart(12, "0")}`;
 const login = async (id: number) => {
 	await db.query("select set_config('request.jwt.claim.sub', $1, false)", [uid(id)]);
@@ -56,6 +57,10 @@ beforeAll(async () => {
 	await db.exec(stages);
 	await db.exec(settingsMigration);
 	await db.exec(settingsMigration);
+	// 既存のシートには、作成時の等級として今の等級(1級)が入る
+	await db.exec(migration("202610080002_sheet_grade.sql"));
+	await db.exec(sheetGradeMigration);
+	await db.exec(sheetGradeMigration);
 }, 30_000);
 beforeEach(async () => {
 	await db.exec(`reset role;
@@ -93,6 +98,22 @@ it("returns the entire caseload including missing sheets, draft and finalized; e
 		secondOverallComment: "二次の根拠",
 	});
 	expect(rows[0].commonItems.map((item) => item.id)).toEqual([21, 22]);
+});
+
+it("keeps a sheet on the grade it was created with after the employee is promoted", async () => {
+	await asAdmin("update public.employees set grade_id = 2 where id in (1, 5)");
+	const rows = await workspace();
+	// 昇格前に作ったシートは、作成時の等級とその項目のまま
+	expect(rows.find((r) => r.employeeId === 1)).toMatchObject({ gradeId: 1, gradeName: "技術1級" });
+	expect(rows.find((r) => r.employeeId === 1)?.commonItems.map((item) => item.id)).toEqual([
+		21, 22,
+	]);
+	// この期間のシートがまだ無い社員は、いまの等級(新しく作るシートの等級)
+	expect(rows.find((r) => r.employeeId === 5)).toMatchObject({
+		sheetId: null,
+		gradeId: 2,
+		gradeName: "技術2級",
+	});
 });
 
 it("lets every signed-in role read settings, and only Admin update them", async () => {

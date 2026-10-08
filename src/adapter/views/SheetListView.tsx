@@ -257,6 +257,8 @@ const SheetListView: Component<SheetListViewProps> = (props) => {
 						title="自分の評価シート"
 						sheets={props.viewModel().mySheets}
 						showName={false}
+						exportingId={exportingId()}
+						onExport={(sheet) => void handleExport(sheet)}
 					/>
 				</Show>
 

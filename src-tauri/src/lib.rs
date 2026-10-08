@@ -19,7 +19,7 @@ struct ObjectiveData {
     midterm_goal: String,
     achievement: String,
     self_score: Option<i32>,
-    // 一次評価者以外が出力する場合、TypeScript側で "*" に置き換え済みの文字列。
+    // 二次評価の点数。二次評価者「なし」の社員は "未評価"。
     evaluator_score: String,
 }
 
@@ -30,7 +30,7 @@ struct CommonEvaluationData {
     item_description: String,
     weight: i32,
     self_score: Option<i32>,
-    // 一次評価者以外が出力する場合、TypeScript側で "*" に置き換え済みの文字列。
+    // 二次評価の点数。二次評価者「なし」の社員は "未評価"。
     evaluator_score: String,
     self_comment: Option<String>,
     evaluator_comment: Option<String>,
@@ -52,11 +52,10 @@ struct SheetExportData {
     // true の場合(二次評価者「なし」)は一次評価者が最終評価者を兼ね、一次評価がそのまま最終評価になる。
     primary_is_final_evaluator: bool,
     status: String,
-    // 最終評価者以外が出力する場合、TypeScript側で "*" に置き換え済みの文字列。
     final_evaluation_rank: String,
     objective_allocation_score: i32,
     // 最終評価(二次評価。二次評価者「なし」の社員は一次評価)の獲得率と評価点。
-    // 採点はTypeScript側で済ませており、最終評価者以外が出力する場合は "*" に置き換え済み。
+    // 採点はTypeScript側で済ませており、表示用の文字列で受け取る。
     objective_second_rate: String,
     objective_evaluation_score: String,
     common_evaluation_allocation_score: i32,
@@ -64,7 +63,6 @@ struct SheetExportData {
     common_evaluation_evaluation_score: String,
     total_evaluation_score: String,
     first_overall_comment: String,
-    // 二次評価者以外が出力する場合、TypeScript側で "*" に置き換え済みの文字列。
     second_overall_comment: String,
     objectives: Vec<ObjectiveData>,
     common_evaluations: Vec<CommonEvaluationData>,

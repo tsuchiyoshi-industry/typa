@@ -10,7 +10,7 @@ const finalized = () => sheet(EvaluationStatus.FINALIZED);
 describe("PDF data built from the same sheet as the screen", () => {
 	it("uses the sheet's scores, weights and rank instead of recalculating them", () => {
 		const source = finalized();
-		const data = toSheetExportDataDto(source, "等級", true);
+		const data = toSheetExportDataDto(source, "等級");
 		const scores = source.allocatedScores;
 		expect(data).toMatchObject({
 			sheetId: 100,
@@ -26,8 +26,10 @@ describe("PDF data built from the same sheet as the screen", () => {
 			commonEvaluationSecondRate: String(scores.commonEvaluationSecondRate),
 			commonEvaluationEvaluationScore: String(scores.commonEvaluationEvaluationScore),
 			totalEvaluationScore: String(scores.totalEvaluationScore),
+			firstOverallComment: "一次総評",
 			secondOverallComment: "二次総評",
 		});
+		expect(data).not.toHaveProperty("totalScore");
 		expect(data.objectives[0]).toMatchObject({ selfScore: 2, evaluatorScore: "4" });
 		expect(data.commonEvaluations[0]).toMatchObject({
 			itemName: "共通項目",
@@ -37,25 +39,6 @@ describe("PDF data built from the same sheet as the screen", () => {
 			selfComment: "一次コメント",
 			evaluatorComment: null,
 		});
-	});
-
-	it("masks every value derived from the second evaluation", () => {
-		const data = toSheetExportDataDto(finalized(), "等級", false);
-		expect(data).toMatchObject({
-			finalEvaluationRank: "*",
-			objectiveSecondRate: "*",
-			objectiveEvaluationScore: "*",
-			commonEvaluationSecondRate: "*",
-			commonEvaluationEvaluationScore: "*",
-			totalEvaluationScore: "*",
-			secondOverallComment: "*",
-			// 一次評価と配点は伏せない
-			firstOverallComment: "一次総評",
-			objectiveAllocationScore: finalized().allocatedScores.objectiveAllocationScore,
-		});
-		expect(data.objectives[0]).toMatchObject({ selfScore: 2, evaluatorScore: "*" });
-		expect(data.commonEvaluations[0]).toMatchObject({ selfScore: 3, evaluatorScore: "*" });
-		expect(data).not.toHaveProperty("totalScore");
 	});
 
 	it("has no second-evaluation scores when the primary evaluator is the final evaluator", () => {
@@ -69,7 +52,7 @@ describe("PDF data built from the same sheet as the screen", () => {
 			commonEvaluationResults: [commonResult()],
 			status: EvaluationStatus.FINALIZED,
 		});
-		const data = toSheetExportDataDto(withoutSecondary, "等級", true);
+		const data = toSheetExportDataDto(withoutSecondary, "等級");
 		expect(data.primaryIsFinalEvaluator).toBe(true);
 		expect(data.careerCourse).toBe("");
 		expect(data.objectives[0].evaluatorScore).toBe("未評価");

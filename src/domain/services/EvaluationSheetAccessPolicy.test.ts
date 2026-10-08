@@ -224,13 +224,14 @@ describe("EvaluationSheetAccessPolicy", () => {
 	});
 
 	describe("出力(PDFエクスポート)", () => {
-		it("評価が確定するまでは、評価者も出力できない", () => {
+		it("評価が確定するまでは、本人も評価者も出力できない", () => {
 			for (const status of [
 				EvaluationStatus.DRAFT,
 				EvaluationStatus.SUBMITTED,
 				EvaluationStatus.FIRST_EVALUATED,
 			]) {
 				const sheet = buildSheet(status);
+				expect(EvaluationSheetAccessPolicy.for(SUBJECT_ID, sheet).canExportSheet()).toBe(false);
 				expect(EvaluationSheetAccessPolicy.for(PRIMARY_EVALUATOR_ID, sheet).canExportSheet()).toBe(
 					false,
 				);
@@ -240,9 +241,9 @@ describe("EvaluationSheetAccessPolicy", () => {
 			}
 		});
 
-		it("被評価者と無関係者は出力できず、評価者のみ出力できる", () => {
+		it("確定後は本人と評価者が出力でき、無関係者は出力できない", () => {
 			const sheet = buildSheet(EvaluationStatus.FINALIZED);
-			expect(EvaluationSheetAccessPolicy.for(SUBJECT_ID, sheet).canExportSheet()).toBe(false);
+			expect(EvaluationSheetAccessPolicy.for(SUBJECT_ID, sheet).canExportSheet()).toBe(true);
 			expect(EvaluationSheetAccessPolicy.for(UNRELATED_ID, sheet).canExportSheet()).toBe(false);
 			expect(EvaluationSheetAccessPolicy.for(PRIMARY_EVALUATOR_ID, sheet).canExportSheet()).toBe(
 				true,
@@ -250,16 +251,6 @@ describe("EvaluationSheetAccessPolicy", () => {
 			expect(EvaluationSheetAccessPolicy.for(SECONDARY_EVALUATOR_ID, sheet).canExportSheet()).toBe(
 				true,
 			);
-		});
-
-		it("二次評価者のみ出力に二次評価の内容を含められる", () => {
-			const sheet = buildSheet(EvaluationStatus.SUBMITTED);
-			expect(
-				EvaluationSheetAccessPolicy.for(PRIMARY_EVALUATOR_ID, sheet).canExportSecondEvaluation(),
-			).toBe(false);
-			expect(
-				EvaluationSheetAccessPolicy.for(SECONDARY_EVALUATOR_ID, sheet).canExportSecondEvaluation(),
-			).toBe(true);
 		});
 	});
 

@@ -36,19 +36,19 @@ const gateway = () => ({
 });
 
 describe("PDF use case with an injected gateway", () => {
-	it.each([1, 4])("denies role %s before export query or dialog", async (id) => {
+	it("denies an employee outside the evaluation before export query or dialog", async () => {
 		const repo = sheetRepository(),
 			pdf = gateway(),
 			out = output<never>();
-		await interactor(repo, pdf).execute(request(id), out);
+		await interactor(repo, pdf).execute(request(4), out);
 		expect(pdf.selectDestination).not.toHaveBeenCalled();
 		expect(pdf.generate).not.toHaveBeenCalled();
 		expect(out.present).toHaveBeenCalledWith(expect.objectContaining({ success: false }));
 	});
 	it.each([EvaluationStatus.DRAFT, EvaluationStatus.SUBMITTED, EvaluationStatus.FIRST_EVALUATED])(
-		"denies evaluators before the evaluation is finalized (%s)",
+		"denies the subject and evaluators before the evaluation is finalized (%s)",
 		async (status) => {
-			for (const id of [2, 3]) {
+			for (const id of [1, 2, 3]) {
 				const repo = sheetRepository(status),
 					pdf = gateway(),
 					out = output<never>();
@@ -58,30 +58,32 @@ describe("PDF use case with an injected gateway", () => {
 			}
 		},
 	);
-	it.each([2, 3])("masks every secondary export field for role %s", async (id) => {
-		const repo = sheetRepository(),
-			pdf = gateway(),
-			out = output<never>();
-		await interactor(repo, pdf).execute(request(id), out);
-		const data = pdf.generate.mock.calls[0][0];
-		const scores = sheet(EvaluationStatus.FINALIZED).allocatedScores;
-		const mask = (value: string | number) => (id === 3 ? String(value) : "*");
-		expect(data).toMatchObject({
-			finalEvaluationRank: mask("A+"),
-			secondOverallComment: mask("二次総評"),
-			objectiveSecondRate: mask(scores.objectiveSecondRate),
-			objectiveEvaluationScore: mask(scores.objectiveEvaluationScore),
-			commonEvaluationSecondRate: mask(scores.commonEvaluationSecondRate),
-			commonEvaluationEvaluationScore: mask(scores.commonEvaluationEvaluationScore),
-			totalEvaluationScore: mask(scores.totalEvaluationScore),
-			firstOverallComment: "一次総評",
-		});
-		expect(data.objectives[0].evaluatorScore).toBe(mask(4));
-		expect(data.commonEvaluations[0].evaluatorScore).toBe(mask(4));
-		expect(out.present).toHaveBeenCalledWith(
-			expect.objectContaining({ success: true, fileName: "C:\\test\\sheet.pdf" }),
-		);
-	});
+	it.each([1, 2, 3])(
+		"exports the same complete sheet for the subject and both evaluators (%s)",
+		async (id) => {
+			const repo = sheetRepository(),
+				pdf = gateway(),
+				out = output<never>();
+			await interactor(repo, pdf).execute(request(id), out);
+			const data = pdf.generate.mock.calls[0][0];
+			const scores = sheet(EvaluationStatus.FINALIZED).allocatedScores;
+			expect(data).toMatchObject({
+				finalEvaluationRank: "A+",
+				firstOverallComment: "一次総評",
+				secondOverallComment: "二次総評",
+				objectiveSecondRate: String(scores.objectiveSecondRate),
+				objectiveEvaluationScore: String(scores.objectiveEvaluationScore),
+				commonEvaluationSecondRate: String(scores.commonEvaluationSecondRate),
+				commonEvaluationEvaluationScore: String(scores.commonEvaluationEvaluationScore),
+				totalEvaluationScore: String(scores.totalEvaluationScore),
+			});
+			expect(data.objectives[0].evaluatorScore).toBe("4");
+			expect(data.commonEvaluations[0]).toMatchObject({ selfScore: 3, evaluatorScore: "4" });
+			expect(out.present).toHaveBeenCalledWith(
+				expect.objectContaining({ success: true, fileName: "C:\\test\\sheet.pdf" }),
+			);
+		},
+	);
 	it("prints the grade held when the sheet was created, not the employee's current grade", async () => {
 		// 等級 3 のときに作ったシートを、等級 5 に上がったあとで出力する
 		const repo = repositoryWithSheet(),

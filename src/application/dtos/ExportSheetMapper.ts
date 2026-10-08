@@ -45,18 +45,16 @@ export function toSheetExportDataDto(
 			challengeGoal: objective.challengeGoal,
 			midtermGoal: objective.midtermGoal,
 			achievement: objective.achievement,
-			selfScore: objective.firstScore.toNumber(),
-			evaluatorScore: formatScore(primaryIsFinal ? null : objective.secondScore.toNumber()),
+			firstScore: objective.firstScore.toNumber(),
+			secondScore: formatScore(primaryIsFinal ? null : objective.secondScore.toNumber()),
 		})),
 		commonEvaluations: sheet.commonEvaluationResults.map((result) => ({
 			itemName: result.item.title,
 			itemDescription: result.item.description,
 			weight: result.item.weight,
-			selfScore: result.firstScore.toNumber(),
-			evaluatorScore: formatScore(primaryIsFinal ? null : result.secondScore.toNumber()),
-			selfComment: result.firstComment.toString(),
-			// 共通評価に評価者のコメント欄はない
-			evaluatorComment: null,
+			firstScore: result.firstScore.toNumber(),
+			secondScore: formatScore(primaryIsFinal ? null : result.secondScore.toNumber()),
+			firstComment: result.firstComment.toString(),
 		})),
 	};
 }

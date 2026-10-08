@@ -42,35 +42,13 @@ export class SupabaseCommonEvaluationRepository implements CommonEvaluationRepos
 			return;
 		}
 
-		const { data: existingRows, error: findError } = await supabase
+		// (sheet_id, item_id) の一意制約で、あれば更新・なければ追加する。渡した列だけが書き換わる
+		const { error } = await supabase
 			.from("common_evaluation_results")
-			.select("id")
-			.eq("sheet_id", sheetId)
-			.eq("item_id", itemId)
-			.limit(1);
-
-		if (findError) {
-			throw findError;
-		}
-
-		const existing = (existingRows as Array<{ id: number }> | null)?.[0];
-		if (existing) {
-			const { error } = await supabase
-				.from("common_evaluation_results")
-				.update(values)
-				.eq("id", existing.id);
-
-			if (error) {
-				throw error;
-			}
-			return;
-		}
-
-		const { error } = await supabase.from("common_evaluation_results").insert({
-			sheet_id: sheetId,
-			item_id: itemId,
-			...values,
-		});
+			.upsert(
+				{ sheet_id: sheetId, item_id: itemId, ...values },
+				{ onConflict: "sheet_id,item_id" },
+			);
 
 		if (error) {
 			throw error;

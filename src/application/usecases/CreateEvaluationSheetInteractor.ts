@@ -2,6 +2,7 @@ import type {
 	CommonEvaluationDraft,
 	CommonEvaluationRepository,
 } from "../../domain/repositories/CommonEvaluationRepository";
+import type { EvaluationPeriodRepository } from "../../domain/repositories/EvaluationPeriodRepository";
 import type { EvaluationSheetRepository } from "../../domain/repositories/EvaluationSheetRepository";
 import { createSheetWithCommonEvaluation } from "../../domain/services/EvaluationSheetDomainService";
 import type { OutputPort } from "../ports/OutputPort";
@@ -31,12 +32,19 @@ export class CreateEvaluationSheetInteractor
 	constructor(
 		private readonly evaluationSheetRepository: EvaluationSheetRepository,
 		private readonly commonEvaluationRepository: CommonEvaluationRepository,
+		private readonly evaluationPeriodRepository: EvaluationPeriodRepository,
 	) {}
 
 	async execute(
 		request: CreateEvaluationSheetRequest,
 		outputPort: CreateEvaluationSheetOutputPort,
 	): Promise<void> {
+		// 締めた期間にも、まだ始めていない期間にも、シートは作れない(DB側でも拒否する)
+		const period = await this.evaluationPeriodRepository.findById(request.periodId);
+		if (!period?.isActive) {
+			throw new Error("評価シートを作成できるのは、実施中の評価期間だけです。");
+		}
+
 		const drafts: CommonEvaluationDraft[] = request.drafts.map((draft) => ({
 			itemId: draft.itemId,
 			firstComment: draft.firstComment,

@@ -18,9 +18,10 @@ struct ObjectiveData {
     challenge_goal: String,
     midterm_goal: String,
     achievement: String,
-    self_score: Option<i32>,
+    // 一次評価の点数。
+    first_score: Option<i32>,
     // 二次評価の点数。二次評価者「なし」の社員は "未評価"。
-    evaluator_score: String,
+    second_score: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -29,11 +30,11 @@ struct CommonEvaluationData {
     item_name: String,
     item_description: String,
     weight: i32,
-    self_score: Option<i32>,
+    // 一次評価の点数と、一次評価者のコメント。
+    first_score: Option<i32>,
     // 二次評価の点数。二次評価者「なし」の社員は "未評価"。
-    evaluator_score: String,
-    self_comment: Option<String>,
-    evaluator_comment: Option<String>,
+    second_score: String,
+    first_comment: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -176,13 +177,13 @@ fn convert_data_to_dict(data: &SheetExportData) -> Dict {
                 Value::Str(obj.achievement.clone().into()),
             );
             obj_dict.insert(
-                "self_score".into(),
-                obj.self_score
+                "first_score".into(),
+                obj.first_score
                     .map_or(Value::Str("未評価".into()), |s| Value::Int(s as i64)),
             );
             obj_dict.insert(
-                "evaluator_score".into(),
-                Value::Str(obj.evaluator_score.clone().into()),
+                "second_score".into(),
+                Value::Str(obj.second_score.clone().into()),
             );
             Value::Dict(obj_dict)
         })
@@ -205,21 +206,17 @@ fn convert_data_to_dict(data: &SheetExportData) -> Dict {
             );
             item_dict.insert("weight".into(), Value::Int(item.weight as i64));
             item_dict.insert(
-                "self_score".into(),
-                item.self_score
+                "first_score".into(),
+                item.first_score
                     .map_or(Value::Str("未評価".into()), |s| Value::Int(s as i64)),
             );
             item_dict.insert(
-                "evaluator_score".into(),
-                Value::Str(item.evaluator_score.clone().into()),
+                "second_score".into(),
+                Value::Str(item.second_score.clone().into()),
             );
             item_dict.insert(
-                "self_comment".into(),
-                Value::Str(item.self_comment.as_deref().unwrap_or("なし").into()),
-            );
-            item_dict.insert(
-                "evaluator_comment".into(),
-                Value::Str(item.evaluator_comment.as_deref().unwrap_or("なし").into()),
+                "first_comment".into(),
+                Value::Str(item.first_comment.as_deref().unwrap_or("なし").into()),
             );
             Value::Dict(item_dict)
         })
@@ -376,9 +373,7 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_upload::init())
         .plugin(tauri_plugin_fs::init())
-        .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             // どのバージョンが動いているかを、ウィンドウのタイトルで確かめられるようにする
             if let Some(window) = app.get_webview_window("main") {
@@ -415,9 +410,9 @@ mod tests {
             "commonEvaluationEvaluationScore": "*", "totalEvaluationScore": "*",
             "firstOverallComment": "#include \"secret.txt\"", "secondOverallComment": "*",
             "objectives": [{"id": 11, "goalNumber": 1, "challengeGoal": "[malicious] #eval(\"1\")",
-                "midtermGoal": "中間", "achievement": "達成", "selfScore": null, "evaluatorScore": "*"}],
+                "midtermGoal": "中間", "achievement": "達成", "firstScore": null, "secondScore": "*"}],
             "commonEvaluations": [{"itemName": "共通", "itemDescription": "説明", "weight": 5,
-                "selfScore": 3, "evaluatorScore": "*", "selfComment": null, "evaluatorComment": null}]
+                "firstScore": 3, "secondScore": "*", "firstComment": null}]
         })).unwrap()
     }
 

@@ -30,14 +30,13 @@ describe("PDF data built from the same sheet as the screen", () => {
 			secondOverallComment: "二次総評",
 		});
 		expect(data).not.toHaveProperty("totalScore");
-		expect(data.objectives[0]).toMatchObject({ selfScore: 2, evaluatorScore: "4" });
+		expect(data.objectives[0]).toMatchObject({ firstScore: 2, secondScore: "4" });
 		expect(data.commonEvaluations[0]).toMatchObject({
 			itemName: "共通項目",
 			weight: 5,
-			selfScore: 3,
-			evaluatorScore: "4",
-			selfComment: "一次コメント",
-			evaluatorComment: null,
+			firstScore: 3,
+			secondScore: "4",
+			firstComment: "一次コメント",
 		});
 	});
 
@@ -55,7 +54,7 @@ describe("PDF data built from the same sheet as the screen", () => {
 		const data = toSheetExportDataDto(withoutSecondary, "等級");
 		expect(data.primaryIsFinalEvaluator).toBe(true);
 		expect(data.careerCourse).toBe("");
-		expect(data.objectives[0].evaluatorScore).toBe("未評価");
-		expect(data.commonEvaluations[0].evaluatorScore).toBe("未評価");
+		expect(data.objectives[0].secondScore).toBe("未評価");
+		expect(data.commonEvaluations[0].secondScore).toBe("未評価");
 	});
 });

@@ -7,6 +7,7 @@ const read = (file: string) =>
 	readFileSync(new URL(`../../supabase/migrations/${file}`, import.meta.url), "utf8");
 const migration = read("202610080005_evaluation_completion.sql");
 const sheetGradeMigration = read("202610080007_evaluation_completion_sheet_grade.sql");
+const bySheetEvaluators = read("202610080010_notifications_by_sheet_evaluators.sql");
 const status = async (id = 100) =>
 	(
 		await db.query<{ status: string }>(
@@ -23,13 +24,13 @@ beforeAll(async () => {
 		create role anon; create role authenticated;
 		create table public.employee_grades (id smallint primary key, item_set_id smallint);
 		create table public.employees (id integer primary key, grade_id smallint, no_secondary_evaluator boolean, secondary_evaluator_id integer);
-		create table public.evaluation_sheets (id bigint primary key, employee_id integer, status text, first_rank text, grade_id smallint);
+		create table public.evaluation_sheets (id bigint primary key, employee_id integer, status text, first_rank text, grade_id smallint, secondary_evaluator_id integer, no_secondary_evaluator boolean not null default false);
 		create table public.milestones (id bigint primary key, sheet_id bigint, goal_number integer, first_score smallint, second_score smallint);
 		create table public.common_evaluation_items (id bigint primary key, title text, item_set_id smallint);
 		create table public.common_evaluation_results (id bigint primary key, sheet_id bigint, item_id bigint, first_score smallint, second_score smallint);
 		insert into public.employee_grades values (1, 1), (2, 2);
 		insert into public.employees values (1, 1, false, 3), (4, 1, true, null);
-		insert into public.evaluation_sheets values (100, 1, 'submitted', null, 1), (200, 4, 'submitted', null, 1);
+		insert into public.evaluation_sheets values (100, 1, 'submitted', null, 1, 3, false), (200, 4, 'submitted', null, 1, null, true);
 		insert into public.milestones values (11, 100, 1, 4, 0), (12, 100, 2, 4, 0), (21, 200, 1, 4, 0);
 		insert into public.common_evaluation_items values (31, '全員共通', null), (32, '1級共通', 1), (33, '2級共通', 2);
 		grant select, update on public.evaluation_sheets to authenticated;
@@ -38,6 +39,8 @@ beforeAll(async () => {
 	await db.exec(migration);
 	await db.exec(sheetGradeMigration);
 	await db.exec(sheetGradeMigration);
+	await db.exec(bySheetEvaluators);
+	await db.exec(bySheetEvaluators);
 }, 30_000);
 beforeEach(async () => {
 	await db.exec(`reset role;
@@ -81,6 +84,21 @@ it("validates primary scores when the primary evaluator also finalizes", async (
 	await db.exec("update public.common_evaluation_results set first_score = 1 where id = 44");
 	await confirm("finalized", 200);
 	expect(await status(200)).toBe("finalized");
+});
+
+it("decides which evaluation must be complete from the sheet, not the employee master", async () => {
+	// 社員マスタでは二次評価者「なし」に変わっていても、シートには二次評価者がいる
+	await db.exec(
+		"update public.employees set secondary_evaluator_id = null, no_secondary_evaluator = true where id = 1",
+	);
+	try {
+		await confirm("first_evaluated");
+		await expect(confirm("finalized")).rejects.toThrow("二次評価に未設定");
+	} finally {
+		await db.exec(
+			"update public.employees set secondary_evaluator_id = 3, no_secondary_evaluator = false where id = 1",
+		);
+	}
 });
 
 it("checks the items of the grade the sheet was created with, not the employee's current grade", async () => {

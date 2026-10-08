@@ -148,8 +148,8 @@
       fixed-green-cell(obj.midterm_goal, 13mm),
       fixed-green-cell(obj.achievement, 13mm),
       fixed-center-cell(1, 13mm),
-      fixed-green-score(obj.self_score, 13mm),
-      fixed-green-score(obj.evaluator_score, 13mm),
+      fixed-green-score(obj.first_score, 13mm),
+      fixed-green-score(obj.second_score, 13mm),
     )).flatten()
   )
 }
@@ -190,11 +190,11 @@
       ],
       table.cell(fill: sheet-green)[
         #set par(leading: 0.34em)
-        #text(size: 5pt)[#empty(item.self_comment)]
+        #text(size: 5pt)[#empty(item.first_comment)]
       ],
       centered[#item.weight],
-      table.cell(fill: sheet-green, align: center + horizon)[#red-score(item.self_score)],
-      table.cell(fill: sheet-green, align: center + horizon)[#red-score(item.evaluator_score)],
+      table.cell(fill: sheet-green, align: center + horizon)[#red-score(item.first_score)],
+      table.cell(fill: sheet-green, align: center + horizon)[#red-score(item.second_score)],
     )).flatten()
   )
 }

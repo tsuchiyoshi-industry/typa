@@ -67,6 +67,9 @@ beforeAll(async () => {
 	// 既存のシートには、いまの評価者(一次 2・二次 3)が入る
 	await db.exec(sheetEvaluatorsMigration);
 	await db.exec(sheetEvaluatorsMigration);
+	// 通知先は、シートの評価者で決まる
+	await db.exec(migration("202610080010_notifications_by_sheet_evaluators.sql"));
+	await db.exec(migration("202610080010_notifications_by_sheet_evaluators.sql"));
 }, 30_000);
 beforeEach(async () => {
 	await db.exec(`reset role;

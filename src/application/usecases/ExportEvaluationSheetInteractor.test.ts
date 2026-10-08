@@ -77,8 +77,8 @@ describe("PDF use case with an injected gateway", () => {
 				commonEvaluationEvaluationScore: String(scores.commonEvaluationEvaluationScore),
 				totalEvaluationScore: String(scores.totalEvaluationScore),
 			});
-			expect(data.objectives[0].evaluatorScore).toBe("4");
-			expect(data.commonEvaluations[0]).toMatchObject({ selfScore: 3, evaluatorScore: "4" });
+			expect(data.objectives[0].secondScore).toBe("4");
+			expect(data.commonEvaluations[0]).toMatchObject({ firstScore: 3, secondScore: "4" });
 			expect(out.present).toHaveBeenCalledWith(
 				expect.objectContaining({ success: true, fileName: "C:\\test\\sheet.pdf" }),
 			);

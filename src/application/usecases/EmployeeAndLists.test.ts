@@ -341,11 +341,11 @@ describe("sheet creation orchestration", () => {
 		const common = commonRepository();
 		const out = output<never>();
 		const drafts = [{ itemId: 31, firstScore: 0, secondScore: 0, firstComment: "" }];
-		await new CreateEvaluationSheetInteractor(sheets, common).execute(
-			{ periodId: 10, employeeId: 1, drafts },
+		await new CreateEvaluationSheetInteractor(sheets, common, periodRepository()).execute(
+			{ periodId: 2, employeeId: 1, drafts },
 			out,
 		);
-		expect(sheets.createOrGetSheet).toHaveBeenCalledWith(10, 1);
+		expect(sheets.createOrGetSheet).toHaveBeenCalledWith(2, 1);
 		expect(common.createResultsForSheet).toHaveBeenCalledWith(100, drafts);
 		expect(sheets.updateScoreTotals).toHaveBeenCalledWith(
 			100,
@@ -361,8 +361,8 @@ describe("sheet creation orchestration", () => {
 		common.createResultsForSheet.mockRejectedValue(new Error("DB"));
 		const out = output<never>();
 		await expect(
-			new CreateEvaluationSheetInteractor(sheets, common).execute(
-				{ periodId: 10, employeeId: 1, drafts: [] },
+			new CreateEvaluationSheetInteractor(sheets, common, periodRepository()).execute(
+				{ periodId: 2, employeeId: 1, drafts: [] },
 				out,
 			),
 		).rejects.toThrow("DB");
@@ -372,11 +372,30 @@ describe("sheet creation orchestration", () => {
 	it("does not fabricate totals when created sheet is not readable", async () => {
 		const sheets = sheetRepository();
 		sheets.findById.mockResolvedValue(null);
-		await new CreateEvaluationSheetInteractor(sheets, commonRepository()).execute(
-			{ periodId: 10, employeeId: 1, drafts: [] },
-			output<never>(),
-		);
+		await new CreateEvaluationSheetInteractor(
+			sheets,
+			commonRepository(),
+			periodRepository(),
+		).execute({ periodId: 2, employeeId: 1, drafts: [] }, output<never>());
 		expect(sheets.updateScoreTotals).not.toHaveBeenCalled();
+	});
+	it.each([
+		["a closed period", 1],
+		["a period that has not started", 3],
+		["an unknown period", 999],
+	])("creates a sheet only in the period in progress, not in %s", async (_label, periodId) => {
+		const sheets = sheetRepository();
+		const common = commonRepository();
+		const out = output<never>();
+		await expect(
+			new CreateEvaluationSheetInteractor(sheets, common, periodRepository()).execute(
+				{ periodId, employeeId: 1, drafts: [] },
+				out,
+			),
+		).rejects.toThrow("実施中の評価期間だけ");
+		expect(sheets.createOrGetSheet).not.toHaveBeenCalled();
+		expect(common.createResultsForSheet).not.toHaveBeenCalled();
+		expect(out.present).not.toHaveBeenCalled();
 	});
 	it("draft role permissions are recalculated from current sheet", async () => {
 		const sheets = sheetRepository();

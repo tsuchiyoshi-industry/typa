@@ -2,7 +2,7 @@
 
 | 項目 | 内容 |
 | --- | --- |
-| 対象 | typa 0.9.1（コミット `a4c369d`）に、評価期間の管理と期間締め、シートへの評価者の埋め込みを加えた時点 |
+| 対象 | typa 0.9.2（コミット `6e82765`）に、14 章で挙げていた食い違いの解消を加えた時点 |
 | 作成日 | 2026-10-08 |
 | 作成方法 | 実装（`src/`、`src-tauri/`、`supabase/migrations/`）とテストからのリバースエンジニアリング |
 
@@ -460,7 +460,7 @@ flowchart TB
 | 認証 | `RegisterEmployeeAccount` | 認証コードと社員番号を確かめ、アカウントを作って社員に紐付ける |
 | 一覧 | `FetchCategorizedSheets` | 自分のシートと、シートの評価者が自分であるシート（下書きを除く）を取得する |
 | 一覧 | `FetchDistinctPeriods` | 評価期間を取得する（同じ期間名は1件にまとめる） |
-| シート | `CreateEvaluationSheet` | シートを作成（既にあれば取得）し、集計を保存する。共通評価の初期値を受け取れるが、画面からは渡していない |
+| シート | `CreateEvaluationSheet` | 実施中の評価期間にだけ、シートを作成（既にあれば取得）し、集計を保存する。締めた期間・まだ始めていない期間は拒否する |
 | シート | `FetchEvaluationSheet` | 閲覧権限を確かめ、見せてよい値だけを DTO にする |
 | シート | `CheckEvaluatorRole` | そのシートで自分に何ができるかを返す |
 | シート | `UpdateMilestone` | 目標の文言または点数を保存する。書き込む前にリクエスト全体を検証する |
@@ -567,7 +567,7 @@ erDiagram
 
 シートの作成は「作成または取得」です。同じ社員・同じ評価期間のシートが既にあればその ID を返し、なければ新しく作ります。別の評価期間のシートには触れません（過去の期間のシートを上書きしたり引き継いだりしない）。
 
-共通評価の結果は、行がなくても項目マスタを基準に未入力の行として表示・出力します。保存は `sheet_id` と `item_id` で既存行を探し、あれば更新、なければ挿入します（`milestones` も `sheet_id` と `goal_number` で同じ方式）。
+共通評価の結果は、行がなくても項目マスタを基準に未入力の行として表示・出力します。保存は `(sheet_id, item_id)` の一意制約を使った upsert で、あれば更新・なければ追加し、渡した列だけを書き換えます（一次評価者の保存が二次評価の点数を消さない）。`milestones` も `(sheet_id, goal_number)` で同じ方式です。
 
 ### 8.2 制約・トリガー・DB 関数
 
@@ -581,12 +581,13 @@ erDiagram
 | CHECK | `evaluation_settings_allocation_total` | 配点はそれぞれ 0 以上、合計 100 |
 | CHECK | `evaluation_periods_dates_check` | 終了日は開始日以降 |
 | 一意 | `evaluation_periods_single_active` | 実施中（`is_active = true`）の期間は1つまで |
+| 一意 | `evaluation_sheets_period_id_employee_id_key`、`milestones_sheet_id_goal_number_key`、`common_evaluation_results_sheet_id_item_id_key` | 期間・社員ごとに1シート、シート・目標番号ごとに1目標、シート・項目ごとに1結果。作成と保存の upsert が使う |
 | トリガー | `evaluation_periods_guard_delete` | 実施中の期間と、評価シートのある期間の削除を拒否する（シートは期間の削除に連鎖して消える定義のため） |
 | トリガー | `*_require_active_period`（`evaluation_sheets`、`milestones`、`common_evaluation_results`） | 実施中でない期間のシートに対する追加・更新・削除を拒否する |
 | トリガー | `evaluation_sheets_set_grade` | シートの挿入時に、社員のそのときの等級を `grade_id` に入れる |
 | トリガー | `evaluation_sheets_set_evaluators` | シートの挿入時に、社員のそのときの評価者をシートに入れる |
 | トリガー | `employees_sync_sheet_evaluators` | 社員の評価者が変わったら、実施中の期間の未確定のシートに反映する。確定済みのシートには触れない |
-| トリガー | `evaluation_sheets_check_completion` | `first_evaluated` / `finalized` へ進む更新で、確定する段の全項目（シート作成時の等級の項目）が 1〜4 であることを確かめる |
+| トリガー | `evaluation_sheets_check_completion` | `first_evaluated` / `finalized` へ進む更新で、確定する段の全項目（シート作成時の等級の項目）が 1〜4 であることを確かめる。どの段を見るかは、シートの評価者（二次評価者「なし」かどうか）で決める |
 | RLS | `evaluation_settings` | 読み取りはログイン済みの全員、更新は Admin のみ。挿入・削除は不可 |
 | RLS | `common_evaluation_item_sets` | ポリシーなし（クライアントからは読み書き不可） |
 | RLS | `evaluation_periods` | 読み取りは従来どおり。追加・変更・削除は Admin のみ。追加する行は必ず実施中でない |
@@ -596,8 +597,8 @@ erDiagram
 | DB 関数（RPC） | 呼び出せる人 | 内容 |
 | --- | --- | --- |
 | `get_reviewer_workspace(period_id)` | ログイン済みの社員 | シートの評価者が自分である社員全員の進捗と評価内容（その期間のシートがない社員は、社員マスタの評価者で判定）。等級と共通評価の項目はシート作成時の等級による。下書きは内容なし。一次評価者には二次評価の値を返さない |
-| `get_first_evaluated_sheet_notification_recipient(sheet_id)` | 一次評価済みのシートの一次評価者 | 二次評価者の通知先メールアドレス |
-| `get_finalized_sheet_notification_recipients(sheet_id)` | 確定済みのシートの最終評価者 | 一次・二次評価者の通知先メールアドレス |
+| `get_first_evaluated_sheet_notification_recipient(sheet_id)` | 一次評価済みのシートの、シートの一次評価者 | シートの二次評価者の通知先メールアドレス |
+| `get_finalized_sheet_notification_recipients(sheet_id)` | 確定済みのシートの、シートの最終評価者 | シートの一次・二次評価者の通知先メールアドレス |
 | `set_employee_role(employee_no, role_name)` | Admin | 権限を変える。最後の Admin は外せない |
 | `reset_employee_registration(employee_no)` | Admin | `employees.user_id` を null に戻し、Auth ユーザーを削除する。自分自身は不可 |
 | `activate_evaluation_period(period_id)` | Admin | 期間締め。指定した期間を実施中にし、それまでの実施中の期間を締める。締める期間に未確定のシートがあれば拒否する |
@@ -658,7 +659,7 @@ sequenceDiagram
 | 一次評価の確定 | 二次評価者 | 【TYPA】二次評価のお願い（氏名 / 評価期間） |
 | 評価の確定 | 一次評価者と二次評価者 | 【TYPA】評価シート確定通知（氏名 / 評価期間） |
 
-- 宛先は、評価者が新規登録のときに認証コードを受け取ったメールアドレス。DB 関数が、そのシートの担当評価者からの呼び出しにだけ返す。
+- 宛先になるのは、そのシートの評価者（[5.7](#57-シートの評価者)）。社員マスタで評価者を付け替えた後でも、シートを評価した人に届く。メールアドレスは、評価者が新規登録のときに認証コードを受け取ったもの。DB 関数が、そのシートの評価者からの呼び出しにだけ返す。
 - 評価の確定通知は、評価者ごとに別のメールで送る（互いのアドレスを見せない）。同じアドレスは1通にまとめる。片方への送信が失敗しても、もう片方には送る。
 - 二次評価者「なし」の社員では、一次評価の確定がそのまま評価の確定になり、一次評価者にだけ確定通知を送る。
 - 提出時の通知はない。
@@ -769,12 +770,6 @@ sequenceDiagram
 
 ## 14. 実装から読み取れた注意点
 
-リバースエンジニアリングの途中で気づいた、実装同士・実装と資料の食い違いです。仕様として意図したものか確認が要るものを含みます。
+実装同士、または実装と資料の食い違いを見つけたら、ここに記録します。
 
-| # | 内容 | 影響 |
-| --- | --- | --- |
-| 1 | **帳票データの項目名が実態と違う。** `selfScore` / `selfComment` は一次評価者の点数とコメント、`evaluatorScore` は二次評価者の点数。 | 改修時の読み違い。名前を直すには、DTO・Rust の構造体・テンプレートを合わせて変える |
-| 2 | **Rust 側で、使っていないプラグインを初期化している。** `upload`、`opener` を登録しているが、メインウィンドウには権限を与えていない（`fs` は保存先の検証に使っている）。 | 動作への影響はない。依存を減らせる余地 |
-| 3 | **「シートを作成できるのは実施中の期間だけ」は、作成のユースケースでは判定していない。** 画面が実施中の期間だけを選ばせ、DB のトリガーが締めた期間への追加を拒否する。 | 動作は保証されるが、規則がユースケース層に書かれていない |
-| 4 | **README の実装メモと DB が食い違う。** README は `common_evaluation_results` に複合ユニーク制約がない前提と書いているが、ローカル DB（本番ダンプ）には `(sheet_id, item_id)` の一意制約がある。保存処理は、検索してから更新・挿入する方式のまま。 | 動作への影響はない。`milestones` には制約がないので、方式を変えるなら表ごとに確かめる |
-| 5 | **通知先の取得と確定時の検査は、シートではなく社員マスタの評価者を見る。** `get_first_evaluated_sheet_notification_recipient`、`get_finalized_sheet_notification_recipients`、`check_evaluation_completion` が該当する。 | これらは未確定のシートを確定する時点で使われ、その時点ではシートと社員マスタの評価者が一致しているので、結果は変わらない。確定済みのシートについて後から通知先を引く用途には使えない |
+2026-10-08 時点で、把握している食い違いはありません。これまでに挙げたもの（共通評価の項目を決める等級、PDF 出力の権限、評価者のシートへの埋め込み、通知先を決める評価者、帳票データの項目名、未使用の依存、シート作成の判定、行の一意制約と README の記述）は、すべて解消済みです。

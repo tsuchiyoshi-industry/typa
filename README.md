@@ -53,6 +53,8 @@ DB 構成は [基本設計書の 8 章](docs/basic-design.md#8-データ設計) 
 
 `202610080009_sheet_evaluators.sql` は、評価シートに評価者（`primary_evaluator_id`、`secondary_evaluator_id`、`no_secondary_evaluator`）を持たせます。シートの作成時に社員マスタの評価者が入り、未確定の間は社員マスタでの付け替えが反映されます。評価が確定したシートの評価者は変わらないので、次の期間に向けて評価者を付け替えても、過去のシートは評価した人のまま閲覧・PDF 出力できます。既存のシートには、適用時点の社員マスタの評価者が入ります。`202610080008` の後に適用してください。
 
+`202610080010_notifications_by_sheet_evaluators.sql` は、通知先の取得（一次評価の確定・評価の確定）と確定時の未評価チェックを、社員マスタではなくシートの評価者で判定するように直します。`202610080011_unique_rows.sql` は、評価期間・社員ごとに 1 シート、シート・目標番号ごとに 1 目標、シート・項目ごとに 1 結果の一意制約を揃えます（本番に既にあるものはそのまま、`milestones` の分を追加）。`milestones` に同じシート・同じ目標番号の行が重複していると失敗するので、その場合は先に重複を解消してください。目標の保存はこの制約を使うため、アプリの配布前に適用が必要です。
+
 `202610080003_employee_roles.sql` は、Admin が社員マスタから TYPA の権限（Admin / Reviewer / Employee）を変えるための DB 関数 `set_employee_role` を追加します。最後の Admin は外せません。あわせて、クライアントから `employees.role_id` を直接更新する権限を外します（`employees` に列を追加したら、クライアントから更新させる列はこのマイグレーションと同じ形で `grant update` が必要です）。誰がどの権限かは Admin の画面にだけ表示しますが、`role_id` の読み取り自体は DB 側で制限していません（SEC-002 の対象）。
 
 ## 開発
@@ -115,8 +117,7 @@ PDF出力は以下の流れです。
 
 GitHub Actions Secretsに `VITE_SMTP_HOST`、`VITE_SMTP_PORT`、`VITE_SMTP_USER`、`VITE_SMTP_PASSWORD` を設定します。実際の送信はTauriのRust側です。資格情報は配布アプリへ含まれるため、パスワードの定期更新時はアプリも更新配布します。
 
-- `milestones` と `common_evaluation_results` は、DB側に複合ユニーク制約がない前提で実装しています。
-- そのため保存処理では Supabase の `upsert(... onConflict)` に依存せず、既存行検索から `update` / `insert` を分岐します。
+- `evaluation_sheets`（評価期間・社員）、`milestones`（シート・目標番号）、`common_evaluation_results`（シート・項目）は、それぞれ一意制約を持ちます。シートの作成と、目標・共通評価の保存は、この制約を使った `upsert(... onConflict)` で行います。
 - 共通評価は `common_evaluation_results` が0件でも、`common_evaluation_items` を基準に未入力行を表示します。
 - 評価シートPDFも、登録済み結果だけでなく評価項目マスタを基準に出力します。
 

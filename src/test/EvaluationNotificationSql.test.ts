@@ -11,6 +11,13 @@ const migration = [
 		readFileSync(new URL(`../../supabase/migrations/${file}`, import.meta.url), "utf8"),
 	)
 	.join("\n");
+const bySheetEvaluators = readFileSync(
+	new URL(
+		"../../supabase/migrations/202610080010_notifications_by_sheet_evaluators.sql",
+		import.meta.url,
+	),
+	"utf8",
+);
 const uid = (id: number) => `00000000-0000-0000-0000-${String(id).padStart(12, "0")}`;
 beforeAll(async () => {
 	db = await PGlite.create();
@@ -40,6 +47,15 @@ beforeAll(async () => {
 	await db.exec(migration);
 	// 4 は二次評価者「なし」と明示、8 は未設定(指定待ち)のまま
 	await db.exec("update public.employees set no_secondary_evaluator = true where id = 4");
+	// シートは評価者を自分で持つ(202610080009)。確定した時点の評価者を入れておく
+	await db.exec(`
+		alter table public.evaluation_sheets add column primary_evaluator_id integer, add column secondary_evaluator_id integer, add column no_secondary_evaluator boolean not null default false;
+		update public.evaluation_sheets as sheet
+		set primary_evaluator_id = employee.primary_evaluator_id, secondary_evaluator_id = employee.secondary_evaluator_id, no_secondary_evaluator = employee.no_secondary_evaluator
+		from public.employees as employee where employee.id = sheet.employee_id;
+	`);
+	await db.exec(bySheetEvaluators);
+	await db.exec(bySheetEvaluators);
 }, 30_000);
 beforeEach(async () => {
 	await db.exec("reset role; update auth.users set email_confirmed_at = now();");
@@ -57,6 +73,25 @@ it("executes the actual migration and returns only the two evaluator contact ema
 		{ role: "primary", employee_id: 2, email: "employee2@example.jp" },
 		{ role: "secondary", employee_id: 3, email: "employee3@example.jp" },
 	]);
+});
+it("notifies the evaluators of the sheet, not the evaluators the employee has now", async () => {
+	// 評価が確定した後で、社員1の評価者を 2・3 から 6・8 に付け替える
+	const reassign = (primary: number, secondary: number) =>
+		db.exec(
+			`reset role; update public.employees set primary_evaluator_id = ${primary}, secondary_evaluator_id = ${secondary} where id = 1; set role authenticated`,
+		);
+	await reassign(6, 8);
+	try {
+		expect((await recipients()).rows).toEqual([
+			{ role: "primary", employee_id: 2, email: "employee2@example.jp" },
+			{ role: "secondary", employee_id: 3, email: "employee3@example.jp" },
+		]);
+		// 新しい二次評価者は、自分が評価していないシートの通知先を引けない
+		await db.query("select set_config('request.jwt.claim.sub', $1, false)", [uid(8)]);
+		await expect(recipients()).rejects.toMatchObject({ code: "42501" });
+	} finally {
+		await reassign(2, 3);
+	}
 });
 it.each([1, 2, 4])(
 	"denies recipient lookup by subject/primary/unrelated employee %s",

@@ -68,35 +68,19 @@ export class SupabaseMilestoneRepository implements MilestoneRepository {
 		midtermGoal: string,
 		achievement: string,
 	): Promise<Milestone> {
-		const { data: existing, error: findError } = await supabase
-			.from("milestones")
-			.select("id")
-			.eq("sheet_id", sheetId)
-			.eq("goal_number", goalNumber)
-			.maybeSingle();
-
-		if (findError) {
-			throw findError;
-		}
-
-		if (existing) {
-			return this.updateText(
-				(existing as { id: number }).id,
-				challengeGoal,
-				midtermGoal,
-				achievement,
-			);
-		}
-
+		// (sheet_id, goal_number) の一意制約で、あれば更新・なければ追加する
 		const { data, error } = await supabase
 			.from("milestones")
-			.insert({
-				sheet_id: sheetId,
-				goal_number: goalNumber,
-				challenge_goal: challengeGoal,
-				midterm_goal: midtermGoal,
-				achievement,
-			})
+			.upsert(
+				{
+					sheet_id: sheetId,
+					goal_number: goalNumber,
+					challenge_goal: challengeGoal,
+					midterm_goal: midtermGoal,
+					achievement,
+				},
+				{ onConflict: "sheet_id,goal_number" },
+			)
 			.select("*")
 			.single();
 

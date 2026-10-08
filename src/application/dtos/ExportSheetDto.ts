@@ -42,16 +42,20 @@ export interface SheetExportDataDto {
 		challengeGoal: string;
 		midtermGoal: string;
 		achievement: string;
-		selfScore: number | null;
-		evaluatorScore: string;
+		/** 一次評価の点数。 */
+		firstScore: number | null;
+		/** 二次評価の点数。二次評価者「なし」のシートは「未評価」。 */
+		secondScore: string;
 	}[];
 	commonEvaluations: {
 		itemName: string;
 		itemDescription: string;
 		weight: number;
-		selfScore: number | null;
-		evaluatorScore: string;
-		selfComment: string | null;
-		evaluatorComment: string | null;
+		/** 一次評価の点数。 */
+		firstScore: number | null;
+		/** 二次評価の点数。二次評価者「なし」のシートは「未評価」。 */
+		secondScore: string;
+		/** 一次評価者のコメント。 */
+		firstComment: string | null;
 	}[];
 }

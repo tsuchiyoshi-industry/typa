@@ -112,6 +112,7 @@ const fetchDistinctPeriodsUseCase = new FetchDistinctPeriodsInteractor(evaluatio
 const createEvaluationSheetUseCase = new CreateEvaluationSheetInteractor(
 	evaluationSheetRepository,
 	commonEvaluationRepository,
+	evaluationPeriodRepository,
 );
 const checkEvaluatorRoleUseCase = new CheckEvaluatorRoleInteractor(
 	employeeRepository,

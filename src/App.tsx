@@ -1,5 +1,14 @@
 import { Navigate, Route, Router } from "@solidjs/router";
-import { type Component, createSignal, type JSX, onCleanup, onMount, Show } from "solid-js";
+import {
+	type Component,
+	createSignal,
+	type JSX,
+	lazy,
+	onCleanup,
+	onMount,
+	Show,
+	Suspense,
+} from "solid-js";
 import { AccountController } from "./adapter/controllers/AccountController";
 import { ChallengeEvaluationController } from "./adapter/controllers/ChallengeEvaluationController";
 import { CommonEvaluationController } from "./adapter/controllers/CommonEvaluationController";
@@ -20,13 +29,7 @@ import FeedbackHost from "./adapter/views/components/FeedbackHost";
 import LoadingView from "./adapter/views/components/LoadingView";
 import { NotFound } from "./adapter/views/components/NotFound";
 import DashboardLayout from "./adapter/views/DashboardLayout";
-import EmployeeMasterView from "./adapter/views/EmployeeMasterView";
-import HelpView from "./adapter/views/HelpView";
 import LoginView from "./adapter/views/LoginView";
-import ReviewerWorkspaceView from "./adapter/views/ReviewerWorkspaceView";
-import SettingsView from "./adapter/views/SettingsView";
-import SheetEditorView from "./adapter/views/SheetEditorView";
-import SheetListView from "./adapter/views/SheetListView";
 import { CheckEvaluatorRoleInteractor } from "./application/usecases/CheckEvaluatorRoleInteractor";
 import { CloseEvaluationPeriodInteractor } from "./application/usecases/CloseEvaluationPeriodInteractor";
 import { CreateEvaluationSheetInteractor } from "./application/usecases/CreateEvaluationSheetInteractor";
@@ -63,6 +66,14 @@ import { SupabaseMilestoneRepository } from "./infrastructure/repositories/Supab
 import { SupabaseReviewerWorkspaceRepository } from "./infrastructure/repositories/SupabaseReviewerWorkspaceRepository";
 import { TauriEmailNotificationRepository } from "./infrastructure/repositories/TauriEmailNotificationRepository";
 import { TauriSheetPdfGateway } from "./infrastructure/repositories/TauriSheetPdfGateway";
+
+// Load protected page code when the corresponding route is opened.
+const EmployeeMasterView = lazy(() => import("./adapter/views/EmployeeMasterView"));
+const HelpView = lazy(() => import("./adapter/views/HelpView"));
+const ReviewerWorkspaceView = lazy(() => import("./adapter/views/ReviewerWorkspaceView"));
+const SettingsView = lazy(() => import("./adapter/views/SettingsView"));
+const SheetEditorView = lazy(() => import("./adapter/views/SheetEditorView"));
+const SheetListView = lazy(() => import("./adapter/views/SheetListView"));
 
 const authRepository = new SupabaseAuthRepository();
 const employeeRepository = new SupabaseEmployeeRepository();
@@ -252,7 +263,9 @@ const App: Component = () => {
 	// ログイン済みの画面はトップバーを共有する。ページ移動のたびに作り直さない。
 	const ProtectedLayout: Component<{ children?: JSX.Element }> = (props) => (
 		<Show when={session() && isLinked()} fallback={<Navigate href="/login" />}>
-			<DashboardLayout controller={accountController}>{props.children}</DashboardLayout>
+			<DashboardLayout controller={accountController}>
+				<Suspense fallback={<LoadingView />}>{props.children}</Suspense>
+			</DashboardLayout>
 		</Show>
 	);
 

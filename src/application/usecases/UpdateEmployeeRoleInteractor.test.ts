@@ -64,7 +64,7 @@ describe("changing TYPA roles", () => {
 		expect(only.repository.updateRoleByEmployeeNo).not.toHaveBeenCalled();
 		expect(only.out.present).toHaveBeenCalledWith({
 			success: false,
-			message: expect.stringContaining("Admin が0人になるため変更できません"),
+			message: expect.stringContaining("Admin が0名になるため変更できません"),
 		});
 
 		// もう一人 Admin がいれば、自分を外せる。Admin のままにする変更は常にできる

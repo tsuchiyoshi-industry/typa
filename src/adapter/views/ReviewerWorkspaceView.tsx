@@ -1,7 +1,5 @@
 import { useSearchParams } from "@solidjs/router";
 import ArrowRight from "lucide-solid/icons/arrow-right";
-import Award from "lucide-solid/icons/award";
-import ChevronLeft from "lucide-solid/icons/chevron-left";
 import ChevronRight from "lucide-solid/icons/chevron-right";
 import ClipboardCheck from "lucide-solid/icons/clipboard-check";
 import Columns3 from "lucide-solid/icons/columns-3";
@@ -263,6 +261,13 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 			await load(id);
 		}
 	};
+	// 確定の確認で案内した「次の対象者」。確定で一覧の並びが変わっても、案内した人へ進む
+	let announcedNext: number | undefined;
+	const announceNext = () => {
+		const target = next();
+		announcedNext = target?.employeeId;
+		return target?.employeeName;
+	};
 	/** 一次評価・評価を確定したら、一覧を取り直して次の「自分の番」へ進む。 */
 	const advance = async () => {
 		const id = periodId();
@@ -271,9 +276,13 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 		if (!alive || !loaded) {
 			return;
 		}
-		const target = nextMyTurn(filterReviewRows(loaded, filterOptions()), finished);
+		const target =
+			loaded.find((row) => row.employeeId === announcedNext && isMyTurn(row)) ??
+			nextMyTurn(filterReviewRows(loaded, filterOptions()), finished);
+		announcedNext = undefined;
 		if (target?.sheetId) {
 			setParams({ sheet: target.sheetId, mode: "evaluate" }, { scroll: false });
+			showToast("info", `${target.employeeName} さんの評価に進みました`);
 		} else {
 			showToast("success", "この一覧で自分の番のシートはすべて確定しました");
 		}
@@ -332,7 +341,7 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 						<For each={primaryEvaluators()}>
 							{(label) => (
 								<option value={label.id}>
-									{label.name} · {label.count}人
+									{label.name} · {label.count}名
 								</option>
 							)}
 						</For>
@@ -487,7 +496,7 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 				<header>
 					<div>
 						<h2>{first()?.gradeName}</h2>
-						<p>{comparison.people.length} 人 · 同じ等級で比較</p>
+						<p>{comparison.people.length} 名 · 同じ等級で比較</p>
 					</div>
 				</header>
 				<Show when={detailedComparison()} fallback={<SummaryTable people={comparison.people} />}>
@@ -674,14 +683,14 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 					<div>
 						<Users size={18} />
 						<span>
-							部下 <strong>{rows().length}</strong> 人
+							部下 <strong>{rows().length}</strong> 名
 						</span>
 						<span class="review-progress-count">
-							評価確定 <strong>{count("finalized")}</strong> / {rows().length}
+							最終評価済み <strong>{count("finalized")}</strong> / {rows().length}
 						</span>
 					</div>
 					<progress
-						aria-label="部下の評価確定の進捗"
+						aria-label="部下の最終評価の進捗"
 						value={count("finalized")}
 						max={Math.max(1, rows().length)}
 					/>
@@ -698,7 +707,7 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 							<span>{label}</span>
 							<strong>
 								{total}
-								<small>人</small>
+								<small>名</small>
 							</strong>
 						</button>
 					)}
@@ -789,7 +798,7 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 								<aside class="review-caseload" aria-label="部下の一覧">
 									<header>
 										<strong>対象者</strong>
-										<span>{visible().length} 人</span>
+										<span>{visible().length} 名</span>
 									</header>
 									<Show when={visible().length} fallback={<Empty />}>
 										<div class="review-caseload-list">
@@ -893,6 +902,7 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 															selectedSheetId={identity.sheetId as number}
 															onUpdated={updateRows}
 															onSavingChange={setEditorSaving}
+															announceNext={announceNext}
 															onStageCompleted={() => void advance()}
 														/>
 													)}
@@ -906,7 +916,7 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 					>
 						<div class="review-results-header">
 							<span>
-								{visible().length} 人を表示
+								{visible().length} 名を表示
 								<Show when={mode() === "compare"}> · 等級ごとに比較</Show>
 							</span>
 							<div>
@@ -929,7 +939,7 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 						<Show when={visible().length} fallback={<Empty />}>
 							<Show when={mode() === "compare"} fallback={<SummaryTable people={visible()} />}>
 								<p class="review-comparison-help">
-									評価点は「設定」の配点（チャレンジ目標＋共通評価で100点）で換算。詳細は一覧で最大6人を選択して比較できます。
+									評価点は「設定」の配点（チャレンジ目標＋共通評価で100点）で換算。詳細は一覧で最大6名を選択して比較できます。
 								</p>
 								<Show
 									when={groups().length}
@@ -946,17 +956,6 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 					</Show>
 				</Show>
 			</Show>
-			<footer class="review-footnote">
-				<Award size={14} />
-				<span>
-					評価ランクは評価点（100点満点）の得点率で自動的に決まります。95%以上 S / 90% A / 80% B+ /
-					60% B / 50% B- / 40% C / それ未満 D。薄い表示は確定前の見込みです。
-				</span>
-				<button type="button" onClick={() => void navigate({ mode: "list" })}>
-					<ChevronLeft size={14} />
-					一覧へ
-				</button>
-			</footer>
 		</div>
 	);
 };

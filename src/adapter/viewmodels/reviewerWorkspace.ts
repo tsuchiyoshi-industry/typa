@@ -48,7 +48,7 @@ export const reviewLabel = (row: ReviewerRowDto): string => {
 	if (status.isAwaitingSecondEvaluation()) {
 		return row.canViewFinal ? "二次評価する" : "二次評価待ち";
 	}
-	return "評価確定";
+	return "最終評価済み";
 };
 
 /** 最終評価(二次評価。「なし」の社員は一次評価)が始まっているか。始まる前の点数は意味を持たない。 */
@@ -151,7 +151,7 @@ export function reviewStats(rows: ReviewerRowDto[]): [ReviewFilter, string, numb
 		["first", "一次評価する", count("first"), rows.some((row) => row.isPrimary)],
 		["second", "二次評価する", count("second"), rows.some((row) => row.canViewSecond)],
 		["waiting", "提出・相手の評価待ち", count("waiting"), true],
-		["finalized", "評価確定", count("finalized"), true],
+		["finalized", "最終評価済み", count("finalized"), true],
 	];
 	return stats.filter(([, , , shown]) => shown).map(([key, label, total]) => [key, label, total]);
 }

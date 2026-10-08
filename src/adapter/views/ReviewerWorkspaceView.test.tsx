@@ -88,16 +88,16 @@ it("searches the caseload and filters by whose turn it is", async () => {
 	expect(view.queryByRole("button", { name: /社員1.*E001/ })).toBeNull();
 	expect(view.getByRole("button", { name: /社員2.*E002/ })).toBeTruthy();
 	fireEvent.input(view.getByRole("searchbox"), { target: { value: "" } });
-	fireEvent.click(view.getByRole("button", { name: "二次評価する1人" }));
+	fireEvent.click(view.getByRole("button", { name: "二次評価する1名" }));
 	expect(view.getByRole("button", { name: /社員1.*E001/ })).toBeTruthy();
 	expect(view.queryByRole("button", { name: /社員2.*E002/ })).toBeNull();
-	fireEvent.click(view.getByRole("button", { name: "一次評価する1人" }));
+	fireEvent.click(view.getByRole("button", { name: "一次評価する1名" }));
 	expect(view.getByRole("button", { name: /社員2.*E002/ })).toBeTruthy();
 	expect(view.controller.load).toHaveBeenCalledTimes(1);
 });
 it("hides the stages the reviewer has no part in", async () => {
 	const view = setup([reviewerRow(1, { ...submittedToPrimary, canViewSecond: false })]);
-	await view.findByRole("button", { name: "一次評価する1人" });
+	await view.findByRole("button", { name: "一次評価する1名" });
 	expect(view.queryByRole("button", { name: /二次評価する/ })).toBeNull();
 });
 it("opens a sheet from anywhere on its row, but not a draft", async () => {
@@ -199,13 +199,35 @@ it("finalizes after confirmation and advances to the reviewer's next turn", asyn
 		(within(dialog).getByRole("checkbox", { name: /通知メールを送る/ }) as HTMLInputElement)
 			.checked,
 	).toBe(true);
+	// 確定の後に誰の評価へ進むかを、押す前に知らせる
+	expect(dialog.textContent).toContain("確定後は、次の 社員3 さんの評価に進みます。");
 	const updateStatus = vi.spyOn(view.editor.controller, "updateStatus");
 	fireEvent.click(within(dialog).getByRole("button", { name: "評価を確定する" }));
 	await waitFor(() => expect(updateStatus).toHaveBeenCalledWith(EvaluationStatus.FINALIZED, true));
 	await waitFor(() => expect(view.history.get()).toContain("sheet=103"));
+	await view.findByText("社員3 さんの評価に進みました");
 	const sidebar = view.getByRole("complementary", { name: "部下の一覧" });
 	expect(within(sidebar).getByRole("button", { name: "社員1の評価を開く" }).textContent).toContain(
-		"評価確定",
+		"最終評価済み",
+	);
+});
+it("goes to the person announced in the dialog even though confirming reorders the list", async () => {
+	// 並びは「自分の番が先」。社員2を確定すると社員2は末尾へ移り、並びだけで選ぶと先頭の社員1になる
+	const view = setup(
+		[reviewerRow(1), reviewerRow(2), reviewerRow(3)],
+		"/review?period=10&sheet=102&mode=evaluate",
+	);
+	fireEvent.click(await view.findByRole("button", { name: "二次評価を確定する" }));
+	const dialog = await view.findByRole("dialog");
+	expect(dialog.textContent).toContain("次の 社員3 さんの評価に進みます。");
+	fireEvent.click(within(dialog).getByRole("button", { name: "評価を確定する" }));
+	await waitFor(() => expect(view.history.get()).toContain("sheet=103"));
+});
+it("tells the reviewer when the sheet being confirmed is their last turn", async () => {
+	const view = setup([reviewerRow(1)], "/review?period=10&sheet=101&mode=evaluate");
+	fireEvent.click(await view.findByRole("button", { name: "二次評価を確定する" }));
+	expect((await view.findByRole("dialog")).textContent).toContain(
+		"自分の番のシートは、これが最後です。",
 	);
 });
 it("confirms the primary evaluation and notifies the secondary evaluator unless turned off", async () => {

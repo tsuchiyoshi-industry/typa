@@ -454,7 +454,7 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 				>
 					評価者は氏名・社員番号で検索できます。
 					{props.viewModel().canEditRoles
-						? "役員は権限だけ変更できます（等級・評価者は管理対象外です）。Admin が0人になる変更はできません。"
+						? "役員は権限だけ変更できます（等級・評価者は管理対象外です）。Admin が0名になる変更はできません。"
 						: "役員は管理対象から除外しています。"}
 				</Show>
 			</p>

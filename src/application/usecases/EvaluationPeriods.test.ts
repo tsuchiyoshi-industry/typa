@@ -85,7 +85,7 @@ describe("closing an evaluation period", () => {
 			expect(await close(context, 3, confirmed)).toEqual({
 				status: "rejected",
 				message:
-					"「今期」に未確定の評価シートが 3 件あります（下書き 2 件・一次評価済み 1 件）。すべての評価を確定してから締めてください。",
+					"「今期」に未確定の評価シートが 3 件あります（下書き 2 件・二次評価待ち 1 件）。すべての評価を確定してから締めてください。",
 			});
 			expect(context.periods.countSheetsByStatus).toHaveBeenCalledWith(2);
 			expect(context.periods.activate).not.toHaveBeenCalled();

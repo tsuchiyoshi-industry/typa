@@ -69,7 +69,7 @@ it("tells whose turn it is from the stage and the reviewer's role", () => {
 		[reviewerRow(1, { status: "submitted" }), "waiting", "一次評価待ち"],
 		[reviewerRow(1), "second", "二次評価する"],
 		[reviewerRow(1, { isPrimary: true, canViewFinal: false }), "waiting", "二次評価待ち"],
-		[reviewerRow(1, { status: "finalized" }), "finalized", "評価確定"],
+		[reviewerRow(1, { status: "finalized" }), "finalized", "最終評価済み"],
 	] as const;
 	for (const [row, task, label] of cases) {
 		expect(reviewTask(row)).toBe(task);
@@ -174,7 +174,7 @@ it("counts only the stages the reviewer takes part in", () => {
 		["all", "全員", 3],
 		["second", "二次評価する", 1],
 		["waiting", "提出・相手の評価待ち", 1],
-		["finalized", "評価確定", 1],
+		["finalized", "最終評価済み", 1],
 	]);
 	const firstOnly = [reviewerRow(1, { ...submittedToPrimary, canViewSecond: false })];
 	expect(reviewStats(firstOnly).map(([key]) => key)).toEqual([

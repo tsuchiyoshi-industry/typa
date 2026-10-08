@@ -11,7 +11,7 @@ import { statusHint, statusLabel } from "../format";
 
 interface SheetStatusTrackProps {
 	status: EvaluationStatusValue;
-	/** 二次評価者「なし」の社員は「一次評価済み」の段を通らない。 */
+	/** 二次評価者「なし」の社員は「二次評価待ち」の段を通らない。 */
 	primaryIsFinal: boolean;
 	canSubmit: boolean;
 	canRevert: boolean;
@@ -25,7 +25,7 @@ interface SheetStatusTrackProps {
 	onFinalize: () => void;
 }
 
-/** 下書き → 提出済み → 一次評価済み → 評価確定 の進行と、いま自分ができる次の操作を示す。 */
+/** 下書き → 一次評価待ち → 二次評価待ち → 最終評価済み の進行と、いま自分ができる次の操作を示す。 */
 const SheetStatusTrack: Component<SheetStatusTrackProps> = (props) => {
 	const current = () => EvaluationStatus.from(props.status);
 	const steps = () =>

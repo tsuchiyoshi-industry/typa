@@ -1,9 +1,10 @@
+import ArrowRight from "lucide-solid/icons/arrow-right";
 import CircleAlert from "lucide-solid/icons/circle-alert";
 import CircleCheck from "lucide-solid/icons/circle-check";
 import Info from "lucide-solid/icons/info";
 import X from "lucide-solid/icons/x";
 import { type Component, createEffect, For, Show } from "solid-js";
-import { dismissToast, pendingConfirm, settleConfirm, toasts } from "../feedback";
+import { dismissToast, leavingToasts, pendingConfirm, settleConfirm, toasts } from "../feedback";
 
 const ConfirmDialog: Component = () => {
 	let dialogRef: HTMLDialogElement | undefined;
@@ -38,6 +39,12 @@ const ConfirmDialog: Component = () => {
 									<For each={details()}>{(detail) => <li>{detail}</li>}</For>
 								</ul>
 							)}
+						</Show>
+						<Show when={request().note}>
+							<p class="confirm-dialog__note">
+								<ArrowRight size={14} aria-hidden="true" />
+								{request().note}
+							</p>
 						</Show>
 						<Show when={request().checkbox}>
 							{(checkbox) => (
@@ -83,7 +90,14 @@ const ToastStack: Component = () => (
 	<div class="toast-stack" aria-live="polite">
 		<For each={toasts()}>
 			{(toast) => (
-				<div class={`toast ${toast.kind}`} role={toast.kind === "error" ? "alert" : "status"}>
+				<div
+					classList={{
+						toast: true,
+						[toast.kind]: true,
+						leaving: leavingToasts().has(toast.id),
+					}}
+					role={toast.kind === "error" ? "alert" : "status"}
+				>
 					{toast.kind === "success" ? (
 						<CircleCheck class="toast__icon" />
 					) : toast.kind === "error" ? (
@@ -103,7 +117,7 @@ const ToastStack: Component = () => (
 						aria-label="通知を閉じる"
 						onClick={() => dismissToast(toast.id)}
 					>
-						<X size={16} />
+						<X size={14} />
 					</button>
 				</div>
 			)}

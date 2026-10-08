@@ -51,7 +51,7 @@ export class UpdateEmployeeRoleInteractor
 			outputPort.present({
 				success: false,
 				message:
-					"Admin が0人になるため変更できません。先に別の社員を Admin にしてから変更してください。",
+					"Admin が0名になるため変更できません。先に別の社員を Admin にしてから変更してください。",
 			});
 			return;
 		}

@@ -3,11 +3,12 @@ import {
 	type EvaluationStatusValue,
 } from "../../domain/valueObjects/EvaluationStatus";
 
+/** 状態の表示名は「いま何を待っているか」。済んだことではなく、次に誰が動くかが分かる言葉にする。 */
 const STATUS_LABELS: Record<EvaluationStatusValue, string> = {
 	draft: "下書き",
-	submitted: "提出済み",
-	first_evaluated: "一次評価済み",
-	finalized: "評価確定",
+	submitted: "一次評価待ち",
+	first_evaluated: "二次評価待ち",
+	finalized: "最終評価済み",
 };
 
 export const statusLabel = (status: EvaluationStatusValue): string => STATUS_LABELS[status];
@@ -16,7 +17,7 @@ const STATUS_HINTS: Record<EvaluationStatusValue, string> = {
 	draft: "本人が編集中です。提出するまで評価者には表示されません。",
 	submitted: "一次評価者の評価を待っています。",
 	first_evaluated: "一次評価が確定しました。二次評価者の評価を待っています。",
-	finalized: "評価が確定しました。内容は変更できません。",
+	finalized: "最終評価が済みました。内容は変更できません。",
 };
 
 /** いまの状態で「誰の番か」を一文で示す。 */

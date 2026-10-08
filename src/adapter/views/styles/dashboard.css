@@ -454,6 +454,56 @@
 	color: var(--hr-text);
 }
 
+/* 評価期間のタブ。見出しの行のすぐ下に置き、下に並ぶ表をまとめて切り替える */
+.sheet-list-header:has(+ .period-tabs) {
+	padding-bottom: 0;
+	border-bottom: none;
+}
+
+/* 下の表まで送ってもトップバーのすぐ下に残り、どこからでも期間を切り替えられる */
+.period-tabs {
+	position: sticky;
+	/* トップバー(.dashboard-topbar)の高さ */
+	top: 3.5rem;
+	z-index: 20;
+	display: flex;
+	gap: 1.5rem;
+	/* ページの段の間隔(1.75rem)を詰めて、見出しの行に寄せる */
+	margin-top: -1.25rem;
+	overflow-x: auto;
+	scrollbar-width: thin;
+	background: var(--hr-bg);
+	border-bottom: 1px solid var(--hr-border);
+}
+
+.period-tabs button {
+	display: inline-flex;
+	align-items: baseline;
+	gap: 0.45rem;
+	padding: 0.45rem 0.1rem 0.6rem;
+	font-size: 0.9375rem;
+	font-weight: 600;
+	color: var(--hr-text-muted);
+	white-space: nowrap;
+	border-bottom: 2px solid transparent;
+}
+
+.period-tabs button:hover {
+	color: var(--hr-text);
+}
+
+.period-tabs button[aria-pressed="true"] {
+	color: var(--hr-text);
+	border-bottom-color: var(--hr-accent-hover);
+}
+
+.period-tabs button span {
+	font-size: 0.75rem;
+	font-weight: 400;
+	font-variant-numeric: tabular-nums;
+	color: var(--hr-text-muted);
+}
+
 .create-sheet-button {
 	display: inline-flex;
 	align-items: center;
@@ -626,8 +676,8 @@
 .status-chip {
 	display: inline-flex;
 	align-items: center;
-	gap: 0.4rem;
-	padding: 0.2rem 0.65rem;
+	gap: 0.35rem;
+	padding: 0.2rem 0.65rem 0.2rem 0.5rem;
 	font-size: 0.8125rem;
 	font-weight: 600;
 	color: var(--hr-text-muted);
@@ -637,12 +687,8 @@
 	white-space: nowrap;
 }
 
-.status-chip::before {
-	content: "";
-	width: 0.45rem;
-	height: 0.45rem;
-	border-radius: 50%;
-	background: currentColor;
+.status-chip svg {
+	flex-shrink: 0;
 }
 
 .status-chip.submitted {
@@ -847,7 +893,7 @@
 	cursor: wait;
 }
 
-/* 進行トラック: 下書き → 提出済み → 一次評価済み → 評価確定 */
+/* 進行トラック: 下書き → 一次評価待ち → 二次評価待ち → 最終評価済み */
 .status-track {
 	display: flex;
 	flex-wrap: wrap;
@@ -918,7 +964,7 @@
 	box-shadow: 0 0 0 3px var(--hr-accent-muted);
 }
 
-/* 最後の段(評価確定)に到達したら完了色にする */
+/* 最後の段(最終評価済み)に到達したら完了色にする */
 .status-track__step.current:last-child .status-track__dot {
 	background: var(--hr-success);
 	border-color: var(--hr-success);

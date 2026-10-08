@@ -71,8 +71,8 @@ export class CloseEvaluationPeriodInteractor
 		const counts = closing ? await this.periodRepository.countSheetsByStatus(closing.id) : {};
 		const unfinished = [
 			["下書き", counts.draft ?? 0],
-			["提出済み", counts.submitted ?? 0],
-			["一次評価済み", counts.first_evaluated ?? 0],
+			["一次評価待ち", counts.submitted ?? 0],
+			["二次評価待ち", counts.first_evaluated ?? 0],
 		] as const;
 		const unfinishedTotal = unfinished.reduce((sum, [, count]) => sum + count, 0);
 		if (closing && unfinishedTotal > 0) {

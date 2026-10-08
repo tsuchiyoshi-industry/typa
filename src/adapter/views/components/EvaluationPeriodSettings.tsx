@@ -13,7 +13,7 @@ const EMPTY_FORM = { periodName: "", startDate: "", endDate: "" };
 const closingNotes = (closing: string | null, next: string, finalizedSheets: number): string[] => [
 	...(closing
 		? [
-				`「${closing}」の評価シートは ${finalizedSheets} 件で、すべて評価確定です。未確定のシートはありません。`,
+				`「${closing}」の評価シートは ${finalizedSheets} 件で、すべて最終評価済みです。未確定のシートはありません。`,
 				`締めた後は、「${closing}」の評価シートを誰も変更できません。閲覧と PDF 出力は引き続きできます。`,
 				`「${closing}」のシートをまだ作成していない社員がいても、締めた後は作成できません。作成漏れがないか、先に確認してください。`,
 			]

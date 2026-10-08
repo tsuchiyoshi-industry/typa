@@ -12,12 +12,19 @@ export interface Toast {
 }
 
 const [toasts, setToasts] = createSignal<Toast[]>([]);
+/** 消える途中のトースト。退場の動きが終わるまで画面に残す。 */
+const [leavingToasts, setLeavingToasts] = createSignal<ReadonlySet<number>>(new Set());
 let nextToastId = 1;
 
-export { toasts };
+export { leavingToasts, toasts };
 
 export function dismissToast(id: number): void {
-	setToasts((list) => list.filter((toast) => toast.id !== id));
+	setLeavingToasts((leaving) => new Set(leaving).add(id));
+	// global.css の toastOut と同じ長さ
+	window.setTimeout(() => {
+		setToasts((list) => list.filter((toast) => toast.id !== id));
+		setLeavingToasts((leaving) => new Set([...leaving].filter((other) => other !== id)));
+	}, 160);
 }
 
 /** エラーは読み落とさないよう、閉じるまで残す。それ以外は数秒で消える。 */
@@ -36,6 +43,8 @@ export interface ConfirmRequest {
 	message: string;
 	/** 実行する前に確かめてもらうこと。本文の下に箇条書きで出す。 */
 	details?: string[];
+	/** 実行した後に起きること(次に開く画面など)。本文と分けて目立たせる。 */
+	note?: string;
 	/** 実行と一緒に選んでもらうこと。チェックを入れた状態で出し、変えたら onChange で知らせる。 */
 	checkbox?: { label: string; onChange: (checked: boolean) => void };
 	confirmLabel: string;

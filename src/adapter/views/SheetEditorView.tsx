@@ -49,6 +49,8 @@ export interface SheetEditorViewProps {
 	onSavingChange?: (saving: boolean) => void;
 	/** 一次評価の確定・評価の確定が済んだとき。受け持ち画面が次の対象者へ進むのに使う。 */
 	onStageCompleted?: () => void;
+	/** 確定の後に進む「次の対象者」の名前。確定の確認で案内するときに呼ぶ。いなければ undefined。 */
+	announceNext?: () => string | undefined;
 	controller: SheetEditorController;
 	viewModel: () => SheetEditorViewModel;
 	commonEvaluationController: CommonEvaluationController;
@@ -125,6 +127,19 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 	});
 	const rankText = (rank: EvaluationRankDto | undefined) =>
 		rank ? `${rank.displayText}（${rank.score} 点 / 100 点）` : "—";
+	/** いま自分が確定しようとしている段階のランク。 */
+	const confirmingRank = () =>
+		viewModel().canFinalizeEvaluation ? sheet()?.finalEvaluationRank : sheet()?.firstEvaluationRank;
+	/** 受け持ち画面では、確定すると次の対象者へ進む。行き先を確認の中で先に知らせる。 */
+	const nextNote = () => {
+		if (!props.announceNext) {
+			return undefined;
+		}
+		const name = props.announceNext();
+		return name
+			? `確定後は、次の ${name} さんの評価に進みます。`
+			: "自分の番のシートは、これが最後です。";
+	};
 
 	createEffect(() => {
 		if (isNew()) {
@@ -322,6 +337,7 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 		const confirmed = await confirmAction({
 			title: "一次評価を確定しますか？",
 			message: `一次評価ランクは ${rankText(sheet()?.firstEvaluationRank)} です。確定すると一次評価は変更できなくなります。この操作は取り消せません。`,
+			note: nextNote(),
 			checkbox: {
 				label: `二次評価者（${sheet()?.secondaryEvaluator ?? "未設定"}）に通知メールを送る`,
 				onChange: (checked) => {
@@ -357,6 +373,7 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 		const confirmed = await confirmAction({
 			title: "評価を確定しますか？",
 			message: `最終評価ランクは ${rankText(sheet()?.finalEvaluationRank)} です。確定すると評価シートはロックされ、本人も評価者も変更できなくなります。この操作は取り消せません。`,
+			note: nextNote(),
 			checkbox: {
 				label: `評価者（${evaluators}）に通知メールを送る`,
 				onChange: (checked) => {
@@ -755,24 +772,15 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 										(viewModel().canConfirmFirstEvaluation || viewModel().canFinalizeEvaluation)
 									}
 								>
+									{/* 入力に付いてくるので小さくする。確定で何が起きるかは、確認ダイアログで伝える */}
 									<footer class="review-action-bar">
-										<div>
-											<ShieldCheck size={18} />
-											<Show
-												when={viewModel().canFinalizeEvaluation}
-												fallback={
-													<>
-														<span>一次評価ランク {rankText(sheet()?.firstEvaluationRank)}</span>
-														<small>
-															確定すると一次評価は変更できなくなります。二次評価者に通知するかは、確定のときに選べます。
-														</small>
-													</>
-												}
-											>
-												<span>最終評価ランク {rankText(sheet()?.finalEvaluationRank)}</span>
-												<small>確定すると評価シートはロックされ、変更できなくなります。</small>
+										<span>
+											{viewModel().canFinalizeEvaluation ? "最終評価ランク" : "一次評価ランク"}
+											<strong>{confirmingRank()?.displayText ?? "—"}</strong>
+											<Show when={confirmingRank()}>
+												{(rank) => <small>{rank().score} 点</small>}
 											</Show>
-										</div>
+										</span>
 										<button
 											type="button"
 											class="primary-action finalize"
@@ -783,6 +791,7 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 													: handleConfirmFirst())
 											}
 										>
+											<ShieldCheck class="action-icon" />
 											{viewModel().updatingStatus
 												? "確定中..."
 												: viewModel().canFinalizeEvaluation

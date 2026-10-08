@@ -590,6 +590,123 @@
 	overflow-x: auto;
 }
 
+/* ----- 全社の評価シート(Admin) ----- */
+.sheet-section-header h2 .user-role {
+	margin-left: 0.6rem;
+	vertical-align: 0.05em;
+}
+
+/* 全社員が並ぶので、表の中でスクロールさせて、ページの長さを変えない */
+.sheet-section--overview .table-scroll {
+	max-height: min(34rem, 62vh);
+	overflow-y: auto;
+	scrollbar-width: thin;
+}
+
+/* 詳細度を上げない(:where)。後ろに続く表の見出しの指定と順序が入れ替わらないようにする */
+:where(.sheet-section--overview) .sheet-table th {
+	position: sticky;
+	top: 0;
+	z-index: 1;
+	background: var(--hr-bg-elevated);
+}
+
+/* いまどの段に何枚あるか。帯の幅がその段の割合で、色は表のステータスと同じ */
+.stage-summary {
+	display: grid;
+	gap: 0.65rem;
+	padding: 1rem 1.25rem 0.85rem;
+	border-bottom: 1px solid var(--hr-border);
+}
+
+.stage-summary [data-stage="draft"] {
+	--stage-tone: color-mix(in srgb, var(--hr-text-muted) 55%, transparent);
+}
+
+.stage-summary [data-stage="submitted"] {
+	--stage-tone: var(--hr-accent-hover);
+}
+
+.stage-summary [data-stage="first_evaluated"] {
+	--stage-tone: var(--hr-warning);
+}
+
+.stage-summary [data-stage="finalized"] {
+	--stage-tone: var(--hr-success);
+}
+
+.stage-track {
+	display: flex;
+	gap: 2px;
+	height: 6px;
+	overflow: hidden;
+	border-radius: 999px;
+}
+
+.stage-track [data-stage] {
+	flex-basis: 0;
+	background: var(--stage-tone);
+	transition: flex-grow 0.25s ease;
+}
+
+.stage-legend {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.3rem 0.5rem;
+	min-inline-size: 0;
+	margin: 0 0 0 -0.5rem;
+	padding: 0;
+	border: 0;
+}
+
+.stage-legend button {
+	display: inline-flex;
+	align-items: baseline;
+	gap: 0.45rem;
+	padding: 0.2rem 0.6rem 0.2rem 0.5rem;
+	font-size: 0.8125rem;
+	color: var(--hr-text-muted);
+	border: 1px solid transparent;
+	border-radius: var(--hr-radius-sm);
+}
+
+.stage-legend button::before {
+	content: "";
+	align-self: center;
+	width: 0.55rem;
+	height: 0.55rem;
+	border-radius: 2px;
+	background: var(--stage-tone);
+}
+
+.stage-legend strong {
+	font-size: 1rem;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+	color: var(--hr-text);
+}
+
+.stage-legend button:hover:not(:disabled) {
+	background: var(--hr-surface-hover);
+}
+
+.stage-legend button[aria-pressed="true"] {
+	color: var(--hr-text);
+	background: var(--hr-bg-elevated);
+	border-color: var(--hr-border-strong);
+}
+
+.stage-legend button:disabled {
+	opacity: 0.55;
+	cursor: default;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.stage-track [data-stage] {
+		transition: none;
+	}
+}
+
 .sort-header {
 	display: inline-flex;
 	align-items: center;

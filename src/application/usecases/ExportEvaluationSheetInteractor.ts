@@ -9,6 +9,13 @@ import type { UseCase } from "../ports/UseCase";
 
 export type ExportEvaluationSheetOutputPort = OutputPort<ExportSheetOutputDto>;
 
+/** 氏名や期間名を、既定のファイル名に使える形にする。 */
+export const safeFileNamePart = (value: string) =>
+	value
+		.replace(/[<>:"/\\|?*]/g, "_")
+		.replace(/\p{Cc}/gu, "_")
+		.slice(0, 80);
+
 export class ExportEvaluationSheetInteractor
 	implements UseCase<ExportSheetRequestDto, ExportEvaluationSheetOutputPort>
 {
@@ -49,12 +56,7 @@ export class ExportEvaluationSheetInteractor
 			const exportData = toSheetExportDataDto(sheet, gradeName);
 
 			// ③ 保存先を選択するダイアログを表示
-			const safePart = (value: string) =>
-				value
-					.replace(/[<>:"/\\|?*]/g, "_")
-					.replace(/\p{Cc}/gu, "_")
-					.slice(0, 80);
-			const defaultName = `評価シート_${safePart(exportData.employeeName)}_${safePart(exportData.periodName)}.pdf`;
+			const defaultName = `評価シート_${safeFileNamePart(exportData.employeeName)}_${safeFileNamePart(exportData.periodName)}.pdf`;
 			const filePath = await this.pdfGateway.selectDestination(defaultName);
 
 			// キャンセルされた場合は何もしない

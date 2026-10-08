@@ -7,6 +7,7 @@ use typst::foundations::{Array, Dict, Value};
 
 // テンプレートファイルを埋め込み
 static TEMPLATE_FILE: &str = include_str!("./templates/template.typ");
+static OVERVIEW_TEMPLATE_FILE: &str = include_str!("./templates/sheet_overview.typ");
 static FONT: &[u8] = include_bytes!("./templates/ZenAntiqueSoft-Regular.ttf");
 
 // 評価シートデータ構造
@@ -67,6 +68,66 @@ struct SheetExportData {
     second_overall_comment: String,
     objectives: Vec<ObjectiveData>,
     common_evaluations: Vec<CommonEvaluationData>,
+}
+
+// 全社の評価シート一覧(Admin 向け)。進み具合だけで、評価の内容は持たない。
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SheetOverviewRowData {
+    employee_no: String,
+    employee_name: String,
+    grade_name: String,
+    // draft / submitted / first_evaluated / finalized。表示名はテンプレートが持つ。
+    status: String,
+    primary_evaluator: String,
+    secondary_evaluator: String,
+    updated_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SheetOverviewData {
+    period_name: String,
+    period_start: String,
+    period_end: String,
+    issued_at: String,
+    issued_by: String,
+    rows: Vec<SheetOverviewRowData>,
+}
+
+fn str_dict(pairs: &[(&str, &str)]) -> Dict {
+    let mut dict = Dict::new();
+    for (key, value) in pairs {
+        dict.insert((*key).into(), Value::Str((*value).into()));
+    }
+    dict
+}
+
+fn convert_overview_to_dict(data: &SheetOverviewData) -> Dict {
+    let mut dict = str_dict(&[
+        ("period_name", &data.period_name),
+        ("period_start", &data.period_start),
+        ("period_end", &data.period_end),
+        ("issued_at", &data.issued_at),
+        ("issued_by", &data.issued_by),
+    ]);
+    let rows: Array = data
+        .rows
+        .iter()
+        .map(|row| {
+            Value::Dict(str_dict(&[
+                ("employee_no", &row.employee_no),
+                ("employee_name", &row.employee_name),
+                ("grade_name", &row.grade_name),
+                ("status", &row.status),
+                ("primary_evaluator", &row.primary_evaluator),
+                ("secondary_evaluator", &row.secondary_evaluator),
+                ("updated_at", &row.updated_at),
+            ]))
+        })
+        .collect();
+    dict.insert("rows".into(), Value::Array(rows));
+    dict
 }
 
 // データをTypstのDict形式に変換
@@ -242,6 +303,25 @@ async fn generate_pdf_with_typst<R: tauri::Runtime>(
     Ok(output_path)
 }
 
+// 全社の評価シート一覧をPDFにするTauriコマンド
+#[tauri::command]
+async fn generate_sheet_overview_pdf<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    data: SheetOverviewData,
+    output_path: String,
+) -> Result<String, String> {
+    let pdf_file_path = std::path::PathBuf::from(&output_path);
+    validate_pdf_destination(&pdf_file_path, &app.fs_scope())?;
+
+    compile_template(
+        OVERVIEW_TEMPLATE_FILE,
+        convert_overview_to_dict(&data),
+        &pdf_file_path,
+    )?;
+
+    Ok(output_path)
+}
+
 fn validate_pdf_destination(
     path: &std::path::Path,
     scope: &tauri::fs::Scope,
@@ -263,19 +343,24 @@ fn validate_pdf_destination(
 }
 
 fn compile_typst_to_pdf(data: &SheetExportData, pdf_path: &PathBuf) -> Result<(), String> {
-    use typst_as_lib::TypstEngine;
-    // 注: Dict, Value の import は convert_data_to_dict 内で使っていればここからは消してもOKです
-
     eprintln!("Converting data to dict...");
 
-    // 1. 実際のデータが入った辞書を作成
-    // この data_content 自体が Typst の「sys.inputs」になります
-    let data_content = convert_data_to_dict(data);
+    // 実際のデータが入った辞書を作成
+    compile_template(TEMPLATE_FILE, convert_data_to_dict(data), pdf_path)
+}
+
+// data_content 自体が、テンプレートの「sys.inputs」になります
+fn compile_template(
+    template_file: &'static str,
+    data_content: Dict,
+    pdf_path: &PathBuf,
+) -> Result<(), String> {
+    use typst_as_lib::TypstEngine;
 
     eprintln!("Building Typst engine...");
 
     let template = TypstEngine::builder()
-        .main_file(TEMPLATE_FILE)
+        .main_file(template_file)
         .fonts([FONT])
         .build();
 
@@ -383,6 +468,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             generate_pdf_with_typst,
+            generate_sheet_overview_pdf,
             send_email
         ])
         .run(tauri::generate_context!())
@@ -495,6 +581,66 @@ mod tests {
             .map(|primary_is_final_evaluator| {
                 let result = compile_typst_to_pdf(
                     &test_data_with_final_evaluator(primary_is_final_evaluator),
+                    &path,
+                );
+                let header = result.as_ref().ok().map(|_| fs::read(&path).unwrap());
+                if path.exists() {
+                    fs::remove_file(&path).unwrap();
+                }
+                (result, header)
+            })
+            .collect();
+        fs::remove_dir(&directory).unwrap();
+        for (result, header) in results {
+            result.unwrap();
+            assert!(header.unwrap().starts_with(b"%PDF-"));
+        }
+    }
+
+    #[test]
+    fn sheet_overview_pdf_compiles_with_every_status_and_without_rows() {
+        let row = |status: &str| {
+            serde_json::json!({
+                "employeeNo": "TEST001", "employeeName": "#read(\"secret.txt\")", "gradeName": "",
+                "status": status, "primaryEvaluator": "[一次]", "secondaryEvaluator": "なし",
+                "updatedAt": "2026/10/08"
+            })
+        };
+        let overview = |rows: Vec<serde_json::Value>| -> SheetOverviewData {
+            serde_json::from_value(serde_json::json!({
+                "periodName": "テスト期間", "periodStart": "2026-04-01", "periodEnd": "2026-09-30",
+                "issuedAt": "2026/10/08 14:30", "issuedBy": "#include \"secret.txt\"", "rows": rows
+            }))
+            .unwrap()
+        };
+        let with_rows = overview(
+            // 知らない状態が来ても、帳票の生成は止めない
+            [
+                "draft",
+                "submitted",
+                "first_evaluated",
+                "finalized",
+                "unknown",
+            ]
+            .map(row)
+            .to_vec(),
+        );
+        let dict = convert_overview_to_dict(&with_rows);
+        assert_eq!(
+            dict.get("issued_by").unwrap(),
+            &Value::Str("#include \"secret.txt\"".into())
+        );
+
+        let directory =
+            std::env::temp_dir().join(format!("typa-overview-test-{}", std::process::id()));
+        fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("overview.pdf");
+        let results: Vec<_> = [with_rows, overview(vec![])]
+            .iter()
+            .map(|data| {
+                let result = compile_template(
+                    OVERVIEW_TEMPLATE_FILE,
+                    convert_overview_to_dict(data),
                     &path,
                 );
                 let header = result.as_ref().ok().map(|_| fs::read(&path).unwrap());

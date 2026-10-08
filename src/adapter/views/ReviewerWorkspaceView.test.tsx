@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { createMemoryHistory, MemoryRouter, Route } from "@solidjs/router";
-import { cleanup, fireEvent, render, waitFor, within } from "@solidjs/testing-library";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@solidjs/testing-library";
 import { afterEach, expect, it, vi } from "vitest";
 import type { ReviewerRowDto } from "../../application/dtos/ReviewerWorkspaceDto";
 import { EvaluationStatus } from "../../domain/valueObjects/EvaluationStatus";
@@ -114,7 +114,64 @@ it("opens a sheet from anywhere on its row, but not a draft", async () => {
 		).getByText("技術1級"),
 	);
 	await waitFor(() => expect(view.history.get()).toContain("sheet=101"));
-	expect(view.history.get()).toContain("mode=evaluate");
+	// 一覧からは、画面を切り替えずに窓で開く
+	expect(view.history.get()).not.toContain("mode=");
+});
+it("floats the sheet over the list, keeps the list behind it, and closes back to the same list", async () => {
+	const view = setup([
+		reviewerRow(1, { primaryEvaluatorId: 20, primaryEvaluator: "井上 部長" }),
+		reviewerRow(2, { primaryEvaluatorId: 21, primaryEvaluator: "松本 課長" }),
+	]);
+	fireEvent.change(await view.findByRole("combobox", { name: "一次評価者で絞り込み" }), {
+		target: { value: "20" },
+	});
+	fireEvent.click(view.getByRole("button", { name: /社員1.*E001/ }));
+	// 窓は画面の外側(body の直下)に出るので、画面全体から探す
+	const sheetWindow = await screen.findByRole("dialog", { name: "社員1 さんの評価シート" });
+	expect(
+		await within(sheetWindow).findByRole("textbox", { name: "二次評価者の総評" }),
+	).toBeTruthy();
+	// 後ろの一覧はそのまま残り、開いている行が分かる
+	expect(view.queryByRole("complementary", { name: "部下の一覧" })).toBeNull();
+	expect(
+		view.getByRole("checkbox", { name: "社員1を比較に選択" }).closest("tr")?.className,
+	).toContain("current");
+
+	// 入力の途中で閉じようとしたら、破棄してよいか確かめる
+	fireEvent.input(within(sheetWindow).getByRole("textbox", { name: "二次評価者の総評" }), {
+		target: { value: "書きかけ" },
+	});
+	fireEvent.keyDown(sheetWindow, { key: "Escape" });
+	const confirm = await screen.findByRole("dialog", { name: "保存していない変更があります" });
+	fireEvent.click(within(confirm).getByRole("button", { name: "編集を続ける" }));
+	expect(screen.getByRole("dialog", { name: "社員1 さんの評価シート" })).toBeTruthy();
+	fireEvent.click(within(sheetWindow).getByRole("button", { name: "評価シートを閉じる" }));
+	fireEvent.click(
+		within(await screen.findByRole("dialog", { name: "保存していない変更があります" })).getByRole(
+			"button",
+			{ name: "変更を破棄する" },
+		),
+	);
+	await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+	expect(view.history.get()).not.toContain("sheet=");
+	// 絞り込みは開く前のまま
+	expect(view.queryByRole("button", { name: /社員2.*E002/ })).toBeNull();
+});
+it("moves on to the next turn inside the window after confirming from the list", async () => {
+	const view = setup([reviewerRow(1), reviewerRow(2)], "/review?period=10&sheet=101");
+	const sheetWindow = await screen.findByRole("dialog", { name: "社員1 さんの評価シート" });
+	fireEvent.click(await within(sheetWindow).findByRole("button", { name: "二次評価を確定する" }));
+	fireEvent.click(
+		within(await screen.findByRole("dialog", { name: "評価を確定しますか？" })).getByRole(
+			"button",
+			{
+				name: "評価を確定する",
+			},
+		),
+	);
+	await screen.findByRole("dialog", { name: "社員2 さんの評価シート" });
+	expect(view.history.get()).toContain("sheet=102");
+	expect(view.history.get()).not.toContain("mode=");
 });
 it("compares selected people by grade and shows score differences and judgment evidence", async () => {
 	const view = setup([
@@ -142,7 +199,7 @@ it("uses primary evaluators as labels and retains the filter while evaluating an
 		target: { value: "20" },
 	});
 	expect(view.queryByRole("button", { name: /社員2.*E002/ })).toBeNull();
-	fireEvent.click(view.getByRole("button", { name: /社員1.*E001/ }));
+	fireEvent.click(view.getByRole("button", { name: "評価" }));
 	const sidebar = await view.findByRole("complementary", { name: "部下の一覧" });
 	expect(within(sidebar).queryByRole("button", { name: "社員2の評価を開く" })).toBeNull();
 	fireEvent.click(view.getByRole("button", { name: "横断比較" }));

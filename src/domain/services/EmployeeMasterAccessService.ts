@@ -30,6 +30,15 @@ export function canEditSettings(role: EmployeeRole): boolean {
 	return resolveEmployeeMasterMode(role) === "admin";
 }
 
+/**
+ * 全社員の評価シートの一覧(誰のシートがどの段にあり、誰が評価するか)は Admin だけが見られる。
+ * 見られるのは進み具合まで。シートの内容は、Admin でもそのシートの本人・評価者でなければ見られない
+ * (EvaluationSheetAccessPolicy)。
+ */
+export function canViewSheetOverview(role: EmployeeRole): boolean {
+	return resolveEmployeeMasterMode(role) === "admin";
+}
+
 /** 登録の取り消し(ログイン用アカウントの削除)は Admin だけが行える。 */
 export function canResetRegistrations(role: EmployeeRole): boolean {
 	return resolveEmployeeMasterMode(role) === "admin";

@@ -154,7 +154,7 @@ stateDiagram-v2
 - **アプリの権限**（Admin / Reviewer / Employee）: 社員マスタと設定を誰が変えられるか。
 - **シート上の役割**（本人 / 一次評価者 / 二次評価者）: その評価シートを誰が見て、何を編集できるか。
 
-Admin であっても、自分が評価者でないシートの内容は見られません。
+Admin は、全社員の評価シートの一覧（誰のシートがどの段にあり、誰が評価するか）を見られます。ただし見られるのは進み具合までで、自分が本人・評価者でないシートの内容（目標・点数・コメント・評価ランク）は、Admin であっても見られません。
 
 ### 4.1 アプリの権限
 
@@ -172,7 +172,9 @@ Admin であっても、自分が評価者でないシートの内容は見ら�
 | 設定（配点）を読む | ○ | ○ | ○ |
 | 評価期間を追加・変更・削除する | ○ | × | × |
 | 期間を締める（次の期間を開始する） | ○ | × | × |
+| 全社員の評価シートの一覧（進み具合）を見る・PDF に出力する | ○ | × | × |
 
+- 全社員の評価シートの一覧は、アプリの判定（`canViewSheetOverview`）に加えて、DB 関数 `get_sheet_overview` が Admin であることを確かめる。この関数は評価の内容を返さず、Admin がシートの表を直接読める範囲は広げていない。
 - 権限の変更と登録の取り消しは DB 関数（`set_employee_role`、`reset_employee_registration`）が Admin であることを確かめる。配点の更新は RLS が Admin 以外を拒否する。
 - 評価期間の追加・変更・削除は RLS が、期間締めは DB 関数（`activate_evaluation_period`）が、Admin であることを確かめる。実施中かどうか（`is_active`）は、クライアントから直接は書き換えられない。
 - Admin を 0 人にする変更は、アプリと DB 関数の両方で拒否する。
@@ -217,7 +219,7 @@ Admin であっても、自分が評価者でないシートの内容は見ら�
 | 総評 | 空文字 |
 | 評価ランク | 項目ごと省略 |
 
-評価者向けの一覧（`get_reviewer_workspace`）は DB 関数の中で同じ絞り込みを行い、一次評価者には二次評価の値を返しません。評価シート一覧の旧項目 `totalScore` は、誰に対しても `null` です。
+評価者向けの一覧（`get_reviewer_workspace`）は DB 関数の中で同じ絞り込みを行い、一次評価者には二次評価の値を返しません。評価シート一覧の旧項目 `totalScore` は、誰に対しても `null` です。Admin 向けの全社の一覧（`get_sheet_overview`）は、初めから評価の内容を持ちません（期間・社員・作成時の等級・状態・評価者・更新日時だけ）。
 
 ---
 
@@ -305,7 +307,7 @@ E・F は、過去に手入力されたランクを読むためだけに残し�
 | パス | 画面 | 利用者 | 概要 |
 | --- | --- | --- | --- |
 | `/login` | ログイン・新規登録 | 未ログイン | 社員番号とパスワードでログインする。新規登録もここで行う |
-| `/` | 評価シート一覧 | 全員 | 自分のシートと、部下の提出済みシートを一覧する。新規作成、PDF 出力 |
+| `/` | 評価シート一覧 | 全員 | 自分のシートと、部下の提出済みシートを一覧する。新規作成、PDF 出力。Admin には全社の評価シートの一覧も出す |
 | `/sheet/:id` | 評価シート | 本人・評価者 | 目標の記入、評価の入力、提出・確定。`/sheet/new` は新規作成 |
 | `/review` | 部下の評価 | 評価者 | 受け持ち全員の進み具合を見て、一覧を残したまま連続して評価する |
 | `/employee-master` | 社員マスタ | 全員（内容は権限による） | 評価者・等級・権限の設定、評価構造の確認、登録の取り消し |
@@ -327,6 +329,12 @@ E・F は、過去に手入力されたランクを読むためだけに残し�
 - 「自分の評価シート」と「部下の評価シート」の二つの表。部下の表には、シートの評価者（一次・二次）が自分であるシートのうち、下書き以外が並ぶ。
 - 列は氏名（部下の表のみ）、作成時の等級、ステータス、最終更新。評価期間はタブで分かるので列にしない。列見出しで並べ替えられる。既定は最終更新の新しい順。
 - どちらの表でも、評価確定のシートに「PDF出力」ボタンが出る。
+- Admin には、二つの表の下に「全社の評価シート」を出す（見出しに Admin の札）。選んだ評価期間の全社員のシートが、下書きも含めて並ぶ。列は氏名、作成時の等級、ステータス、一次評価者、二次評価者、最終更新。
+  - 表の上に、どの段に何枚あるかを帯（幅がその段の割合）と件数で示す。件数を押すとその段だけに絞り込み、もう一度押すと解除する。
+  - 行からシートは開かない（Admin でも、本人・評価者でないシートの内容は見られないため）。自分や部下のシートは、上の二つの表から開く。
+  - 「一覧をPDF出力」で、選んだ評価期間の全シートの一覧を PDF にする（絞り込みにかかわらず全件。[11.1](#111-全社の評価シート一覧)）。
+  - 全社員が並ぶので、表の中でスクロールさせ、ページの長さは変えない。
+  - Admin では、評価期間のタブに、自分にも部下にもシートのない期間も並ぶ。タブの件数は、その期間に並ぶシートの枚数（同じシートは1枚と数える）。
 
 **評価シート**
 - 本人には目標の記入欄と提出・下書きに戻す操作、評価者には目標の評価・共通評価・総評・確定の操作が出る。出し分けは `CheckEvaluatorRoleInteractor` が返す権限による。
@@ -340,7 +348,10 @@ E・F は、過去に手入力されたランクを読むためだけに残し�
 - 評価期間を選ぶと、受け持ち全員（自分が一次または二次評価者の社員）を1回の DB 関数呼び出しで取得する。シート未作成・下書きの社員も進捗として並ぶ。
 - 「自分の番」で絞り込める: 全員 / 一次評価する / 二次評価する / 提出・相手の評価待ち / 最終評価済み。自分が担当しない段階の絞り込みは出さない。
 - 検索（氏名・社員番号・一次評価者名。全角半角を区別しない）、等級、一次評価者で絞り込める。並べ替えは、自分の番を優先 / 氏名 / 一次評価点 / 最終評価点 / 一次と二次の差。
-- 行を押すと、一覧を残したまま評価シートを開く。下書きは開けない。確定すると一覧を取り直し、次の「自分の番」のシートへ進む。進む先は確定の確認ダイアログで先に知らせ、進んだらトーストで知らせる。確定のボタンは、入力に付いてくる右下の小さな帯に置く。
+- 「一覧」「横断比較」で行（または氏名）を押すと、画面を切り替えずに、見ていた表の上に評価シートを窓（モーダル）で浮かべる。後ろの表は薄く見えたままで、開いている行に色が付く。窓は ×・Esc・窓の外を押すと閉じ、検索や絞り込みは開く前のまま残る。入力の途中で閉じようとしたら、破棄してよいか確認する。
+- 「評価」タブでは、これまでどおり左に対象者の一覧を残し、右に評価シートを出す（窓は使わない）。
+- 下書きは開けない。確定すると一覧を取り直し、次の「自分の番」のシートへ進む（窓で開いていれば窓の中で進む）。進む先は確定の確認ダイアログで先に知らせ、進んだらトーストで知らせる。確定のボタンは、入力に付いてくる右下の小さな帯に置く。
+- 窓は `<dialog>` の最上位レイヤーを使わず、通知（トースト）と確認ダイアログを窓の上に出せるようにしている。開いている間、後ろの画面（`.app-frame`）は `inert` で操作できない。
 - 複数人を選んで比較できる。比較表は等級ごとに分ける（等級が違うと共通評価の項目が違うため）。
 
 **社員マスタ**
@@ -444,6 +455,7 @@ flowchart TB
 | エンティティ | `Employee` / `EmployeeProfile` | 評価関係を持つ社員 / 社員マスタ表示用の社員 |
 | エンティティ | `EvaluationPeriod` | 評価期間 |
 | 読み取りモデル | `ReviewerRow` | 評価者向け一覧の1行。DB 関数が権限を適用した結果 |
+| 読み取りモデル | `EvaluationSheetOverviewRow` | 全社の評価シート一覧の1行。進み具合と評価者だけで、評価の内容は持たない |
 | 値オブジェクト | `EvaluationStatus` | シートの状態と、状態による判断 |
 | 値オブジェクト | `Score` / `Comment` | 0〜4 の点数 / 前後の空白を除いたコメント |
 | 値オブジェクト | `EvaluationScoreTotals` | 区分ごとの合計と得点率 |
@@ -451,7 +463,7 @@ flowchart TB
 | 値オブジェクト | `EvaluationRank` | 評価ランク |
 | 値オブジェクト | `EmployeeRole` | アプリの権限 |
 | ドメインサービス | `EvaluationSheetAccessPolicy` | シートに対する閲覧・編集・確定・出力の可否 |
-| ドメインサービス | `EmployeeMasterAccessService` | 権限ごとの社員マスタ・設定の操作可否 |
+| ドメインサービス | `EmployeeMasterAccessService` | 権限ごとの社員マスタ・設定の操作可否と、全社の評価シート一覧の閲覧可否（`canViewSheetOverview`） |
 | ドメインサービス | `EvaluationScoreUpdateService` | 点数の保存と、それに続く集計の更新 |
 | ドメインサービス | `EvaluationSheetDomainService` | シートの作成と、作成直後の集計の保存 |
 
@@ -464,6 +476,7 @@ flowchart TB
 | 認証 | `SignInEmployee` | 社員番号でログインする。社員に紐付かないアカウントはログアウトさせる |
 | 認証 | `RegisterEmployeeAccount` | 認証コードと社員番号を確かめ、アカウントを作って社員に紐付ける |
 | 一覧 | `FetchCategorizedSheets` | 自分のシートと、シートの評価者が自分であるシート（下書きを除く）を取得する |
+| 一覧 | `FetchSheetOverview` | 全社員の評価シートの一覧を取得する。Admin 以外には読まずに「なし」を返す |
 | 一覧 | `FetchDistinctPeriods` | 評価期間を取得する（同じ期間名は1件にまとめる） |
 | シート | `CreateEvaluationSheet` | 実施中の評価期間にだけ、シートを作成（既にあれば取得）し、集計を保存する。締めた期間・まだ始めていない期間は拒否する |
 | シート | `FetchEvaluationSheet` | 閲覧権限を確かめ、見せてよい値だけを DTO にする |
@@ -473,6 +486,7 @@ flowchart TB
 | シート | `UpdateOverallComment` | 一次・二次の総評を保存する |
 | シート | `UpdateEvaluationStatus` | 提出・下書きに戻す・一次評価の確定・評価の確定と、通知 |
 | 帳票 | `ExportEvaluationSheet` | 出力権限を確かめ、帳票データを作り、保存先を選ばせて PDF を生成する |
+| 帳票 | `ExportSheetOverview` | Admin であることを確かめ、1つの評価期間の全シートの一覧を読み直して PDF にする |
 | 社員マスタ | `LoadEmployeeMaster` | 権限に応じた社員マスタの内容を取得する |
 | 社員マスタ | `UpdateEmployeeEvaluator` / `UpdateEmployeeGrade` / `UpdateEmployeeRole` | 評価者 / 等級 / 権限を変える |
 | 社員マスタ | `ResetEmployeeRegistration` | 登録を取り消す |
@@ -490,7 +504,7 @@ flowchart TB
 | `AuthRepository` | `SupabaseAuthRepository` | Supabase Auth |
 | `EmployeeRepository` | `SupabaseEmployeeRepository` | `employees`、`employee_grades` |
 | `EmployeeMasterRepository` | `SupabaseEmployeeMasterRepository` | `employees`、`roles`、`employee_grades`、RPC |
-| `EvaluationSheetRepository` | `SupabaseEvaluationSheetRepository` | `evaluation_sheets` ほか |
+| `EvaluationSheetRepository` | `SupabaseEvaluationSheetRepository` | `evaluation_sheets` ほか、RPC `get_sheet_overview` |
 | `MilestoneRepository` | `SupabaseMilestoneRepository` | `milestones` |
 | `CommonEvaluationRepository` | `SupabaseCommonEvaluationRepository` | `common_evaluation_items`、`common_evaluation_results` |
 | `EvaluationPeriodRepository` | `SupabaseEvaluationPeriodRepository` | `evaluation_periods`、RPC（期間締め、シートの状態別件数） |
@@ -499,13 +513,14 @@ flowchart TB
 | `ReviewerWorkspaceRepository` | `SupabaseReviewerWorkspaceRepository` | RPC `get_reviewer_workspace` |
 | `EvaluationNotificationRecipientRepository` | `SupabaseEvaluationNotificationRecipientRepository` | RPC（通知先の取得） |
 | `EmailNotificationRepository` | `TauriEmailNotificationRepository` | Tauri コマンド `send_email` |
-| `SheetPdfGateway` | `TauriSheetPdfGateway` | 保存ダイアログ、Tauri コマンド `generate_pdf_with_typst` |
+| `SheetPdfGateway` | `TauriSheetPdfGateway` | 保存ダイアログ、Tauri コマンド `generate_pdf_with_typst`・`generate_sheet_overview_pdf` |
 
 Tauri コマンド（[src-tauri/src/lib.rs](../src-tauri/src/lib.rs)）:
 
 | コマンド | 入力 | 処理 |
 | --- | --- | --- |
 | `generate_pdf_with_typst` | 帳票データ、保存先のパス | 保存先を検証し、Typst で PDF を生成して書き出す |
+| `generate_sheet_overview_pdf` | 全社の一覧のデータ、保存先のパス | 同じ検証の後、一覧のテンプレートで PDF を生成して書き出す |
 | `send_email` | SMTP の接続情報、宛先、件名、本文 | STARTTLS で SMTP サーバーに接続し、1通送る |
 
 環境変数（ビルド時に埋め込む）:
@@ -611,6 +626,7 @@ erDiagram
 | `reset_employee_registration(employee_no)` | Admin | `employees.user_id` を null に戻し、Auth ユーザーを削除する。自分自身は不可 |
 | `activate_evaluation_period(period_id)` | Admin | 期間締め。指定した期間を実施中にし、それまでの実施中の期間を締める。締める期間に未確定のシートがあれば拒否する |
 | `get_evaluation_period_sheet_counts(period_id)` | Admin | その期間の評価シートの、状態ごとの件数（内容は返さない） |
+| `get_sheet_overview()` | Admin | 全期間・全社員の評価シートの一覧。期間、社員、作成時の等級、状態、シートの評価者、更新日時。下書きも含む。評価の内容（目標・点数・コメント・評価ランク）は返さない |
 | `get_required_domain()` | 誰でも（ログイン前を含む） | 会社のメールドメイン。ログイン画面が使う |
 | `get_notification_smtp_settings()` | いずれかの評価シートの評価者 | 通知メールの送信に使う SMTP 設定（パスワードを含む） |
 
@@ -707,6 +723,26 @@ sequenceDiagram
 
 帳票に項目を足すときは、`ExportSheetDto.ts`、`ExportSheetMapper.ts`、`lib.rs`（データ構造と Typst への変換）、`template.typ` を合わせて変更します。
 
+### 11.1 全社の評価シート一覧
+
+Admin が、評価シート一覧の「全社の評価シート」から出力します。1つの評価期間の全シートの進み具合を A4 縦にまとめたもので、評価の内容は載せません。
+
+1. `ExportSheetOverviewInteractor` が Admin であることを確かめ、全社の一覧を読み直す（画面に出ていた行は使わない）。
+2. 指定した評価期間の行を社員番号順に並べ、帳票データ（`SheetOverviewExportDto`）を作る。その期間にシートがなければ、保存ダイアログを出さずにエラーにする。
+3. 保存ダイアログで保存先を選ぶ。既定のファイル名は `評価シート一覧_<評価期間>.pdf`。キャンセルしたら何もしない。
+4. Tauri コマンド `generate_sheet_overview_pdf` が、評価シートの帳票と同じ保存先の検証を行い、[sheet_overview.typ](../src-tauri/src/templates/sheet_overview.typ) で PDF を生成する。
+
+| 欄 | 内容 |
+| --- | --- |
+| 見出し | 評価期間名、期間の開始日〜終了日、出力日時、出力者 |
+| 進み具合 | 段ごとの枚数と合計。帯の幅が、その段にあるシートの割合 |
+| 一覧 | No.、社員番号、氏名、作成時の等級、ステータス、一次評価者、二次評価者、最終更新（日付）。見出し行は各ページに繰り返す |
+| フッター | 評価期間名、ページ番号 |
+
+- ステータスは、4つの升目をいまの段まで塗った印と表示名で示す。白黒で印刷しても進み具合が分かる。表示名（下書き / 一次評価待ち / 二次評価待ち / 最終評価済み）はテンプレートが持ち、画面と同じ言葉にする。
+- 氏名などは評価シートの帳票と同じく Typst の入力値として渡し、マークアップとしては解釈されない。
+- 項目を足すときは、`get_sheet_overview`（マイグレーション）、`EvaluationSheetOverviewRow`、`ExportSheetDto.ts`、`ExportSheetOverviewInteractor.ts`、`lib.rs`、`sheet_overview.typ` を合わせて変更します。
+
 ---
 
 ## 12. セキュリティ設計
@@ -746,7 +782,7 @@ sequenceDiagram
 
 ### 13.1 テスト
 
-2026-10-08 に `bun run test` を実行し、44 ファイル・595 件がすべて合格することを確認しました。Rust のテスト（`bun run test:rust`）と結合・E2E は、本書の作成では実行していません。
+2026-10-08 に `bun run test` を実行し、46 ファイル・623 件がすべて合格することを確認しました。Rust のテスト（`bun run test:rust`、5 件）も同日に合格しています。結合・E2E は実行していません。
 
 | 対象 | 場所 | 方法 | 確かめていること |
 | --- | --- | --- | --- |

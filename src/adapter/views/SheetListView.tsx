@@ -18,13 +18,17 @@ import {
 	onMount,
 	Show,
 } from "solid-js";
-import type { SheetSummaryDto } from "../../application/dtos/SheetListDto";
-import { EvaluationStatus } from "../../domain/valueObjects/EvaluationStatus";
+import type { SheetOverviewDto, SheetSummaryDto } from "../../application/dtos/SheetListDto";
+import {
+	EVALUATION_STATUS_VALUES,
+	EvaluationStatus,
+	type EvaluationStatusValue,
+} from "../../domain/valueObjects/EvaluationStatus";
 import type { SheetListController } from "../controllers/SheetListController";
 import type { SheetListViewModel } from "../presenters/SheetListPresenter";
 import StatusChip from "./components/StatusChip";
 import { showToast } from "./feedback";
-import { formatDateTime, statusRank } from "./format";
+import { formatDateTime, statusLabel, statusRank } from "./format";
 
 type SortField = "name" | "status" | "updated";
 type SortOrder = "asc" | "desc";
@@ -49,13 +53,20 @@ const sortValue = (sheet: SheetSummaryDto, field: SortField): string | number =>
 
 const SheetTable: Component<{
 	title: string;
-	sheets: SheetSummaryDto[];
+	sheets: (SheetSummaryDto & Partial<SheetOverviewDto>)[];
 	/** 自分のシートだけの表では氏名列は全行同じなので出さない。 */
 	showName: boolean;
 	exportingId?: number | null;
 	onExport?: (sheet: SheetSummaryDto) => void;
 	/** 見出しの右端に置く、この表に関係する画面への導線。 */
 	action?: JSX.Element;
+	/**
+	 * 全社の一覧(Admin)。評価者の列を出し、行からシートは開かない
+	 * (Admin でも、本人・評価者でないシートの内容は見られない)。
+	 */
+	overview?: boolean;
+	/** 見出しと表の間に置くもの。 */
+	children?: JSX.Element;
 }> = (props) => {
 	const navigate = useNavigate();
 	const [sortField, setSortField] = createSignal<SortField>("updated");
@@ -99,14 +110,22 @@ const SheetTable: Component<{
 	};
 
 	return (
-		<section class="sheet-section">
+		<section class="sheet-section" classList={{ "sheet-section--overview": props.overview }}>
 			<div class="sheet-section-header">
-				<h2>{props.title}</h2>
+				<h2>
+					{props.title}
+					<Show when={props.overview}>
+						<span class="user-role" title="Admin だけに表示しています">
+							Admin
+						</span>
+					</Show>
+				</h2>
 				<div class="sheet-section-header__side">
 					<span class="sheet-count">{props.sheets.length} 件</span>
 					{props.action}
 				</div>
 			</div>
+			{props.children}
 			<div class="table-scroll">
 				<table class="sheet-table">
 					<thead>
@@ -116,10 +135,16 @@ const SheetTable: Component<{
 							</Show>
 							<th>作成時の等級</th>
 							<SortHeader field="status" label="ステータス" />
+							<Show when={props.overview}>
+								<th>一次評価者</th>
+								<th>二次評価者</th>
+							</Show>
 							<SortHeader field="updated" label="最終更新" />
-							<th>
-								<span class="visually-hidden">操作</span>
-							</th>
+							<Show when={!props.overview}>
+								<th>
+									<span class="visually-hidden">操作</span>
+								</th>
+							</Show>
 						</tr>
 					</thead>
 					<tbody>
@@ -136,46 +161,67 @@ const SheetTable: Component<{
 									</A>
 								);
 								return (
-									<tr class="sheet-row" onClick={() => navigate(`/sheet/${sheet.id}`)}>
-										<Show when={props.showName}>
-											<td>
-												{link(sheet.employeeName)}
-												<span class="sheet-row__sub">{sheet.employeeNo}</span>
-											</td>
-										</Show>
-										<td>
-											{props.showName
-												? sheet.gradeName || "—"
-												: link(sheet.gradeName || "等級未設定")}
-										</td>
-										<td>
-											<StatusChip status={sheet.status} />
-										</td>
-										<td class="sheet-row__date">{formatDateTime(sheet.updatedAt)}</td>
-										<td class="action-buttons">
-											<Show when={props.onExport}>
-												{/* 確定前は、押せないボタンではなく理由をそのまま書く(ツールチップには気づきにくい) */}
-												<Show
-													when={isFinalized(sheet)}
-													fallback={<span class="export-hint">確定後に PDF 出力</span>}
-												>
-													<button
-														type="button"
-														class="export-button"
-														onClick={(event) => {
-															event.stopPropagation();
-															props.onExport?.(sheet);
-														}}
-														disabled={props.exportingId != null}
-													>
-														<Download size={16} />
-														<span>{props.exportingId === sheet.id ? "出力中..." : "PDF出力"}</span>
-													</button>
-												</Show>
+									<Show
+										when={!props.overview}
+										fallback={
+											<tr>
+												<td>
+													<span class="sheet-row__link">{sheet.employeeName}</span>
+													<span class="sheet-row__sub">{sheet.employeeNo}</span>
+												</td>
+												<td>{sheet.gradeName || "—"}</td>
+												<td>
+													<StatusChip status={sheet.status} />
+												</td>
+												<td>{sheet.primaryEvaluator}</td>
+												<td>{sheet.secondaryEvaluator}</td>
+												<td class="sheet-row__date">{formatDateTime(sheet.updatedAt)}</td>
+											</tr>
+										}
+									>
+										<tr class="sheet-row" onClick={() => navigate(`/sheet/${sheet.id}`)}>
+											<Show when={props.showName}>
+												<td>
+													{link(sheet.employeeName)}
+													<span class="sheet-row__sub">{sheet.employeeNo}</span>
+												</td>
 											</Show>
-											<ChevronRight class="sheet-row__chevron" size={18} />
-										</td>
-									</tr>
+											<td>
+												{props.showName
+													? sheet.gradeName || "—"
+													: link(sheet.gradeName || "等級未設定")}
+											</td>
+											<td>
+												<StatusChip status={sheet.status} />
+											</td>
+											<td class="sheet-row__date">{formatDateTime(sheet.updatedAt)}</td>
+											<td class="action-buttons">
+												<Show when={props.onExport}>
+													{/* 確定前は、押せないボタンではなく理由をそのまま書く(ツールチップには気づきにくい) */}
+													<Show
+														when={isFinalized(sheet)}
+														fallback={<span class="export-hint">確定後に PDF 出力</span>}
+													>
+														<button
+															type="button"
+															class="export-button"
+															onClick={(event) => {
+																event.stopPropagation();
+																props.onExport?.(sheet);
+															}}
+															disabled={props.exportingId != null}
+														>
+															<Download size={16} />
+															<span>
+																{props.exportingId === sheet.id ? "出力中..." : "PDF出力"}
+															</span>
+														</button>
+													</Show>
+												</Show>
+												<ChevronRight class="sheet-row__chevron" size={18} />
+											</td>
+										</tr>
+									</Show>
 								);
 							}}
 						</For>
@@ -186,8 +232,49 @@ const SheetTable: Component<{
 	);
 };
 
+/**
+ * 全社のシートが、いまどの段に何枚あるか。帯の幅がその段の割合で、
+ * 下の件数を押すとその段だけに絞り込む(もう一度押すと解除)。
+ */
+const StageSummary: Component<{
+	sheets: SheetSummaryDto[];
+	selected: EvaluationStatusValue | null;
+	onSelect: (stage: EvaluationStatusValue | null) => void;
+}> = (props) => {
+	const count = (stage: EvaluationStatusValue) =>
+		props.sheets.filter((sheet) => sheet.status === stage).length;
+	return (
+		<div class="stage-summary">
+			<div class="stage-track" aria-hidden="true">
+				<For each={EVALUATION_STATUS_VALUES}>
+					{(stage) => <span data-stage={stage} style={{ "flex-grow": count(stage) }} />}
+				</For>
+			</div>
+			<fieldset class="stage-legend">
+				<legend class="visually-hidden">ステータスで絞り込み</legend>
+				<For each={EVALUATION_STATUS_VALUES}>
+					{(stage) => (
+						<button
+							type="button"
+							data-stage={stage}
+							aria-pressed={props.selected === stage}
+							disabled={count(stage) === 0}
+							onClick={() => props.onSelect(props.selected === stage ? null : stage)}
+						>
+							{statusLabel(stage)}
+							<strong>{count(stage)}</strong>
+						</button>
+					)}
+				</For>
+			</fieldset>
+		</div>
+	);
+};
+
 const SheetListView: Component<SheetListViewProps> = (props) => {
 	const [exportingId, setExportingId] = createSignal<number | null>(null);
+	const [exportingOverview, setExportingOverview] = createSignal(false);
+	const [overviewStage, setOverviewStage] = createSignal<EvaluationStatusValue | null>(null);
 
 	onMount(() => {
 		void props.controller.load();
@@ -212,30 +299,58 @@ const SheetListView: Component<SheetListViewProps> = (props) => {
 		),
 	);
 
-	// シートのある評価期間。新しい期間が先
+	// シートのある評価期間。新しい期間が先。件数は、下に並ぶシートの枚数
+	// (Admin は全社の一覧に自分と部下のシートも含まれるので、同じシートを二重に数えない)
 	const periods = createMemo(() => {
-		const byId = new Map<number, { id: number; name: string; startDate: string; count: number }>();
-		for (const sheet of [...props.viewModel().mySheets, ...props.viewModel().subordinateSheets]) {
+		const byId = new Map<
+			number,
+			{ id: number; name: string; startDate: string; sheetIds: Set<number> }
+		>();
+		for (const sheet of [
+			...props.viewModel().mySheets,
+			...props.viewModel().subordinateSheets,
+			...(props.viewModel().overviewSheets ?? []),
+		]) {
 			const period = byId.get(sheet.periodId) ?? {
 				id: sheet.periodId,
 				name: sheet.periodName,
 				startDate: sheet.startDate,
-				count: 0,
+				sheetIds: new Set<number>(),
 			};
-			period.count += 1;
+			period.sheetIds.add(sheet.id);
 			byId.set(sheet.periodId, period);
 		}
-		return [...byId.values()].sort((a, b) => b.startDate.localeCompare(a.startDate));
+		return [...byId.values()]
+			.map((period) => ({ ...period, count: period.sheetIds.size }))
+			.sort((a, b) => b.startDate.localeCompare(a.startDate));
 	});
 	const [selectedPeriod, setSelectedPeriod] = createSignal<number | null>(null);
 	/** 選んだ期間。選んでいない間と、選んだ期間のシートが無くなったときは、いちばん新しい期間。 */
 	const periodId = createMemo(
 		() => periods().find((period) => period.id === selectedPeriod())?.id ?? periods()[0]?.id,
 	);
-	const inPeriod = (sheets: SheetSummaryDto[]) =>
+	const inPeriod = <T extends SheetSummaryDto>(sheets: T[]) =>
 		sheets.filter((sheet) => sheet.periodId === periodId());
 	const mySheets = createMemo(() => inPeriod(props.viewModel().mySheets));
 	const subordinateSheets = createMemo(() => inPeriod(props.viewModel().subordinateSheets));
+	const overviewSheets = createMemo(() => inPeriod(props.viewModel().overviewSheets ?? []));
+	/** 絞り込んだ段。期間を替えてその段のシートが無くなったら、絞り込みを外す。 */
+	const stage = createMemo(() =>
+		overviewSheets().some((sheet) => sheet.status === overviewStage()) ? overviewStage() : null,
+	);
+
+	const handleExportOverview = async () => {
+		const id = periodId();
+		if (id === undefined) {
+			return;
+		}
+		setExportingOverview(true);
+		try {
+			await props.controller.exportOverview(id);
+		} finally {
+			setExportingOverview(false);
+		}
+	};
 
 	const handleExport = async (sheet: SheetSummaryDto) => {
 		setExportingId(sheet.id);
@@ -333,6 +448,34 @@ const SheetListView: Component<SheetListViewProps> = (props) => {
 							</A>
 						}
 					/>
+				</Show>
+
+				{/* Admin だけの、全社の進み具合。自分と部下の表の並びを変えないよう、いちばん下に置く */}
+				<Show when={overviewSheets().length > 0}>
+					<SheetTable
+						title="全社の評価シート"
+						sheets={overviewSheets().filter((sheet) => !stage() || sheet.status === stage())}
+						showName
+						overview
+						action={
+							<button
+								type="button"
+								class="export-button"
+								title="この評価期間の全社のシートを、一覧の PDF にします"
+								disabled={exportingOverview()}
+								onClick={() => void handleExportOverview()}
+							>
+								<Download size={16} />
+								<span>{exportingOverview() ? "出力中..." : "一覧をPDF出力"}</span>
+							</button>
+						}
+					>
+						<StageSummary
+							sheets={overviewSheets()}
+							selected={stage()}
+							onSelect={setOverviewStage}
+						/>
+					</SheetTable>
 				</Show>
 			</Show>
 		</div>

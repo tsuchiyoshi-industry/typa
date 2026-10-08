@@ -33,6 +33,7 @@ const gateway = () => ({
 		.fn<SheetPdfGateway["selectDestination"]>()
 		.mockResolvedValue("C:\\test\\sheet.pdf"),
 	generate: vi.fn<SheetPdfGateway["generate"]>().mockResolvedValue("C:\\test\\sheet.pdf"),
+	generateOverview: vi.fn<SheetPdfGateway["generateOverview"]>(),
 });
 
 describe("PDF use case with an injected gateway", () => {

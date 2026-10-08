@@ -18,7 +18,7 @@ export interface FetchCategorizedSheetsResponse {
 export interface FetchCategorizedSheetsOutputPort
 	extends OutputPort<FetchCategorizedSheetsResponse> {}
 
-function toSheetSummaryDto(summary: EvaluationSheetSummary): SheetSummaryDto {
+export function toSheetSummaryDto(summary: EvaluationSheetSummary): SheetSummaryDto {
 	return {
 		id: summary.id,
 		periodId: summary.periodId,

@@ -17,6 +17,12 @@ export interface SheetSummaryDto {
 	gradeName: string;
 }
 
+/** 全社の評価シート一覧(Admin)の1行。進み具合と評価者だけで、評価の内容は持たない。 */
+export interface SheetOverviewDto extends SheetSummaryDto {
+	primaryEvaluator: string;
+	secondaryEvaluator: string;
+}
+
 export interface CategorizedSheetsDto {
 	mySheets: SheetSummaryDto[];
 	subordinateSheets: SheetSummaryDto[];

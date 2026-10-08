@@ -279,6 +279,111 @@
 .review-row.mine td:first-child {
 	box-shadow: inset 3px 0 0 var(--hr-accent-hover);
 }
+/* 窓で開いている行。窓の後ろに透けて見え、閉じたときにどこを見ていたかが分かる */
+.review-table tbody tr.current {
+	background: var(--hr-accent-muted);
+}
+
+/* ----- 評価シートの窓 ----- */
+/* 一覧・横断比較の上に浮かべる。後ろの表は薄く残して、表から離れていないことを伝える */
+.sheet-window-backdrop {
+	position: fixed;
+	inset: 0;
+	/* トップバー(100)より上、更新通知(300)とトースト(400)より下 */
+	z-index: 200;
+	display: grid;
+	place-items: center;
+	padding: 1.5rem;
+	background: color-mix(in srgb, var(--hr-bg-end) 68%, transparent);
+	backdrop-filter: blur(2px);
+}
+.sheet-window {
+	display: flex;
+	flex-direction: column;
+	width: min(1120px, 100%);
+	height: 100%;
+	overflow: hidden;
+	background: var(--hr-bg);
+	border: 1px solid var(--hr-border-strong);
+	border-radius: var(--hr-radius-lg);
+	box-shadow:
+		0 0 0 1px rgba(0, 0, 0, 0.08),
+		0 32px 80px -24px rgba(0, 0, 0, 0.6);
+}
+/* 窓そのものへのフォーカスは、開いた直後の起点。枠は出さない */
+.sheet-window:focus {
+	outline: none;
+}
+.sheet-window__bar {
+	display: flex;
+	align-items: center;
+	gap: 0.65rem;
+	padding: 0.65rem 0.75rem 0.65rem 1.1rem;
+	background: var(--hr-surface);
+	border-bottom: 1px solid var(--hr-border);
+}
+.sheet-window__bar .secondary-action {
+	min-height: 38px;
+	padding: 0.4rem 0.8rem;
+	font-size: 0.8125rem;
+	white-space: nowrap;
+}
+.sheet-window__who {
+	display: flex;
+	align-items: center;
+	gap: 0.7rem;
+	min-width: 0;
+	margin-right: auto;
+}
+.sheet-window__who > div {
+	min-width: 0;
+	line-height: 1.35;
+}
+.sheet-window__who strong {
+	display: block;
+	font-size: 0.95rem;
+	font-weight: 600;
+}
+.sheet-window__who small {
+	display: block;
+	overflow: hidden;
+	font-size: 0.8125rem;
+	color: var(--hr-text-muted);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.sheet-window__body {
+	flex: 1;
+	min-height: 0;
+	padding: 1.25rem 1.5rem 1.5rem;
+	overflow-y: auto;
+	/* 窓の端まで送っても、後ろの一覧は動かさない */
+	overscroll-behavior: contain;
+	scrollbar-gutter: stable;
+}
+/* ページではトップバーの下に貼り付く見出しを、窓の中では窓の上端に貼り付ける */
+.sheet-window__body .common-evaluation-card__header {
+	top: 0;
+}
+@media (prefers-reduced-motion: no-preference) {
+	.sheet-window-backdrop {
+		animation: sheet-window-dim 0.16s ease-out;
+	}
+	.sheet-window {
+		animation: sheet-window-rise 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+	}
+}
+@keyframes sheet-window-dim {
+	from {
+		opacity: 0;
+	}
+}
+@keyframes sheet-window-rise {
+	from {
+		opacity: 0;
+		transform: translateY(12px) scale(0.985);
+	}
+}
 .review-row__chevron {
 	color: var(--hr-text-muted);
 	text-align: right;
@@ -510,7 +615,8 @@
 	color: var(--hr-warning-text);
 	margin: 0 0 1rem;
 }
-.review-workspace .muted {
+.review-workspace .muted,
+.sheet-window .muted {
 	color: var(--hr-text-muted);
 }
 .overall-comment-field textarea[readonly] {
@@ -673,7 +779,8 @@
 	font-size: 0.8125rem;
 	margin-bottom: 0.75rem;
 }
-.review-workspace button:disabled {
+.review-workspace button:disabled,
+.sheet-window__bar button:disabled {
 	opacity: 0.45;
 	cursor: default;
 }
@@ -781,5 +888,14 @@
 	.review-matrix th:first-child {
 		width: 120px;
 		max-width: 120px;
+	}
+	.sheet-window-backdrop {
+		padding: 0.5rem;
+	}
+	.sheet-window__bar {
+		flex-wrap: wrap;
+	}
+	.sheet-window__body {
+		padding: 1rem;
 	}
 }

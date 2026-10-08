@@ -39,6 +39,7 @@ import {
 	reviewTask,
 	sheetStatus,
 } from "../viewmodels/reviewerWorkspace";
+import SheetWindow from "./components/SheetWindow";
 import { clearUnsavedChanges, confirmDiscard, hasUnsavedChanges, showToast } from "./feedback";
 import { formatDateTime } from "./format";
 import SheetEditorView, { type SheetEditorViewProps } from "./SheetEditorView";
@@ -229,15 +230,16 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 		clearUnsavedChanges();
 		setParams(values, { scroll: false });
 	};
+	/**
+	 * シートを開く。一覧・横断比較からは、見ていた表を残したまま、その上に窓で浮かべる。
+	 * 評価タブでは、右側に出す。
+	 */
 	const open = (row: ReviewerRowDto) => {
 		if (canOpen(row)) {
-			void navigate({
-				sheet: row.sheetId as number,
-				mode: "evaluate",
-				period: periodId() ?? undefined,
-			});
+			void navigate({ sheet: row.sheetId as number, period: periodId() ?? undefined });
 		}
 	};
+	const floating = createMemo(() => (mode() === "evaluate" ? undefined : current()));
 	const updateRows = () => {
 		const id = periodId();
 		if (id) {
@@ -281,7 +283,7 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 			nextMyTurn(filterReviewRows(loaded, filterOptions()), finished);
 		announcedNext = undefined;
 		if (target?.sheetId) {
-			setParams({ sheet: target.sheetId, mode: "evaluate" }, { scroll: false });
+			setParams({ sheet: target.sheetId }, { scroll: false });
 			showToast("info", `${target.employeeName} さんの評価に進みました`);
 		} else {
 			showToast("success", "この一覧で自分の番のシートはすべて確定しました");
@@ -390,6 +392,50 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 			<small>{person.row.employeeNo}</small>
 		</button>
 	);
+	const NextButton = () => (
+		<button
+			type="button"
+			class="secondary-action"
+			disabled={!next() || mutationBusy()}
+			onClick={() => {
+				const target = next();
+				if (target) {
+					open(target);
+				}
+			}}
+		>
+			次の自分の番へ <ArrowRight size={16} />
+		</button>
+	);
+	/** 評価シートの本体。評価タブの右側と、一覧の上に浮かべる窓で同じものを出す。 */
+	const Editor: Component<{ row: ReviewerRowDto }> = (editor) => (
+		<>
+			<Show when={sheetStatus(editor.row)?.isAwaitingFirstEvaluation() && !editor.row.isPrimary}>
+				<p class="review-notice muted">
+					一次評価者（{editor.row.primaryEvaluator}
+					）が一次評価を確定すると、二次評価を入力できるようになります。
+				</p>
+			</Show>
+			<Show
+				when={sheetStatus(editor.row)?.isAwaitingSecondEvaluation() && !editor.row.canViewFinal}
+			>
+				<p class="review-notice muted">一次評価は確定済みです。二次評価者の確定を待っています。</p>
+			</Show>
+			<Show when={editorIdentity()} keyed>
+				{(identity) => (
+					<SheetEditorView
+						{...props.editor}
+						embedded
+						selectedSheetId={identity.sheetId as number}
+						onUpdated={updateRows}
+						onSavingChange={setEditorSaving}
+						announceNext={announceNext}
+						onStageCompleted={() => void advance()}
+					/>
+				)}
+			</Show>
+		</>
+	);
 	const SummaryTable: Component<{ people: ReviewerRowDto[] }> = (table) => (
 		<div class="review-table-scroll">
 			<table class="review-table">
@@ -420,7 +466,12 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 							// 行のどこを押しても開ける。キーボード操作の入口として氏名のボタンも残す
 							<tr
 								class="review-row"
-								classList={{ openable: canOpen(row), mine: isMyTurn(row) }}
+								classList={{
+									openable: canOpen(row),
+									mine: isMyTurn(row),
+									// 窓を閉じたときに、どの行を開いていたかが分かる
+									current: floating()?.employeeId === row.employeeId,
+								}}
 								title={canOpen(row) ? undefined : "本人が提出すると開けるようになります"}
 								onClick={() => open(row)}
 							>
@@ -734,6 +785,8 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 									void navigate({
 										mode: key,
 										detail: key === "compare" && selected().size ? "1" : undefined,
+										// 評価タブで選んでいたシートを、一覧・横断比較の上に窓で開き直さない
+										...(key === "evaluate" ? {} : { sheet: undefined }),
 									})
 								}
 							>
@@ -865,50 +918,9 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 														<Badge row={row()} />
 														<span>一次評価者 {row().primaryEvaluator}</span>
 													</div>
-													<button
-														type="button"
-														class="secondary-action"
-														disabled={!next() || mutationBusy()}
-														onClick={() => {
-															const target = next();
-															if (target) {
-																open(target);
-															}
-														}}
-													>
-														次の自分の番へ <ArrowRight size={16} />
-													</button>
+													<NextButton />
 												</div>
-												<Show
-													when={sheetStatus(row())?.isAwaitingFirstEvaluation() && !row().isPrimary}
-												>
-													<p class="review-notice muted">
-														一次評価者（{row().primaryEvaluator}
-														）が一次評価を確定すると、二次評価を入力できるようになります。
-													</p>
-												</Show>
-												<Show
-													when={
-														sheetStatus(row())?.isAwaitingSecondEvaluation() && !row().canViewFinal
-													}
-												>
-													<p class="review-notice muted">
-														一次評価は確定済みです。二次評価者の確定を待っています。
-													</p>
-												</Show>
-												<Show when={editorIdentity()} keyed>
-													{(identity) => (
-														<SheetEditorView
-															{...props.editor}
-															embedded
-															selectedSheetId={identity.sheetId as number}
-															onUpdated={updateRows}
-															onSavingChange={setEditorSaving}
-															announceNext={announceNext}
-															onStageCompleted={() => void advance()}
-														/>
-													)}
-												</Show>
+												<Editor row={row()} />
 											</>
 										)}
 									</Show>
@@ -957,6 +969,32 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 						</Show>
 					</Show>
 				</Show>
+			</Show>
+			<Show when={floating()}>
+				{(row) => (
+					<SheetWindow
+						label={`${row().employeeName} さんの評価シート`}
+						contentKey={row().sheetId}
+						onClose={() => void navigate({ sheet: undefined })}
+						heading={
+							<>
+								<div class="sheet-window__who">
+									<span class="review-avatar">{row().employeeName.slice(0, 1)}</span>
+									<div>
+										<strong>{row().employeeName}</strong>
+										<small>
+											{row().employeeNo} · {row().gradeName} · 一次評価者 {row().primaryEvaluator}
+										</small>
+									</div>
+									<Badge row={row()} />
+								</div>
+								<NextButton />
+							</>
+						}
+					>
+						<Editor row={row()} />
+					</SheetWindow>
+				)}
 			</Show>
 		</div>
 	);

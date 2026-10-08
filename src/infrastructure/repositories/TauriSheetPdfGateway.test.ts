@@ -31,6 +31,27 @@ it("uses real Tauri invoke with mocked IPC and save dialog", async () => {
 		options: { defaultPath: "test.pdf", filters: [{ name: "PDFファイル", extensions: ["pdf"] }] },
 	});
 });
+it("sends the sheet overview to its own command", async () => {
+	const ipc = vi.fn<Parameters<typeof mockIPC>[0]>(
+		(_command, args) => (args as Record<string, unknown>)?.outputPath,
+	);
+	mockIPC(ipc);
+	const data = {
+		periodName: "テスト期間",
+		periodStart: "2026-04-01",
+		periodEnd: "2026-09-30",
+		issuedAt: "2026/10/08 14:30",
+		issuedBy: "テスト",
+		rows: [],
+	};
+	await expect(
+		new TauriSheetPdfGateway().generateOverview(data, "C:\\test\\list.pdf"),
+	).resolves.toBe("C:\\test\\list.pdf");
+	expect(ipc).toHaveBeenCalledWith("generate_sheet_overview_pdf", {
+		data,
+		outputPath: "C:\\test\\list.pdf",
+	});
+});
 it("preserves IPC rejection", async () => {
 	mockIPC(() => {
 		throw new Error("Rust rejected path");

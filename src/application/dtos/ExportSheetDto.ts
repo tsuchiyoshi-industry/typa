@@ -12,6 +12,26 @@ export interface ExportSheetOutputDto {
 	fileName?: string;
 }
 
+/** 全社の評価シート一覧の帳票。1つの評価期間の進み具合だけを載せ、評価の内容は載せない。 */
+export interface SheetOverviewExportDto {
+	periodName: string;
+	periodStart: string;
+	periodEnd: string;
+	/** 出力した日時と人。表示用の文字列。 */
+	issuedAt: string;
+	issuedBy: string;
+	/** 社員番号順。状態の表示名は帳票のテンプレートが持つ。 */
+	rows: {
+		employeeNo: string;
+		employeeName: string;
+		gradeName: string;
+		status: EvaluationStatusValue;
+		primaryEvaluator: string;
+		secondaryEvaluator: string;
+		updatedAt: string;
+	}[];
+}
+
 export interface SheetExportDataDto {
 	sheetId: number;
 	employeeName: string;

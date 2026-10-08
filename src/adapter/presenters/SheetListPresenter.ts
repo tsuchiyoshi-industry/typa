@@ -1,13 +1,16 @@
 import { createSignal } from "solid-js";
 import type { ExportSheetOutputDto } from "../../application/dtos/ExportSheetDto";
-import type { CategorizedSheetsDto } from "../../application/dtos/SheetListDto";
+import type { CategorizedSheetsDto, SheetOverviewDto } from "../../application/dtos/SheetListDto";
 import type { ExportEvaluationSheetOutputPort } from "../../application/usecases/ExportEvaluationSheetInteractor";
 import type { FetchCategorizedSheetsOutputPort } from "../../application/usecases/FetchCategorizedSheetsInteractor";
+import type { FetchSheetOverviewOutputPort } from "../../application/usecases/FetchSheetOverviewInteractor";
 
 export interface SheetListViewModel {
 	loading: boolean;
 	mySheets: CategorizedSheetsDto["mySheets"];
 	subordinateSheets: CategorizedSheetsDto["subordinateSheets"];
+	/** 全社の評価シート。見られない人(Admin 以外)は null。 */
+	overviewSheets: SheetOverviewDto[] | null;
 	errorMessage: string | null;
 	exportStatus: {
 		isExporting: boolean;
@@ -20,6 +23,7 @@ export interface SheetListViewModel {
 export function createSheetListPresenter(): {
 	viewModel: () => SheetListViewModel;
 	fetchOutputPort: FetchCategorizedSheetsOutputPort;
+	overviewOutputPort: FetchSheetOverviewOutputPort;
 	exportOutputPort: ExportEvaluationSheetOutputPort;
 	presentError: (message: string) => void;
 } {
@@ -27,6 +31,7 @@ export function createSheetListPresenter(): {
 		loading: true,
 		mySheets: [],
 		subordinateSheets: [],
+		overviewSheets: null,
 		errorMessage: null,
 		exportStatus: {
 			isExporting: false,
@@ -38,7 +43,8 @@ export function createSheetListPresenter(): {
 
 	const fetchOutputPort: FetchCategorizedSheetsOutputPort = {
 		present(response) {
-			setViewModel({
+			setViewModel((prev) => ({
+				...prev,
 				loading: false,
 				mySheets: response.mySheets,
 				subordinateSheets: response.subordinateSheets,
@@ -49,7 +55,13 @@ export function createSheetListPresenter(): {
 					success: null,
 					fileName: null,
 				},
-			});
+			}));
+		},
+	};
+
+	const overviewOutputPort: FetchSheetOverviewOutputPort = {
+		present(response) {
+			setViewModel((prev) => ({ ...prev, overviewSheets: response.sheets }));
 		},
 	};
 
@@ -71,5 +83,5 @@ export function createSheetListPresenter(): {
 		setViewModel((prev) => ({ ...prev, loading: false, errorMessage: message }));
 	};
 
-	return { viewModel, fetchOutputPort, exportOutputPort, presentError };
+	return { viewModel, fetchOutputPort, overviewOutputPort, exportOutputPort, presentError };
 }

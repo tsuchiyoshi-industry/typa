@@ -98,6 +98,7 @@ export function sheetRepository() {
 			.mockImplementation(async (_id, status) => sheet(status)),
 		findByOwner: vi.fn<EvaluationSheetRepository["findByOwner"]>().mockResolvedValue([]),
 		findByEvaluator: vi.fn<EvaluationSheetRepository["findByEvaluator"]>().mockResolvedValue([]),
+		findOverview: vi.fn<EvaluationSheetRepository["findOverview"]>().mockResolvedValue([]),
 	} satisfies EvaluationSheetRepository;
 }
 export function employeeRepository() {

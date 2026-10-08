@@ -2,8 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { EvaluationAllocation } from "../../domain/valueObjects/EvaluationAllocation";
 import { commonRepository, commonResult, employeeRepository } from "../../test/fixtures";
 
-const db = vi.hoisted(() => ({ from: vi.fn() }));
-vi.mock("../db/supabase", () => ({ supabase: { from: db.from } }));
+const db = vi.hoisted(() => ({ from: vi.fn(), rpc: vi.fn() }));
+vi.mock("../db/supabase", () => ({ supabase: { from: db.from, rpc: db.rpc } }));
 
 import { SupabaseEvaluationSheetRepository } from "./SupabaseEvaluationSheetRepository";
 
@@ -95,6 +95,50 @@ function setup(status = "first_evaluated") {
 }
 
 beforeEach(() => vi.clearAllMocks());
+
+describe("the overview of every sheet", () => {
+	const row = (overrides: object) => ({
+		id: 100,
+		periodId: 10,
+		employeeId: 1,
+		status: "submitted",
+		createdAt: "created",
+		updatedAt: "updated",
+		periodName: "テスト期間",
+		periodStart: "2026-04-01",
+		periodEnd: "2026-09-30",
+		employeeName: "社員",
+		employeeNo: "TEST001",
+		gradeName: "等級",
+		primaryEvaluator: "一次",
+		secondaryEvaluator: "二次",
+		noSecondaryEvaluator: false,
+		...overrides,
+	});
+	it("names the evaluators, telling 'none by decision' from 'not assigned yet'", async () => {
+		db.rpc.mockResolvedValue({
+			data: [
+				row({}),
+				row({ secondaryEvaluator: null, noSecondaryEvaluator: true }),
+				row({ primaryEvaluator: null, secondaryEvaluator: null }),
+			],
+			error: null,
+		});
+		const rows = await setup().repo.findOverview();
+		expect(db.rpc).toHaveBeenCalledExactlyOnceWith("get_sheet_overview");
+		expect(rows.map((item) => [item.primaryEvaluatorName, item.secondaryEvaluatorName])).toEqual([
+			["一次", "二次"],
+			["一次", "なし"],
+			["未設定", "未設定"],
+		]);
+		expect(rows[0].status.isAwaitingFirstEvaluation()).toBe(true);
+		expect(rows[0]).not.toHaveProperty("noSecondaryEvaluator");
+	});
+	it("does not treat a refused or failed read as an empty company", async () => {
+		db.rpc.mockResolvedValue({ data: null, error: new Error("Only Admin") });
+		await expect(setup().repo.findOverview()).rejects.toThrow("Only Admin");
+	});
+});
 
 describe("restoring a sheet from stored rows", () => {
 	it("does not treat failed objective reads as an empty, complete set of evaluation items", async () => {

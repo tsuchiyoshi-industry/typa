@@ -6,6 +6,7 @@ import type { CommonEvaluationRepository } from "../../domain/repositories/Commo
 import type { EmployeeRepository } from "../../domain/repositories/EmployeeRepository";
 import type { EvaluationSettingsRepository } from "../../domain/repositories/EvaluationSettingsRepository";
 import type {
+	EvaluationSheetOverviewRow,
 	EvaluationSheetRepository,
 	EvaluationSheetSummary,
 } from "../../domain/repositories/EvaluationSheetRepository";
@@ -51,6 +52,14 @@ interface EvaluationSheetListRow {
 	employee: EmployeeJoinRow | EmployeeJoinRow[] | null;
 	grade: { grade_name: string } | { grade_name: string }[] | null;
 }
+
+/** DB 関数 get_sheet_overview が返す1行。 */
+type OverviewRpcRow = Omit<EvaluationSheetSummary, "status" | "totalScore"> & {
+	status: string;
+	primaryEvaluator: string | null;
+	secondaryEvaluator: string | null;
+	noSecondaryEvaluator: boolean;
+};
 
 // grade はシート作成時の等級(evaluation_sheets.grade_id)。社員の今の等級ではない
 const SHEET_LIST_SELECT =
@@ -381,5 +390,23 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 			.neq("employee_id", employeeId);
 
 		return error || !data ? [] : (data as EvaluationSheetListRow[]).map(toSheetSummary);
+	}
+
+	async findOverview(): Promise<EvaluationSheetOverviewRow[]> {
+		// Admin であることは DB 関数が確かめる。読めなかったことを「シートが無い」として扱わない
+		const { data, error } = await supabase.rpc("get_sheet_overview");
+		if (error) {
+			throw error;
+		}
+		return ((data ?? []) as OverviewRpcRow[]).map(
+			({ status, primaryEvaluator, secondaryEvaluator, noSecondaryEvaluator, ...summary }) => ({
+				...summary,
+				status: EvaluationStatus.from(status),
+				totalScore: 0,
+				// 「なし」と明示されたシートと、未設定(指定待ち)のシートを区別して表示する
+				primaryEvaluatorName: primaryEvaluator ?? "未設定",
+				secondaryEvaluatorName: secondaryEvaluator ?? (noSecondaryEvaluator ? "なし" : "未設定"),
+			}),
+		);
 	}
 }

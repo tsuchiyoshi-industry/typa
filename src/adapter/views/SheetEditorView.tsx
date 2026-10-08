@@ -243,12 +243,49 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 			}
 			reloadCurrentSheetFromRoute();
 		} else if (viewModel().statusUpdateError) {
-			showToast("error", "変更できませんでした", viewModel().statusUpdateError ?? undefined);
+			await confirmAction({
+				title: "変更できませんでした",
+				message: viewModel().statusUpdateError ?? "",
+				confirmLabel: "閉じる",
+				acknowledgeOnly: true,
+				tone: "danger",
+			});
 		}
 		return success;
 	};
 
+	const ensureObjectiveFieldsComplete = () => {
+		const objectives = sheet()?.objectives ?? [];
+		const missing = objectives.flatMap((objective) =>
+			(
+				[
+					["チャレンジ目標", objective.challengeGoal],
+					["中間目標", objective.midtermGoal],
+					["達成状況", objective.achievement],
+				] as const
+			)
+				.filter(([, value]) => !value.trim())
+				.map(([label]) => `目標 ${objective.goalNumber}：${label}`),
+		);
+		if (objectives.length >= 1 && objectives.length <= 4 && missing.length === 0) {
+			return true;
+		}
+		void confirmAction({
+			title: "空欄のある目標は提出・確定できません",
+			message:
+				"目標は1〜4件必要です。すべての欄を入力して保存するか、不要なタブを削除してください。",
+			details: missing,
+			confirmLabel: "閉じる",
+			acknowledgeOnly: true,
+			tone: "danger",
+		});
+		return false;
+	};
+
 	const handleSubmitSheet = async () => {
+		if (!ensureObjectiveFieldsComplete()) {
+			return;
+		}
 		if (!ensureNothingUnsaved()) {
 			return;
 		}
@@ -279,6 +316,9 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 	};
 
 	const handleConfirmFirst = async () => {
+		if (!ensureObjectiveFieldsComplete()) {
+			return;
+		}
 		if (!ensureNothingUnsaved() || !ensureEvaluationComplete()) {
 			return;
 		}
@@ -297,6 +337,9 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 	};
 
 	const handleFinalize = async () => {
+		if (!ensureObjectiveFieldsComplete()) {
+			return;
+		}
 		if (!ensureNothingUnsaved() || !ensureEvaluationComplete()) {
 			return;
 		}

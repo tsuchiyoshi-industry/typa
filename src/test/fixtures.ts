@@ -120,6 +120,7 @@ export function employeeRepository() {
 }
 export function milestoneRepository() {
 	return {
+		delete: vi.fn<MilestoneRepository["delete"]>().mockResolvedValue(undefined),
 		findBySheetId: vi.fn<MilestoneRepository["findBySheetId"]>().mockResolvedValue([milestone()]),
 		updateText: vi.fn<MilestoneRepository["updateText"]>().mockResolvedValue(milestone()),
 		upsertText: vi.fn<MilestoneRepository["upsertText"]>().mockResolvedValue(milestone()),

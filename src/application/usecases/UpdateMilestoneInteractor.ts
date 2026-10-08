@@ -10,6 +10,7 @@ export interface UpdateMilestoneRequest {
 	sheetId: number;
 	currentEmployeeId: number;
 	milestoneId?: number;
+	delete?: boolean;
 	goalNumber?: number;
 	challengeGoal?: string;
 	midtermGoal?: string;
@@ -59,7 +60,9 @@ export class UpdateMilestoneInteractor
 		}
 		if (
 			request.goalNumber !== undefined &&
-			(!Number.isSafeInteger(request.goalNumber) || request.goalNumber < 1)
+			(!Number.isSafeInteger(request.goalNumber) ||
+				request.goalNumber < 1 ||
+				request.goalNumber > 4)
 		) {
 			throw new Error("目標番号が不正です。");
 		}
@@ -81,6 +84,33 @@ export class UpdateMilestoneInteractor
 		}
 
 		let updated = null;
+		if (request.delete) {
+			if (!policy.canEditMilestoneGoal()) {
+				throw new Error("自分の評価シートの目標のみ削除できます。");
+			}
+			if (!currentObjective) {
+				throw new Error("対象の目標が見つかりません。");
+			}
+			if (sheet.objectives.length <= 1) {
+				throw new Error("チャレンジ目標は最低1件必要です。");
+			}
+			if (
+				[
+					request.challengeGoal,
+					request.midtermGoal,
+					request.achievement,
+					request.firstScore,
+					request.secondScore,
+				].some((value) => value !== undefined)
+			) {
+				throw new Error("削除と更新は同時に指定できません。");
+			}
+			await this.milestoneRepository.delete(currentObjective.id);
+			updated = currentObjective;
+		}
+		if (!currentObjective && request.goalNumber !== undefined && sheet.objectives.length >= 4) {
+			throw new Error("チャレンジ目標は最大4件です。");
+		}
 
 		if (
 			request.challengeGoal !== undefined ||

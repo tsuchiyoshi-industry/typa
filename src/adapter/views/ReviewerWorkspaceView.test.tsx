@@ -332,3 +332,15 @@ it("keeps the editor available when refresh fails", async () => {
 	await view.findByRole("alert");
 	expect(view.getByRole("textbox", { name: "二次評価者の総評" })).toBeTruthy();
 });
+
+it("shows an error dialog for an empty objective even when all scores are saved", async () => {
+	const row = reviewerRow(1);
+	row.objectives[0].challengeGoal = " ";
+	const view = setup([row], "/review?period=10&sheet=101&mode=evaluate");
+	const button = await view.findByRole("button", { name: "二次評価を確定する" });
+	fireEvent.click(button);
+	const dialog = await view.findByRole("dialog");
+	expect(dialog.textContent).toContain("不要なタブを削除");
+	expect(dialog.textContent).toContain("目標 1：チャレンジ目標");
+	expect(row.status).not.toBe("finalized");
+});

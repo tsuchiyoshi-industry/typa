@@ -543,7 +543,13 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 										)}
 									</For>
 								</tr>
-								<For each={[1, 2]}>
+								<For
+									each={[1, 2, 3, 4].filter((number) =>
+										comparison.people.some((row) =>
+											row.objectives.some((goal) => goal.goalNumber === number),
+										),
+									)}
+								>
 									{(goalNumber) => (
 										<tr>
 											<th scope="row">チャレンジ目標 {goalNumber}</th>

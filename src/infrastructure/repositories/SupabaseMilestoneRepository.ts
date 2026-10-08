@@ -27,6 +27,18 @@ export class SupabaseMilestoneRepository implements MilestoneRepository {
 		});
 	}
 
+	async delete(milestoneId: number): Promise<void> {
+		const { data, error } = await supabase
+			.from("milestones")
+			.delete()
+			.eq("id", milestoneId)
+			.select("id")
+			.single();
+		if (error || !data) {
+			throw error ?? new Error("目標を削除できませんでした。");
+		}
+	}
+
 	async findBySheetId(sheetId: number): Promise<Milestone[]> {
 		const { data, error } = await supabase
 			.from("milestones")

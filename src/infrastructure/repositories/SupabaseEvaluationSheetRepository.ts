@@ -203,7 +203,7 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 			throw milestoneError;
 		}
 		const objectives =
-			((milestonesData ?? []) as MilestoneRow[]).slice(0, 2).map((item) =>
+			((milestonesData ?? []) as MilestoneRow[]).map((item) =>
 				Milestone.create({
 					id: item.id,
 					sheetId: item.sheet_id,

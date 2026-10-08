@@ -8,6 +8,11 @@ const read = (file: string) =>
 const migration = read("202610080005_evaluation_completion.sql");
 const sheetGradeMigration = read("202610080007_evaluation_completion_sheet_grade.sql");
 const bySheetEvaluators = read("202610080010_notifications_by_sheet_evaluators.sql");
+const tabsMigration = read("202610080012_challenge_goal_tabs.sql");
+const completion = tabsMigration.slice(
+	tabsMigration.indexOf("create or replace function public.check_evaluation_completion()"),
+	tabsMigration.lastIndexOf("commit;"),
+);
 const status = async (id = 100) =>
 	(
 		await db.query<{ status: string }>(
@@ -25,13 +30,13 @@ beforeAll(async () => {
 		create table public.employee_grades (id smallint primary key, item_set_id smallint);
 		create table public.employees (id integer primary key, grade_id smallint, no_secondary_evaluator boolean, secondary_evaluator_id integer);
 		create table public.evaluation_sheets (id bigint primary key, employee_id integer, status text, first_rank text, grade_id smallint, secondary_evaluator_id integer, no_secondary_evaluator boolean not null default false);
-		create table public.milestones (id bigint primary key, sheet_id bigint, goal_number integer, first_score smallint, second_score smallint);
+		create table public.milestones (id bigint primary key, sheet_id bigint, goal_number integer, first_score smallint, second_score smallint, challenge_goal text default '目標', midterm_goal text default '中間', achievement text default '達成');
 		create table public.common_evaluation_items (id bigint primary key, title text, item_set_id smallint);
 		create table public.common_evaluation_results (id bigint primary key, sheet_id bigint, item_id bigint, first_score smallint, second_score smallint);
 		insert into public.employee_grades values (1, 1), (2, 2);
 		insert into public.employees values (1, 1, false, 3), (4, 1, true, null);
 		insert into public.evaluation_sheets values (100, 1, 'submitted', null, 1, 3, false), (200, 4, 'submitted', null, 1, null, true);
-		insert into public.milestones values (11, 100, 1, 4, 0), (12, 100, 2, 4, 0), (21, 200, 1, 4, 0);
+		insert into public.milestones (id, sheet_id, goal_number, first_score, second_score) values (11, 100, 1, 4, 0), (12, 100, 2, 4, 0), (21, 200, 1, 4, 0);
 		insert into public.common_evaluation_items values (31, '全員共通', null), (32, '1級共通', 1), (33, '2級共通', 2);
 		grant select, update on public.evaluation_sheets to authenticated;
 	`);
@@ -41,12 +46,14 @@ beforeAll(async () => {
 	await db.exec(sheetGradeMigration);
 	await db.exec(bySheetEvaluators);
 	await db.exec(bySheetEvaluators);
+	await db.exec(completion);
 }, 30_000);
 beforeEach(async () => {
 	await db.exec(`reset role;
 		update public.evaluation_sheets set status = 'submitted', grade_id = 1;
 		update public.employees set grade_id = 1;
-		update public.milestones set first_score = 4, second_score = 0;
+		delete from public.milestones where goal_number > 2;
+		update public.milestones set first_score = 4, second_score = 0, challenge_goal = '目標', midterm_goal = '中間', achievement = '達成';
 		truncate public.common_evaluation_results;
 		insert into public.common_evaluation_results values (41, 100, 31, 4, 0), (42, 100, 32, 4, 0), (43, 200, 31, 4, 0), (44, 200, 32, 4, 0);
 	`);
@@ -143,4 +150,32 @@ it("permits submission, reversion, and updates that do not newly confirm a stage
 	await confirm("submitted");
 	await confirm("submitted");
 	expect(await status()).toBe("submitted");
+});
+
+it("checks the third and fourth goals at confirmation", async () => {
+	await db.exec(
+		"insert into public.milestones (id, sheet_id, goal_number, first_score, second_score) values (13, 100, 3, 4, 0), (14, 100, 4, 0, 0)",
+	);
+	await expect(confirm("first_evaluated")).rejects.toThrow("チャレンジ目標 4");
+	await db.exec("update public.milestones set first_score = 4 where id = 14");
+	await confirm("first_evaluated");
+});
+it.each(["challenge_goal", "midterm_goal", "achievement"])(
+	"rejects whitespace in %s even with every score saved",
+	async (field) => {
+		await db.exec(`update public.milestones set ${field} = E' \t\n' where id = 12`);
+		await expect(confirm("first_evaluated")).rejects.toThrow("目標 2");
+		expect(await status()).toBe("submitted");
+	},
+);
+it("requires at least one goal on submission", async () => {
+	await confirm("draft");
+	await db.exec("delete from public.milestones where sheet_id = 100");
+	try {
+		await expect(confirm("submitted")).rejects.toThrow("最低1件");
+	} finally {
+		await db.exec(
+			"insert into public.milestones (id, sheet_id, goal_number, first_score, second_score) values (11, 100, 1, 4, 0), (12, 100, 2, 4, 0)",
+		);
+	}
 });

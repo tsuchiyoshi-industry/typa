@@ -70,6 +70,7 @@ beforeAll(async () => {
 	// 通知先は、シートの評価者で決まる
 	await db.exec(migration("202610080010_notifications_by_sheet_evaluators.sql"));
 	await db.exec(migration("202610080010_notifications_by_sheet_evaluators.sql"));
+	await db.exec(migration("202610080012_challenge_goal_tabs.sql"));
 }, 30_000);
 beforeEach(async () => {
 	await db.exec(`reset role;
@@ -367,4 +368,24 @@ it("denies unrelated users, internal functions, anonymous RPCs and missing JWT c
 	await db.exec("reset role; set role authenticated");
 	await db.query("select set_config('request.jwt.claim.sub', '', false)");
 	await expect(workspace()).rejects.toMatchObject({ code: "42501" });
+});
+
+it("includes the third and fourth goals in the reviewer snapshot", async () => {
+	await asAdmin(
+		"insert into public.milestones values (13, 100, 3, '3件目', '中間', '達成', 4, 4), (15, 100, 4, '4件目', '中間', '達成', 4, 4)",
+	);
+	try {
+		expect(
+			(await workspace())
+				.find((row) => row.sheetId === 100)
+				?.objectives.map((goal) => goal.goalNumber),
+		).toEqual([1, 3, 4]);
+	} finally {
+		await asAdmin("delete from public.milestones where id in (13, 15)");
+	}
+});
+it("enforces the maximum goal number on direct writes", async () => {
+	await expect(
+		asAdmin("insert into public.milestones values (15, 100, 5, '', '', '', 0, 0)"),
+	).rejects.toMatchObject({ code: "23514" });
 });

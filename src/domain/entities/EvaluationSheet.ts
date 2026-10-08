@@ -200,6 +200,23 @@ export class EvaluationSheet {
 		return this.subject.primaryIsFinalEvaluator();
 	}
 
+	pendingObjectiveFields(): string[] {
+		if (this.objectives.length < 1 || this.objectives.length > 4) {
+			return ["チャレンジ目標は1〜4件必要です。"];
+		}
+		return this.objectives.flatMap((objective) =>
+			(
+				[
+					["チャレンジ目標", objective.challengeGoal],
+					["中間目標", objective.midtermGoal],
+					["達成状況", objective.achievement],
+				] as const
+			)
+				.filter(([, value]) => !value.trim())
+				.map(([label]) => `目標 ${objective.goalNumber}：${label}`),
+		);
+	}
+
 	/** 確定する評価者自身の、まだ評価されていない項目。0 は未評価。 */
 	pendingEvaluationItems(stage: "first" | "second"): string[] {
 		const scoreKey = stage === "first" ? "firstScore" : "secondScore";

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { Employee } from "../../domain/entities/Employee";
 import { EvaluationSheet } from "../../domain/entities/EvaluationSheet";
+import { Milestone } from "../../domain/entities/Milestone";
 import { EvaluationScoreUpdateService } from "../../domain/services/EvaluationScoreUpdateService";
 import { EvaluationStatus } from "../../domain/valueObjects/EvaluationStatus";
 import {
@@ -178,7 +179,7 @@ describe("milestone updates validate before side effects", () => {
 		).rejects.toThrow("整数");
 		expect(milestones.updateScore).not.toHaveBeenCalled();
 	});
-	it.each([0, -1, 1.5, NaN])("rejects invalid goal number %s", async (goalNumber) => {
+	it.each([0, -1, 1.5, NaN, 5])("rejects invalid goal number %s", async (goalNumber) => {
 		const { sheets, milestones, scores, out } = setup(EvaluationStatus.DRAFT);
 		await expect(
 			new UpdateMilestoneInteractor(milestones, sheets, scores).execute(
@@ -541,4 +542,38 @@ describe("comments, final rank, status and notifications", () => {
 			expect(out.present).not.toHaveBeenCalled();
 		},
 	);
+});
+
+it("rejects removing the last goal before writing", async () => {
+	const { sheets, milestones, scores, out } = setup(EvaluationStatus.DRAFT);
+	await expect(
+		new UpdateMilestoneInteractor(milestones, sheets, scores).execute(
+			{ sheetId: 100, currentEmployeeId: 1, milestoneId: 11, delete: true },
+			out,
+		),
+	).rejects.toThrow("最低1件");
+	expect(milestones.delete).not.toHaveBeenCalled();
+});
+it.each([1, 2])("allows only the subject to delete a tab (%s)", async (employeeId) => {
+	const { sheets, milestones, scores, out } = setup(EvaluationStatus.DRAFT);
+	sheets.findById.mockResolvedValue(
+		EvaluationSheet.create({
+			...sheet(EvaluationStatus.DRAFT),
+			objectives: [
+				milestone(),
+				Milestone.create({ ...milestone(), id: 12, goalNumber: 2, firstScore: 0, secondScore: 0 }),
+			],
+		}),
+	);
+	const result = new UpdateMilestoneInteractor(milestones, sheets, scores).execute(
+		{ sheetId: 100, currentEmployeeId: employeeId, milestoneId: 12, delete: true },
+		out,
+	);
+	if (employeeId === 1) {
+		await result;
+		expect(milestones.delete).toHaveBeenCalledWith(12);
+	} else {
+		await expect(result).rejects.toThrow("削除");
+		expect(milestones.delete).not.toHaveBeenCalled();
+	}
 });

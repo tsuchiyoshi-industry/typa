@@ -1,13 +1,14 @@
 import Check from "lucide-solid/icons/check";
+import Plus from "lucide-solid/icons/plus";
 import SquarePen from "lucide-solid/icons/square-pen";
 import X from "lucide-solid/icons/x";
-import { type Component, createEffect, createMemo, createSignal, For, Show } from "solid-js";
+import { type Component, createEffect, createMemo, createSignal, For, on, Show } from "solid-js";
 import type { EmployeeDto } from "../../../application/dtos/EmployeeDto";
 import type { MilestoneDto } from "../../../application/dtos/MilestoneDto";
 import { Score } from "../../../domain/valueObjects/Score";
 import type { ChallengeEvaluationController } from "../../controllers/ChallengeEvaluationController";
 import type { ChallengeEvaluationViewModel } from "../../presenters/ChallengeEvaluationPresenter";
-import { confirmDiscard, showToast, trackUnsaved } from "../feedback";
+import { confirmAction, confirmDiscard, showToast, trackUnsaved } from "../feedback";
 import ScoreScale from "./ScoreScale";
 
 interface ChallengeEvaluationViewProps {
@@ -42,9 +43,33 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 	const [scoreUpdating, setScoreUpdating] = createSignal(false);
 	createEffect(() => props.onSavingChange?.(textUpdating() || scoreUpdating()));
 
+	const [addedObjectives, setAddedObjectives] = createSignal<MilestoneDto[]>([]);
+	const [removedIds, setRemovedIds] = createSignal<number[]>([]);
+	createEffect(
+		on(
+			() => props.sheetId,
+			() => {
+				setAddedObjectives([]);
+				setRemovedIds([]);
+				setActiveTab(Number(props.objectives[0]?.goalNumber ?? 1));
+				setIsTextEditing(false);
+				setIsScoreEditing(false);
+			},
+		),
+	);
+	const objectives = createMemo(() =>
+		[
+			...props.objectives,
+			...addedObjectives().filter(
+				(item) => !props.objectives.some((saved) => saved.id === item.id),
+			),
+		]
+			.filter((item) => !removedIds().includes(item.id))
+			.sort((a, b) => a.goalNumber - b.goalNumber),
+	);
 	const displayObjectives = createMemo<MilestoneDto[]>(() =>
-		props.objectives.length > 0
-			? props.objectives
+		objectives().length > 0
+			? objectives()
 			: [
 					{
 						id: 0,
@@ -101,12 +126,113 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 
 	const selectTab = async (goalNumber: number) => {
 		// 捨てるのはこの目標の入力だけなので、他の欄(総評など)の未保存は問わない
-		if (goalNumber === activeTab() || !(await confirmDiscard(isDirty()))) {
+		if (
+			textUpdating() ||
+			scoreUpdating() ||
+			goalNumber === activeTab() ||
+			!(await confirmDiscard(isDirty()))
+		) {
 			return;
 		}
 		setIsTextEditing(false);
 		setIsScoreEditing(false);
 		setActiveTab(goalNumber);
+	};
+
+	const emptyObjective = (goalNumber: number): MilestoneDto => ({
+		id: 0,
+		sheetId: props.sheetId ?? 0,
+		goalNumber,
+		challengeGoal: "",
+		midtermGoal: "",
+		achievement: "",
+		firstScore: 0,
+		secondScore: 0,
+	});
+	const addTab = async () => {
+		if (
+			!props.canEditMilestoneGoal ||
+			textUpdating() ||
+			scoreUpdating() ||
+			displayObjectives().length >= 4
+		) {
+			return;
+		}
+		setTextUpdating(true);
+		try {
+			if (!(await confirmDiscard(isDirty()))) {
+				return;
+			}
+			// 最初のタブも空のまま残す。不要な空タブを自動で消さない。
+			const first = displayObjectives()[0];
+			if (first.id === 0) {
+				if (
+					!(await props.controller.upsertText(props.sheetId ?? 0, first.goalNumber, "", "", ""))
+				) {
+					return;
+				}
+				setAddedObjectives((items) => [
+					...items,
+					{ ...first, id: props.viewModel().updatedMilestoneId ?? 0 },
+				]);
+			}
+			const number = [1, 2, 3, 4].find(
+				(number) => !displayObjectives().some((item) => item.goalNumber === number),
+			);
+			if (
+				number === undefined ||
+				!(await props.controller.upsertText(props.sheetId ?? 0, number, "", "", ""))
+			) {
+				return;
+			}
+			setAddedObjectives((items) => [
+				...items,
+				{ ...emptyObjective(number), id: props.viewModel().updatedMilestoneId ?? 0 },
+			]);
+			setActiveTab(number);
+			setIsScoreEditing(false);
+			setDraftText({ challengeGoal: "", midtermGoal: "", achievement: "" });
+			setIsTextEditing(true);
+			props.onUpdated();
+		} finally {
+			setTextUpdating(false);
+		}
+	};
+	const deleteTab = async () => {
+		const objective = activeObjective();
+		if (
+			!props.canEditMilestoneGoal ||
+			!objective ||
+			displayObjectives().length <= 1 ||
+			textUpdating() ||
+			scoreUpdating()
+		) {
+			return;
+		}
+		if (
+			!(await confirmAction({
+				title: `目標 ${objective.goalNumber} を削除しますか？`,
+				message: "このタブの目標と入力中の内容を削除します。",
+				confirmLabel: "削除する",
+				tone: "danger",
+			}))
+		) {
+			return;
+		}
+		setTextUpdating(true);
+		try {
+			if (!(await props.controller.delete(props.sheetId ?? objective.sheetId, objective.id))) {
+				return;
+			}
+			setRemovedIds((ids) => [...ids, objective.id]);
+			setAddedObjectives((items) => items.filter((item) => item.id !== objective.id));
+			setIsTextEditing(false);
+			setIsScoreEditing(false);
+			setActiveTab(displayObjectives()[0].goalNumber);
+			props.onUpdated();
+		} finally {
+			setTextUpdating(false);
+		}
 	};
 
 	const startTextEditing = () => {
@@ -202,7 +328,9 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 		<section class="challenge-card">
 			<div class="challenge-card__title">
 				<h2>チャレンジ目標評価</h2>
-				<p class="challenge-helper">目標ごとに 1〜{MAX_SCORE} の4段階で評価します。</p>
+				<p class="challenge-helper">
+					目標は1〜4件。目標ごとに 1〜{MAX_SCORE} の4段階で評価します。
+				</p>
 			</div>
 
 			<div class="challenge-tabs" role="tablist" aria-label="チャレンジ目標">
@@ -223,6 +351,18 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 						</button>
 					)}
 				</For>
+				<Show when={props.canEditMilestoneGoal}>
+					<button
+						type="button"
+						class="challenge-tab"
+						aria-label="目標を追加"
+						onClick={addTab}
+						disabled={displayObjectives().length >= 4 || textUpdating() || scoreUpdating()}
+					>
+						<Plus class="action-icon" />
+						目標を追加
+					</button>
+				</Show>
 			</div>
 
 			<Show when={activeObjective()} fallback={<p>対象の目標が見つかりません。</p>}>
@@ -268,6 +408,16 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 						</div>
 
 						<div class="objective-meta-actions">
+							<Show when={props.canEditMilestoneGoal}>
+								<button
+									type="button"
+									class="secondary-action"
+									onClick={deleteTab}
+									disabled={displayObjectives().length <= 1 || textUpdating() || scoreUpdating()}
+								>
+									この目標を削除
+								</button>
+							</Show>
 							<Show when={isScoreEditing()}>
 								<button
 									type="button"

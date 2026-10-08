@@ -52,6 +52,14 @@ export class UpdateEvaluationStatusInteractor
 		policy.assertPeriodOpen();
 
 		const newStatus = this.resolveNewStatus(request, policy);
+		if (newStatus.isSubmitted() || newStatus.isFirstEvaluationConfirmed()) {
+			const missing = sheet.pendingObjectiveFields();
+			if (missing.length) {
+				throw new Error(
+					`空欄のある目標は提出・確定できません。すべての欄を入力して保存するか、不要なタブを削除してください。\n${missing.map((item) => `・${item}`).join("\n")}`,
+				);
+			}
+		}
 		if (newStatus.isFirstEvaluationConfirmed()) {
 			const stage =
 				newStatus.isFinalized() && !sheet.primaryIsFinalEvaluator() ? "second" : "first";

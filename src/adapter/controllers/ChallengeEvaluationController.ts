@@ -84,6 +84,23 @@ export class ChallengeEvaluationController {
 		}
 	}
 
+	async delete(sheetId: number, milestoneId: number): Promise<boolean> {
+		const currentEmployeeId = await this.requireCurrentEmployeeId();
+		if (currentEmployeeId === null) {
+			return false;
+		}
+		try {
+			await this.updateMilestoneUseCase.execute(
+				{ sheetId, currentEmployeeId, milestoneId, delete: true },
+				this.outputPort,
+			);
+			return true;
+		} catch (error) {
+			this.presentUpdateError(error instanceof Error ? error.message : "削除に失敗しました");
+			return false;
+		}
+	}
+
 	async updateScore(
 		sheetId: number,
 		milestoneId: number,

@@ -1,6 +1,7 @@
 import type { Milestone } from "../entities/Milestone";
 
 export interface MilestoneRepository {
+	delete(milestoneId: number): Promise<void>;
 	findBySheetId(sheetId: number): Promise<Milestone[]>;
 	updateText(
 		milestoneId: number,

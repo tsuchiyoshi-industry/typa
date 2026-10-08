@@ -1,7 +1,6 @@
 import { useNavigate } from "@solidjs/router";
 import { createMemo, createSignal, Show } from "solid-js";
-import { SupabaseAuthRepository } from "../../infrastructure/auth/SupabaseAuthRepository";
-import { SupabaseEmployeeRepository } from "../../infrastructure/repositories/SupabaseEmployeeRepository";
+import type { AccountController } from "../controllers/AccountController";
 import LoadingView from "./components/LoadingView";
 import { confirmAction } from "./feedback";
 
@@ -9,6 +8,7 @@ import { confirmAction } from "./feedback";
 type ViewMode = "login" | "signup" | "otp-verify";
 
 type LoginViewProps = {
+	controller: AccountController;
 	onRegistrationLinked?: () => Promise<void> | void;
 };
 
@@ -31,9 +31,6 @@ const LoginView = (props: LoginViewProps) => {
 	const [employeeNoError, setEmployeeNoError] = createSignal<string | null>(null);
 
 	const [viewMode, setViewMode] = createSignal<ViewMode>("login");
-
-	const employeeRepository = new SupabaseEmployeeRepository();
-	const authRepository = new SupabaseAuthRepository();
 
 	const requiredDomain = import.meta.env.VITE_REQUIRED_DOMAIN;
 
@@ -87,7 +84,7 @@ const LoginView = (props: LoginViewProps) => {
 		// 登録をやめたら、メールアドレスの確認用セッションを共有PCに残さない
 		if (emailVerified()) {
 			setEmailVerified(false);
-			void authRepository.signOut();
+			void props.controller.signOut();
 		}
 	};
 
@@ -97,26 +94,19 @@ const LoginView = (props: LoginViewProps) => {
 		setLoading(true);
 		setErrorMessage(null);
 
-		const { userId, error } = await authRepository.signInWithPassword(employeeNo(), password());
+		const status = await props.controller.signIn(employeeNo(), password());
+		setLoading(false);
 
-		if (error || !userId) {
+		if (status === "invalid_credentials") {
 			setErrorMessage(
 				"社員番号またはパスワードが正しくありません。初めて利用する場合は、新規登録をしてください。",
 			);
-			setLoading(false);
-			return;
-		}
-
-		if (!(await employeeRepository.checkUserLinked(userId))) {
+		} else if (status === "registration_incomplete") {
 			// 登録が社員番号の紐付けの前で止まったアカウント。新規登録をやり直すと続きから再開できる
-			await authRepository.signOut();
 			switchMode("signup", "登録が完了していません。新規登録をやり直してください。");
-			setLoading(false);
-			return;
+		} else {
+			navigate("/");
 		}
-
-		navigate("/");
-		setLoading(false);
 	};
 
 	// --- 【新規登録 1: 認証コードを送る】 ----------------------------
@@ -125,42 +115,15 @@ const LoginView = (props: LoginViewProps) => {
 		setLoading(true);
 		setErrorMessage(null);
 
-		const { error } = await authRepository.sendEmailCode(email().trim());
+		const sent = await props.controller.sendVerificationCode(email().trim());
 		setLoading(false);
 
-		if (error) {
+		if (!sent) {
 			setErrorMessage("認証コードを送信できませんでした。しばらくしてから再度お試しください。");
 			return;
 		}
 
 		switchMode("otp-verify");
-	};
-
-	/** アカウントを作り、そのユーザーIDを返す。作れなければエラーを表示して null を返す。 */
-	const createAccount = async (): Promise<string | null> => {
-		const result = await authRepository.signUp(employeeNo(), password(), email().trim());
-
-		if (result.status === "created") {
-			return result.userId;
-		}
-
-		if (result.status === "already_registered") {
-			// 前回の登録が社員番号の紐付けの前で止まったアカウントは、同じパスワードなら続きから再開する
-			const { userId } = await authRepository.signInWithPassword(employeeNo(), password());
-			if (!userId) {
-				setErrorMessage(
-					"この社員番号は登録の途中で止まっています。前回と同じパスワードを入力するか、管理者に連絡してください。",
-				);
-			}
-			return userId;
-		}
-
-		setErrorMessage(
-			(result.error as { code?: string }).code === "weak_password"
-				? `パスワードが要件を満たしていません。${PASSWORD_RULE}`
-				: `登録できませんでした。社員番号とパスワードを確認してください。パスワードは${PASSWORD_RULE}`,
-		);
-		return null;
 	};
 
 	// --- 【新規登録 2: 認証コードと社員番号を確かめて登録する】 ------
@@ -171,48 +134,52 @@ const LoginView = (props: LoginViewProps) => {
 		setInfoMessage(null);
 		setEmployeeNoError(null);
 
-		// 社員番号やパスワードを直して送り直すときは、済んだ確認を繰り返さない
-		if (!emailVerified()) {
-			const { error } = await authRepository.verifyEmailCode(email().trim(), otp().trim());
-			if (error) {
-				setErrorMessage("認証コードが正しくないか、有効期限が切れています。");
-				setLoading(false);
-				return;
-			}
+		const status = await props.controller.register({
+			employeeNo: employeeNo(),
+			password: password(),
+			email: email().trim(),
+			// 社員番号やパスワードを直して送り直すときは、済んだ確認を繰り返さない
+			verificationCode: emailVerified() ? undefined : otp().trim(),
+		});
+		setLoading(false);
+		// 認証コードの確認が済めば、以降の失敗で送り直しても確認は繰り返さない
+		if (status !== "invalid_code") {
 			setEmailVerified(true);
 		}
 
-		// 社員番号は管理者が社員マスタに登録した値。登録済みの番号は二重に使わせない
-		const status = await employeeRepository.findRegistrationStatus(employeeNo());
-		if (status !== "available") {
-			setEmployeeNoError(
-				status === "registered"
-					? "この社員番号は既に登録されています。心当たりがない場合は、管理者に連絡してください。"
-					: "この社員番号は見つかりません。入力内容を確認してください。",
-			);
-			setLoading(false);
-			return;
-		}
-
-		const userId = await createAccount();
-		if (!userId) {
-			setLoading(false);
-			return;
+		switch (status) {
+			case "invalid_code":
+				setErrorMessage("認証コードが正しくないか、有効期限が切れています。");
+				return;
+			case "employee_registered":
+				setEmployeeNoError(
+					"この社員番号は既に登録されています。心当たりがない場合は、管理者に連絡してください。",
+				);
+				return;
+			case "employee_not_found":
+				setEmployeeNoError("この社員番号は見つかりません。入力内容を確認してください。");
+				return;
+			case "stalled_account":
+				setErrorMessage(
+					"この社員番号は登録の途中で止まっています。前回と同じパスワードを入力するか、管理者に連絡してください。",
+				);
+				return;
+			case "weak_password":
+				setErrorMessage(`パスワードが要件を満たしていません。${PASSWORD_RULE}`);
+				return;
+			case "signup_failed":
+				setErrorMessage(
+					`登録できませんでした。社員番号とパスワードを確認してください。パスワードは${PASSWORD_RULE}`,
+				);
+				return;
+			case "link_failed":
+				// 確認用セッションは use case が破棄済み。登録は最初からやり直す
+				setEmailVerified(false);
+				switchMode("signup", "登録を完了できませんでした。もう一度やり直してください。");
+				return;
 		}
 
 		setLinkingEmployee(true);
-
-		const linked = await employeeRepository.linkUserToEmployee(employeeNo(), userId);
-		setLoading(false);
-
-		if (!linked) {
-			await authRepository.signOut();
-			setLinkingEmployee(false);
-			setEmailVerified(false);
-			switchMode("signup", "登録を完了できませんでした。もう一度やり直してください。");
-			return;
-		}
-
 		// ログインに使うのは社員番号なので、登録の最後に必ず見せる
 		await confirmAction({
 			title: `あなたの社員番号は「${employeeNo()}」です`,
@@ -231,8 +198,7 @@ const LoginView = (props: LoginViewProps) => {
 		setErrorMessage(null);
 		setInfoMessage(null);
 
-		const { error } = await authRepository.sendEmailCode(email().trim());
-		if (error) {
+		if (!(await props.controller.sendVerificationCode(email().trim()))) {
 			setErrorMessage("認証コードの再送に失敗しました。しばらくしてから再度お試しください。");
 		} else {
 			setInfoMessage("認証コードを再送しました。メールをご確認ください。");

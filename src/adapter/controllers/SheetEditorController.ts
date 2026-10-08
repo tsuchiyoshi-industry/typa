@@ -29,6 +29,7 @@ import type {
 import type { EmployeeRepository } from "../../domain/repositories/EmployeeRepository";
 import type { EvaluationStatus } from "../../domain/valueObjects/EvaluationStatus";
 import type { SheetEditorViewModel } from "../presenters/SheetEditorPresenter";
+import { requireCurrentEmployeeId } from "./currentEmployee";
 
 export class SheetEditorController {
 	private sheetLoadGeneration = 0;
@@ -68,16 +69,10 @@ export class SheetEditorController {
 		private readonly employeeRepository: EmployeeRepository,
 	) {}
 
-	private async requireCurrentEmployeeId(
+	private requireCurrentEmployeeId(
 		presentError: (message: string) => void,
 	): Promise<number | null> {
-		const { data: currentEmployeeId, error } =
-			await this.employeeRepository.findCurrentEmployeeId();
-		if (error || currentEmployeeId === null) {
-			presentError(error ? `認証エラー: ${error.message}` : "ログインが必要です。");
-			return null;
-		}
-		return currentEmployeeId;
+		return requireCurrentEmployeeId(this.employeeRepository, presentError);
 	}
 
 	async loadSheet(sheetId: number, silent = false): Promise<number | null> {

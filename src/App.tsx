@@ -1,12 +1,6 @@
-import { A, Navigate, Route, Router, useLocation } from "@solidjs/router";
-import ChevronDown from "lucide-solid/icons/chevron-down";
-import CircleQuestionMark from "lucide-solid/icons/circle-question-mark";
-import LogOut from "lucide-solid/icons/log-out";
-import Menu from "lucide-solid/icons/menu";
-import Settings from "lucide-solid/icons/settings";
-import User from "lucide-solid/icons/user";
-import X from "lucide-solid/icons/x";
+import { Navigate, Route, Router } from "@solidjs/router";
 import { type Component, createSignal, type JSX, onCleanup, onMount, Show } from "solid-js";
+import { AccountController } from "./adapter/controllers/AccountController";
 import { ChallengeEvaluationController } from "./adapter/controllers/ChallengeEvaluationController";
 import { CommonEvaluationController } from "./adapter/controllers/CommonEvaluationController";
 import { EmployeeMasterController } from "./adapter/controllers/EmployeeMasterController";
@@ -24,9 +18,8 @@ import ExitConfirmDialog from "./adapter/views/components/ExitConfirmDialog";
 import FeedbackHost from "./adapter/views/components/FeedbackHost";
 import LoadingView from "./adapter/views/components/LoadingView";
 import { NotFound } from "./adapter/views/components/NotFound";
-import ThemeMenuItem from "./adapter/views/components/ThemeMenuItem";
+import DashboardLayout from "./adapter/views/DashboardLayout";
 import EmployeeMasterView from "./adapter/views/EmployeeMasterView";
-import { clearUnsavedChanges, confirmDiscard } from "./adapter/views/feedback";
 import HelpView from "./adapter/views/HelpView";
 import LoginView from "./adapter/views/LoginView";
 import ReviewerWorkspaceView from "./adapter/views/ReviewerWorkspaceView";
@@ -41,7 +34,9 @@ import { FetchDistinctPeriodsInteractor } from "./application/usecases/FetchDist
 import { FetchEvaluationSheetInteractor } from "./application/usecases/FetchEvaluationSheetInteractor";
 import { LoadCommonEvaluationInteractor } from "./application/usecases/LoadCommonEvaluationInteractor";
 import { LoadEmployeeMasterInteractor } from "./application/usecases/LoadEmployeeMasterInteractor";
+import { RegisterEmployeeAccountInteractor } from "./application/usecases/RegisterEmployeeAccountInteractor";
 import { ResetEmployeeRegistrationInteractor } from "./application/usecases/ResetEmployeeRegistrationInteractor";
+import { SignInEmployeeInteractor } from "./application/usecases/SignInEmployeeInteractor";
 import { UpdateEmployeeEvaluatorInteractor } from "./application/usecases/UpdateEmployeeEvaluatorInteractor";
 import { UpdateEmployeeGradeInteractor } from "./application/usecases/UpdateEmployeeGradeInteractor";
 import { UpdateEmployeeRoleInteractor } from "./application/usecases/UpdateEmployeeRoleInteractor";
@@ -50,9 +45,7 @@ import { UpdateEvaluationStatusInteractor } from "./application/usecases/UpdateE
 import { UpdateMilestoneInteractor } from "./application/usecases/UpdateMilestoneInteractor";
 import { UpdateOverallCommentInteractor } from "./application/usecases/UpdateOverallCommentInteractor";
 import { UpsertCommonEvaluationInteractor } from "./application/usecases/UpsertCommonEvaluationInteractor";
-import type { EmployeeProfile } from "./domain/entities/EmployeeProfile";
 import type { AuthSession } from "./domain/repositories/AuthRepository";
-import { canEditSettings } from "./domain/services/EmployeeMasterAccessService";
 import { EvaluationScoreUpdateService } from "./domain/services/EvaluationScoreUpdateService";
 import { SupabaseAuthRepository } from "./infrastructure/auth/SupabaseAuthRepository";
 import { SupabaseCommonEvaluationRepository } from "./infrastructure/repositories/SupabaseCommonEvaluationRepository";
@@ -138,6 +131,7 @@ const updateEvaluationStatusUseCase = new UpdateEvaluationStatusInteractor(
 );
 const exportEvaluationSheetUseCase = new ExportEvaluationSheetInteractor(
 	evaluationSheetRepository,
+	employeeRepository,
 	new TauriSheetPdfGateway(),
 );
 const loadEmployeeMasterUseCase = new LoadEmployeeMasterInteractor(employeeMasterRepository);
@@ -178,7 +172,6 @@ const sheetEditorController = new SheetEditorController(
 const commonEvaluationController = new CommonEvaluationController(
 	loadCommonEvaluationUseCase,
 	upsertCommonEvaluationUseCase,
-	createEvaluationSheetUseCase,
 	commonEvaluationPresenter,
 	employeeRepository,
 );
@@ -187,6 +180,12 @@ const challengeEvaluationController = new ChallengeEvaluationController(
 	challengeEvaluationPresenter.outputPort,
 	challengeEvaluationPresenter.presentUpdateError,
 	employeeRepository,
+);
+const accountController = new AccountController(
+	new SignInEmployeeInteractor(authRepository, employeeRepository),
+	new RegisterEmployeeAccountInteractor(authRepository, employeeRepository),
+	authRepository,
+	employeeMasterRepository,
 );
 const employeeMasterController = new EmployeeMasterController(
 	loadEmployeeMasterUseCase,
@@ -205,150 +204,6 @@ const AppLayout: Component<{ children?: JSX.Element | JSX.Element[] }> = (props)
 		<ExitConfirmDialog />
 	</div>
 );
-
-const DashboardLayout: Component<{ children?: JSX.Element | JSX.Element[] }> = (props) => {
-	const location = useLocation();
-	const [menuOpen, setMenuOpen] = createSignal(false);
-	const [userMenuOpen, setUserMenuOpen] = createSignal(false);
-	const [profile, setProfile] = createSignal<EmployeeProfile | null>(null);
-	let mounted = true;
-
-	// メニューの外を押したら閉じる。片方を開くと、もう片方は外側のクリックとして閉じる
-	const handleClickOutside = (e: MouseEvent) => {
-		const target = e.target as Element;
-		if (!target.closest(".user-menu-container")) {
-			setUserMenuOpen(false);
-		}
-		if (!target.closest(".topbar-nav, .menu-toggle")) {
-			setMenuOpen(false);
-		}
-	};
-	const handleKeyDown = (e: KeyboardEvent) => {
-		if (e.key === "Escape") {
-			setUserMenuOpen(false);
-			setMenuOpen(false);
-		}
-	};
-
-	onMount(() => {
-		document.addEventListener("click", handleClickOutside);
-		document.addEventListener("keydown", handleKeyDown);
-		void employeeMasterRepository
-			.findCurrentEmployeeProfile()
-			.then((person) => mounted && setProfile(person))
-			.catch(() => undefined);
-	});
-	onCleanup(() => {
-		mounted = false;
-		document.removeEventListener("click", handleClickOutside);
-		document.removeEventListener("keydown", handleKeyDown);
-	});
-
-	const canViewSettings = () => {
-		const person = profile();
-		return !!person && canEditSettings(person.role);
-	};
-	// シートの画面は一覧から開くので、一覧を現在地として扱う
-	const onSheetPage = () => location.pathname === "/" || location.pathname.startsWith("/sheet/");
-
-	const handleLogout = async () => {
-		setUserMenuOpen(false);
-		if (!(await confirmDiscard())) {
-			return;
-		}
-		clearUnsavedChanges();
-		await authRepository.signOut();
-	};
-
-	return (
-		<div class="dashboard-shell">
-			<header class="dashboard-topbar">
-				<A href="/" class="topbar-brand" aria-label="TYPA 評価シート一覧へ">
-					<span class="brand-logo">TYPA</span>
-				</A>
-				<nav
-					id="main-nav"
-					class="topbar-nav"
-					aria-label="メインナビゲーション"
-					classList={{ "nav-open": menuOpen() }}
-				>
-					<A
-						href="/"
-						end
-						class="nav-link"
-						classList={{ active: onSheetPage() }}
-						onClick={() => setMenuOpen(false)}
-					>
-						評価シート
-					</A>
-					<A href="/review" class="nav-link" onClick={() => setMenuOpen(false)}>
-						部下の評価
-					</A>
-					<A href="/employee-master" class="nav-link" onClick={() => setMenuOpen(false)}>
-						社員マスタ
-					</A>
-				</nav>
-				<div class="user-menu-container">
-					<button
-						type="button"
-						class="user-menu-trigger"
-						onClick={() => setUserMenuOpen(!userMenuOpen())}
-						aria-label="ユーザーメニュー"
-						aria-controls="user-menu"
-						aria-expanded={userMenuOpen()}
-					>
-						<User size={18} />
-						<span class="user-name">{profile()?.name}</span>
-						<ChevronDown size={14} class="user-menu-caret" />
-					</button>
-					<Show when={userMenuOpen()}>
-						<div id="user-menu" class="user-menu-dropdown">
-							<Show when={profile()}>
-								{(person) => (
-									<div class="user-menu-profile">
-										<strong>{person().name}</strong>
-										<span>
-											{person().employeeNo}
-											<span class="user-role">{person().role.toString()}</span>
-										</span>
-									</div>
-								)}
-							</Show>
-							<ThemeMenuItem />
-							<Show when={canViewSettings()}>
-								<A href="/settings" class="user-menu-item" onClick={() => setUserMenuOpen(false)}>
-									<Settings size={18} />
-									<span>設定</span>
-								</A>
-							</Show>
-							<A href="/help" class="user-menu-item" onClick={() => setUserMenuOpen(false)}>
-								<CircleQuestionMark size={18} />
-								<span>ヘルプ</span>
-							</A>
-							<button type="button" class="user-menu-item logout-item" onClick={handleLogout}>
-								<LogOut size={18} />
-								<span>ログアウト</span>
-							</button>
-						</div>
-					</Show>
-				</div>
-				<button
-					type="button"
-					class="menu-toggle"
-					onClick={() => setMenuOpen(!menuOpen())}
-					aria-label="メニュー"
-					aria-controls="main-nav"
-					aria-expanded={menuOpen()}
-				>
-					<Show when={menuOpen()} fallback={<Menu size={22} />}>
-						<X size={22} />
-					</Show>
-				</button>
-			</header>
-			<main class="dashboard-main">{props.children}</main>
-		</div>
-	);
-};
 
 const App: Component = () => {
 	const [session, setSession] = createSignal<AuthSession | null>(null);
@@ -389,7 +244,7 @@ const App: Component = () => {
 	// ログイン済みの画面はトップバーを共有する。ページ移動のたびに作り直さない。
 	const ProtectedLayout: Component<{ children?: JSX.Element }> = (props) => (
 		<Show when={session() && isLinked()} fallback={<Navigate href="/login" />}>
-			<DashboardLayout>{props.children}</DashboardLayout>
+			<DashboardLayout controller={accountController}>{props.children}</DashboardLayout>
 		</Show>
 	);
 
@@ -401,6 +256,7 @@ const App: Component = () => {
 					component={() => (
 						<Show when={!session() || !isLinked()} fallback={<Navigate href="/" />}>
 							<LoginView
+								controller={accountController}
 								onRegistrationLinked={async () => {
 									const currentSession = await authRepository.getSession();
 									await checkUserStatus(currentSession);

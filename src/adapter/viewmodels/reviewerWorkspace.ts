@@ -115,6 +115,56 @@ export function reviewRank(
 			};
 }
 
+/** 絞り込みに使う等級のキー。等級が未設定の社員もまとめて選べるようにする。 */
+export const gradeKey = (row: ReviewerRowDto): string => String(row.gradeId ?? "unset");
+/** 絞り込みに使う一次評価者のキー。一次評価者が未設定の社員もまとめて選べるようにする。 */
+export const primaryEvaluatorKey = (row: ReviewerRowDto): string =>
+	String(row.primaryEvaluatorId ?? "unassigned");
+
+/** 等級の選択肢 [キー, 等級名]。一覧に出てくる順。 */
+export function gradeOptions(rows: ReviewerRowDto[]): [string, string][] {
+	return [...new Map(rows.map((row) => [gradeKey(row), row.gradeName])).entries()];
+}
+
+/** 一次評価者の選択肢と、それぞれの部下の人数。名前順。 */
+export function primaryEvaluatorOptions(
+	rows: ReviewerRowDto[],
+): { id: string; name: string; count: number }[] {
+	const labels = new Map<string, { id: string; name: string; count: number }>();
+	for (const row of rows) {
+		const id = primaryEvaluatorKey(row);
+		const label = labels.get(id) ?? { id, name: row.primaryEvaluator, count: 0 };
+		label.count += 1;
+		labels.set(id, label);
+	}
+	return [...labels.values()].sort((a, b) => a.name.localeCompare(b.name, "ja"));
+}
+
+/**
+ * 「自分の番」ごとの件数 [絞り込み, 表示名, 件数]。自分に関係のある段階だけを返す。
+ * 一次評価しか担当しない人に「二次評価する 0」は出さない。
+ */
+export function reviewStats(rows: ReviewerRowDto[]): [ReviewFilter, string, number][] {
+	const count = (task: ReviewTask) => rows.filter((row) => reviewTask(row) === task).length;
+	const stats: [ReviewFilter, string, number, boolean][] = [
+		["all", "全員", rows.length, true],
+		["first", "一次評価する", count("first"), rows.some((row) => row.isPrimary)],
+		["second", "二次評価する", count("second"), rows.some((row) => row.canViewSecond)],
+		["waiting", "提出・相手の評価待ち", count("waiting"), true],
+		["finalized", "評価確定", count("finalized"), true],
+	];
+	return stats.filter(([, , , shown]) => shown).map(([key, label, total]) => [key, label, total]);
+}
+
+/** 比較表は等級ごとに分ける(等級が違うと共通評価の項目が違う)。並びは元の一覧の順。 */
+export function groupByGrade(rows: ReviewerRowDto[]): ReviewerRowDto[][] {
+	const grouped = new Map<string, ReviewerRowDto[]>();
+	for (const row of rows) {
+		grouped.set(gradeKey(row), [...(grouped.get(gradeKey(row)) ?? []), row]);
+	}
+	return [...grouped.values()];
+}
+
 const TASK_PRIORITY: Record<ReviewTask, number> = { first: 0, second: 1, waiting: 2, finalized: 3 };
 
 export function filterReviewRows(
@@ -150,13 +200,10 @@ export function filterReviewRows(
 			) {
 				return false;
 			}
-			if (options.grade && String(row.gradeId ?? "unset") !== options.grade) {
+			if (options.grade && gradeKey(row) !== options.grade) {
 				return false;
 			}
-			if (
-				options.primaryEvaluator &&
-				String(row.primaryEvaluatorId ?? "unassigned") !== options.primaryEvaluator
-			) {
+			if (options.primaryEvaluator && primaryEvaluatorKey(row) !== options.primaryEvaluator) {
 				return false;
 			}
 			return options.filter === "all" || reviewTask(row) === options.filter;

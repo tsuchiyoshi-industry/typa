@@ -85,12 +85,12 @@ function setup(status = "first_evaluated") {
 		secondRate: 100,
 	});
 	const repo = new SupabaseEvaluationSheetRepository(employeeRepository(), common, settings);
-	return { sheet, repo, settings };
+	return { sheet, repo, settings, common };
 }
 
 beforeEach(() => vi.clearAllMocks());
 
-describe("allocation across sheets and PDF data", () => {
+describe("restoring a sheet from stored rows", () => {
 	it("does not treat failed objective reads as an empty, complete set of evaluation items", async () => {
 		const { repo } = setup();
 		const makeQuery = db.from.getMockImplementation();
@@ -118,13 +118,6 @@ describe("allocation across sheets and PDF data", () => {
 		});
 		// 31 × 8/8 + 69 × 15/20 = 31 + 52 = 83
 		expect(sheet?.firstEvaluationScore()).toBe(83);
-		const exported = await repo.findExportData(100);
-		expect(exported).toMatchObject({
-			objectiveAllocationScore: 31,
-			objectiveEvaluationScore: 19,
-			commonEvaluationAllocationScore: 69,
-			totalEvaluationScore: 88,
-		});
 	});
 	it("ignores stale stored totals in an open sheet and calculates from the actual scores", async () => {
 		// 等級や項目が変わる前に保存された合計(28点・280%)が残っていても、いまの点数(配点 5 × 評価 3 = 15 / 20)で計算する
@@ -153,18 +146,26 @@ describe("allocation across sheets and PDF data", () => {
 			totalEvaluationScore: 93,
 		});
 		expect(sheet?.resolveFinalEvaluationRank().toDisplayText()).toBe("A");
-		expect(await repo.findExportData(100)).toMatchObject({
-			objectiveAllocationScore: 20,
-			commonEvaluationAllocationScore: 80,
-			totalEvaluationScore: 93,
-			finalEvaluationRank: "A",
-		});
 		expect(settings.findAllocation).not.toHaveBeenCalled();
+	});
+	it("restores the grade held when the sheet was created, not the employee's current grade", async () => {
+		const { sheet: row, repo, common } = setup();
+		// 社員の今の等級は 5(fixtures)。シートは等級 1 のときに作った
+		Object.assign(row, { grade_id: 1 });
+		const sheet = await repo.findById(100);
+		expect(sheet?.gradeId).toBe(1);
+		expect(sheet?.subject.gradeId).toBe(5);
+		expect(common.findResultsBySheetId).toHaveBeenCalledWith(100, 1);
+	});
+	it("keeps a sheet without a grade ungraded instead of using the current grade", async () => {
+		const { sheet: row, repo, common } = setup();
+		Object.assign(row, { grade_id: null });
+		expect((await repo.findById(100))?.gradeId).toBeNull();
+		expect(common.findResultsBySheetId).toHaveBeenCalledWith(100, null);
 	});
 	it("fails an active calculation if settings cannot be loaded instead of silently using 20/80", async () => {
 		const { repo, settings } = setup();
 		settings.findAllocation.mockRejectedValue(new Error("settings unavailable"));
 		await expect(repo.findById(100)).rejects.toThrow("settings unavailable");
-		await expect(repo.findExportData(100)).rejects.toThrow("settings unavailable");
 	});
 });

@@ -1,8 +1,4 @@
 import type {
-	CreateEvaluationSheetInteractor,
-	CreateEvaluationSheetOutputPort,
-} from "../../application/usecases/CreateEvaluationSheetInteractor";
-import type {
 	LoadCommonEvaluationInteractor,
 	LoadCommonEvaluationOutputPort,
 } from "../../application/usecases/LoadCommonEvaluationInteractor";
@@ -12,13 +8,13 @@ import type {
 } from "../../application/usecases/UpsertCommonEvaluationInteractor";
 import type { EmployeeRepository } from "../../domain/repositories/EmployeeRepository";
 import type { CommonEvaluationViewModel } from "../presenters/CommonEvaluationPresenter";
+import { requireCurrentEmployeeId } from "./currentEmployee";
 
 export class CommonEvaluationController {
 	private loadGeneration = 0;
 	constructor(
 		private readonly loadUseCase: LoadCommonEvaluationInteractor,
 		private readonly upsertUseCase: UpsertCommonEvaluationInteractor,
-		private readonly createSheetUseCase: CreateEvaluationSheetInteractor,
 		private readonly presenter: {
 			viewModel: () => CommonEvaluationViewModel;
 			outputPort: {
@@ -36,15 +32,12 @@ export class CommonEvaluationController {
 		const generation = ++this.loadGeneration;
 		this.presenter.beginLoad();
 
-		const { data: currentEmployeeId, error: authError } =
-			await this.employeeRepository.findCurrentEmployeeId();
-		if (authError || currentEmployeeId === null) {
-			if (generation !== this.loadGeneration) {
-				return;
+		const currentEmployeeId = await requireCurrentEmployeeId(this.employeeRepository, (message) => {
+			if (generation === this.loadGeneration) {
+				this.presenter.presentLoadError(message);
 			}
-			this.presenter.presentLoadError(
-				authError ? `認証エラー: ${authError.message}` : "ログインが必要です。",
-			);
+		});
+		if (currentEmployeeId === null) {
 			return;
 		}
 
@@ -78,12 +71,11 @@ export class CommonEvaluationController {
 			secondScore: number;
 		}>,
 	): Promise<boolean> {
-		const { data: currentEmployeeId, error: authError } =
-			await this.employeeRepository.findCurrentEmployeeId();
-		if (authError || currentEmployeeId === null) {
-			this.presenter.presentUpsertError(
-				authError ? `認証エラー: ${authError.message}` : "ログインが必要です。",
-			);
+		const currentEmployeeId = await requireCurrentEmployeeId(
+			this.employeeRepository,
+			this.presenter.presentUpsertError,
+		);
+		if (currentEmployeeId === null) {
 			return false;
 		}
 
@@ -98,43 +90,6 @@ export class CommonEvaluationController {
 				error instanceof Error ? error.message : "登録に失敗しました",
 			);
 			return false;
-		}
-	}
-
-	async createSheet(
-		periodId: number,
-		employeeId: number,
-		drafts: Array<{
-			itemId: number;
-			firstComment: string;
-			firstScore: number;
-			secondScore: number;
-		}>,
-	): Promise<number | null> {
-		// 1. リポジトリからデータとエラーを分解して取得
-		const { data: currentEmployeeId, error: authError } =
-			await this.employeeRepository.findCurrentEmployeeId();
-
-		// 2. 権限・ログインチェック
-		if (authError || currentEmployeeId === null) {
-			const message = authError ? `認証エラー: ${authError.message}` : "ログインが必要です";
-			this.presenter.presentUpsertError(message);
-			return null;
-		}
-
-		try {
-			// 3. UseCase の実行
-			await this.createSheetUseCase.execute({ periodId, employeeId, drafts }, {
-				present: () => {},
-			} as CreateEvaluationSheetOutputPort);
-
-			// 成功時は現在の社員IDを返す
-			return currentEmployeeId;
-		} catch (error) {
-			this.presenter.presentUpsertError(
-				error instanceof Error ? error.message : "シート作成に失敗しました",
-			);
-			return null;
 		}
 	}
 }

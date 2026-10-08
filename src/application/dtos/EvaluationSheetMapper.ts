@@ -23,7 +23,8 @@ export function toEvaluationSheetDto(
 			employeeNo: sheet.subject.employeeNo,
 			roleId: sheet.subject.roleId,
 			careerCourse: sheet.subject.careerCourse,
-			gradeId: sheet.subject.gradeId,
+			// 等級はシート作成時のもの(gradeName と同じ)
+			gradeId: sheet.gradeId,
 			primaryEvaluatorId: sheet.subject.primaryEvaluatorId,
 			secondaryEvaluatorId: sheet.subject.secondaryEvaluatorId,
 			gradeName,

@@ -7,6 +7,7 @@ import type {
 	FetchCategorizedSheetsOutputPort,
 } from "../../application/usecases/FetchCategorizedSheetsInteractor";
 import type { EmployeeRepository } from "../../domain/repositories/EmployeeRepository";
+import { requireCurrentEmployeeId } from "./currentEmployee";
 
 export class SheetListController {
 	constructor(
@@ -27,10 +28,11 @@ export class SheetListController {
 	}
 
 	async exportSheet(sheetId: number, employeeId: number, periodId: number): Promise<void> {
-		const { data: currentEmployeeId, error: authError } =
-			await this.employeeRepository.findCurrentEmployeeId();
-		if (authError || currentEmployeeId === null) {
-			this.presentError(authError ? `認証エラー: ${authError.message}` : "ログインが必要です。");
+		const currentEmployeeId = await requireCurrentEmployeeId(
+			this.employeeRepository,
+			this.presentError,
+		);
+		if (currentEmployeeId === null) {
 			return;
 		}
 

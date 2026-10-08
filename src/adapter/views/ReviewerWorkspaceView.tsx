@@ -25,13 +25,19 @@ import {
 	canOpen,
 	filterReviewRows,
 	finalScore,
+	gradeKey,
+	gradeOptions,
+	groupByGrade,
 	isMyTurn,
 	nextMyTurn,
+	primaryEvaluatorKey,
+	primaryEvaluatorOptions,
 	type ReviewFilter,
 	type ReviewSort,
 	reviewLabel,
 	reviewRank,
 	reviewScore,
+	reviewStats,
 	reviewTask,
 	sheetStatus,
 } from "../viewmodels/reviewerWorkspace";
@@ -123,48 +129,19 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 		sort: sort(),
 	});
 	const visible = createMemo(() => filterReviewRows(rows(), filterOptions()));
-	const grades = createMemo(() => [
-		...new Map(rows().map((row) => [String(row.gradeId ?? "unset"), row.gradeName])).entries(),
-	]);
-	const primaryEvaluators = createMemo(() => {
-		const labels = new Map<string, { id: string; name: string; count: number }>();
-		for (const row of rows()) {
-			const id = String(row.primaryEvaluatorId ?? "unassigned");
-			const label = labels.get(id) ?? { id, name: row.primaryEvaluator, count: 0 };
-			label.count += 1;
-			labels.set(id, label);
-		}
-		return [...labels.values()].sort((a, b) => a.name.localeCompare(b.name, "ja"));
-	});
+	const grades = createMemo(() => gradeOptions(rows()));
+	const primaryEvaluators = createMemo(() => primaryEvaluatorOptions(rows()));
 	const primaryEvaluatorLabel = createMemo(() =>
 		primaryEvaluators().find((label) => label.id === primaryEvaluator()),
 	);
 	const count = (task: ReviewFilter) => rows().filter((row) => reviewTask(row) === task).length;
-	// 自分に関係のある段階だけを見せる。一次評価しか担当しない人に「二次評価する 0」は出さない。
-	const stats = createMemo(() =>
-		(
-			[
-				["all", "全員", rows().length, true],
-				["first", "一次評価する", count("first"), rows().some((row) => row.isPrimary)],
-				["second", "二次評価する", count("second"), rows().some((row) => row.canViewSecond)],
-				["waiting", "提出・相手の評価待ち", count("waiting"), true],
-				["finalized", "評価確定", count("finalized"), true],
-			] as const
-		).filter(([, , , shown]) => shown),
-	);
+	const stats = createMemo(() => reviewStats(rows()));
 	const next = createMemo(() => nextMyTurn(visible(), current()?.employeeId));
 	const detailedComparison = () => params.detail === "1" && selected().size > 0;
 	const comparisonRows = createMemo(() =>
 		detailedComparison() ? visible().filter((row) => selected().has(row.employeeId)) : visible(),
 	);
-	const groups = createMemo(() => {
-		const grouped = new Map<string, ReviewerRowDto[]>();
-		for (const row of comparisonRows()) {
-			const key = String(row.gradeId ?? "unset");
-			grouped.set(key, [...(grouped.get(key) ?? []), row]);
-		}
-		return [...grouped.values()];
-	});
+	const groups = createMemo(() => groupByGrade(comparisonRows()));
 	const mutationBusy = () => refreshing() || loading() || editorSaving();
 	const currentSheetId = createMemo(() => current()?.sheetId);
 	const editorIdentity = createMemo(() => ({
@@ -188,13 +165,9 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 			}
 			setRows(loaded);
 			setPrimaryEvaluator((previous) =>
-				loaded.some((row) => String(row.primaryEvaluatorId ?? "unassigned") === previous)
-					? previous
-					: "",
+				loaded.some((row) => primaryEvaluatorKey(row) === previous) ? previous : "",
 			);
-			setGrade((previous) =>
-				loaded.some((row) => String(row.gradeId ?? "unset") === previous) ? previous : "",
-			);
+			setGrade((previous) => (loaded.some((row) => gradeKey(row) === previous) ? previous : ""));
 			setSyncedAt(new Date().toISOString());
 			setSelected(
 				(previous) =>

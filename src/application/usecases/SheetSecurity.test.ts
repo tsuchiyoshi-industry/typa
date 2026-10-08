@@ -93,7 +93,17 @@ describe("sheet reading and confidentiality", () => {
 		).rejects.toThrow("権限");
 		expect(common.findResultsBySheetId).not.toHaveBeenCalled();
 	});
-	it.each([2, 3])("uses subject grade and masks common secondary scores for %s", async (id) => {
+	it("lists the common evaluation items of the grade held when the sheet was created", async () => {
+		const { sheets, common } = setup();
+		sheets.findById.mockResolvedValue(sheet(EvaluationStatus.SUBMITTED, 3));
+		await new LoadCommonEvaluationInteractor(common, sheets).execute(
+			{ sheetId: 100, gradeId: 99, currentEmployeeId: 2 },
+			output(),
+		);
+		// 社員の今の等級(5)でも、画面から渡された値(99)でもない
+		expect(common.findResultsBySheetId).toHaveBeenCalledWith(100, 3);
+	});
+	it.each([2, 3])("uses the sheet grade and masks common secondary scores for %s", async (id) => {
 		const { sheets, common } = setup();
 		const out = output<import("./LoadCommonEvaluationInteractor").LoadCommonEvaluationResponse>();
 		await new LoadCommonEvaluationInteractor(common, sheets).execute(

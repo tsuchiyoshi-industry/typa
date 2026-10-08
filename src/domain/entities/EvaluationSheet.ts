@@ -8,6 +8,28 @@ import type { Employee } from "./Employee";
 import type { EvaluationPeriod } from "./EvaluationPeriod";
 import type { Milestone } from "./Milestone";
 
+/** DB に保存された集計値と配点。点数を保存したときの項目・満点・配点で計算したもの。 */
+export interface StoredSheetScores {
+	objectivesFirstTotalScore?: number | null;
+	objectivesFirstTotalRate?: number | null;
+	objectivesSecondTotalScore?: number | null;
+	objectivesSecondTotalRate?: number | null;
+	commonEvaluationFirstTotalScore?: number | null;
+	commonEvaluationFirstTotalRate?: number | null;
+	commonEvaluationSecondTotalScore?: number | null;
+	commonEvaluationSecondTotalRate?: number | null;
+	objectivesSecondEvaluationScore?: number | null;
+	commonEvaluationSecondEvaluationScore?: number | null;
+	totalEvaluationScore?: number | null;
+	objectiveAllocation?: number | null;
+	commonAllocation?: number | null;
+}
+
+type CreateParams = Parameters<typeof EvaluationSheet.create>[0];
+
+const anyStored = (...values: (number | null | undefined)[]) =>
+	values.some((value) => value != null);
+
 export class EvaluationSheet {
 	constructor(
 		public readonly sheetId: number,
@@ -28,6 +50,11 @@ export class EvaluationSheet {
 		public readonly firstEvaluationRank?: EvaluationRank,
 		/** 評価点の配点。確定済みのシートは確定時の配点、それ以外は現在の設定。 */
 		public readonly allocation: EvaluationAllocation = EvaluationAllocation.DEFAULT,
+		/**
+		 * シートを作成したときの等級。共通評価の項目と帳票の等級はこれで決まり、その後に社員の等級が
+		 * 変わっても変わらない。未設定の社員のシートは null。
+		 */
+		public readonly gradeId: number | null = null,
 	) {}
 
 	static create(params: {
@@ -47,6 +74,8 @@ export class EvaluationSheet {
 		finalEvaluationRank?: EvaluationRank;
 		firstEvaluationRank?: EvaluationRank;
 		allocation?: EvaluationAllocation;
+		/** 省略すると、社員の今の等級(新しく作るシートと同じ)。 */
+		gradeId?: number | null;
 	}): EvaluationSheet {
 		const commonEvaluationResults = params.commonEvaluationResults ?? [];
 		const objectiveScoreTotals =
@@ -77,7 +106,89 @@ export class EvaluationSheet {
 			params.finalEvaluationRank,
 			params.firstEvaluationRank,
 			params.allocation,
+			params.gradeId === undefined ? params.subject.gradeId : params.gradeId,
 		);
+	}
+
+	/**
+	 * 確定済みのシートは確定時の配点を使い、後から設定を変えても確定した評価点と食い違わないようにする。
+	 * undefined のときは、現在の設定の配点で計算する。
+	 */
+	static storedAllocation(
+		status: EvaluationStatus,
+		stored: StoredSheetScores,
+	): EvaluationAllocation | undefined {
+		return status.isFinalized() &&
+			stored.objectiveAllocation != null &&
+			stored.commonAllocation != null
+			? EvaluationAllocation.of(stored.objectiveAllocation, stored.commonAllocation)
+			: undefined;
+	}
+
+	/**
+	 * 保存されたシートを復元する。保存されている合計・得点率・評価点は、点数を保存したときの項目・満点で
+	 * 計算したもの。等級や項目が変わると実際の点数と食い違うので、確定済みのシートだけがそれを使う
+	 * (満点は渡さず、保存時の得点率で換算する)。未確定のシートは、いまの点数と評価者設定から計算し直す。
+	 */
+	static restore(
+		params: Omit<
+			CreateParams,
+			"objectiveScoreTotals" | "commonEvaluationScoreTotals" | "allocatedScores" | "status"
+		> & { status: EvaluationStatus; stored: StoredSheetScores },
+	): EvaluationSheet {
+		const { stored, ...rest } = params;
+		const finalized = params.status.isFinalized();
+		return EvaluationSheet.create({
+			...rest,
+			objectiveScoreTotals:
+				finalized &&
+				anyStored(
+					stored.objectivesFirstTotalScore,
+					stored.objectivesFirstTotalRate,
+					stored.objectivesSecondTotalScore,
+					stored.objectivesSecondTotalRate,
+				)
+					? EvaluationScoreTotals.fromValues({
+							firstTotalScore: stored.objectivesFirstTotalScore,
+							firstTotalRate: stored.objectivesFirstTotalRate,
+							secondTotalScore: stored.objectivesSecondTotalScore,
+							secondTotalRate: stored.objectivesSecondTotalRate,
+						})
+					: undefined,
+			commonEvaluationScoreTotals:
+				finalized &&
+				anyStored(
+					stored.commonEvaluationFirstTotalScore,
+					stored.commonEvaluationFirstTotalRate,
+					stored.commonEvaluationSecondTotalScore,
+					stored.commonEvaluationSecondTotalRate,
+				)
+					? EvaluationScoreTotals.fromValues({
+							firstTotalScore: stored.commonEvaluationFirstTotalScore,
+							firstTotalRate: stored.commonEvaluationFirstTotalRate,
+							secondTotalScore: stored.commonEvaluationSecondTotalScore,
+							secondTotalRate: stored.commonEvaluationSecondTotalRate,
+						})
+					: undefined,
+			// 確定済みは確定時の保存値を使い、その後の評価者の付け替えに左右されないようにする
+			allocatedScores:
+				finalized &&
+				anyStored(
+					stored.objectivesSecondEvaluationScore,
+					stored.commonEvaluationSecondEvaluationScore,
+					stored.totalEvaluationScore,
+				)
+					? EvaluationAllocatedScores.fromValues({
+							objectiveSecondRate: stored.objectivesSecondTotalRate,
+							objectiveEvaluationScore: stored.objectivesSecondEvaluationScore,
+							commonEvaluationSecondRate: stored.commonEvaluationSecondTotalRate,
+							commonEvaluationEvaluationScore: stored.commonEvaluationSecondEvaluationScore,
+							totalEvaluationScore: stored.totalEvaluationScore,
+							allocation: params.allocation,
+						})
+					: undefined,
+			status: params.status,
+		});
 	}
 
 	/** 二次評価者「なし」の社員は、一次評価者が最終評価者を兼ねる。 */

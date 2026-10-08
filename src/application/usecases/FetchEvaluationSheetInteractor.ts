@@ -72,7 +72,7 @@ export class FetchEvaluationSheetInteractor
 		if (!policy.canViewSheet()) {
 			throw new Error("評価シートを閲覧する権限がありません。");
 		}
-		const gradeName = await this.employeeRepository.findGradeName(sheet.subject.gradeId);
+		const gradeName = await this.employeeRepository.findGradeName(sheet.gradeId);
 		outputPort.present(toEvaluationSheetDto(sheet, gradeName, policy));
 	}
 }

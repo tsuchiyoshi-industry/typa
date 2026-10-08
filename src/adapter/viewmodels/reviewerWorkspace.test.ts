@@ -4,10 +4,14 @@ import {
 	canOpen,
 	filterReviewRows,
 	finalScore,
+	gradeOptions,
+	groupByGrade,
 	nextMyTurn,
+	primaryEvaluatorOptions,
 	reviewLabel,
 	reviewRank,
 	reviewScore,
+	reviewStats,
 	reviewTask,
 } from "./reviewerWorkspace";
 
@@ -126,4 +130,77 @@ it("filters primary evaluator by ID even when people share the same name", () =>
 			(row) => row.employeeId,
 		),
 	).toEqual([3]);
+});
+
+it("offers unset grades and unassigned primary evaluators as their own choices", () => {
+	const rows = [
+		reviewerRow(1),
+		reviewerRow(2, {
+			gradeId: null,
+			gradeName: "未設定",
+			primaryEvaluatorId: null,
+			primaryEvaluator: "未設定",
+		}),
+		reviewerRow(3, { primaryEvaluator: "井上 部長", primaryEvaluatorId: 9 }),
+		reviewerRow(4),
+	];
+	expect(gradeOptions(rows)).toEqual([
+		["1", "技術1級"],
+		["unset", "未設定"],
+	]);
+	expect(primaryEvaluatorOptions(rows)).toEqual([
+		{ id: "9", name: "井上 部長", count: 1 },
+		{ id: "2", name: "一次 太郎", count: 2 },
+		{ id: "unassigned", name: "未設定", count: 1 },
+	]);
+	// 選択肢のキーで、そのまま一覧を絞り込める
+	const unassigned = filterReviewRows(rows, {
+		query: "",
+		grade: "unset",
+		primaryEvaluator: "unassigned",
+		filter: "all",
+		sort: "name",
+	});
+	expect(unassigned.map((row) => row.employeeId)).toEqual([2]);
+});
+
+it("counts only the stages the reviewer takes part in", () => {
+	const secondOnly = [
+		reviewerRow(1),
+		reviewerRow(2, { status: "finalized" }),
+		reviewerRow(3, { status: "submitted", canViewSecond: true }),
+	];
+	expect(reviewStats(secondOnly)).toEqual([
+		["all", "全員", 3],
+		["second", "二次評価する", 1],
+		["waiting", "提出・相手の評価待ち", 1],
+		["finalized", "評価確定", 1],
+	]);
+	const firstOnly = [reviewerRow(1, { ...submittedToPrimary, canViewSecond: false })];
+	expect(reviewStats(firstOnly).map(([key]) => key)).toEqual([
+		"all",
+		"first",
+		"waiting",
+		"finalized",
+	]);
+	expect(reviewStats([]).map(([key, , total]) => [key, total])).toEqual([
+		["all", 0],
+		["waiting", 0],
+		["finalized", 0],
+	]);
+});
+
+it("splits the comparison by grade and keeps the list order", () => {
+	const rows = [
+		reviewerRow(1),
+		reviewerRow(2, { gradeId: 2 }),
+		reviewerRow(3),
+		reviewerRow(4, { gradeId: null }),
+	];
+	expect(groupByGrade(rows).map((group) => group.map((row) => row.employeeId))).toEqual([
+		[1, 3],
+		[2],
+		[4],
+	]);
+	expect(groupByGrade([])).toEqual([]);
 });

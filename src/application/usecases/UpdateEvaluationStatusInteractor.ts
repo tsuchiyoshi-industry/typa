@@ -82,7 +82,7 @@ export class UpdateEvaluationStatusInteractor
 				: {}),
 			...(newStatus.isFinalized() ? { final: sheet.resolveFinalEvaluationRank() } : {}),
 		});
-		const gradeName = await this.employeeRepository.findGradeName(updated.subject.gradeId);
+		const gradeName = await this.employeeRepository.findGradeName(updated.gradeId);
 
 		const notificationWarning = await this.notify(updated);
 

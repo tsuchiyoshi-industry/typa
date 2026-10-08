@@ -3,6 +3,7 @@ import type {
 	UpdateMilestoneOutputPort,
 } from "../../application/usecases/UpdateMilestoneInteractor";
 import type { EmployeeRepository } from "../../domain/repositories/EmployeeRepository";
+import { requireCurrentEmployeeId } from "./currentEmployee";
 
 export class ChallengeEvaluationController {
 	constructor(
@@ -12,14 +13,8 @@ export class ChallengeEvaluationController {
 		private readonly employeeRepository: EmployeeRepository,
 	) {}
 
-	private async requireCurrentEmployeeId(): Promise<number | null> {
-		const { data: currentEmployeeId, error } =
-			await this.employeeRepository.findCurrentEmployeeId();
-		if (error || currentEmployeeId === null) {
-			this.presentUpdateError(error ? `認証エラー: ${error.message}` : "ログインが必要です。");
-			return null;
-		}
-		return currentEmployeeId;
+	private requireCurrentEmployeeId(): Promise<number | null> {
+		return requireCurrentEmployeeId(this.employeeRepository, this.presentUpdateError);
 	}
 
 	async updateText(

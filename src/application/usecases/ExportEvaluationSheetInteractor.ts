@@ -1,3 +1,4 @@
+import type { EmployeeRepository } from "../../domain/repositories/EmployeeRepository";
 import type { EvaluationSheetRepository } from "../../domain/repositories/EvaluationSheetRepository";
 import { EvaluationSheetAccessPolicy } from "../../domain/services/EvaluationSheetAccessPolicy";
 import type { ExportSheetOutputDto, ExportSheetRequestDto } from "../dtos/ExportSheetDto";
@@ -13,6 +14,7 @@ export class ExportEvaluationSheetInteractor
 {
 	constructor(
 		private readonly sheetRepository: EvaluationSheetRepository,
+		private readonly employeeRepository: EmployeeRepository,
 		private readonly pdfGateway: SheetPdfGateway,
 	) {}
 
@@ -44,16 +46,9 @@ export class ExportEvaluationSheetInteractor
 				return;
 			}
 
-			// ② シートの出力用定型情報を取得し、一次評価者向けには二次評価の内容を伏せる
-			const rawExportData = await this.sheetRepository.findExportData(request.sheetId);
-			if (!rawExportData) {
-				presenter.present({
-					success: false,
-					message: "評価シートが見つかりませんでした",
-				});
-				return;
-			}
-			const exportData = toSheetExportDataDto(rawExportData, policy.canExportSecondEvaluation());
+			// ② 画面と同じシートから帳票のデータを作り、一次評価者向けには二次評価の内容を伏せる
+			const gradeName = await this.employeeRepository.findGradeName(sheet.gradeId);
+			const exportData = toSheetExportDataDto(sheet, gradeName, policy.canExportSecondEvaluation());
 
 			// ③ 保存先を選択するダイアログを表示
 			const safePart = (value: string) =>

@@ -1,7 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
+import { Employee } from "../../domain/entities/Employee";
+import { EvaluationPeriod } from "../../domain/entities/EvaluationPeriod";
+import { EvaluationSheet } from "../../domain/entities/EvaluationSheet";
 import { EvaluationStatus } from "../../domain/valueObjects/EvaluationStatus";
-import { exportData } from "../../test/exportFixture";
-import { output, sheetRepository as repositoryWithSheet, sheet } from "../../test/fixtures";
+import {
+	employee,
+	employeeRepository,
+	milestone,
+	output,
+	sheetRepository as repositoryWithSheet,
+	sheet,
+} from "../../test/fixtures";
 import type { SheetPdfGateway } from "../ports/SheetPdfGateway";
 import { ExportEvaluationSheetInteractor } from "./ExportEvaluationSheetInteractor";
 
@@ -17,6 +26,8 @@ const sheetRepository = (status = EvaluationStatus.FINALIZED) => {
 	repo.findById.mockResolvedValue(sheet(status));
 	return repo;
 };
+const interactor = (repo: ReturnType<typeof sheetRepository>, pdf: ReturnType<typeof gateway>) =>
+	new ExportEvaluationSheetInteractor(repo, employeeRepository(), pdf);
 const gateway = () => ({
 	selectDestination: vi
 		.fn<SheetPdfGateway["selectDestination"]>()
@@ -29,8 +40,7 @@ describe("PDF use case with an injected gateway", () => {
 		const repo = sheetRepository(),
 			pdf = gateway(),
 			out = output<never>();
-		await new ExportEvaluationSheetInteractor(repo, pdf).execute(request(id), out);
-		expect(repo.findExportData).not.toHaveBeenCalled();
+		await interactor(repo, pdf).execute(request(id), out);
 		expect(pdf.selectDestination).not.toHaveBeenCalled();
 		expect(pdf.generate).not.toHaveBeenCalled();
 		expect(out.present).toHaveBeenCalledWith(expect.objectContaining({ success: false }));
@@ -42,8 +52,7 @@ describe("PDF use case with an injected gateway", () => {
 				const repo = sheetRepository(status),
 					pdf = gateway(),
 					out = output<never>();
-				await new ExportEvaluationSheetInteractor(repo, pdf).execute(request(id), out);
-				expect(repo.findExportData).not.toHaveBeenCalled();
+				await interactor(repo, pdf).execute(request(id), out);
 				expect(pdf.selectDestination).not.toHaveBeenCalled();
 				expect(out.present).toHaveBeenCalledWith(expect.objectContaining({ success: false }));
 			}
@@ -53,38 +62,47 @@ describe("PDF use case with an injected gateway", () => {
 		const repo = sheetRepository(),
 			pdf = gateway(),
 			out = output<never>();
-		repo.findExportData.mockResolvedValue(exportData());
-		await new ExportEvaluationSheetInteractor(repo, pdf).execute(request(id), out);
+		await interactor(repo, pdf).execute(request(id), out);
 		const data = pdf.generate.mock.calls[0][0];
-		expect(data).not.toHaveProperty("totalScore");
-		const mask = (value: string) => (id === 3 ? value : "*");
+		const scores = sheet(EvaluationStatus.FINALIZED).allocatedScores;
+		const mask = (value: string | number) => (id === 3 ? String(value) : "*");
 		expect(data).toMatchObject({
-			finalEvaluationRank: mask("A＋"),
+			finalEvaluationRank: mask("A+"),
 			secondOverallComment: mask("二次総評"),
-			objectiveSecondRate: mask("100"),
-			objectiveEvaluationScore: mask("20"),
-			commonEvaluationSecondRate: mask("100"),
-			commonEvaluationEvaluationScore: mask("80"),
-			totalEvaluationScore: mask("100"),
+			objectiveSecondRate: mask(scores.objectiveSecondRate),
+			objectiveEvaluationScore: mask(scores.objectiveEvaluationScore),
+			commonEvaluationSecondRate: mask(scores.commonEvaluationSecondRate),
+			commonEvaluationEvaluationScore: mask(scores.commonEvaluationEvaluationScore),
+			totalEvaluationScore: mask(scores.totalEvaluationScore),
 			firstOverallComment: "一次総評",
 		});
-		expect(data.objectives[0].evaluatorScore).toBe(mask("4"));
-		expect(data.commonEvaluations[0]).toMatchObject({
-			evaluatorScore: mask("5"),
-			evaluatorComment: mask("二次コメント"),
-		});
+		expect(data.objectives[0].evaluatorScore).toBe(mask(4));
+		expect(data.commonEvaluations[0].evaluatorScore).toBe(mask(4));
 		expect(out.present).toHaveBeenCalledWith(
 			expect.objectContaining({ success: true, fileName: "C:\\test\\sheet.pdf" }),
 		);
 	});
-	it.each(["sheet", "exportData"])("missing %s never opens a dialog", async (kind) => {
+	it("prints the grade held when the sheet was created, not the employee's current grade", async () => {
+		// 等級 3 のときに作ったシートを、等級 5 に上がったあとで出力する
+		const repo = repositoryWithSheet(),
+			employees = employeeRepository(),
+			pdf = gateway();
+		repo.findById.mockResolvedValue(sheet(EvaluationStatus.FINALIZED, 3));
+		employees.findGradeName.mockImplementation(async (id) => (id === 3 ? "技術3級" : "技術5級"));
+		await new ExportEvaluationSheetInteractor(repo, employees, pdf).execute(
+			request(2),
+			output<never>(),
+		);
+		expect(employee().gradeId).toBe(5);
+		expect(employees.findGradeName).toHaveBeenCalledWith(3);
+		expect(pdf.generate.mock.calls[0][0].gradeName).toBe("技術3級");
+	});
+	it("missing sheet never opens a dialog", async () => {
 		const repo = sheetRepository(),
 			pdf = gateway(),
 			out = output<never>();
-		if (kind === "sheet") {
-			repo.findById.mockResolvedValue(null);
-		}
-		await new ExportEvaluationSheetInteractor(repo, pdf).execute(request(2), out);
+		repo.findById.mockResolvedValue(null);
+		await interactor(repo, pdf).execute(request(2), out);
 		expect(pdf.selectDestination).not.toHaveBeenCalled();
 		expect(out.present).toHaveBeenCalledWith(expect.objectContaining({ success: false }));
 	});
@@ -92,9 +110,8 @@ describe("PDF use case with an injected gateway", () => {
 		const repo = sheetRepository(),
 			pdf = gateway(),
 			out = output<never>();
-		repo.findExportData.mockResolvedValue(exportData());
 		pdf.selectDestination.mockResolvedValue(null);
-		await new ExportEvaluationSheetInteractor(repo, pdf).execute(request(2), out);
+		await interactor(repo, pdf).execute(request(2), out);
 		expect(pdf.generate).not.toHaveBeenCalled();
 		expect(out.present).not.toHaveBeenCalled();
 	});
@@ -105,9 +122,8 @@ describe("PDF use case with an injected gateway", () => {
 			const repo = sheetRepository(),
 				pdf = gateway(),
 				out = output<never>();
-			repo.findExportData.mockResolvedValue(exportData());
 			pdf.generate.mockRejectedValue(error);
-			await new ExportEvaluationSheetInteractor(repo, pdf).execute(request(2), out);
+			await interactor(repo, pdf).execute(request(2), out);
 			expect(out.present).toHaveBeenCalledWith({
 				success: false,
 				message: "PDF生成エラー: compile failed",
@@ -122,7 +138,7 @@ describe("PDF use case with an injected gateway", () => {
 				pdf = gateway(),
 				out = output<never>();
 			repo.findById.mockRejectedValue(error);
-			await new ExportEvaluationSheetInteractor(repo, pdf).execute(request(2), out);
+			await interactor(repo, pdf).execute(request(2), out);
 			expect(out.present).toHaveBeenCalledWith(expect.objectContaining({ success: false }));
 			expect(pdf.generate).not.toHaveBeenCalled();
 		},
@@ -130,12 +146,18 @@ describe("PDF use case with an injected gateway", () => {
 	it("sanitizes database-supplied default filename", async () => {
 		const repo = sheetRepository(),
 			pdf = gateway();
-		repo.findExportData.mockResolvedValue({
-			...exportData(),
-			employeeName: "../../name",
-			periodName: "test:period",
-		});
-		await new ExportEvaluationSheetInteractor(repo, pdf).execute(request(2), output<never>());
+		repo.findById.mockResolvedValue(
+			EvaluationSheet.create({
+				sheetId: 100,
+				subject: new Employee(1, "../../name", "TEST001", 1, "技術", 5, 2, 3),
+				evaluationPeriod: new EvaluationPeriod(10, "test:period", "2026-04-01", "2026-09-30", true),
+				primaryEvaluatorName: "一次",
+				secondaryEvaluatorName: "二次",
+				objectives: [milestone()],
+				status: EvaluationStatus.FINALIZED,
+			}),
+		);
+		await interactor(repo, pdf).execute(request(2), output<never>());
 		expect(pdf.selectDestination).toHaveBeenCalledWith("評価シート_.._.._name_test_period.pdf");
 	});
 });

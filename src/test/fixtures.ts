@@ -6,6 +6,7 @@ import { EmployeeProfile } from "../domain/entities/EmployeeProfile";
 import { EvaluationPeriod } from "../domain/entities/EvaluationPeriod";
 import { EvaluationSheet } from "../domain/entities/EvaluationSheet";
 import { Milestone } from "../domain/entities/Milestone";
+import type { AuthRepository } from "../domain/repositories/AuthRepository";
 import type { CommonEvaluationRepository } from "../domain/repositories/CommonEvaluationRepository";
 import type { EmployeeMasterRepository } from "../domain/repositories/EmployeeMasterRepository";
 import type { EmployeeRepository } from "../domain/repositories/EmployeeRepository";
@@ -59,7 +60,8 @@ export const commonResult = () =>
 		firstComment: "一次コメント",
 		item: new CommonEvaluationItem(31, "共通項目", "説明", 5, 5),
 	});
-export const sheet = (status = EvaluationStatus.SUBMITTED) =>
+/** gradeId: シート作成時の等級。省略すると社員の今の等級(5)。 */
+export const sheet = (status = EvaluationStatus.SUBMITTED, gradeId?: number | null) =>
 	EvaluationSheet.create({
 		sheetId: 100,
 		subject: employee(),
@@ -72,6 +74,7 @@ export const sheet = (status = EvaluationStatus.SUBMITTED) =>
 		commonEvaluationResults: [commonResult()],
 		status,
 		finalEvaluationRank: EvaluationRank.from("A", "plus"),
+		gradeId,
 	});
 export const output = <T>() => ({ present: vi.fn<(response: T) => void>() });
 
@@ -92,7 +95,6 @@ export function sheetRepository() {
 		findByEmployeeIds: vi
 			.fn<EvaluationSheetRepository["findByEmployeeIds"]>()
 			.mockResolvedValue([]),
-		findExportData: vi.fn<EvaluationSheetRepository["findExportData"]>().mockResolvedValue(null),
 	} satisfies EvaluationSheetRepository;
 }
 export function employeeRepository() {
@@ -172,4 +174,19 @@ export function masterRepository() {
 			.fn<EmployeeMasterRepository["resetRegistrationByEmployeeNo"]>()
 			.mockResolvedValue(true),
 	} satisfies EmployeeMasterRepository;
+}
+export function authRepository() {
+	return {
+		getSession: vi.fn<AuthRepository["getSession"]>().mockResolvedValue(null),
+		onAuthStateChange: vi.fn<AuthRepository["onAuthStateChange"]>().mockReturnValue(() => {}),
+		signInWithPassword: vi
+			.fn<AuthRepository["signInWithPassword"]>()
+			.mockResolvedValue({ userId: "auth-user", error: null }),
+		sendEmailCode: vi.fn<AuthRepository["sendEmailCode"]>().mockResolvedValue({ error: null }),
+		verifyEmailCode: vi.fn<AuthRepository["verifyEmailCode"]>().mockResolvedValue({ error: null }),
+		signUp: vi
+			.fn<AuthRepository["signUp"]>()
+			.mockResolvedValue({ status: "created", userId: "auth-user" }),
+		signOut: vi.fn<AuthRepository["signOut"]>().mockResolvedValue(undefined),
+	} satisfies AuthRepository;
 }

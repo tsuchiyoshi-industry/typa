@@ -51,7 +51,7 @@ export class UpdateOverallCommentInteractor
 			request.target,
 			request.comment,
 		);
-		const gradeName = await this.employeeRepository.findGradeName(updated.subject.gradeId);
+		const gradeName = await this.employeeRepository.findGradeName(updated.gradeId);
 
 		outputPort.present({ sheet: toEvaluationSheetDto(updated, gradeName, policy) });
 	}

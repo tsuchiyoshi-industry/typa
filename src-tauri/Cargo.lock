@@ -5487,7 +5487,7 @@ dependencies = [
 
 [[package]]
 name = "typa"
-version = "0.9.6"
+version = "0.9.7"
 dependencies = [
  "lettre",
  "serde",

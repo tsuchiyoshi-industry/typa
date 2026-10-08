@@ -31,9 +31,9 @@ export function canEditSettings(role: EmployeeRole): boolean {
 }
 
 /**
- * 全社員の評価シートを、一覧も内容(目標・点数・コメント・評価ランク)も見られるのは Admin だけ。
- * できるのは閲覧と確定済みシートの出力まで。記入・評価・提出・確定は、Admin でも
- * そのシートの本人・評価者でなければできない(EvaluationSheetAccessPolicy)。
+ * 全社員の評価シートを一覧で見て、PDF に出せるのは Admin だけ。一覧には進み具合と評価者、
+ * 確定した結果が、PDF にはさらに段ごとのランクと総評が載る。
+ * 評価シートそのものを開けるのは、Admin でも、そのシートの本人・評価者だけ(EvaluationSheetAccessPolicy)。
  */
 export function canViewAllSheets(role: EmployeeRole): boolean {
 	return resolveEmployeeMasterMode(role) === "admin";

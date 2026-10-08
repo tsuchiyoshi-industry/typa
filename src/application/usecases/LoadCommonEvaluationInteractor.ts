@@ -1,5 +1,4 @@
 import type { CommonEvaluationRepository } from "../../domain/repositories/CommonEvaluationRepository";
-import type { EmployeeRepository } from "../../domain/repositories/EmployeeRepository";
 import type { EvaluationSheetRepository } from "../../domain/repositories/EvaluationSheetRepository";
 import { EvaluationSheetAccessPolicy } from "../../domain/services/EvaluationSheetAccessPolicy";
 import type { CommonEvaluationSummaryDto } from "../dtos/CommonEvaluationDto";
@@ -22,7 +21,6 @@ export class LoadCommonEvaluationInteractor
 	constructor(
 		private readonly commonEvaluationRepository: CommonEvaluationRepository,
 		private readonly evaluationSheetRepository: EvaluationSheetRepository,
-		private readonly employeeRepository: EmployeeRepository,
 	) {}
 
 	async execute(
@@ -33,11 +31,7 @@ export class LoadCommonEvaluationInteractor
 		if (!sheet) {
 			throw new Error("評価シートが見つかりません。");
 		}
-		const policy = EvaluationSheetAccessPolicy.for(
-			request.currentEmployeeId,
-			sheet,
-			await this.employeeRepository.findRole(request.currentEmployeeId),
-		);
+		const policy = EvaluationSheetAccessPolicy.for(request.currentEmployeeId, sheet);
 		if (!policy.canViewCommonEvaluation()) {
 			throw new Error("共通評価を閲覧する権限がありません。");
 		}

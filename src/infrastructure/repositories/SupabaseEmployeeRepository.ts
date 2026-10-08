@@ -1,6 +1,5 @@
 import { Employee } from "../../domain/entities/Employee";
 import type { EmployeeRepository } from "../../domain/repositories/EmployeeRepository";
-import { EmployeeRole } from "../../domain/valueObjects/EmployeeRole";
 import { supabase } from "../db/supabase";
 
 export class SupabaseEmployeeRepository implements EmployeeRepository {
@@ -90,24 +89,6 @@ export class SupabaseEmployeeRepository implements EmployeeRepository {
 			employee.secondary_evaluator_id,
 			employee.no_secondary_evaluator ?? false,
 		);
-	}
-
-	async findRole(employeeId: number): Promise<EmployeeRole> {
-		const { data: employee } = await supabase
-			.from("employees")
-			.select("role_id")
-			.eq("id", employeeId)
-			.maybeSingle();
-		const roleId = (employee as { role_id: number | null } | null)?.role_id;
-		if (roleId == null) {
-			return EmployeeRole.EMPLOYEE;
-		}
-		const { data: role } = await supabase
-			.from("roles")
-			.select("role_name")
-			.eq("id", roleId)
-			.maybeSingle();
-		return EmployeeRole.fromStored((role as { role_name: string } | null)?.role_name);
 	}
 
 	async findEvaluatorNames(

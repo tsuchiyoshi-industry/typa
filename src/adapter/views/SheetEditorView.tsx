@@ -644,15 +644,7 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 
 	return (
 		<div class="dashboard-page" classList={{ "review-editor": props.embedded }}>
-			{/* 「部下の評価」に並ぶのは、自分が評価者のシートだけ。Admin として見ているだけのシートには出さない */}
-			<Show
-				when={
-					!props.embedded &&
-					!isNew() &&
-					viewModel().canViewCommonEvaluation &&
-					!viewModel().viewingAsAdmin
-				}
-			>
+			<Show when={!props.embedded && !isNew() && viewModel().canViewCommonEvaluation}>
 				<A
 					class="review-editor-entry"
 					href={`/review?period=${sheet()?.evaluationPeriod?.id}&sheet=${sheetId()}&mode=evaluate`}
@@ -711,11 +703,6 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 					>
 						{(subject) => (
 							<>
-								<Show when={viewModel().viewingAsAdmin}>
-									<p class="info-message">
-										Admin として閲覧しています。記入・評価・確定は、本人と評価者だけが行えます。
-									</p>
-								</Show>
 								<ProfileCards />
 								<EvaluationRankSection />
 								<Show when={pendingEvaluationItems().length > 0}>

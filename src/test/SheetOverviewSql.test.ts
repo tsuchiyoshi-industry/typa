@@ -7,6 +7,7 @@ const migration = (file: string) =>
 	readFileSync(new URL(`../../supabase/migrations/${file}`, import.meta.url), "utf8");
 const overviewMigration = migration("202610080016_sheet_overview.sql");
 const evaluationsMigration = migration("202610080017_sheet_overview_evaluations.sql");
+const dropPoliciesMigration = migration("202610080018_drop_admin_sheet_read_policies.sql");
 const uid = (id: number) => `00000000-0000-0000-0000-${String(id).padStart(12, "0")}`;
 /** 1: Admin, 2: Reviewer(社員3・4 の一次評価者), 3・4: Employee */
 const login = async (id: number) => {
@@ -60,6 +61,9 @@ beforeAll(async () => {
 	// 一覧の帳票に載せるランクと総評を足した版に置き換える(引数が同じなので、関数は1つのまま)
 	await db.exec(evaluationsMigration);
 	await db.exec(evaluationsMigration);
+	// 016 が足した「Admin はシートの表を直接読める」ポリシーは、018 で外す
+	await db.exec(dropPoliciesMigration);
+	await db.exec(dropPoliciesMigration);
 	await db.exec(`reset role; set session_replication_role = replica;
 		update public.evaluation_sheets set first_rank = 'B', second_overall_comment = '二次の根拠' where id = 100;
 		update public.evaluation_sheets set first_rank = 'B-', first_overall_comment = '一次の途中' where id = 202;
@@ -127,47 +131,18 @@ it("refuses the overview to everyone but an Admin, including an evaluator of the
 	await expect(overview()).rejects.toMatchObject(denied);
 });
 
-it("lets an Admin read every sheet with its goals and common results, and change none of them", async () => {
-	const ids = async (table: string) =>
-		(await db.query<{ id: number }>(`select id from public.${table} order by id`)).rows.map((row) =>
-			Number(row.id),
-		);
-	expect(await ids("evaluation_sheets")).toEqual([100, 200, 201, 202]);
-	expect(await ids("milestones")).toEqual([11, 21]);
-	expect(await ids("common_evaluation_results")).toEqual([31, 41]);
-
-	// 読めるだけ。実施中の期間のシートでも、Admin であることでは書き換えられない
-	for (const change of [
-		"update public.evaluation_sheets set status = 'finalized' where id = 201 returning id",
-		"delete from public.evaluation_sheets where id = 201 returning id",
-		"update public.milestones set first_score = 4 where sheet_id = 201 returning id",
-		"delete from public.milestones where sheet_id = 201 returning id",
-		"update public.common_evaluation_results set first_score = 4 where sheet_id = 201 returning id",
-		"delete from public.common_evaluation_results where sheet_id = 201 returning id",
-	]) {
-		expect((await db.query(change)).rows, change).toEqual([]);
+it("leaves the sheet tables closed to an Admin: the overview is the only way in", async () => {
+	// 一覧(と、その PDF)は DB 関数が Admin にだけ返す
+	expect(await overview()).toHaveLength(4);
+	// 評価シートの表そのものは、Admin であることでは読めない(この表には他のポリシーがない)
+	for (const table of ["evaluation_sheets", "milestones", "common_evaluation_results"]) {
+		expect((await db.query(`select id from public.${table}`)).rows, table).toEqual([]);
 	}
-	for (const change of [
-		"insert into public.evaluation_sheets (id, period_id, employee_id, status) values (203, 26, 1, 'draft')",
-		"insert into public.milestones (id, sheet_id) values (22, 201)",
-		"insert into public.common_evaluation_results (id, sheet_id) values (42, 201)",
-	]) {
-		await expect(db.query(change), change).rejects.toMatchObject(denied);
-	}
-	expect(await ids("evaluation_sheets")).toEqual([100, 200, 201, 202]);
 	expect(
 		(
 			await db.query(
-				"select status, first_score from public.evaluation_sheets s join public.milestones m on m.sheet_id = s.id where s.id = 201",
+				"select policyname from pg_policies where schemaname = 'public' and policyname like 'Admin reads%'",
 			)
 		).rows,
-	).toEqual([{ status: "submitted", first_score: 0 }]);
-
-	// 追加したのは Admin の読み取りだけ。ほかの人が読める範囲は変わらない(この表には他のポリシーがない)
-	for (const other of [2, 3]) {
-		await login(other);
-		expect(await ids("evaluation_sheets")).toEqual([]);
-		expect(await ids("milestones")).toEqual([]);
-		expect(await ids("common_evaluation_results")).toEqual([]);
-	}
+	).toEqual([]);
 });

@@ -269,7 +269,7 @@ it("finalizes after confirmation and advances to the reviewer's next turn", asyn
 	);
 });
 it("goes to the person announced in the dialog even though confirming reorders the list", async () => {
-	// 並びは「自分の番が先」。社員2を確定すると社員2は末尾へ移り、並びだけで選ぶと先頭の社員1になる
+	// 並びは「評価が必要な順」。社員2を確定すると社員2は末尾へ移り、並びだけで選ぶと先頭の社員1になる
 	const view = setup(
 		[reviewerRow(1), reviewerRow(2), reviewerRow(3)],
 		"/review?period=10&sheet=102&mode=evaluate",

@@ -30,7 +30,7 @@ export class ExportEvaluationSheetInteractor
 		presenter: ExportEvaluationSheetOutputPort,
 	): Promise<void> {
 		try {
-			// ① 権限チェック: 本人と評価者(一次・二次)、Admin が、評価が確定したシートを出力可能
+			// ① 権限チェック: 本人と評価者(一次・二次)が、評価が確定したシートを出力可能
 			const sheet = await this.sheetRepository.findById(request.sheetId);
 			if (!sheet) {
 				presenter.present({
@@ -40,17 +40,13 @@ export class ExportEvaluationSheetInteractor
 				return;
 			}
 
-			const policy = EvaluationSheetAccessPolicy.for(
-				request.currentEmployeeId,
-				sheet,
-				await this.employeeRepository.findRole(request.currentEmployeeId),
-			);
+			const policy = EvaluationSheetAccessPolicy.for(request.currentEmployeeId, sheet);
 			if (!policy.canExportSheet()) {
 				presenter.present({
 					success: false,
 					message: policy.canViewSheet()
 						? "評価が確定したシートのみ出力できます。"
-						: "本人と評価者、Admin のみ評価シートを出力できます。",
+						: "本人と評価者のみ評価シートを出力できます。",
 				});
 				return;
 			}

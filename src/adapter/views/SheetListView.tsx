@@ -60,7 +60,7 @@ const SheetTable: Component<{
 	onExport?: (sheet: SheetSummaryDto) => void;
 	/** 見出しの右端に置く、この表に関係する画面への導線。 */
 	action?: JSX.Element;
-	/** 全社の一覧(Admin)。評価者と、確定した結果の列を足す。行からは閲覧のみでシートを開く。 */
+	/** 全社の一覧(Admin)。評価者と、確定した結果の列を足す。見るだけの表で、行からシートは開かない。 */
 	overview?: boolean;
 	/** 見出しと表の間に置くもの。 */
 	children?: JSX.Element;
@@ -138,9 +138,11 @@ const SheetTable: Component<{
 								<th>最終評価</th>
 							</Show>
 							<SortHeader field="updated" label="最終更新" />
-							<th>
-								<span class="visually-hidden">操作</span>
-							</th>
+							<Show when={!props.overview}>
+								<th>
+									<span class="visually-hidden">操作</span>
+								</th>
+							</Show>
 						</tr>
 					</thead>
 					<tbody>
@@ -157,10 +159,17 @@ const SheetTable: Component<{
 									</A>
 								);
 								return (
-									<tr class="sheet-row" onClick={() => navigate(`/sheet/${sheet.id}`)}>
+									<tr
+										classList={{ "sheet-row": !props.overview }}
+										onClick={props.overview ? undefined : () => navigate(`/sheet/${sheet.id}`)}
+									>
 										<Show when={props.showName}>
 											<td>
-												{link(sheet.employeeName)}
+												{props.overview ? (
+													<span class="sheet-row__link">{sheet.employeeName}</span>
+												) : (
+													link(sheet.employeeName)
+												)}
 												<span class="sheet-row__sub">{sheet.employeeNo}</span>
 											</td>
 										</Show>
@@ -182,29 +191,33 @@ const SheetTable: Component<{
 											</td>
 										</Show>
 										<td class="sheet-row__date">{formatDateTime(sheet.updatedAt)}</td>
-										<td class="action-buttons">
-											<Show when={props.onExport}>
-												{/* 確定前は、押せないボタンではなく理由をそのまま書く(ツールチップには気づきにくい) */}
-												<Show
-													when={isFinalized(sheet)}
-													fallback={<span class="export-hint">確定後に PDF 出力</span>}
-												>
-													<button
-														type="button"
-														class="export-button"
-														onClick={(event) => {
-															event.stopPropagation();
-															props.onExport?.(sheet);
-														}}
-														disabled={props.exportingId != null}
+										<Show when={!props.overview}>
+											<td class="action-buttons">
+												<Show when={props.onExport}>
+													{/* 確定前は、押せないボタンではなく理由をそのまま書く(ツールチップには気づきにくい) */}
+													<Show
+														when={isFinalized(sheet)}
+														fallback={<span class="export-hint">確定後に PDF 出力</span>}
 													>
-														<Download size={16} />
-														<span>{props.exportingId === sheet.id ? "出力中..." : "PDF出力"}</span>
-													</button>
+														<button
+															type="button"
+															class="export-button"
+															onClick={(event) => {
+																event.stopPropagation();
+																props.onExport?.(sheet);
+															}}
+															disabled={props.exportingId != null}
+														>
+															<Download size={16} />
+															<span>
+																{props.exportingId === sheet.id ? "出力中..." : "PDF出力"}
+															</span>
+														</button>
+													</Show>
 												</Show>
-											</Show>
-											<ChevronRight class="sheet-row__chevron" size={18} />
-										</td>
+												<ChevronRight class="sheet-row__chevron" size={18} />
+											</td>
+										</Show>
 									</tr>
 								);
 							}}
@@ -434,15 +447,14 @@ const SheetListView: Component<SheetListViewProps> = (props) => {
 					/>
 				</Show>
 
-				{/* Admin だけの、全社のシート。どれも閲覧のみで開ける。自分と部下の表の並びを変えないよう、いちばん下に置く */}
+				{/* Admin だけの、全社のシートの俯瞰。見るだけの表で、行は押せない(詳しい内容は一覧の PDF に出す)。
+			    自分と部下の表の並びを変えないよう、いちばん下に置く */}
 				<Show when={overviewSheets().length > 0}>
 					<SheetTable
 						title="全社の評価シート"
 						sheets={overviewSheets().filter((sheet) => !stage() || sheet.status === stage())}
 						showName
 						overview
-						exportingId={exportingId()}
-						onExport={(sheet) => void handleExport(sheet)}
 						action={
 							<button
 								type="button"

@@ -3,7 +3,6 @@ import { toEvaluationSheetDto } from "../../application/dtos/EvaluationSheetMapp
 import { commonResult, milestone, period, sheet } from "../../test/fixtures";
 import { Employee } from "../entities/Employee";
 import { EvaluationSheet } from "../entities/EvaluationSheet";
-import { EmployeeRole } from "../valueObjects/EmployeeRole";
 import { EvaluationStatus } from "../valueObjects/EvaluationStatus";
 import { EvaluationSheetAccessPolicy } from "./EvaluationSheetAccessPolicy";
 
@@ -45,93 +44,6 @@ describe("authorization matrix", () => {
 			},
 		);
 	}
-	for (const status of statuses) {
-		it(`lets an Admin outside the evaluation read everything in ${status.toString()}, and change nothing`, () => {
-			const data = sheet(status);
-			// 4 は本人でも評価者でもない。権限が Admin のときだけ、閲覧できるようになる
-			const policy = EvaluationSheetAccessPolicy.for(4, data, EmployeeRole.ADMIN);
-			expect(policy.isViewingAsAdmin()).toBe(true);
-			// 下書きも含めて、内容をすべて見られる
-			expect(policy.canViewSheet()).toBe(true);
-			expect(policy.canViewCommonEvaluation()).toBe(true);
-			expect(policy.canViewCommonEvaluationSecond()).toBe(true);
-			expect(policy.canViewMilestoneSecondScore()).toBe(true);
-			expect(policy.canViewFinalEvaluation()).toBe(true);
-			expect(policy.canExportSheet()).toBe(status === EvaluationStatus.FINALIZED);
-			const dto = toEvaluationSheetDto(data, "等級", policy);
-			expect(dto).toMatchObject({
-				firstOverallComment: "一次総評",
-				secondOverallComment: "二次総評",
-				objectives: [{ firstScore: 2, secondScore: 4 }],
-				allocatedScores: { totalEvaluationScore: data.allocatedScores.totalEvaluationScore },
-			});
-			expect(dto.finalEvaluationRank).toBeDefined();
-			// 確定する立場ではないので、未評価の項目の案内は付かない
-			expect(dto.pendingEvaluationItems).toBeUndefined();
-
-			// 見られるだけで、記入・評価・提出・確定はどれもできない
-			expect(policy.canEditMilestoneGoal()).toBe(false);
-			expect(policy.canEditMilestoneFirstScore()).toBe(false);
-			expect(policy.canEditMilestoneSecondScore()).toBe(false);
-			expect(policy.canEditCommonEvaluationFirst()).toBe(false);
-			expect(policy.canEditCommonEvaluationSecond()).toBe(false);
-			expect(policy.canEditOverallComment("first")).toBe(false);
-			expect(policy.canEditOverallComment("second")).toBe(false);
-			expect(policy.canSubmitOwnSheet()).toBe(false);
-			expect(policy.canRevertOwnSheetToDraft()).toBe(false);
-			expect(policy.canConfirmFirstEvaluation()).toBe(false);
-			expect(policy.canFinalizeEvaluation()).toBe(false);
-		});
-	}
-	it.each([EmployeeRole.REVIEWER, EmployeeRole.EMPLOYEE, undefined])(
-		"gives %s no access to a sheet they have no part in",
-		(role) => {
-			const policy = EvaluationSheetAccessPolicy.for(4, sheet(EvaluationStatus.FINALIZED), role);
-			expect(policy.isViewingAsAdmin()).toBe(false);
-			expect(policy.canViewSheet()).toBe(false);
-			expect(policy.canViewCommonEvaluation()).toBe(false);
-			expect(policy.canExportSheet()).toBe(false);
-		},
-	);
-	it("treats an Admin as the subject on their own sheet: no early look at their own evaluation", () => {
-		const policy = EvaluationSheetAccessPolicy.for(
-			1,
-			sheet(EvaluationStatus.FIRST_EVALUATED),
-			EmployeeRole.ADMIN,
-		);
-		expect(policy.isViewingAsAdmin()).toBe(false);
-		expect(policy.canViewSheet()).toBe(true);
-		expect(policy.canViewCommonEvaluation()).toBe(false);
-		expect(policy.canViewFinalEvaluation()).toBe(false);
-	});
-	it("keeps an Admin's own evaluator duties and adds the rest as reading only", () => {
-		// 一次評価者(2)が Admin。一次評価は入力・確定でき、二次評価は見られるが確定はできない
-		const first = EvaluationSheetAccessPolicy.for(
-			2,
-			sheet(EvaluationStatus.SUBMITTED),
-			EmployeeRole.ADMIN,
-		);
-		expect(first.isViewingAsAdmin()).toBe(false);
-		expect(first.canEditCommonEvaluationFirst()).toBe(true);
-		expect(first.canConfirmFirstEvaluation()).toBe(true);
-		const second = EvaluationSheetAccessPolicy.for(
-			2,
-			sheet(EvaluationStatus.FIRST_EVALUATED),
-			EmployeeRole.ADMIN,
-		);
-		expect(second.canViewCommonEvaluationSecond()).toBe(true);
-		expect(second.canViewFinalEvaluation()).toBe(true);
-		expect(second.canEditCommonEvaluationSecond()).toBe(false);
-		expect(second.canFinalizeEvaluation()).toBe(false);
-		// 下書きは評価者には見せないが、Admin としては見られる
-		expect(
-			EvaluationSheetAccessPolicy.for(
-				2,
-				sheet(EvaluationStatus.DRAFT),
-				EmployeeRole.ADMIN,
-			).canViewSheet(),
-		).toBe(true);
-	});
 	it("freezes every change once the period is closed, and keeps viewing and export", () => {
 		for (const status of statuses) {
 			for (const id of [1, 2, 3]) {

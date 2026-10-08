@@ -353,7 +353,7 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 			<label>
 				<span class="visually-hidden">表示順</span>
 				<select value={sort()} onChange={(e) => setSort(e.currentTarget.value as ReviewSort)}>
-					<option value="priority">自分の番が先</option>
+					<option value="priority">評価が必要な順</option>
 					<option value="name">氏名順</option>
 					<option value="firstScore">一次評価点順</option>
 					<option value="finalScore">最終評価点順</option>
@@ -404,7 +404,7 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 				}
 			}}
 		>
-			次の自分の番へ <ArrowRight size={16} />
+			次へ <ArrowRight size={16} />
 		</button>
 	);
 	/** 評価シートの本体。評価タブの右側と、一覧の上に浮かべる窓で同じものを出す。 */

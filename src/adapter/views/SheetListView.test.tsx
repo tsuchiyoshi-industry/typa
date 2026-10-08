@@ -74,7 +74,7 @@ it("puts my sheets and my reports' sheets under evaluation period tabs, newest p
 	expect(view.queryByRole("heading", { name: /全社の評価シート/ })).toBeNull();
 });
 
-it("adds the company-wide overview for an Admin below the two tables, with every sheet open for reading", async () => {
+it("adds the company-wide overview for an Admin below the two tables, as a table to look at, not to open", async () => {
 	const everyone = (
 		id: number,
 		period: 25 | 26,
@@ -110,15 +110,14 @@ it("adds the company-wide overview for an Admin below the two tables, with every
 	expect(within(overview).getAllByRole("row")).toHaveLength(1 + 4);
 	expect(within(overview).getByRole("columnheader", { name: "二次評価者" })).toBeTruthy();
 	expect(within(overview).getByText("なし")).toBeTruthy();
-	// Admin は、本人・評価者でないシートも開ける(閲覧のみ)。確定したシートは、結果が見えて PDF も出せる
-	expect(within(overview).getByRole("link", { name: "他部署X" }).getAttribute("href")).toBe(
-		"/sheet/8",
-	);
+	// 俯瞰するための表。行は押せず、シートへのリンクも、行ごとの PDF 出力もない
+	expect(within(overview).queryAllByRole("link")).toEqual([]);
+	expect(within(overview).queryByRole("button", { name: "PDF出力" })).toBeNull();
 	const finalized = within(overview).getByText("他部署Y").closest("tr") as HTMLElement;
 	expect(finalized.textContent).toContain("88 点 B+");
-	fireEvent.click(within(finalized).getByRole("button", { name: "PDF出力" }));
-	expect(view.controller.exportSheet).toHaveBeenCalledExactlyOnceWith(9, 9, 26);
-	expect(within(overview).getAllByText("確定後に PDF 出力")).toHaveLength(3);
+	expect(finalized.classList.contains("sheet-row")).toBe(false);
+	fireEvent.click(finalized);
+	expect(view.controller.exportSheet).not.toHaveBeenCalled();
 
 	// 段ごとの件数が、そのまま絞り込みになる。シートのない段は押せない
 	const stage = (name: RegExp) => within(overview).getByRole("button", { name });

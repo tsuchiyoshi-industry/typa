@@ -114,6 +114,7 @@ export function employeeRepository() {
 			.fn<EmployeeRepository["completeRegistration"]>()
 			.mockResolvedValue(true),
 		checkUserLinked: vi.fn<EmployeeRepository["checkUserLinked"]>().mockResolvedValue(true),
+		findKeepSignedIn: vi.fn<EmployeeRepository["findKeepSignedIn"]>().mockResolvedValue(false),
 	} satisfies EmployeeRepository;
 }
 export function milestoneRepository() {
@@ -151,6 +152,9 @@ export function masterRepository() {
 		updateGradeByEmployeeNo: vi
 			.fn<EmployeeMasterRepository["updateGradeByEmployeeNo"]>()
 			.mockResolvedValue(profile()),
+		updateKeepSignedInByEmployeeNo: vi
+			.fn<EmployeeMasterRepository["updateKeepSignedInByEmployeeNo"]>()
+			.mockResolvedValue(profile()),
 		updateRoleByEmployeeNo: vi
 			.fn<EmployeeMasterRepository["updateRoleByEmployeeNo"]>()
 			.mockResolvedValue(true),
@@ -172,6 +176,7 @@ export function authRepository() {
 			.fn<AuthRepository["signUp"]>()
 			.mockResolvedValue({ status: "created", userId: "auth-user" }),
 		signOut: vi.fn<AuthRepository["signOut"]>().mockResolvedValue(undefined),
+		keepSignedIn: vi.fn<AuthRepository["keepSignedIn"]>(),
 	} satisfies AuthRepository;
 }
 /** 締めた「前期」(1)、実施中の「今期」(2)、まだ始めていない「来期」(3)。今期のシートはすべて確定済み。 */

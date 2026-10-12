@@ -32,6 +32,7 @@ const employee = (
 	secondaryEvaluatorName: "田中",
 	noSecondaryEvaluator: false,
 	registered: true,
+	keepSignedIn: false,
 });
 function setup() {
 	const [viewModel, setViewModel] = createSignal<EmployeeMasterViewModel>({
@@ -76,6 +77,7 @@ function setup() {
 		}),
 		updateEvaluator: vi.fn().mockResolvedValue(true),
 		updateRole: vi.fn().mockResolvedValue(true),
+		updateKeepSignedIn: vi.fn().mockResolvedValue(true),
 		resetRegistration: vi.fn(),
 	};
 	const screen = render(() => (
@@ -113,6 +115,34 @@ it("restores the grade and enables controls when saving fails", async () => {
 	await waitFor(() => expect(screen.controller.updateGrade).toHaveBeenCalled());
 	await waitFor(() => expect(select.disabled).toBe(false));
 	expect(select.value).toBe("1");
+});
+it("asks before keeping an employee signed in, and not before ending that", async () => {
+	const screen = setup();
+	const select = screen.getByLabelText("山田さんのログイン状態") as HTMLSelectElement;
+	await waitFor(() => expect(select.value).toBe("end"));
+	// 共有PCにログインが残る側の変更は、確かめてから
+	vi.mocked(confirmAction).mockResolvedValueOnce(false);
+	fireEvent.change(select, { target: { value: "keep" } });
+	await waitFor(() => expect(select.value).toBe("end"));
+	expect(screen.controller.updateKeepSignedIn).not.toHaveBeenCalled();
+	fireEvent.change(select, { target: { value: "keep" } });
+	await waitFor(() =>
+		expect(screen.controller.updateKeepSignedIn).toHaveBeenCalledWith("E001", true),
+	);
+
+	vi.mocked(confirmAction).mockClear();
+	screen.setViewModel((prev) => ({
+		...prev,
+		relations: prev.relations.map((row) => ({ ...row, keepSignedIn: true })),
+	}));
+	await waitFor(() => expect(select.value).toBe("keep"));
+	fireEvent.change(select, { target: { value: "end" } });
+	await waitFor(() =>
+		expect(screen.controller.updateKeepSignedIn).toHaveBeenLastCalledWith("E001", false),
+	);
+	expect(confirmAction).not.toHaveBeenCalled();
+	// 役員にも設定できる(評価者としてログインするため)
+	expect(screen.getByLabelText("田中さんのログイン状態")).toBeTruthy();
 });
 it("lets only an Admin see and change roles, after confirmation", async () => {
 	const screen = setup();

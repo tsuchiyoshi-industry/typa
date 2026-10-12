@@ -321,6 +321,34 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 		);
 	};
 
+	const KeepSignedInCell: Component<{ relation: ApprovalRelationDto }> = (cell) => {
+		const change = async (picked: string) => {
+			const keep = picked === "keep";
+			// ログインが PC に残る側へ変えるときだけ確かめる
+			const confirmed =
+				!keep ||
+				(await confirmAction({
+					title: `${cell.relation.name}さんを、アプリを閉じてもログインしたままにしますか？`,
+					message:
+						"この社員が使った PC に、ログインが残ります。ほかの人と共有する PC を使う社員には設定しないでください。",
+					confirmLabel: "ログインを保持する",
+				}));
+			return confirmed && props.controller.updateKeepSignedIn(cell.relation.employeeNo, keep);
+		};
+
+		return (
+			<CellSelect
+				label={`${cell.relation.name}さんのログイン状態`}
+				value={cell.relation.keepSignedIn ? "keep" : "end"}
+				saveKey={`${cell.relation.employeeNo}:keepSignedIn`}
+				onPick={change}
+			>
+				<option value="end">閉じたらログアウト</option>
+				<option value="keep">保持する</option>
+			</CellSelect>
+		);
+	};
+
 	// 社員の行と評価データは残し、ログイン用アカウントだけを消して未登録に戻す
 	const resetRegistration = async (relation: ApprovalRelationDto) => {
 		const confirmed = await confirmAction({
@@ -454,7 +482,7 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 				>
 					評価者は氏名・社員番号で検索できます。
 					{props.viewModel().canEditRoles
-						? "役員は権限だけ変更できます（等級・評価者は管理対象外です）。Admin が0名になる変更はできません。"
+						? "役員は権限とログインだけ変更できます（等級・評価者は管理対象外です）。Admin が0名になる変更はできません。「ログイン」を「保持する」にした社員は、アプリを閉じてもログインしたままになります。共有PCを使う社員は「閉じたらログアウト」のままにしてください。"
 						: "役員は管理対象から除外しています。"}
 				</Show>
 			</p>
@@ -490,6 +518,7 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 								<th scope="col">社員</th>
 								<Show when={props.viewModel().canEditRoles}>
 									<th scope="col">権限</th>
+									<th scope="col">ログイン</th>
 								</Show>
 								<th scope="col">等級</th>
 								<th scope="col">一次評価者</th>
@@ -515,6 +544,9 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 										<Show when={props.viewModel().canEditRoles}>
 											<td>
 												<RoleCell relation={relation()} />
+											</td>
+											<td>
+												<KeepSignedInCell relation={relation()} />
 											</td>
 										</Show>
 										<Show

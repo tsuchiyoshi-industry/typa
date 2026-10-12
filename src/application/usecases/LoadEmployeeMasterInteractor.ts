@@ -34,6 +34,7 @@ function toEmployeeProfileDto(profile: EmployeeProfile): EmployeeProfileDto {
 	};
 }
 
+/** showRole: 見ているのが Admin か。権限とログイン状態の保持は、Admin にだけ渡す。 */
 function toApprovalRelationDto(profile: EmployeeProfile, showRole: boolean): ApprovalRelationDto {
 	return {
 		employeeId: profile.id,
@@ -50,6 +51,7 @@ function toApprovalRelationDto(profile: EmployeeProfile, showRole: boolean): App
 		secondaryEvaluatorName: profile.secondaryEvaluatorName,
 		noSecondaryEvaluator: profile.noSecondaryEvaluator,
 		registered: profile.registered,
+		keepSignedIn: showRole ? profile.keepSignedIn : null,
 	};
 }
 

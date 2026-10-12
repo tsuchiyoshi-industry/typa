@@ -1,7 +1,7 @@
 COLUMN GRANT common_evaluation_items authenticated SELECT description,id,item_set_id,title,weight
 COLUMN GRANT employee_grades authenticated SELECT grade_name,id,item_set_id
-COLUMN GRANT employees authenticated SELECT career_course,employee_no,grade_id,id,name,no_secondary_evaluator,primary_evaluator_id,role_id,secondary_evaluator_id,user_id
-COLUMN GRANT employees authenticated UPDATE grade_id,no_secondary_evaluator,primary_evaluator_id,secondary_evaluator_id
+COLUMN GRANT employees authenticated SELECT career_course,employee_no,grade_id,id,keep_signed_in,name,no_secondary_evaluator,primary_evaluator_id,role_id,secondary_evaluator_id,user_id
+COLUMN GRANT employees authenticated UPDATE grade_id,keep_signed_in,no_secondary_evaluator,primary_evaluator_id,secondary_evaluator_id
 COLUMN GRANT evaluation_periods authenticated INSERT end_date,period_name,start_date
 COLUMN GRANT evaluation_periods authenticated REFERENCES end_date,id,is_active,period_name,start_date
 COLUMN GRANT evaluation_periods authenticated SELECT end_date,id,is_active,period_name,start_date
@@ -41,6 +41,7 @@ COLUMN employees.career_course text null=YES default=-
 COLUMN employees.employee_no text null=NO default=-
 COLUMN employees.grade_id smallint null=YES default=-
 COLUMN employees.id integer null=NO default=nextval('employees_id_seq'::regclass)
+COLUMN employees.keep_signed_in boolean null=NO default=false
 COLUMN employees.name text null=NO default=-
 COLUMN employees.no_secondary_evaluator boolean null=NO default=false
 COLUMN employees.primary_evaluator_id integer null=YES default=-
@@ -187,7 +188,7 @@ FUNCTION get_sheet(bigint) definer=true anon=false authenticated=true service_ro
 FUNCTION get_sheet_notification(bigint,uuid) definer=true anon=false authenticated=false service_role=true md5=9a6c9a3422d30b526a3586960217792c
 FUNCTION get_sheet_overview() definer=true anon=false authenticated=true service_role=true md5=d57bad6251bb84bedb2d8c3ceb1dec33
 FUNCTION guard_common_evaluation_result_write() definer=false anon=false authenticated=true service_role=true md5=f53fead580ae9b10a90c0f53eb7ec721
-FUNCTION guard_employee_write() definer=false anon=false authenticated=true service_role=true md5=a95a974ff67d2d183602f6e38c4b147c
+FUNCTION guard_employee_write() definer=false anon=false authenticated=false service_role=true md5=39771062e280a4bdef9083fca7c6521f
 FUNCTION guard_evaluation_period_delete() definer=true anon=false authenticated=false service_role=true md5=7f0b40649c47f887526aa91a9b35bc63
 FUNCTION guard_evaluation_sheet_write() definer=false anon=false authenticated=true service_role=true md5=119d8fa7f2c9500c012e6fafc12e687e
 FUNCTION guard_milestone_write() definer=false anon=false authenticated=true service_role=true md5=3c1cf8b8b92b844e3e0ce99697f152af

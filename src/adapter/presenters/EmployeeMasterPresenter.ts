@@ -7,6 +7,7 @@ import type {
 import type { ResetEmployeeRegistrationOutputPort } from "../../application/usecases/ResetEmployeeRegistrationInteractor";
 import type { UpdateEmployeeEvaluatorOutputPort } from "../../application/usecases/UpdateEmployeeEvaluatorInteractor";
 import type { UpdateEmployeeGradeOutputPort } from "../../application/usecases/UpdateEmployeeGradeInteractor";
+import type { UpdateEmployeeKeepSignedInOutputPort } from "../../application/usecases/UpdateEmployeeKeepSignedInInteractor";
 import type { UpdateEmployeeRoleOutputPort } from "../../application/usecases/UpdateEmployeeRoleInteractor";
 
 export interface EmployeeMasterViewModel extends EmployeeMasterDto {
@@ -25,6 +26,7 @@ export function createEmployeeMasterPresenter(): {
 		update: UpdateEmployeeEvaluatorOutputPort;
 		updateGrade: UpdateEmployeeGradeOutputPort;
 		updateRole: UpdateEmployeeRoleOutputPort;
+		updateKeepSignedIn: UpdateEmployeeKeepSignedInOutputPort;
 		resetRegistration: ResetEmployeeRegistrationOutputPort;
 	};
 	beginLoad: () => void;
@@ -58,7 +60,7 @@ export function createEmployeeMasterPresenter(): {
 		},
 	};
 
-	// 評価者・等級・権限・登録の取り消し、どの更新結果も同じ形で受け取る
+	// 評価者・等級・権限・ログイン状態の保持・登録の取り消し、どの更新結果も同じ形で受け取る
 	const updateOutputPort: UpdateEmployeeGradeOutputPort = {
 		present(response) {
 			setViewModel((prev) => ({
@@ -86,6 +88,7 @@ export function createEmployeeMasterPresenter(): {
 			update: updateOutputPort,
 			updateGrade: updateOutputPort,
 			updateRole: updateOutputPort,
+			updateKeepSignedIn: updateOutputPort,
 			resetRegistration: updateOutputPort,
 		},
 		beginLoad,

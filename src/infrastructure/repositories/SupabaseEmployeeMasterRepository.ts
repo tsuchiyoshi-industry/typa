@@ -18,6 +18,7 @@ interface EmployeeRow {
 	primary_evaluator_id: number | null;
 	secondary_evaluator_id: number | null;
 	no_secondary_evaluator?: boolean | null;
+	keep_signed_in?: boolean | null;
 }
 
 interface RoleRow {
@@ -123,6 +124,13 @@ export class SupabaseEmployeeMasterRepository implements EmployeeMasterRepositor
 		gradeId: number,
 	): Promise<EmployeeProfile | null> {
 		return this.updateEmployee(targetEmployeeNo, { grade_id: gradeId });
+	}
+
+	async updateKeepSignedInByEmployeeNo(
+		targetEmployeeNo: string,
+		keepSignedIn: boolean,
+	): Promise<EmployeeProfile | null> {
+		return this.updateEmployee(targetEmployeeNo, { keep_signed_in: keepSignedIn });
 	}
 
 	async updateRoleByEmployeeNo(targetEmployeeNo: string, role: EmployeeRole): Promise<boolean> {
@@ -235,6 +243,7 @@ export class SupabaseEmployeeMasterRepository implements EmployeeMasterRepositor
 							: "未設定",
 					employee.no_secondary_evaluator ?? false,
 					employee.user_id != null,
+					employee.keep_signed_in ?? false,
 				),
 		);
 	}

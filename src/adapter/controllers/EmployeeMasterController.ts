@@ -15,6 +15,10 @@ import type {
 	UpdateEmployeeGradeOutputPort,
 } from "../../application/usecases/UpdateEmployeeGradeInteractor";
 import type {
+	UpdateEmployeeKeepSignedInInteractor,
+	UpdateEmployeeKeepSignedInOutputPort,
+} from "../../application/usecases/UpdateEmployeeKeepSignedInInteractor";
+import type {
 	UpdateEmployeeRoleInteractor,
 	UpdateEmployeeRoleOutputPort,
 } from "../../application/usecases/UpdateEmployeeRoleInteractor";
@@ -28,6 +32,7 @@ export class EmployeeMasterController {
 		private readonly updateGradeUseCase: UpdateEmployeeGradeInteractor,
 		private readonly updateRoleUseCase: UpdateEmployeeRoleInteractor,
 		private readonly resetRegistrationUseCase: ResetEmployeeRegistrationInteractor,
+		private readonly updateKeepSignedInUseCase: UpdateEmployeeKeepSignedInInteractor,
 		private readonly presenter: {
 			viewModel: () => EmployeeMasterViewModel;
 			outputPort: {
@@ -35,6 +40,7 @@ export class EmployeeMasterController {
 				update: UpdateEmployeeEvaluatorOutputPort;
 				updateGrade: UpdateEmployeeGradeOutputPort;
 				updateRole: UpdateEmployeeRoleOutputPort;
+				updateKeepSignedIn: UpdateEmployeeKeepSignedInOutputPort;
 				resetRegistration: ResetEmployeeRegistrationOutputPort;
 			};
 			beginLoad: () => void;
@@ -88,6 +94,17 @@ export class EmployeeMasterController {
 					this.presenter.outputPort.updateRole,
 				),
 			"権限の変更に失敗しました",
+		);
+	}
+
+	updateKeepSignedIn(targetEmployeeNo: string, keepSignedIn: boolean): Promise<boolean> {
+		return this.applyUpdate(
+			() =>
+				this.updateKeepSignedInUseCase.execute(
+					{ targetEmployeeNo, keepSignedIn },
+					this.presenter.outputPort.updateKeepSignedIn,
+				),
+			"ログイン状態の保持を変更できませんでした",
 		);
 	}
 

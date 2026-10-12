@@ -22,6 +22,7 @@ const person = (
 	secondaryEvaluatorName: secondary == null ? (noSecondary ? "なし" : "未設定") : names[secondary],
 	noSecondaryEvaluator: noSecondary,
 	registered: true,
+	keepSignedIn: null,
 });
 
 describe("evaluation structure", () => {

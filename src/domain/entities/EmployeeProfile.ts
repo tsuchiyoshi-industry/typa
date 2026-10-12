@@ -18,6 +18,8 @@ export class EmployeeProfile {
 		public readonly noSecondaryEvaluator = false,
 		/** 新規登録を済ませ、ログイン用アカウントが紐付いている社員か。 */
 		public readonly registered = false,
+		/** アプリを閉じた後もログインを残す社員か。共有PCを使う社員は false。 */
+		public readonly keepSignedIn = false,
 	) {}
 
 	equals(other: EmployeeProfile): boolean {

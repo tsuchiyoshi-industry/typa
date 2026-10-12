@@ -23,6 +23,11 @@ export interface EmployeeMasterRepository {
 		targetEmployeeNo: string,
 		gradeId: number,
 	): Promise<EmployeeProfile | null>;
+	/** アプリを閉じた後もログインを残すかどうか。Admin 以外の変更は DB が拒否する。 */
+	updateKeepSignedInByEmployeeNo(
+		targetEmployeeNo: string,
+		keepSignedIn: boolean,
+	): Promise<EmployeeProfile | null>;
 	/** Admin だけが実行できるDB関数で権限を変える。最後の Admin は外せない。変更できたら true。 */
 	updateRoleByEmployeeNo(targetEmployeeNo: string, role: EmployeeRole): Promise<boolean>;
 	/**

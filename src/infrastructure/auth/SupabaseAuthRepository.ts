@@ -4,7 +4,7 @@ import type {
 	SignUpResult,
 } from "../../domain/repositories/AuthRepository";
 import type { WorkspaceSettingsRepository } from "../../domain/repositories/WorkspaceSettingsRepository";
-import { supabase } from "../db/supabase";
+import { keepSignedIn, supabase } from "../db/supabase";
 import { toAuthEmail } from "./authEmail";
 
 export class SupabaseAuthRepository implements AuthRepository {
@@ -100,5 +100,9 @@ export class SupabaseAuthRepository implements AuthRepository {
 
 	async signOut(): Promise<void> {
 		await supabase.auth.signOut();
+	}
+
+	keepSignedIn(enabled: boolean): void {
+		keepSignedIn(enabled);
 	}
 }

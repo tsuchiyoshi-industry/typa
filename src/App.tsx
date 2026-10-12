@@ -49,6 +49,7 @@ import { SaveEvaluationPeriodInteractor } from "./application/usecases/SaveEvalu
 import { SignInEmployeeInteractor } from "./application/usecases/SignInEmployeeInteractor";
 import { UpdateEmployeeEvaluatorInteractor } from "./application/usecases/UpdateEmployeeEvaluatorInteractor";
 import { UpdateEmployeeGradeInteractor } from "./application/usecases/UpdateEmployeeGradeInteractor";
+import { UpdateEmployeeKeepSignedInInteractor } from "./application/usecases/UpdateEmployeeKeepSignedInInteractor";
 import { UpdateEmployeeRoleInteractor } from "./application/usecases/UpdateEmployeeRoleInteractor";
 import { UpdateEvaluationAllocationInteractor } from "./application/usecases/UpdateEvaluationAllocationInteractor";
 import { UpdateEvaluationStatusInteractor } from "./application/usecases/UpdateEvaluationStatusInteractor";
@@ -223,6 +224,7 @@ const employeeMasterController = new EmployeeMasterController(
 	updateEmployeeGradeUseCase,
 	updateEmployeeRoleUseCase,
 	resetEmployeeRegistrationUseCase,
+	new UpdateEmployeeKeepSignedInInteractor(employeeMasterRepository),
 	employeeMasterPresenter,
 );
 
@@ -245,7 +247,12 @@ const App: Component = () => {
 		setSession(currentSession);
 
 		if (currentSession) {
-			setIsLinked(await employeeRepository.checkUserLinked(currentSession.userId));
+			const linked = await employeeRepository.checkUserLinked(currentSession.userId);
+			// アプリを閉じた後もログインを残すのは、社員マスタでそう設定された社員だけ
+			authRepository.keepSignedIn(
+				linked && (await employeeRepository.findKeepSignedIn(currentSession.userId)),
+			);
+			setIsLinked(linked);
 		} else {
 			setIsLinked(false);
 		}

@@ -25,6 +25,14 @@ export function canEditRoles(role: EmployeeRole): boolean {
 	return resolveEmployeeMasterMode(role) === "admin";
 }
 
+/**
+ * アプリを閉じた後もログインを残すかどうかは、Admin だけが社員ごとに決める。
+ * 共有PCを使う社員のログインを残さないための設定で、誰が共有PCを使うかを知っているのは Admin。
+ */
+export function canEditKeepSignedIn(role: EmployeeRole): boolean {
+	return resolveEmployeeMasterMode(role) === "admin";
+}
+
 /** 評価の基準(配点など)を決める「設定」は Admin だけが変更できる。 */
 export function canEditSettings(role: EmployeeRole): boolean {
 	return resolveEmployeeMasterMode(role) === "admin";

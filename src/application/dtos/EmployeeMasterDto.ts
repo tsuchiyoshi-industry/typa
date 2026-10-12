@@ -32,6 +32,8 @@ export interface ApprovalRelationDto {
 	noSecondaryEvaluator: boolean;
 	/** 新規登録を済ませているか。登録の取り消しは登録済みの社員にだけ行える。 */
 	registered: boolean;
+	/** アプリを閉じた後もログインを残すか。Admin 以外には渡さない(null)。 */
+	keepSignedIn: boolean | null;
 }
 
 export interface EmployeeMasterDto {

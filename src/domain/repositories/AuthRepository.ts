@@ -24,4 +24,9 @@ export interface AuthRepository {
 	/** 社員番号のログイン用アカウントを作る。社員への紐付けは EmployeeRepository.completeRegistration。 */
 	signUp(employeeNo: string, password: string): Promise<SignUpResult>;
 	signOut(): Promise<void>;
+	/**
+	 * いまのログインを、アプリを閉じた後もこの PC に残すかどうか。残さなければ、閉じるとログアウトになる。
+	 * 社員マスタの設定(EmployeeRepository.findKeepSignedIn)を、ログインのたびに伝える。
+	 */
+	keepSignedIn(enabled: boolean): void;
 }

@@ -17,4 +17,9 @@ export interface EmployeeRepository {
 	/** 作ったログイン用アカウントのセッションで呼ぶ。社員に紐付いたら true。 */
 	completeRegistration(token: string): Promise<boolean>;
 	checkUserLinked(authUserId: string): Promise<boolean>;
+	/**
+	 * 社員マスタで「ログイン状態を保持する」になっている社員か。共有PCを使う社員は false。
+	 * 読めなかったときは false(保持しない側)。
+	 */
+	findKeepSignedIn(authUserId: string): Promise<boolean>;
 }

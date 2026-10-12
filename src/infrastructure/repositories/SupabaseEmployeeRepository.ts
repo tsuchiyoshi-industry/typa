@@ -26,6 +26,17 @@ export class SupabaseEmployeeRepository implements EmployeeRepository {
 		return !!data;
 	}
 
+	async findKeepSignedIn(authUserId: string): Promise<boolean> {
+		const { data, error } = await supabase
+			.from("employees")
+			.select("keep_signed_in")
+			.eq("user_id", authUserId)
+			.maybeSingle();
+
+		// 読めないとき(列がまだ無い DB を含む)は、保持しない
+		return !error && (data as { keep_signed_in?: boolean } | null)?.keep_signed_in === true;
+	}
+
 	async findCurrentEmployeeId(): Promise<{ data: number | null; error: Error | null }> {
 		try {
 			// 手元のセッションを読むだけで、通信しない。誰の操作かは、どの問い合わせでも DB が確かめる

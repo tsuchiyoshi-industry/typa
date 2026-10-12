@@ -41,7 +41,7 @@ VITE_SUPABASE_URL=...
 VITE_SUPABASE_PUBLISHABLE_KEY=...
 ```
 
-DB 構成は [基本設計書の 8 章](docs/basic-design.md#8-データ設計) と `supabase/migrations/` を参照してください。実装では `evaluation_sheets`, `milestones`, `common_evaluation_items`, `common_evaluation_results`, `employees`, `evaluation_periods` などを参照します。
+Supabase の環境を新しく作る手順と、どこに何を設定しているかの一覧は、[Supabase 環境の構築手順と設定一覧](docs/supabase-setup.md) にあります。DB 構成は [基本設計書の 8 章](docs/basic-design.md#8-データ設計) と `supabase/migrations/` を参照してください。実装では `evaluation_sheets`, `milestones`, `common_evaluation_items`, `common_evaluation_results`, `employees`, `evaluation_periods` などを参照します。
 
 受け持ちの評価には `supabase/migrations/202610070001_reviewer_workspace.sql` と `202610080001_evaluation_stages.sql` の適用が必要です。既存の「二次評価者なし」「共通評価項目セット」のマイグレーションを先に適用してください。`202610080001` は `evaluation_sheets.first_rank`（一次評価ランク）と状態 `first_evaluated` を追加し、評価者ごとの確認記録（`sheet_review_checkpoints` と `set_sheet_reviewed`）を削除します。0点を未入力・完了の判定には使いません。一次評価者向けの二次評価・最終結果の非表示、下書きの非表示、一次評価確定の通知先の取得を RPC 側で制御しています。状態の遷移と評価の編集可否は、アプリ側のポリシーに加えて、`202610120001_access_control.sql` から DB 側でも強制しています。
 

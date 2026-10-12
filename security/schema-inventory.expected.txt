@@ -1,0 +1,304 @@
+COLUMN GRANT common_evaluation_items authenticated SELECT description,id,item_set_id,title,weight
+COLUMN GRANT employee_grades authenticated SELECT grade_name,id,item_set_id
+COLUMN GRANT employees authenticated SELECT career_course,employee_no,grade_id,id,name,no_secondary_evaluator,primary_evaluator_id,role_id,secondary_evaluator_id,user_id
+COLUMN GRANT employees authenticated UPDATE grade_id,no_secondary_evaluator,primary_evaluator_id,secondary_evaluator_id
+COLUMN GRANT evaluation_periods authenticated INSERT end_date,period_name,start_date
+COLUMN GRANT evaluation_periods authenticated REFERENCES end_date,id,is_active,period_name,start_date
+COLUMN GRANT evaluation_periods authenticated SELECT end_date,id,is_active,period_name,start_date
+COLUMN GRANT evaluation_periods authenticated UPDATE end_date,period_name,start_date
+COLUMN GRANT evaluation_settings authenticated SELECT common_allocation,id,max_challenge_goals,objective_allocation,updated_at
+COLUMN GRANT evaluation_settings authenticated UPDATE common_allocation,max_challenge_goals,objective_allocation,updated_at
+COLUMN GRANT evaluation_sheets authenticated INSERT employee_id,period_id
+COLUMN GRANT evaluation_sheets authenticated SELECT created_at,employee_id,grade_id,id,no_secondary_evaluator,period_id,primary_evaluator_id,secondary_evaluator_id,status,total_score,updated_at
+COLUMN GRANT evaluation_sheets authenticated UPDATE common_allocation,common_evaluation_first_total_rate,common_evaluation_first_total_score,common_evaluation_second_evaluation_score,common_evaluation_second_total_rate,common_evaluation_second_total_score,employee_id,final_rank_letter,final_rank_level,first_overall_comment,first_rank,objective_allocation,objectives_first_total_rate,objectives_first_total_score,objectives_second_evaluation_score,objectives_second_total_rate,objectives_second_total_score,period_id,second_overall_comment,status,total_evaluation_score
+COLUMN GRANT milestones authenticated INSERT achievement,challenge_goal,goal_number,midterm_goal,sheet_id
+COLUMN GRANT milestones authenticated SELECT achievement,challenge_goal,first_score,goal_number,id,midterm_goal,sheet_id
+COLUMN GRANT milestones authenticated UPDATE achievement,challenge_goal,first_score,goal_number,midterm_goal,second_score,sheet_id
+COLUMN GRANT roles authenticated SELECT id,role_name
+COLUMN GRANT workspace_settings authenticated SELECT id,smtp_host,smtp_password_set,smtp_port,smtp_user
+COLUMN GRANT workspace_settings authenticated UPDATE smtp_host,smtp_password,smtp_port,smtp_user,updated_at
+COLUMN common_evaluation_item_sets.id smallint null=NO default=-
+COLUMN common_evaluation_item_sets.name text null=NO default=-
+COLUMN common_evaluation_items.description text null=NO default=-
+COLUMN common_evaluation_items.id bigint null=NO default=-
+COLUMN common_evaluation_items.item_set_id smallint null=YES default=-
+COLUMN common_evaluation_items.title text null=NO default=-
+COLUMN common_evaluation_items.weight integer null=NO default=1
+COLUMN common_evaluation_results.created_at timestamp with time zone null=YES default=now()
+COLUMN common_evaluation_results.first_comment text null=YES default=''::text
+COLUMN common_evaluation_results.first_score integer null=YES default=0
+COLUMN common_evaluation_results.id bigint null=NO default=-
+COLUMN common_evaluation_results.item_id bigint null=NO default=-
+COLUMN common_evaluation_results.second_score integer null=YES default=0
+COLUMN common_evaluation_results.sheet_id bigint null=YES default=-
+COLUMN common_evaluation_results.updated_at timestamp with time zone null=YES default=now()
+COLUMN employee_contacts.email text null=NO default=-
+COLUMN employee_contacts.employee_id integer null=NO default=-
+COLUMN employee_grades.grade_name text null=NO default=-
+COLUMN employee_grades.id smallint null=NO default=-
+COLUMN employee_grades.item_set_id smallint null=YES default=-
+COLUMN employees.career_course text null=YES default=-
+COLUMN employees.employee_no text null=NO default=-
+COLUMN employees.grade_id smallint null=YES default=-
+COLUMN employees.id integer null=NO default=nextval('employees_id_seq'::regclass)
+COLUMN employees.name text null=NO default=-
+COLUMN employees.no_secondary_evaluator boolean null=NO default=false
+COLUMN employees.primary_evaluator_id integer null=YES default=-
+COLUMN employees.role_id integer null=YES default=-
+COLUMN employees.secondary_evaluator_id integer null=YES default=-
+COLUMN employees.user_id uuid null=YES default=-
+COLUMN evaluation_periods.end_date date null=NO default=-
+COLUMN evaluation_periods.id bigint null=NO default=-
+COLUMN evaluation_periods.is_active boolean null=NO default=false
+COLUMN evaluation_periods.period_name text null=NO default=-
+COLUMN evaluation_periods.start_date date null=NO default=-
+COLUMN evaluation_settings.common_allocation smallint null=NO default=80
+COLUMN evaluation_settings.id boolean null=NO default=true
+COLUMN evaluation_settings.max_challenge_goals smallint null=NO default=4
+COLUMN evaluation_settings.objective_allocation smallint null=NO default=20
+COLUMN evaluation_settings.updated_at timestamp with time zone null=NO default=now()
+COLUMN evaluation_sheets.common_allocation smallint null=YES default=-
+COLUMN evaluation_sheets.common_evaluation_first_total_rate smallint null=YES default=-
+COLUMN evaluation_sheets.common_evaluation_first_total_score smallint null=YES default=-
+COLUMN evaluation_sheets.common_evaluation_second_evaluation_score smallint null=YES default=-
+COLUMN evaluation_sheets.common_evaluation_second_total_rate smallint null=YES default=-
+COLUMN evaluation_sheets.common_evaluation_second_total_score smallint null=YES default=-
+COLUMN evaluation_sheets.created_at timestamp with time zone null=YES default=now()
+COLUMN evaluation_sheets.employee_id bigint null=NO default=-
+COLUMN evaluation_sheets.final_rank_letter text null=YES default=-
+COLUMN evaluation_sheets.final_rank_level text null=YES default=-
+COLUMN evaluation_sheets.first_overall_comment text null=YES default=''::text
+COLUMN evaluation_sheets.first_rank text null=YES default=-
+COLUMN evaluation_sheets.grade_id smallint null=YES default=-
+COLUMN evaluation_sheets.id bigint null=NO default=-
+COLUMN evaluation_sheets.no_secondary_evaluator boolean null=NO default=false
+COLUMN evaluation_sheets.objective_allocation smallint null=YES default=-
+COLUMN evaluation_sheets.objectives_first_total_rate smallint null=YES default=-
+COLUMN evaluation_sheets.objectives_first_total_score smallint null=YES default=-
+COLUMN evaluation_sheets.objectives_second_evaluation_score smallint null=YES default=-
+COLUMN evaluation_sheets.objectives_second_total_rate smallint null=YES default=-
+COLUMN evaluation_sheets.objectives_second_total_score smallint null=YES default=-
+COLUMN evaluation_sheets.period_id bigint null=NO default=-
+COLUMN evaluation_sheets.primary_evaluator_id integer null=YES default=-
+COLUMN evaluation_sheets.second_overall_comment text null=YES default=''::text
+COLUMN evaluation_sheets.secondary_evaluator_id integer null=YES default=-
+COLUMN evaluation_sheets.status text null=NO default='draft'::text
+COLUMN evaluation_sheets.total_evaluation_score smallint null=YES default=-
+COLUMN evaluation_sheets.total_score numeric null=YES default=0
+COLUMN evaluation_sheets.updated_at timestamp with time zone null=YES default=now()
+COLUMN milestones.achievement text null=YES default=''::text
+COLUMN milestones.challenge_goal text null=YES default=''::text
+COLUMN milestones.first_score integer null=YES default=0
+COLUMN milestones.goal_number integer null=NO default=-
+COLUMN milestones.id bigint null=NO default=-
+COLUMN milestones.midterm_goal text null=YES default=''::text
+COLUMN milestones.second_score integer null=YES default=0
+COLUMN milestones.sheet_id bigint null=YES default=-
+COLUMN registration_tickets.contact_email text null=NO default=-
+COLUMN registration_tickets.employee_id integer null=NO default=-
+COLUMN registration_tickets.expires_at timestamp with time zone null=NO default=-
+COLUMN registration_tickets.token uuid null=NO default=gen_random_uuid()
+COLUMN roles.id integer null=NO default=nextval('roles_id_seq'::regclass)
+COLUMN roles.role_name text null=NO default=-
+COLUMN workspace_settings.id boolean null=NO default=true
+COLUMN workspace_settings.required_domain text null=NO default=''::text
+COLUMN workspace_settings.smtp_host text null=NO default=''::text
+COLUMN workspace_settings.smtp_password text null=NO default=''::text
+COLUMN workspace_settings.smtp_password_set boolean null=YES default=-
+COLUMN workspace_settings.smtp_port integer null=NO default=587
+COLUMN workspace_settings.smtp_user text null=NO default=''::text
+COLUMN workspace_settings.updated_at timestamp with time zone null=NO default=now()
+CONSTRAINT common_evaluation_item_sets common_evaluation_item_sets_pkey PRIMARY KEY (id)
+CONSTRAINT common_evaluation_items common_evaluation_items_item_set_id_fkey FOREIGN KEY (item_set_id) REFERENCES common_evaluation_item_sets(id)
+CONSTRAINT common_evaluation_items common_evaluation_items_pkey PRIMARY KEY (id)
+CONSTRAINT common_evaluation_results common_evaluation_results_first_score_check CHECK (((first_score >= 0) AND (first_score <= 4)))
+CONSTRAINT common_evaluation_results common_evaluation_results_item_id_fkey FOREIGN KEY (item_id) REFERENCES common_evaluation_items(id) ON DELETE CASCADE
+CONSTRAINT common_evaluation_results common_evaluation_results_pkey PRIMARY KEY (id)
+CONSTRAINT common_evaluation_results common_evaluation_results_second_score_check CHECK (((second_score >= 0) AND (second_score <= 4)))
+CONSTRAINT common_evaluation_results common_evaluation_results_sheet_id_fkey FOREIGN KEY (sheet_id) REFERENCES evaluation_sheets(id) ON DELETE CASCADE
+CONSTRAINT common_evaluation_results common_evaluation_results_sheet_id_item_id_key UNIQUE (sheet_id, item_id)
+CONSTRAINT employee_contacts employee_contacts_employee_id_fkey FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
+CONSTRAINT employee_contacts employee_contacts_pkey PRIMARY KEY (employee_id)
+CONSTRAINT employee_grades employee_grades_grade_name_key UNIQUE (grade_name)
+CONSTRAINT employee_grades employee_grades_item_set_id_fkey FOREIGN KEY (item_set_id) REFERENCES common_evaluation_item_sets(id)
+CONSTRAINT employee_grades employee_grades_pkey PRIMARY KEY (id)
+CONSTRAINT employees employees_employee_no_key UNIQUE (employee_no)
+CONSTRAINT employees employees_grade_id_fkey FOREIGN KEY (grade_id) REFERENCES employee_grades(id)
+CONSTRAINT employees employees_no_secondary_evaluator_check CHECK ((NOT (no_secondary_evaluator AND (secondary_evaluator_id IS NOT NULL))))
+CONSTRAINT employees employees_pkey PRIMARY KEY (id)
+CONSTRAINT employees employees_primary_evaluator_id_fkey FOREIGN KEY (primary_evaluator_id) REFERENCES employees(id)
+CONSTRAINT employees employees_role_id_fkey FOREIGN KEY (role_id) REFERENCES roles(id)
+CONSTRAINT employees employees_secondary_evaluator_id_fkey FOREIGN KEY (secondary_evaluator_id) REFERENCES employees(id)
+CONSTRAINT employees employees_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+CONSTRAINT evaluation_periods evaluation_periods_dates_check CHECK ((start_date <= end_date))
+CONSTRAINT evaluation_periods evaluation_periods_period_name_key UNIQUE (period_name)
+CONSTRAINT evaluation_periods evaluation_periods_pkey PRIMARY KEY (id)
+CONSTRAINT evaluation_settings evaluation_settings_allocation_total CHECK (((objective_allocation + common_allocation) = 100))
+CONSTRAINT evaluation_settings evaluation_settings_common_allocation_check CHECK ((common_allocation >= 0))
+CONSTRAINT evaluation_settings evaluation_settings_id_check CHECK (id)
+CONSTRAINT evaluation_settings evaluation_settings_max_challenge_goals_check CHECK (((max_challenge_goals >= 1) AND (max_challenge_goals <= 10)))
+CONSTRAINT evaluation_settings evaluation_settings_objective_allocation_check CHECK ((objective_allocation >= 0))
+CONSTRAINT evaluation_settings evaluation_settings_pkey PRIMARY KEY (id)
+CONSTRAINT evaluation_sheets evaluation_sheets_employee_id_fkey FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
+CONSTRAINT evaluation_sheets evaluation_sheets_first_rank_check CHECK ((first_rank = ANY (ARRAY['S'::text, 'A'::text, 'B+'::text, 'B'::text, 'B-'::text, 'C'::text, 'D'::text])))
+CONSTRAINT evaluation_sheets evaluation_sheets_grade_id_fkey FOREIGN KEY (grade_id) REFERENCES employee_grades(id)
+CONSTRAINT evaluation_sheets evaluation_sheets_period_id_employee_id_key UNIQUE (period_id, employee_id)
+CONSTRAINT evaluation_sheets evaluation_sheets_period_id_fkey FOREIGN KEY (period_id) REFERENCES evaluation_periods(id) ON DELETE CASCADE
+CONSTRAINT evaluation_sheets evaluation_sheets_pkey PRIMARY KEY (id)
+CONSTRAINT evaluation_sheets evaluation_sheets_status_check CHECK ((status = ANY (ARRAY['draft'::text, 'submitted'::text, 'first_evaluated'::text, 'finalized'::text])))
+CONSTRAINT milestones milestones_first_score_check CHECK (((first_score >= 0) AND (first_score <= 4)))
+CONSTRAINT milestones milestones_goal_number_range CHECK (((goal_number IS NOT NULL) AND (goal_number >= 1))) NOT VALID
+CONSTRAINT milestones milestones_pkey PRIMARY KEY (id)
+CONSTRAINT milestones milestones_second_score_check CHECK (((second_score >= 0) AND (second_score <= 4)))
+CONSTRAINT milestones milestones_sheet_id_fkey FOREIGN KEY (sheet_id) REFERENCES evaluation_sheets(id) ON DELETE CASCADE
+CONSTRAINT milestones milestones_sheet_id_goal_number_key UNIQUE (sheet_id, goal_number)
+CONSTRAINT registration_tickets registration_tickets_employee_id_fkey FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
+CONSTRAINT registration_tickets registration_tickets_pkey PRIMARY KEY (employee_id)
+CONSTRAINT roles roles_pkey PRIMARY KEY (id)
+CONSTRAINT roles roles_role_name_key UNIQUE (role_name)
+CONSTRAINT workspace_settings workspace_settings_id_check CHECK (id)
+CONSTRAINT workspace_settings workspace_settings_pkey PRIMARY KEY (id)
+CONSTRAINT workspace_settings workspace_settings_required_domain_check CHECK ((required_domain !~ '[@[:space:]]'::text))
+CONSTRAINT workspace_settings workspace_settings_smtp_host_check CHECK ((smtp_host !~ '[[:space:]]'::text))
+CONSTRAINT workspace_settings workspace_settings_smtp_port_check CHECK (((smtp_port >= 1) AND (smtp_port <= 65535)))
+CONSTRAINT workspace_settings workspace_settings_smtp_user_check CHECK ((smtp_user !~ '[[:space:]]'::text))
+DEFAULT PRIVILEGES postgres S {postgres=rwU/postgres,service_role=rwU/postgres}
+DEFAULT PRIVILEGES postgres f {postgres=X/postgres,service_role=X/postgres}
+DEFAULT PRIVILEGES postgres r {postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres}
+DEFAULT PRIVILEGES supabase_admin S {postgres=rwU/supabase_admin,anon=rwU/supabase_admin,authenticated=rwU/supabase_admin,service_role=rwU/supabase_admin}
+DEFAULT PRIVILEGES supabase_admin f {postgres=X/supabase_admin,anon=X/supabase_admin,authenticated=X/supabase_admin,service_role=X/supabase_admin}
+DEFAULT PRIVILEGES supabase_admin r {postgres=arwdDxtm/supabase_admin,anon=arwdDxtm/supabase_admin,authenticated=arwdDxtm/supabase_admin,service_role=arwdDxtm/supabase_admin}
+FUNCTION activate_evaluation_period(bigint) definer=true anon=false authenticated=true service_role=true md5=ea88342cb92afac20dcccd7f57424f54
+FUNCTION begin_registration(text) definer=true anon=false authenticated=true service_role=true md5=22652c1b0a11aa90675a5185bd648783
+FUNCTION changed_columns(jsonb,jsonb) definer=false anon=false authenticated=true service_role=true md5=5a3f7369be904b9ff458a6e5b80bc6f2
+FUNCTION check_challenge_goal_number() definer=true anon=false authenticated=false service_role=true md5=8508db91753240b9a1c1a9e5ce7d55af
+FUNCTION check_evaluation_completion() definer=true anon=false authenticated=false service_role=true md5=5c54ba661f5d97903cd3c84c0fb39d9d
+FUNCTION check_user_limit() definer=true anon=false authenticated=false service_role=true md5=e866d71aad8109063aae7d2f60256475
+FUNCTION complete_registration(uuid) definer=true anon=false authenticated=true service_role=true md5=d271b25a3e3e3e9ee550f3b945125626
+FUNCTION current_employee_id() definer=true anon=false authenticated=true service_role=true md5=2f049eddce89ec8e68127b47a45c67bc
+FUNCTION current_employee_is_admin() definer=true anon=false authenticated=true service_role=true md5=08708a8d82d1ded12304fbf6244500dc
+FUNCTION current_employee_role() definer=true anon=false authenticated=true service_role=true md5=d0e33b35586f81e4a21cecdb398afd50
+FUNCTION employee_auth_email(text) definer=true anon=false authenticated=false service_role=true md5=4243f657a68a388892d58f4c34eb6059
+FUNCTION evaluation_rank(integer) definer=false anon=false authenticated=true service_role=true md5=33a790c59b2d39acd83c4563ef84eee5
+FUNCTION get_evaluation_period_sheet_counts(bigint) definer=true anon=false authenticated=true service_role=true md5=58ad9645d5215d906eb02d10a301a06d
+FUNCTION get_required_domain() definer=true anon=true authenticated=true service_role=true md5=5d4aafd868388c771a38d185f7a004df
+FUNCTION get_reviewer_workspace(bigint) definer=true anon=false authenticated=true service_role=true md5=42b01cc7f768327ff56b7f5d7c40850c
+FUNCTION get_sheet(bigint) definer=true anon=false authenticated=true service_role=true md5=1c7600b1a79d959146cf6a4a508e2696
+FUNCTION get_sheet_notification(bigint,uuid) definer=true anon=false authenticated=false service_role=true md5=9a6c9a3422d30b526a3586960217792c
+FUNCTION get_sheet_overview() definer=true anon=false authenticated=true service_role=true md5=d57bad6251bb84bedb2d8c3ceb1dec33
+FUNCTION guard_common_evaluation_result_write() definer=false anon=false authenticated=true service_role=true md5=f53fead580ae9b10a90c0f53eb7ec721
+FUNCTION guard_employee_write() definer=false anon=false authenticated=true service_role=true md5=a95a974ff67d2d183602f6e38c4b147c
+FUNCTION guard_evaluation_period_delete() definer=true anon=false authenticated=false service_role=true md5=7f0b40649c47f887526aa91a9b35bc63
+FUNCTION guard_evaluation_sheet_write() definer=false anon=false authenticated=true service_role=true md5=119d8fa7f2c9500c012e6fafc12e687e
+FUNCTION guard_milestone_write() definer=false anon=false authenticated=true service_role=true md5=3c1cf8b8b92b844e3e0ce99697f152af
+FUNCTION hook_before_user_created(jsonb) definer=true anon=false authenticated=false service_role=true md5=480d90084eb48c0bbff3d1ac17b28b3d
+FUNCTION require_active_evaluation_period() definer=true anon=false authenticated=false service_role=true md5=b603969dab08e3f490df2d678efc8654
+FUNCTION reset_employee_registration(text) definer=true anon=false authenticated=true service_role=true md5=c3873c14a21af8e5ee68cabdf698a46e
+FUNCTION reviewer_sheet_snapshot(bigint,text) definer=true anon=false authenticated=false service_role=true md5=2f5e2f4fbe7bb7bfd98a62718c2bfed5
+FUNCTION rls_auto_enable() definer=true anon=false authenticated=false service_role=true md5=99be20677b456ea8d3be47bdd44fb369
+FUNCTION save_common_evaluation(bigint,jsonb) definer=true anon=false authenticated=true service_role=true md5=330323577d9a5a7ba73e8de47f8caf4d
+FUNCTION set_employee_role(text,text) definer=true anon=false authenticated=true service_role=true md5=28f1113290429fb4718062409c741ea4
+FUNCTION set_evaluation_sheet_evaluators() definer=true anon=false authenticated=false service_role=true md5=7aeaa81e137f9ba93289665c24d9fb31
+FUNCTION set_evaluation_sheet_grade() definer=true anon=false authenticated=false service_role=true md5=38b20da30b14521cdc7b27f2dd6d133a
+FUNCTION sheet_access(bigint) definer=true anon=false authenticated=true service_role=true md5=c2d43de628f9fbe7b100c68962b2ee69
+FUNCTION sheet_evaluation_score(bigint,boolean,integer,integer) definer=true anon=false authenticated=true service_role=true md5=7a7a86c9acb9982156aa271df91f60d7
+FUNCTION sync_evaluation_sheet_evaluators() definer=true anon=false authenticated=false service_role=true md5=6dd3291e8a90e0dc17399dc4c2ae26b4
+FUNCTION visible_employee_ids() definer=true anon=false authenticated=true service_role=true md5=0a13aee8541d790b10ac237c7bd1ee27
+GRANT common_evaluation_item_sets service_role DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+GRANT common_evaluation_items authenticated SELECT
+GRANT common_evaluation_items service_role DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+GRANT common_evaluation_results service_role DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+GRANT employee_contacts service_role DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+GRANT employee_grades authenticated SELECT
+GRANT employee_grades service_role DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+GRANT employees authenticated SELECT
+GRANT employees service_role DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+GRANT evaluation_periods authenticated DELETE,REFERENCES,SELECT,TRIGGER
+GRANT evaluation_periods service_role DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+GRANT evaluation_settings authenticated SELECT
+GRANT evaluation_settings service_role DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+GRANT evaluation_sheets service_role DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+GRANT milestones authenticated DELETE
+GRANT milestones service_role DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+GRANT registration_tickets service_role DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+GRANT roles authenticated SELECT
+GRANT roles service_role DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+GRANT workspace_settings service_role DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+INDEX CREATE INDEX common_evaluation_items_item_set_id_idx ON public.common_evaluation_items USING btree (item_set_id)
+INDEX CREATE INDEX common_results_review_sheet_idx ON public.common_evaluation_results USING btree (sheet_id)
+INDEX CREATE INDEX evaluation_sheets_primary_evaluator_idx ON public.evaluation_sheets USING btree (primary_evaluator_id)
+INDEX CREATE INDEX evaluation_sheets_review_period_idx ON public.evaluation_sheets USING btree (period_id, employee_id)
+INDEX CREATE INDEX evaluation_sheets_secondary_evaluator_idx ON public.evaluation_sheets USING btree (secondary_evaluator_id)
+INDEX CREATE INDEX idx_employees_user_id ON public.employees USING btree (user_id)
+INDEX CREATE INDEX milestones_review_sheet_idx ON public.milestones USING btree (sheet_id)
+INDEX CREATE UNIQUE INDEX common_evaluation_item_sets_pkey ON public.common_evaluation_item_sets USING btree (id)
+INDEX CREATE UNIQUE INDEX common_evaluation_items_pkey ON public.common_evaluation_items USING btree (id)
+INDEX CREATE UNIQUE INDEX common_evaluation_results_pkey ON public.common_evaluation_results USING btree (id)
+INDEX CREATE UNIQUE INDEX common_evaluation_results_sheet_id_item_id_key ON public.common_evaluation_results USING btree (sheet_id, item_id)
+INDEX CREATE UNIQUE INDEX employee_contacts_pkey ON public.employee_contacts USING btree (employee_id)
+INDEX CREATE UNIQUE INDEX employee_grades_grade_name_key ON public.employee_grades USING btree (grade_name)
+INDEX CREATE UNIQUE INDEX employee_grades_pkey ON public.employee_grades USING btree (id)
+INDEX CREATE UNIQUE INDEX employees_employee_no_key ON public.employees USING btree (employee_no)
+INDEX CREATE UNIQUE INDEX employees_pkey ON public.employees USING btree (id)
+INDEX CREATE UNIQUE INDEX employees_user_id_key ON public.employees USING btree (user_id) WHERE (user_id IS NOT NULL)
+INDEX CREATE UNIQUE INDEX evaluation_periods_period_name_key ON public.evaluation_periods USING btree (period_name)
+INDEX CREATE UNIQUE INDEX evaluation_periods_pkey ON public.evaluation_periods USING btree (id)
+INDEX CREATE UNIQUE INDEX evaluation_periods_single_active ON public.evaluation_periods USING btree (is_active) WHERE is_active
+INDEX CREATE UNIQUE INDEX evaluation_settings_pkey ON public.evaluation_settings USING btree (id)
+INDEX CREATE UNIQUE INDEX evaluation_sheets_period_id_employee_id_key ON public.evaluation_sheets USING btree (period_id, employee_id)
+INDEX CREATE UNIQUE INDEX evaluation_sheets_pkey ON public.evaluation_sheets USING btree (id)
+INDEX CREATE UNIQUE INDEX milestones_pkey ON public.milestones USING btree (id)
+INDEX CREATE UNIQUE INDEX milestones_sheet_id_goal_number_key ON public.milestones USING btree (sheet_id, goal_number)
+INDEX CREATE UNIQUE INDEX registration_tickets_pkey ON public.registration_tickets USING btree (employee_id)
+INDEX CREATE UNIQUE INDEX roles_pkey ON public.roles USING btree (id)
+INDEX CREATE UNIQUE INDEX roles_role_name_key ON public.roles USING btree (role_name)
+INDEX CREATE UNIQUE INDEX workspace_settings_pkey ON public.workspace_settings USING btree (id)
+POLICY common_evaluation_items | select c | {authenticated} | SELECT | using true | check -
+POLICY common_evaluation_results | evaluators add common evaluation in their stage | {authenticated} | INSERT | using - | check (sheet_access(sheet_id) = ANY (ARRAY['first'::text, 'second'::text]))
+POLICY common_evaluation_results | evaluators change common evaluation in their stage | {authenticated} | UPDATE | using (sheet_access(sheet_id) = ANY (ARRAY['first'::text, 'second'::text])) | check (sheet_access(sheet_id) = ANY (ARRAY['first'::text, 'second'::text]))
+POLICY common_evaluation_results | evaluators read common evaluation | {authenticated} | SELECT | using (sheet_access(sheet_id) = ANY (ARRAY['first'::text, 'second'::text, 'read'::text, 'subject:finalized'::text])) | check -
+POLICY employee_grades | select | {authenticated} | SELECT | using true | check -
+POLICY employees | Admin and Reviewer maintain the employee master | {authenticated} | UPDATE | using (( SELECT current_employee_role() AS current_employee_role) = ANY (ARRAY['Admin'::text, 'Reviewer'::text])) | check (( SELECT current_employee_role() AS current_employee_role) = ANY (ARRAY['Admin'::text, 'Reviewer'::text]))
+POLICY employees | employees read the people they work with | {authenticated} | SELECT | using ((( SELECT current_employee_role() AS current_employee_role) = ANY (ARRAY['Admin'::text, 'Reviewer'::text])) OR (id IN ( SELECT visible_employee_ids() AS visible_employee_ids))) | check -
+POLICY evaluation_periods | only Admin adds evaluation periods | {authenticated} | INSERT | using - | check (current_employee_is_admin() AND (NOT is_active))
+POLICY evaluation_periods | only Admin deletes evaluation periods | {authenticated} | DELETE | using current_employee_is_admin() | check -
+POLICY evaluation_periods | only Admin edits evaluation periods | {authenticated} | UPDATE | using current_employee_is_admin() | check true
+POLICY evaluation_periods | periods select | {authenticated} | SELECT | using true | check -
+POLICY evaluation_settings | evaluation settings are readable when signed in | {authenticated} | SELECT | using true | check -
+POLICY evaluation_settings | only Admin changes evaluation settings | {authenticated} | UPDATE | using (EXISTS ( SELECT 1 FROM (employees caller JOIN roles caller_role ON ((caller_role.id = caller.role_id))) WHERE ((caller.user_id = auth.uid()) AND (caller_role.role_name = 'Admin'::text)))) | check true
+POLICY evaluation_sheets | an employee creates their own sheet | {authenticated} | INSERT | using - | check (employee_id = ( SELECT current_employee_id() AS current_employee_id))
+POLICY evaluation_sheets | subject and evaluators change a sheet | {authenticated} | UPDATE | using (((( SELECT current_employee_id() AS current_employee_id) = employee_id) OR (( SELECT current_employee_id() AS current_employee_id) = primary_evaluator_id)) OR (( SELECT current_employee_id() AS current_employee_id) = secondary_evaluator_id)) | check (((( SELECT current_employee_id() AS current_employee_id) = employee_id) OR (( SELECT current_employee_id() AS current_employee_id) = primary_evaluator_id)) OR (( SELECT current_employee_id() AS current_employee_id) = secondary_evaluator_id))
+POLICY evaluation_sheets | subject and evaluators read a sheet | {authenticated} | SELECT | using (((( SELECT current_employee_id() AS current_employee_id) = employee_id) OR (( SELECT current_employee_id() AS current_employee_id) = primary_evaluator_id)) OR (( SELECT current_employee_id() AS current_employee_id) = secondary_evaluator_id)) | check -
+POLICY milestones | subject adds goals to a draft | {authenticated} | INSERT | using - | check (sheet_access(sheet_id) = 'subject:draft'::text)
+POLICY milestones | subject and evaluators change goals in their stage | {authenticated} | UPDATE | using (sheet_access(sheet_id) = ANY (ARRAY['subject:draft'::text, 'first'::text, 'second'::text])) | check (sheet_access(sheet_id) = ANY (ARRAY['subject:draft'::text, 'first'::text, 'second'::text]))
+POLICY milestones | subject and evaluators read goals | {authenticated} | SELECT | using (sheet_access(sheet_id) IS NOT NULL) | check -
+POLICY milestones | subject removes goals from a draft | {authenticated} | DELETE | using (sheet_access(sheet_id) = 'subject:draft'::text) | check -
+POLICY roles | roles select all | {authenticated} | SELECT | using true | check -
+POLICY workspace_settings | only Admin changes workspace settings | {authenticated} | UPDATE | using (EXISTS ( SELECT 1 FROM (employees caller JOIN roles caller_role ON ((caller_role.id = caller.role_id))) WHERE ((caller.user_id = auth.uid()) AND (caller_role.role_name = 'Admin'::text)))) | check true
+POLICY workspace_settings | only Admin reads workspace settings | {authenticated} | SELECT | using (EXISTS ( SELECT 1 FROM (employees caller JOIN roles caller_role ON ((caller_role.id = caller.role_id))) WHERE ((caller.user_id = auth.uid()) AND (caller_role.role_name = 'Admin'::text)))) | check -
+TABLE common_evaluation_item_sets rls=true
+TABLE common_evaluation_items rls=true
+TABLE common_evaluation_results rls=true
+TABLE employee_contacts rls=true
+TABLE employee_grades rls=true
+TABLE employees rls=true
+TABLE evaluation_periods rls=true
+TABLE evaluation_settings rls=true
+TABLE evaluation_sheets rls=true
+TABLE milestones rls=true
+TABLE registration_tickets rls=true
+TABLE roles rls=true
+TABLE workspace_settings rls=true
+TRIGGER common_evaluation_results common_evaluation_results_guard_write BEFORE INSERT,UPDATE
+TRIGGER common_evaluation_results common_evaluation_results_require_active_period BEFORE DELETE,INSERT,UPDATE
+TRIGGER employees employees_guard_write BEFORE UPDATE
+TRIGGER employees employees_sync_sheet_evaluators AFTER UPDATE
+TRIGGER evaluation_periods evaluation_periods_guard_delete BEFORE DELETE
+TRIGGER evaluation_sheets evaluation_sheets_access_guard BEFORE UPDATE
+TRIGGER evaluation_sheets evaluation_sheets_check_completion BEFORE UPDATE
+TRIGGER evaluation_sheets evaluation_sheets_require_active_period BEFORE DELETE,INSERT,UPDATE
+TRIGGER evaluation_sheets evaluation_sheets_set_evaluators BEFORE INSERT
+TRIGGER evaluation_sheets evaluation_sheets_set_grade BEFORE INSERT
+TRIGGER milestones milestones_check_goal_number BEFORE INSERT,UPDATE
+TRIGGER milestones milestones_guard_write BEFORE UPDATE
+TRIGGER milestones milestones_require_active_period BEFORE DELETE,INSERT,UPDATE

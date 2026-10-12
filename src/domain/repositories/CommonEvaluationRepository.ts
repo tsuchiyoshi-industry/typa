@@ -1,13 +1,3 @@
-import type { CommonEvaluationItem } from "../entities/CommonEvaluationItem";
-import type { CommonEvaluationResult } from "../entities/CommonEvaluationResult";
-
-export interface CommonEvaluationDraft {
-	itemId: number;
-	firstComment: string;
-	firstScore: number;
-	secondScore: number;
-}
-
 export interface CommonEvaluationResultPayload {
 	id: number;
 	itemId: number;
@@ -17,19 +7,10 @@ export interface CommonEvaluationResultPayload {
 }
 
 export interface CommonEvaluationRepository {
-	findItemsByGrade(gradeId: number | null): Promise<CommonEvaluationItem[]>;
-	findResultsBySheetId(
-		sheetId: number,
-		gradeId: number | null,
-	): Promise<{
-		results: CommonEvaluationResult[];
-		totalFirstScore: number;
-		totalSecondScore: number;
-		totalWeight: number;
-		firstRate: number;
-		secondRate: number;
-	}>;
-	createResultsForSheet(sheetId: number, drafts: CommonEvaluationDraft[]): Promise<void>;
+	/**
+	 * 共通評価をまとめて保存する。canEditFirst なら一次評価の点数とコメント、canEditSecond なら
+	 * 二次評価の点数だけを送る。どちらを保存するかは、最終的に DB がシートの状態から決める。
+	 */
 	upsertResults(
 		sheetId: number,
 		results: CommonEvaluationResultPayload[],

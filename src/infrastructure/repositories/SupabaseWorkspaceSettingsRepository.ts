@@ -17,23 +17,6 @@ export class SupabaseWorkspaceSettingsRepository implements WorkspaceSettingsRep
 		return data;
 	}
 
-	async findNotificationSmtp(): Promise<SmtpSettings> {
-		const { data, error } = await supabase.rpc("get_notification_smtp_settings");
-		if (error) {
-			throw error;
-		}
-		const row = data as Partial<SmtpSettings> | null;
-		if (
-			typeof row?.host !== "string" ||
-			typeof row.port !== "number" ||
-			typeof row.user !== "string" ||
-			typeof row.password !== "string"
-		) {
-			throw new Error("SMTP設定が不正です。");
-		}
-		return { host: row.host, port: row.port, user: row.user, password: row.password };
-	}
-
 	async findSmtpSummary(): Promise<SmtpSettingsSummary | null> {
 		const { data, error } = await supabase
 			.from("workspace_settings")

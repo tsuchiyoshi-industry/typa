@@ -1,22 +1,11 @@
-import type {
-	CommonEvaluationDraft,
-	CommonEvaluationRepository,
-} from "../../domain/repositories/CommonEvaluationRepository";
 import type { EvaluationPeriodRepository } from "../../domain/repositories/EvaluationPeriodRepository";
 import type { EvaluationSheetRepository } from "../../domain/repositories/EvaluationSheetRepository";
-import { createSheetWithCommonEvaluation } from "../../domain/services/EvaluationSheetDomainService";
 import type { OutputPort } from "../ports/OutputPort";
 import type { UseCase } from "../ports/UseCase";
 
 export interface CreateEvaluationSheetRequest {
 	periodId: number;
 	employeeId: number;
-	drafts: Array<{
-		itemId: number;
-		firstComment: string;
-		firstScore: number;
-		secondScore: number;
-	}>;
 }
 
 export interface CreateEvaluationSheetResponse {
@@ -31,7 +20,6 @@ export class CreateEvaluationSheetInteractor
 {
 	constructor(
 		private readonly evaluationSheetRepository: EvaluationSheetRepository,
-		private readonly commonEvaluationRepository: CommonEvaluationRepository,
 		private readonly evaluationPeriodRepository: EvaluationPeriodRepository,
 	) {}
 
@@ -45,19 +33,10 @@ export class CreateEvaluationSheetInteractor
 			throw new Error("評価シートを作成できるのは、実施中の評価期間だけです。");
 		}
 
-		const drafts: CommonEvaluationDraft[] = request.drafts.map((draft) => ({
-			itemId: draft.itemId,
-			firstComment: draft.firstComment,
-			firstScore: draft.firstScore,
-			secondScore: draft.secondScore,
-		}));
-
-		const sheetId = await createSheetWithCommonEvaluation(
+		// 作るのはシートの行だけ。共通評価の結果は、評価者が保存したときにできる
+		const sheetId = await this.evaluationSheetRepository.createOrGetSheet(
 			request.periodId,
 			request.employeeId,
-			drafts,
-			this.evaluationSheetRepository,
-			this.commonEvaluationRepository,
 		);
 
 		outputPort.present({ sheetId });

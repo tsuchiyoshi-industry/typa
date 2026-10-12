@@ -12,7 +12,7 @@ const SmtpSettings: Component<SmtpSettingsProps> = (props) => {
 	const [error, setError] = createSignal<string | null>(null);
 	const [busy, setBusy] = createSignal(false);
 	const [passwordSet, setPasswordSet] = createSignal(false);
-	const [form, setForm] = createSignal({ host: "", port: "587", user: "", password: "" });
+	const [form, setForm] = createSignal({ host: "", port: "465", user: "", password: "" });
 	let mounted = true;
 	onCleanup(() => {
 		mounted = false;
@@ -66,8 +66,9 @@ const SmtpSettings: Component<SmtpSettingsProps> = (props) => {
 		<section class="info-card" aria-labelledby="smtp-heading">
 			<h2 id="smtp-heading">通知メール</h2>
 			<p>
-				一次評価の確定と評価の確定を、評価者にメールで知らせます。送信に使う SMTP
-				サーバーと、送信元のメールアドレスを決めます。接続は STARTTLS です。
+				提出・一次評価の確定・評価の確定を、評価者にメールで知らせます。送信に使う SMTP
+				サーバーと、送信元のメールアドレスを決めます。メールはサーバー側から送るため、ポートは 465
+				(TLS)を指定してください。587 と 25 は使えません。
 			</p>
 			<p class="allocation-note">
 				保存したパスワードは、この画面には表示されません。変更するときだけ入力してください。

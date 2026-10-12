@@ -31,17 +31,39 @@ interface GradeRow {
 }
 
 export class SupabaseEmployeeMasterRepository implements EmployeeMasterRepository {
-	async findCurrentEmployeeProfile(): Promise<EmployeeProfile | null> {
-		const {
-			data: { user },
-			error,
-		} = await supabase.auth.getUser();
+	/**
+	 * ログイン中の社員。画面の出し分けと操作前の確認のたびに引かれるので、同じアカウントの間は覚えておく。
+	 * 権限が変わっても古い表示が残るだけで、操作してよいかは DB が毎回確かめる。
+	 */
+	private current?: { userId: string; profile: Promise<EmployeeProfile | null> };
 
-		if (error || !user) {
+	async findCurrentEmployeeProfile(): Promise<EmployeeProfile | null> {
+		// 手元のセッションを読むだけで、通信しない
+		const {
+			data: { session },
+			error,
+		} = await supabase.auth.getSession();
+
+		if (error || !session) {
+			this.current = undefined;
 			return null;
 		}
 
-		const currentEmployeeId = await this.findEmployeeIdByUserId(user.id);
+		const userId = session.user.id;
+		if (this.current?.userId !== userId) {
+			this.current = { userId, profile: this.findProfileByUserId(userId) };
+		}
+		const lookup = this.current;
+		const profile = await lookup.profile.catch(() => null);
+		// 見つからなかった(登録の途中・読み込みの失敗)という結果は、覚えておかない
+		if (profile === null && this.current === lookup) {
+			this.current = undefined;
+		}
+		return profile;
+	}
+
+	private async findProfileByUserId(userId: string): Promise<EmployeeProfile | null> {
+		const currentEmployeeId = await this.findEmployeeIdByUserId(userId);
 		if (currentEmployeeId == null) {
 			return null;
 		}
@@ -115,6 +137,8 @@ export class SupabaseEmployeeMasterRepository implements EmployeeMasterRepositor
 			return false;
 		}
 
+		// 自分の権限を変えたかもしれない
+		this.current = undefined;
 		return data === true;
 	}
 
@@ -147,6 +171,8 @@ export class SupabaseEmployeeMasterRepository implements EmployeeMasterRepositor
 			console.error("Error updating employee:", error);
 			return null;
 		}
+		// 自分の評価者・等級を変えたかもしれない
+		this.current = undefined;
 
 		return this.findByEmployeeNo(targetEmployeeNo);
 	}

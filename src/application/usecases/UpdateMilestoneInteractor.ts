@@ -1,3 +1,5 @@
+import type { EvaluationSheet } from "../../domain/entities/EvaluationSheet";
+import type { Milestone } from "../../domain/entities/Milestone";
 import type { EvaluationSheetRepository } from "../../domain/repositories/EvaluationSheetRepository";
 import type { MilestoneRepository } from "../../domain/repositories/MilestoneRepository";
 import type { EvaluationScoreUpdateService } from "../../domain/services/EvaluationScoreUpdateService";
@@ -83,7 +85,21 @@ export class UpdateMilestoneInteractor
 			}
 		}
 
-		let updated = null;
+		const updatesScore = request.firstScore !== undefined || request.secondScore !== undefined;
+		// 保存後に読み直したシートから、保存した目標を取り出す(見せてよい点数は DB が決める)
+		const savedObjective = (saved: EvaluationSheet | null): Milestone => {
+			const objective = saved?.objectives.find((candidate) =>
+				request.milestoneId !== undefined
+					? candidate.id === request.milestoneId
+					: candidate.goalNumber === request.goalNumber,
+			);
+			if (!objective) {
+				throw new Error("保存した目標を読み込めませんでした。");
+			}
+			return objective;
+		};
+
+		let updated: Milestone | null = null;
 		if (request.delete) {
 			if (!policy.canEditMilestoneGoal()) {
 				throw new Error("自分の評価シートの目標のみ削除できます。");
@@ -125,29 +141,30 @@ export class UpdateMilestoneInteractor
 				throw new Error("自分の評価シートの目標のみ編集できます。");
 			}
 
+			const text = [
+				request.challengeGoal ?? currentObjective?.challengeGoal ?? "",
+				request.midtermGoal ?? currentObjective?.midtermGoal ?? "",
+				request.achievement ?? currentObjective?.achievement ?? "",
+			] as const;
 			if (request.milestoneId !== undefined) {
-				updated = await this.milestoneRepository.updateText(
-					request.milestoneId,
-					request.challengeGoal ?? currentObjective?.challengeGoal ?? "",
-					request.midtermGoal ?? currentObjective?.midtermGoal ?? "",
-					request.achievement ?? currentObjective?.achievement ?? "",
-				);
+				await this.milestoneRepository.updateText(request.milestoneId, ...text);
 			} else if (request.goalNumber !== undefined) {
-				updated = await this.milestoneRepository.upsertText(
-					request.sheetId,
-					request.goalNumber,
-					request.challengeGoal ?? currentObjective?.challengeGoal ?? "",
-					request.midtermGoal ?? currentObjective?.midtermGoal ?? "",
-					request.achievement ?? currentObjective?.achievement ?? "",
-				);
+				await this.milestoneRepository.upsertText(request.sheetId, request.goalNumber, ...text);
+			}
+			// 点数も保存するときは、その後にまとめて読み直す
+			if (!updatesScore && (request.milestoneId ?? request.goalNumber) !== undefined) {
+				updated = savedObjective(await this.evaluationSheetRepository.findById(request.sheetId));
 			}
 		}
 
-		if (request.firstScore !== undefined || request.secondScore !== undefined) {
-			updated = await this.evaluationScoreUpdateService.updateObjectiveScore(
-				request.milestoneId as number,
-				request.firstScore,
-				request.secondScore,
+		if (updatesScore) {
+			updated = savedObjective(
+				await this.evaluationScoreUpdateService.updateObjectiveScore(
+					request.sheetId,
+					request.milestoneId as number,
+					request.firstScore,
+					request.secondScore,
+				),
 			);
 		}
 

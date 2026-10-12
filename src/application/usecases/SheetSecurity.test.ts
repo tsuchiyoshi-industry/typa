@@ -85,40 +85,43 @@ describe("sheet reading and confidentiality", () => {
 			id === 3 ? { displayText: "S", score: 100, confirmed: false } : undefined,
 		);
 	});
-	it.each([1, 4])("does not query common evaluation for unauthorized role %s", async (id) => {
-		const { sheets, common, out } = setup();
+	it.each([1, 4])("does not present common evaluation to unauthorized role %s", async (id) => {
+		const { sheets, out } = setup();
 		await expect(
-			new LoadCommonEvaluationInteractor(common, sheets).execute(
+			new LoadCommonEvaluationInteractor(sheets).execute(
 				{ sheetId: 100, gradeId: 99, currentEmployeeId: id },
 				out,
 			),
 		).rejects.toThrow("権限");
-		expect(common.findResultsBySheetId).not.toHaveBeenCalled();
+		expect(out.present).not.toHaveBeenCalled();
 	});
-	it("lists the common evaluation items of the grade held when the sheet was created", async () => {
-		const { sheets, common } = setup();
-		sheets.findById.mockResolvedValue(sheet(EvaluationStatus.SUBMITTED, 3));
-		await new LoadCommonEvaluationInteractor(common, sheets).execute(
-			{ sheetId: 100, gradeId: 99, currentEmployeeId: 2 },
-			output(),
-		);
-		// 社員の今の等級(5)でも、画面から渡された値(99)でもない
-		expect(common.findResultsBySheetId).toHaveBeenCalledWith(100, 3);
-	});
-	it.each([2, 3])("uses the sheet grade and masks common secondary scores for %s", async (id) => {
-		const { sheets, common } = setup();
-		const out = output<import("./LoadCommonEvaluationInteractor").LoadCommonEvaluationResponse>();
-		await new LoadCommonEvaluationInteractor(common, sheets).execute(
-			{ sheetId: 100, gradeId: 99, currentEmployeeId: id },
-			out,
-		);
-		expect(common.findResultsBySheetId).toHaveBeenCalledWith(100, 5);
-		expect(out.present.mock.calls[0][0]).toMatchObject({
-			totalSecondScore: id === 3 ? 20 : null,
-			secondRate: id === 3 ? 100 : null,
-			results: [expect.objectContaining({ secondScore: id === 3 ? 4 : null })],
-		});
-	});
+	it.each([2, 3])(
+		"lists the sheet's own items and masks common secondary scores for %s",
+		async (id) => {
+			const { sheets } = setup();
+			const out = output<import("./LoadCommonEvaluationInteractor").LoadCommonEvaluationResponse>();
+			// 画面から渡された等級(99)は使わない。項目はシートが持つもの
+			await new LoadCommonEvaluationInteractor(sheets).execute(
+				{ sheetId: 100, gradeId: 99, currentEmployeeId: id },
+				out,
+			);
+			expect(out.present.mock.calls[0][0]).toMatchObject({
+				totalFirstScore: 15,
+				firstRate: 75,
+				totalWeight: 5,
+				totalSecondScore: id === 3 ? 20 : null,
+				secondRate: id === 3 ? 100 : null,
+				results: [
+					expect.objectContaining({
+						itemId: 31,
+						firstScore: 3,
+						secondScore: id === 3 ? 4 : null,
+						item: expect.objectContaining({ title: "共通項目", weight: 5 }),
+					}),
+				],
+			});
+		},
+	);
 });
 
 describe("milestone updates validate before side effects", () => {
@@ -571,7 +574,7 @@ describe("comments, final rank, status and notifications", () => {
 	it.each(["comment", "status", "milestone", "common", "loadCommon"])(
 		"missing sheet fails closed for %s",
 		async (kind) => {
-			const { sheets, employees, milestones, common, scores, out } = setup();
+			const { sheets, employees, milestones, scores, out } = setup();
 			sheets.findById.mockResolvedValue(null);
 			const run = () => {
 				switch (kind) {
@@ -596,7 +599,7 @@ describe("comments, final rank, status and notifications", () => {
 							out,
 						);
 					default:
-						return new LoadCommonEvaluationInteractor(common, sheets).execute(
+						return new LoadCommonEvaluationInteractor(sheets).execute(
 							{ sheetId: 100, currentEmployeeId: 2, gradeId: 5 },
 							out,
 						);

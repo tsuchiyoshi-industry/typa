@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { EvaluationStatus } from "../../domain/valueObjects/EvaluationStatus";
 import {
-	commonRepository,
 	employeeRepository,
 	masterRepository,
 	output,
@@ -336,48 +335,28 @@ describe("lists and permission queries", () => {
 });
 
 describe("sheet creation orchestration", () => {
-	it("creates common results then refreshes totals", async () => {
+	it("creates only the sheet: no evaluation is written on behalf of its subject", async () => {
 		const sheets = sheetRepository();
-		const common = commonRepository();
 		const out = output<never>();
-		const drafts = [{ itemId: 31, firstScore: 0, secondScore: 0, firstComment: "" }];
-		await new CreateEvaluationSheetInteractor(sheets, common, periodRepository()).execute(
-			{ periodId: 2, employeeId: 1, drafts },
+		await new CreateEvaluationSheetInteractor(sheets, periodRepository()).execute(
+			{ periodId: 2, employeeId: 1 },
 			out,
 		);
 		expect(sheets.createOrGetSheet).toHaveBeenCalledWith(2, 1);
-		expect(common.createResultsForSheet).toHaveBeenCalledWith(100, drafts);
-		expect(sheets.updateScoreTotals).toHaveBeenCalledWith(
-			100,
-			expect.objectContaining({
-				commonEvaluationResults: expect.objectContaining({ secondTotalRate: 100 }),
-			}),
-		);
+		expect(sheets.updateScoreTotals).not.toHaveBeenCalled();
 		expect(out.present).toHaveBeenCalledWith({ sheetId: 100 });
 	});
-	it("does not report success when common result persistence fails", async () => {
+	it("does not report success when the sheet cannot be created", async () => {
 		const sheets = sheetRepository();
-		const common = commonRepository();
-		common.createResultsForSheet.mockRejectedValue(new Error("DB"));
+		sheets.createOrGetSheet.mockRejectedValue(new Error("DB"));
 		const out = output<never>();
 		await expect(
-			new CreateEvaluationSheetInteractor(sheets, common, periodRepository()).execute(
-				{ periodId: 2, employeeId: 1, drafts: [] },
+			new CreateEvaluationSheetInteractor(sheets, periodRepository()).execute(
+				{ periodId: 2, employeeId: 1 },
 				out,
 			),
 		).rejects.toThrow("DB");
-		expect(sheets.updateScoreTotals).not.toHaveBeenCalled();
 		expect(out.present).not.toHaveBeenCalled();
-	});
-	it("does not fabricate totals when created sheet is not readable", async () => {
-		const sheets = sheetRepository();
-		sheets.findById.mockResolvedValue(null);
-		await new CreateEvaluationSheetInteractor(
-			sheets,
-			commonRepository(),
-			periodRepository(),
-		).execute({ periodId: 2, employeeId: 1, drafts: [] }, output<never>());
-		expect(sheets.updateScoreTotals).not.toHaveBeenCalled();
 	});
 	it.each([
 		["a closed period", 1],
@@ -385,16 +364,14 @@ describe("sheet creation orchestration", () => {
 		["an unknown period", 999],
 	])("creates a sheet only in the period in progress, not in %s", async (_label, periodId) => {
 		const sheets = sheetRepository();
-		const common = commonRepository();
 		const out = output<never>();
 		await expect(
-			new CreateEvaluationSheetInteractor(sheets, common, periodRepository()).execute(
-				{ periodId, employeeId: 1, drafts: [] },
+			new CreateEvaluationSheetInteractor(sheets, periodRepository()).execute(
+				{ periodId, employeeId: 1 },
 				out,
 			),
 		).rejects.toThrow("実施中の評価期間だけ");
 		expect(sheets.createOrGetSheet).not.toHaveBeenCalled();
-		expect(common.createResultsForSheet).not.toHaveBeenCalled();
 		expect(out.present).not.toHaveBeenCalled();
 	});
 	it("draft role permissions are recalculated from current sheet", async () => {

@@ -203,7 +203,7 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 	});
 
 	const handleCreateSheet = async () => {
-		const newSheetId = await props.controller.createSheet([]);
+		const newSheetId = await props.controller.createSheet();
 		if (newSheetId) {
 			showToast("success", "評価シートを作成しました");
 			navigate(`/sheet/${newSheetId}`);

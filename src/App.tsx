@@ -60,16 +60,15 @@ import type { AuthSession } from "./domain/repositories/AuthRepository";
 import { EvaluationScoreUpdateService } from "./domain/services/EvaluationScoreUpdateService";
 import { SupabaseAuthRepository } from "./infrastructure/auth/SupabaseAuthRepository";
 import { SupabaseCommonEvaluationRepository } from "./infrastructure/repositories/SupabaseCommonEvaluationRepository";
+import { SupabaseEmailNotificationRepository } from "./infrastructure/repositories/SupabaseEmailNotificationRepository";
 import { SupabaseEmployeeMasterRepository } from "./infrastructure/repositories/SupabaseEmployeeMasterRepository";
 import { SupabaseEmployeeRepository } from "./infrastructure/repositories/SupabaseEmployeeRepository";
-import { SupabaseEvaluationNotificationRecipientRepository } from "./infrastructure/repositories/SupabaseEvaluationNotificationRecipientRepository";
 import { SupabaseEvaluationPeriodRepository } from "./infrastructure/repositories/SupabaseEvaluationPeriodRepository";
 import { SupabaseEvaluationSettingsRepository } from "./infrastructure/repositories/SupabaseEvaluationSettingsRepository";
 import { SupabaseEvaluationSheetRepository } from "./infrastructure/repositories/SupabaseEvaluationSheetRepository";
 import { SupabaseMilestoneRepository } from "./infrastructure/repositories/SupabaseMilestoneRepository";
 import { SupabaseReviewerWorkspaceRepository } from "./infrastructure/repositories/SupabaseReviewerWorkspaceRepository";
 import { SupabaseWorkspaceSettingsRepository } from "./infrastructure/repositories/SupabaseWorkspaceSettingsRepository";
-import { TauriEmailNotificationRepository } from "./infrastructure/repositories/TauriEmailNotificationRepository";
 import { TauriSheetPdfGateway } from "./infrastructure/repositories/TauriSheetPdfGateway";
 
 // Load protected page code when the corresponding route is opened.
@@ -85,11 +84,7 @@ const authRepository = new SupabaseAuthRepository(workspaceSettingsRepository);
 const employeeRepository = new SupabaseEmployeeRepository();
 const commonEvaluationRepository = new SupabaseCommonEvaluationRepository();
 const evaluationSettingsRepository = new SupabaseEvaluationSettingsRepository();
-const evaluationSheetRepository = new SupabaseEvaluationSheetRepository(
-	employeeRepository,
-	commonEvaluationRepository,
-	evaluationSettingsRepository,
-);
+const evaluationSheetRepository = new SupabaseEvaluationSheetRepository();
 const evaluationPeriodRepository = new SupabaseEvaluationPeriodRepository();
 const reviewerWorkspaceController = new ReviewerWorkspaceController(
 	new SupabaseReviewerWorkspaceRepository(),
@@ -112,10 +107,7 @@ const smtpSettingsController = new SmtpSettingsController(
 	workspaceSettingsRepository,
 	new UpdateSmtpSettingsInteractor(workspaceSettingsRepository, employeeMasterRepository),
 );
-const emailNotificationRepository = new TauriEmailNotificationRepository(
-	new SupabaseEvaluationNotificationRecipientRepository(),
-	workspaceSettingsRepository,
-);
+const emailNotificationRepository = new SupabaseEmailNotificationRepository();
 const evaluationScoreUpdateService = new EvaluationScoreUpdateService(
 	evaluationSheetRepository,
 	milestoneRepository,
@@ -133,17 +125,13 @@ const fetchEvaluationSheetUseCase = new FetchEvaluationSheetInteractor(
 const fetchDistinctPeriodsUseCase = new FetchDistinctPeriodsInteractor(evaluationPeriodRepository);
 const createEvaluationSheetUseCase = new CreateEvaluationSheetInteractor(
 	evaluationSheetRepository,
-	commonEvaluationRepository,
 	evaluationPeriodRepository,
 );
 const checkEvaluatorRoleUseCase = new CheckEvaluatorRoleInteractor(
 	employeeRepository,
 	evaluationSheetRepository,
 );
-const loadCommonEvaluationUseCase = new LoadCommonEvaluationInteractor(
-	commonEvaluationRepository,
-	evaluationSheetRepository,
-);
+const loadCommonEvaluationUseCase = new LoadCommonEvaluationInteractor(evaluationSheetRepository);
 const upsertCommonEvaluationUseCase = new UpsertCommonEvaluationInteractor(
 	evaluationSheetRepository,
 	evaluationScoreUpdateService,

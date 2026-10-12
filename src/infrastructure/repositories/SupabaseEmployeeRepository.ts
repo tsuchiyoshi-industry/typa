@@ -1,8 +1,15 @@
-import { Employee } from "../../domain/entities/Employee";
-import type { EmployeeRepository } from "../../domain/repositories/EmployeeRepository";
+import type {
+	EmployeeRepository,
+	RegistrationStart,
+} from "../../domain/repositories/EmployeeRepository";
 import { supabase } from "../db/supabase";
 
 export class SupabaseEmployeeRepository implements EmployeeRepository {
+	/** ログイン中のアカウントと、その社員ID。同じアカウントの間は問い合わせ直さない。 */
+	private current?: { userId: string; employeeId: Promise<number | null> };
+	/** 等級名。評価シートを開くたびに引かれるが、ほとんど変わらないので一度だけ読む。 */
+	private gradeNames?: Promise<Map<number, string>>;
+
 	async checkUserLinked(authUserId: string): Promise<boolean> {
 		const { data, error } = await supabase
 			.from("employees")
@@ -21,32 +28,38 @@ export class SupabaseEmployeeRepository implements EmployeeRepository {
 
 	async findCurrentEmployeeId(): Promise<{ data: number | null; error: Error | null }> {
 		try {
+			// 手元のセッションを読むだけで、通信しない。誰の操作かは、どの問い合わせでも DB が確かめる
 			const {
-				data: { user },
+				data: { session },
 				error: authError,
-			} = await supabase.auth.getUser();
+			} = await supabase.auth.getSession();
 
 			if (authError) {
 				throw authError;
 			}
-			if (!user) {
+			if (!session) {
+				this.current = undefined;
 				return { data: null, error: null };
 			}
 
-			const { data, error: dbError } = await supabase
-				.from("employees")
-				.select("id")
-				.eq("user_id", user.id)
-				.maybeSingle();
-
-			if (dbError) {
-				throw dbError;
+			const userId = session.user.id;
+			if (this.current?.userId !== userId) {
+				this.current = { userId, employeeId: this.findEmployeeId(userId) };
 			}
-
-			return {
-				data: data ? (data as { id: number }).id : null,
-				error: null,
-			};
+			const lookup = this.current;
+			try {
+				const employeeId = await lookup.employeeId;
+				// まだ紐付いていない(登録の途中)という結果は、覚えておかない
+				if (employeeId === null && this.current === lookup) {
+					this.current = undefined;
+				}
+				return { data: employeeId, error: null };
+			} catch (e) {
+				if (this.current === lookup) {
+					this.current = undefined;
+				}
+				throw e;
+			}
 		} catch (e) {
 			return {
 				data: null,
@@ -55,77 +68,17 @@ export class SupabaseEmployeeRepository implements EmployeeRepository {
 		}
 	}
 
-	async findById(employeeId: number): Promise<Employee | null> {
+	private async findEmployeeId(userId: string): Promise<number | null> {
 		const { data, error } = await supabase
 			.from("employees")
-			.select("*")
-			.eq("id", employeeId)
+			.select("id")
+			.eq("user_id", userId)
 			.maybeSingle();
 
-		if (error || !data) {
-			return null;
+		if (error) {
+			throw error;
 		}
-
-		const employee = data as {
-			id: number;
-			name: string;
-			employee_no: string;
-			role_id: number;
-			career_course: string | null;
-			grade_id: number | null;
-			primary_evaluator_id: number | null;
-			secondary_evaluator_id: number | null;
-			no_secondary_evaluator?: boolean | null;
-		};
-
-		return new Employee(
-			employee.id,
-			employee.name,
-			employee.employee_no,
-			employee.role_id,
-			employee.career_course,
-			employee.grade_id,
-			employee.primary_evaluator_id,
-			employee.secondary_evaluator_id,
-			employee.no_secondary_evaluator ?? false,
-		);
-	}
-
-	async findEvaluatorNames(
-		primaryEvaluatorId: number | null,
-		secondaryEvaluatorId: number | null,
-		noSecondaryEvaluator = false,
-	): Promise<{ primaryEvaluator: string; secondaryEvaluator: string }> {
-		// 「なし」と明示された社員と、未設定(指定待ち)の社員を区別して表示する
-		const withoutSecondary = noSecondaryEvaluator ? "なし" : "未設定";
-		if (!primaryEvaluatorId && !secondaryEvaluatorId) {
-			return {
-				primaryEvaluator: "未設定",
-				secondaryEvaluator: withoutSecondary,
-			};
-		}
-
-		const ids = [primaryEvaluatorId, secondaryEvaluatorId].filter(
-			(id): id is number => id !== null,
-		);
-		const { data, error } = await supabase.from("employees").select("id, name").in("id", ids);
-
-		if (error || !data) {
-			return {
-				primaryEvaluator: "未設定",
-				secondaryEvaluator: "未設定",
-			};
-		}
-
-		const employees = data as Array<{ id: number; name: string }>;
-		const names = new Map<number, string>(employees.map((item) => [item.id, item.name]));
-
-		return {
-			primaryEvaluator: primaryEvaluatorId ? (names.get(primaryEvaluatorId) ?? "未設定") : "未設定",
-			secondaryEvaluator: secondaryEvaluatorId
-				? (names.get(secondaryEvaluatorId) ?? "未設定")
-				: withoutSecondary,
-		};
+		return data ? (data as { id: number }).id : null;
 	}
 
 	async findGradeName(gradeId: number | null): Promise<string> {
@@ -133,80 +86,50 @@ export class SupabaseEmployeeRepository implements EmployeeRepository {
 			return "未設定";
 		}
 
-		const { data, error } = await supabase
-			.from("employee_grades")
-			.select("grade_name")
-			.eq("id", gradeId)
-			.maybeSingle();
-
-		if (error || !data) {
+		this.gradeNames ??= this.findGradeNames();
+		const pending = this.gradeNames;
+		try {
+			return (await pending).get(gradeId) ?? "未設定";
+		} catch {
+			// 読めなかった結果は覚えておかず、次に引かれたときに読み直す
+			if (this.gradeNames === pending) {
+				this.gradeNames = undefined;
+			}
 			return "未設定";
 		}
-
-		return (data as { grade_name: string }).grade_name;
 	}
 
-	async findByEmployeeNo(employeeNo: string): Promise<Employee | null> {
-		const { data, error } = await supabase
-			.from("employees")
-			.select("*")
-			.eq("employee_no", employeeNo)
-			.maybeSingle();
-
+	private async findGradeNames(): Promise<Map<number, string>> {
+		const { data, error } = await supabase.from("employee_grades").select("id, grade_name");
 		if (error || !data) {
-			return null;
+			throw error ?? new Error("Failed to load grades.");
 		}
-
-		const employee = data as {
-			id: number;
-			name: string;
-			employee_no: string;
-			role_id: number;
-			career_course: string | null;
-			grade_id: number | null;
-			primary_evaluator_id: number | null;
-			secondary_evaluator_id: number | null;
-			no_secondary_evaluator?: boolean | null;
-		};
-
-		return new Employee(
-			employee.id,
-			employee.name,
-			employee.employee_no,
-			employee.role_id,
-			employee.career_course,
-			employee.grade_id,
-			employee.primary_evaluator_id,
-			employee.secondary_evaluator_id,
-			employee.no_secondary_evaluator ?? false,
+		return new Map(
+			(data as { id: number; grade_name: string }[]).map((grade) => [grade.id, grade.grade_name]),
 		);
 	}
 
-	async findRegistrationStatus(
-		employeeNo: string,
-	): Promise<"available" | "registered" | "missing"> {
-		const { data, error } = await supabase
-			.from("employees")
-			.select("user_id")
-			.eq("employee_no", employeeNo)
-			.maybeSingle();
-
-		if (error || !data) {
-			return "missing";
+	async beginRegistration(employeeNo: string): Promise<RegistrationStart> {
+		const { data, error } = await supabase.rpc("begin_registration", {
+			p_employee_no: employeeNo,
+		});
+		if (error) {
+			throw error;
 		}
-
-		return (data as { user_id: string | null }).user_id ? "registered" : "available";
+		const start = data as { status?: string; token?: string } | null;
+		if (start?.status === "available" && typeof start.token === "string") {
+			return { status: "available", token: start.token };
+		}
+		return { status: start?.status === "registered" ? "registered" : "missing" };
 	}
 
-	async linkUserToEmployee(employeeNo: string, authUserId: string): Promise<boolean> {
-		const { data, error } = await supabase
-			.from("employees")
-			.update({ user_id: authUserId })
-			.eq("employee_no", employeeNo)
-			.is("user_id", null)
-			.select("id")
-			.maybeSingle();
-
-		return !error && !!data;
+	async completeRegistration(token: string): Promise<boolean> {
+		const { data, error } = await supabase.rpc("complete_registration", { p_token: token });
+		if (!error && data === true) {
+			// 紐付いた社員IDを、次の操作で読み直す
+			this.current = undefined;
+			return true;
+		}
+		return false;
 	}
 }

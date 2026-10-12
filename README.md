@@ -43,7 +43,7 @@ VITE_SUPABASE_PUBLISHABLE_KEY=...
 
 DB 構成は [基本設計書の 8 章](docs/basic-design.md#8-データ設計) と `supabase/migrations/` を参照してください。実装では `evaluation_sheets`, `milestones`, `common_evaluation_items`, `common_evaluation_results`, `employees`, `evaluation_periods` などを参照します。
 
-受け持ちの評価には `supabase/migrations/202610070001_reviewer_workspace.sql` と `202610080001_evaluation_stages.sql` の適用が必要です。既存の「二次評価者なし」「共通評価項目セット」のマイグレーションを先に適用してください。`202610080001` は `evaluation_sheets.first_rank`（一次評価ランク）と状態 `first_evaluated` を追加し、評価者ごとの確認記録（`sheet_review_checkpoints` と `set_sheet_reviewed`）を削除します。0点を未入力・完了の判定には使いません。一次評価者向けの二次評価・最終結果の非表示、下書きの非表示、一次評価確定の通知先の取得を RPC 側で制御しています。状態の遷移と評価の編集可否はアプリ側のポリシーで判定しており、DB 側の強制は SEC-002 の対象のままです。
+受け持ちの評価には `supabase/migrations/202610070001_reviewer_workspace.sql` と `202610080001_evaluation_stages.sql` の適用が必要です。既存の「二次評価者なし」「共通評価項目セット」のマイグレーションを先に適用してください。`202610080001` は `evaluation_sheets.first_rank`（一次評価ランク）と状態 `first_evaluated` を追加し、評価者ごとの確認記録（`sheet_review_checkpoints` と `set_sheet_reviewed`）を削除します。0点を未入力・完了の判定には使いません。一次評価者向けの二次評価・最終結果の非表示、下書きの非表示、一次評価確定の通知先の取得を RPC 側で制御しています。状態の遷移と評価の編集可否は、アプリ側のポリシーに加えて、`202610120001_access_control.sql` から DB 側でも強制しています。
 
 `202610080002_sheet_grade.sql` は `evaluation_sheets.grade_id`（シート作成時の等級）を追加します。等級は挿入時に DB のトリガーが社員の等級から設定し、その後に社員の等級が変わっても書き換えません。評価シート一覧にはこの等級を表示します。PDF を出力できるのは、評価が確定したシートの本人と評価者（一次・二次）です。評価関係のない社員は出力できません。PDF は誰が出力しても同じ内容で、伏せ字にはしません。
 
@@ -57,7 +57,16 @@ DB 構成は [基本設計書の 8 章](docs/basic-design.md#8-データ設計) 
 
 `202610080013_workspace_settings.sql` は、ワークスペース全体の設定（`workspace_settings`、常に1行）を追加します。会社のメールドメイン（旧 `VITE_REQUIRED_DOMAIN`）と、通知メールの SMTP 設定（旧 `VITE_SMTP_*`）をここに持ちます。ログイン画面がこのマイグレーションの DB 関数で会社ドメインを読むため、**アプリの配布前に適用が必要です**。会社ドメインは、登録済みアカウントの内部用アドレスから自動で入ります。SMTP 設定は空で始まるので、適用後に Admin が設定画面の「通知メール」で登録してください（登録するまで通知メールは送れず、確定のたびにエラーのトーストが出ます）。アカウントが1件もない環境では、`update public.workspace_settings set required_domain = 'example.jp';` を実行してください。
 
-`202610080003_employee_roles.sql` は、Admin が社員マスタから TYPA の権限（Admin / Reviewer / Employee）を変えるための DB 関数 `set_employee_role` を追加します。最後の Admin は外せません。あわせて、クライアントから `employees.role_id` を直接更新する権限を外します（`employees` に列を追加したら、クライアントから更新させる列はこのマイグレーションと同じ形で `grant update` が必要です）。誰がどの権限かは Admin の画面にだけ表示しますが、`role_id` の読み取り自体は DB 側で制限していません（SEC-002 の対象）。
+`202610120001`〜`202610120010` は、アクセス制御を DB 側へ移すマイグレーションです。**適用の順番を守ってください**（[基本設計書 13.3](docs/basic-design.md#133-アクセス制御のマイグレーションを当てる順番)）。
+
+- `202610120001_access_control.sql`: 行レベルセキュリティと列権限・トリガーで、「誰が・どの段階で・どの項目を」読み書きできるかを DB が決めます。ログイン前（anon）は会社ドメインの取得だけ、社員は自分の関係者とシートだけ、という範囲になります。確定時に保存する評価点と評価ランクは、DB が点数から計算し直して一致を確かめます。配布済みの 0.9.8 は、新規登録を除いてそのまま動きます。
+- `202610120002_registration.sql`: 新規登録を DB 関数（`begin_registration` / `complete_registration`）に移します。会社のメールアドレスを認証コードで確認したセッションだけが登録を始められ、通知の宛先は `employee_contacts` に DB が控えます。**0.9.8 以前のアプリからは新規登録できなくなります**（ログインと評価は続けられます）。
+- `202610120003_sheet_api.sql`: 評価シートを 1 回で読む `get_sheet`、共通評価をまとめて保存する `save_common_evaluation`、通知用の `get_sheet_notification` を追加します。
+- `202610120010_after_app_update.sql`: **配布済みのアプリがすべて 0.9.8 より新しくなり、Edge Function `notify-sheet` の送信を確認した後に**適用します。SMTP 設定と通知先を返す DB 関数を削除し、評価の値をテーブルから直接読めなくします。0.9.8 以前のアプリは、これ以降は動きません。
+
+`202610040000_baseline.sql` は、2026-10-07 時点の本番スキーマのダンプです。新しい環境をこのリポジトリだけから作るためのもので、既存の環境には適用しません。
+
+`202610080003_employee_roles.sql` は、Admin が社員マスタから TYPA の権限（Admin / Reviewer / Employee）を変えるための DB 関数 `set_employee_role` を追加します。最後の Admin は外せません。あわせて、クライアントから `employees.role_id` を直接更新する権限を外します（`employees` に列を追加したら、クライアントから更新させる列はこのマイグレーションと同じ形で `grant update` が必要です）。誰がどの権限かは Admin の画面にだけ表示しますが、`role_id` の読み取り自体は、行を読める相手には DB 側で制限していません。
 
 ## 開発
 
@@ -95,7 +104,7 @@ bun run fix
 
 PDF出力は以下の流れです。
 
-1. `ExportEvaluationSheetInteractor` が、画面と同じ評価シート（`EvaluationSheetRepository.findById`）から `ExportSheetMapper` で帳票データを作る
+1. `ExportEvaluationSheetInteractor` が、画面と同じ評価シート（`EvaluationSheetRepository.findById`。DB 関数 `get_sheet`）から `ExportSheetMapper` で帳票データを作る
 2. Tauri の `generate_pdf_with_typst` コマンドへデータと保存先を渡す
 3. Rust 側で `src-tauri/src/templates/template.typ` にデータを注入
 4. Typst でPDFを生成して保存
@@ -109,17 +118,23 @@ PDF出力は以下の流れです。
 
 ## 実装メモ
 
-未解決のセキュリティ課題（SEC-001 など）とテストの構成は、[基本設計書](docs/basic-design.md) の 12 章・13 章にまとめています。`bun run test:coverage`、`bun run typecheck`、`bun run test:rust` を配布前に実行します。秘密鍵・SMTPパスワード・Supabase管理キー等を `VITE_*` に含めるビルドは拒否します。
+セキュリティ設計と残っている課題、テストの構成は、[基本設計書](docs/basic-design.md) の 12 章・13 章にまとめています。`bun run test:coverage`、`bun run typecheck`、`bun run test:rust` を配布前に実行します。秘密鍵・SMTPパスワード・Supabase管理キー等を `VITE_*` に含めるビルドは拒否します。
 
-## 評価確定メール
+## 通知メール
 
-二次評価者が評価を確定した後、対象社員の一次・二次評価者が新規登録時に認証コードを受け取ったメールアドレスへ個別に通知します。同じ宛先は1通にまとめます。一次評価者が一次評価を確定したときは、二次評価者へ二次評価の依頼を通知します。本人が提出したときの通知はありません。通知を送るかどうかは、確定の確認ダイアログのチェックボックスで選べます（初めは「送る」）。送信は確定の後に行い、結果は宛先ごとにトーストで表示します。登録メール未設定や送信失敗の場合も確定は維持します。自動再送はありません。
+本人が提出したときは一次評価者へ、一次評価者が一次評価を確定したときは二次評価者へ、評価が確定したときは一次・二次評価者へ通知します。宛先は、評価者が新規登録のときに認証コードで確認したメールアドレスです。同じ宛先は 1 通にまとめ、評価者ごとに別のメールで送ります。通知を送るかどうかは、確定の確認ダイアログのチェックボックスで選べます（初めは「送る」）。送信は状態の保存の後に行い、結果は宛先ごとにトーストで表示します。宛先が未登録・送信失敗の場合も、提出・確定は維持します。自動再送はありません。
 
-配布前に [通知先取得マイグレーション](supabase/migrations/202610050001_evaluation_notification_recipients.sql) と、後続の `supabase/migrations/` 内のマイグレーションをステージングで確認してからSupabaseへ適用してください。Supabase Authの「Confirm email」は無効にし、メールテンプレートに `{{ .Token }}` を含めます。社員の `user_id` が登録ユーザーに紐付いている必要があります。追加email列は不要です。このDB関数は確定済みシートの二次評価者だけに宛先取得を許可します。
+送信するのは Supabase の Edge Function（[supabase/functions/notify-sheet](supabase/functions/notify-sheet/index.ts)）です。アプリは「どのシートか」だけを伝え、誰に送るか・呼び出した人がその操作をした本人かは DB 関数 `get_sheet_notification` が決めます。宛先のメールアドレスと SMTP のパスワードは、アプリには渡りません。
 
-SMTP のホスト・ポート・送信元メールアドレス・パスワードは、Admin が設定画面の「通知メール」で登録します（DB の `workspace_settings`）。送信元の変更やパスワードの更新に、アプリの再配布は要りません。GitHub Actions Secrets の `VITE_SMTP_*` と `VITE_REQUIRED_DOMAIN` は使わなくなったので、削除してかまいません。実際の送信はTauriのRust側で、送信するアプリが SMTP 設定を DB から読みます。読めるのは評価シートの評価者だけです。
+```powershell
+npx supabase functions deploy notify-sheet
+```
 
-- `evaluation_sheets`（評価期間・社員）、`milestones`（シート・目標番号）、`common_evaluation_results`（シート・項目）は、それぞれ一意制約を持ちます。シートの作成と、目標・共通評価の保存は、この制約を使った `upsert(... onConflict)` で行います。
+SMTP のホスト・ポート・送信元メールアドレス・パスワードは、Admin が設定画面の「通知メール」で登録します（DB の `workspace_settings`）。**Edge Function からはポート 25 と 587 に接続できない**ため、ポートは 465（TLS）を登録してください。メールサーバーが 465 を受け付けない場合は、2525 などの代替ポートか、HTTP API で送るメールサービスが必要です。465 以外のポートでは STARTTLS を必須にしており、暗号化できない接続では送りません。
+
+Supabase Auth の「Confirm email」は無効にし、メールテンプレートに `{{ .Token }}` を含めます。あわせて、Authentication > Hooks の「Before User Created」に Postgres 関数 `public.hook_before_user_created` を設定してください。会社ドメインのメールアドレスと、登録の途中にある社員のログイン用アドレス以外では、アカウントが作られなくなります。
+
+- `evaluation_sheets`（評価期間・社員）、`milestones`（シート・目標番号）、`common_evaluation_results`（シート・項目）は、それぞれ一意制約を持ちます。シートの作成と目標の保存は、この制約を使った `upsert(... onConflict)` で、共通評価の保存は DB 関数 `save_common_evaluation` で行います。
 - 共通評価は `common_evaluation_results` が0件でも、`common_evaluation_items` を基準に未入力行を表示します。
 - 評価シートPDFも、登録済み結果だけでなく評価項目マスタを基準に出力します。
 

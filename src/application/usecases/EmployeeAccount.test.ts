@@ -66,8 +66,14 @@ describe("register an employee account", () => {
 		const { auth, employees, status } = await register();
 		expect(status).toBe("linked");
 		expect(auth.verifyEmailCode).toHaveBeenCalledWith("shared@example.com", "123456");
-		expect(auth.signUp).toHaveBeenCalledWith("TEST001", "Passw0rd", "shared@example.com");
-		expect(employees.linkUserToEmployee).toHaveBeenCalledWith("TEST001", "auth-user");
+		expect(employees.beginRegistration).toHaveBeenCalledWith("TEST001");
+		expect(auth.signUp).toHaveBeenCalledWith("TEST001", "Passw0rd");
+		// 紐付けに使うのは、登録を始めたときに DB が発行したトークン
+		expect(employees.completeRegistration).toHaveBeenCalledWith("ticket");
+		// アカウントを作る前に、会社のメールアドレスを確認したセッションで登録を始める
+		expect(employees.beginRegistration.mock.invocationCallOrder[0]).toBeLessThan(
+			auth.signUp.mock.invocationCallOrder[0],
+		);
 		expect(auth.signOut).not.toHaveBeenCalled();
 	});
 
@@ -85,7 +91,7 @@ describe("register an employee account", () => {
 		auth.verifyEmailCode.mockResolvedValue({ error: new Error("expired") });
 		const { employees, status } = await register(auth);
 		expect(status).toBe("invalid_code");
-		expect(employees.findRegistrationStatus).not.toHaveBeenCalled();
+		expect(employees.beginRegistration).not.toHaveBeenCalled();
 		expect(auth.signUp).not.toHaveBeenCalled();
 	});
 
@@ -96,11 +102,11 @@ describe("register an employee account", () => {
 		"never creates an account for a %s employee number",
 		async (registration, expected) => {
 			const employees = employeeRepository();
-			employees.findRegistrationStatus.mockResolvedValue(registration);
+			employees.beginRegistration.mockResolvedValue({ status: registration });
 			const { auth, status } = await register(undefined, employees);
 			expect(status).toBe(expected);
 			expect(auth.signUp).not.toHaveBeenCalled();
-			expect(employees.linkUserToEmployee).not.toHaveBeenCalled();
+			expect(employees.completeRegistration).not.toHaveBeenCalled();
 		},
 	);
 
@@ -110,7 +116,8 @@ describe("register an employee account", () => {
 		auth.signInWithPassword.mockResolvedValue({ userId: "stalled-user", error: null });
 		const { employees, status } = await register(auth);
 		expect(status).toBe("linked");
-		expect(employees.linkUserToEmployee).toHaveBeenCalledWith("TEST001", "stalled-user");
+		expect(auth.signInWithPassword).toHaveBeenCalledWith("TEST001", "Passw0rd");
+		expect(employees.completeRegistration).toHaveBeenCalledWith("ticket");
 	});
 
 	it("does not link a stalled registration with a different password", async () => {
@@ -119,7 +126,7 @@ describe("register an employee account", () => {
 		auth.signInWithPassword.mockResolvedValue({ userId: null, error: new Error("invalid") });
 		const { employees, status } = await register(auth);
 		expect(status).toBe("stalled_account");
-		expect(employees.linkUserToEmployee).not.toHaveBeenCalled();
+		expect(employees.completeRegistration).not.toHaveBeenCalled();
 	});
 
 	it.each([
@@ -130,14 +137,23 @@ describe("register an employee account", () => {
 		auth.signUp.mockResolvedValue({ status: "error", error });
 		const { employees, status } = await register(auth);
 		expect(status).toBe(expected);
-		expect(employees.linkUserToEmployee).not.toHaveBeenCalled();
+		expect(employees.completeRegistration).not.toHaveBeenCalled();
 	});
 
 	it("signs out when the account cannot be linked, so no unlinked session is left", async () => {
 		const employees = employeeRepository();
-		employees.linkUserToEmployee.mockResolvedValue(false);
+		employees.completeRegistration.mockResolvedValue(false);
 		const { auth, status } = await register(undefined, employees);
 		expect(status).toBe("link_failed");
+		expect(auth.signOut).toHaveBeenCalledOnce();
+	});
+
+	it("starts over when the mailbox is no longer verified, without creating an account", async () => {
+		const employees = employeeRepository();
+		employees.beginRegistration.mockRejectedValue(new Error("denied"));
+		const { auth, status } = await register(undefined, employees);
+		expect(status).toBe("link_failed");
+		expect(auth.signUp).not.toHaveBeenCalled();
 		expect(auth.signOut).toHaveBeenCalledOnce();
 	});
 });

@@ -1,21 +1,20 @@
-import type { Employee } from "../entities/Employee";
+/**
+ * 新規登録を始めた結果。available なら登録でき、token を completeRegistration に渡す。
+ * missing は社員マスタにない番号、registered は登録済み(紐付け済み)の番号。
+ */
+export type RegistrationStart =
+	| { status: "available"; token: string }
+	| { status: "registered" | "missing" };
 
 export interface EmployeeRepository {
 	findCurrentEmployeeId(): Promise<{ data: number | null; error: Error | null }>;
-	findById(employeeId: number): Promise<Employee | null>;
-	findByEmployeeNo(employeeNo: string): Promise<Employee | null>;
-	findEvaluatorNames(
-		primaryEvaluatorId: number | null,
-		secondaryEvaluatorId: number | null,
-		/** true なら二次評価者は「なし」、false なら「未設定」と表示する。 */
-		noSecondaryEvaluator?: boolean,
-	): Promise<{
-		primaryEvaluator: string;
-		secondaryEvaluator: string;
-	}>;
 	findGradeName(gradeId: number | null): Promise<string>;
-	/** 新規登録できる社員番号か。missing は社員マスタにない番号、registered は登録済み(紐付け済み)の番号。 */
-	findRegistrationStatus(employeeNo: string): Promise<"available" | "registered" | "missing">;
-	linkUserToEmployee(employeeNo: string, authUserId: string): Promise<boolean>;
+	/**
+	 * 会社のメールアドレスを認証コードで確認したセッションで呼ぶ。確認していなければ reject する。
+	 * 確認したメールアドレスは、評価者への通知の宛先として DB が控える。
+	 */
+	beginRegistration(employeeNo: string): Promise<RegistrationStart>;
+	/** 作ったログイン用アカウントのセッションで呼ぶ。社員に紐付いたら true。 */
+	completeRegistration(token: string): Promise<boolean>;
 	checkUserLinked(authUserId: string): Promise<boolean>;
 }

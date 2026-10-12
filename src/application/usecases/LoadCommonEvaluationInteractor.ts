@@ -1,6 +1,6 @@
-import type { CommonEvaluationRepository } from "../../domain/repositories/CommonEvaluationRepository";
 import type { EvaluationSheetRepository } from "../../domain/repositories/EvaluationSheetRepository";
 import { EvaluationSheetAccessPolicy } from "../../domain/services/EvaluationSheetAccessPolicy";
+import { EvaluationScoreTotals } from "../../domain/valueObjects/EvaluationScoreTotals";
 import type { CommonEvaluationSummaryDto } from "../dtos/CommonEvaluationDto";
 import type { OutputPort } from "../ports/OutputPort";
 import type { UseCase } from "../ports/UseCase";
@@ -18,10 +18,7 @@ export interface LoadCommonEvaluationOutputPort extends OutputPort<LoadCommonEva
 export class LoadCommonEvaluationInteractor
 	implements UseCase<LoadCommonEvaluationRequest, LoadCommonEvaluationOutputPort>
 {
-	constructor(
-		private readonly commonEvaluationRepository: CommonEvaluationRepository,
-		private readonly evaluationSheetRepository: EvaluationSheetRepository,
-	) {}
+	constructor(private readonly evaluationSheetRepository: EvaluationSheetRepository) {}
 
 	async execute(
 		request: LoadCommonEvaluationRequest,
@@ -37,12 +34,12 @@ export class LoadCommonEvaluationInteractor
 		}
 		const canViewSecond = policy.canViewCommonEvaluationSecond();
 
-		const summary = await this.commonEvaluationRepository.findResultsBySheetId(
-			request.sheetId,
-			sheet.gradeId,
-		);
+		// シートの共通評価は、シート作成時の等級の項目(社員の今の等級でも、画面から渡された値でもない)
+		const results = sheet.commonEvaluationResults;
+		// 合計は「配点 × 評価」の合計。満点は totalWeight × 4
+		const totals = EvaluationScoreTotals.fromCommonEvaluationResults(results);
 		const response: LoadCommonEvaluationResponse = {
-			results: summary.results.map((result) => ({
+			results: results.map((result) => ({
 				id: result.id,
 				sheetId: result.sheetId,
 				itemId: result.itemId,
@@ -57,11 +54,11 @@ export class LoadCommonEvaluationInteractor
 					itemSetId: result.item.itemSetId,
 				},
 			})),
-			totalFirstScore: summary.totalFirstScore,
-			totalSecondScore: canViewSecond ? summary.totalSecondScore : null,
-			totalWeight: summary.totalWeight,
-			firstRate: summary.firstRate,
-			secondRate: canViewSecond ? summary.secondRate : null,
+			totalFirstScore: totals.firstTotalScore,
+			totalSecondScore: canViewSecond ? totals.secondTotalScore : null,
+			totalWeight: results.reduce((sum, result) => sum + result.item.weight, 0),
+			firstRate: totals.firstTotalRate,
+			secondRate: canViewSecond ? totals.secondTotalRate : null,
 		};
 		outputPort.present(response);
 	}

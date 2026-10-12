@@ -16,7 +16,6 @@ import { CommonEvaluationResult } from "../entities/CommonEvaluationResult";
 import { EvaluationSheet } from "../entities/EvaluationSheet";
 import { Milestone } from "../entities/Milestone";
 import { EvaluationScoreUpdateService } from "../services/EvaluationScoreUpdateService";
-import { createSheetWithCommonEvaluation } from "../services/EvaluationSheetDomainService";
 import { EvaluationAllocatedScores } from "./EvaluationAllocatedScores";
 import { EvaluationAllocation } from "./EvaluationAllocation";
 import { EvaluationScoreTotals } from "./EvaluationScoreTotals";
@@ -178,7 +177,7 @@ describe("configurable allocation", () => {
 		expect(reviewScore(row, "second")).toBe(calculate([2, 3], allocation).totalEvaluationScore);
 		expect(reviewScore(row, "second")).toBe(88);
 	});
-	it("uses settings in goal updates, common updates, and sheet initialization", async () => {
+	it("uses settings in goal updates and common updates", async () => {
 		const allocation = EvaluationAllocation.of(35, 65);
 		const sheets = sheetRepository();
 		sheets.findById.mockResolvedValue(
@@ -195,9 +194,8 @@ describe("configurable allocation", () => {
 		);
 		const common = commonRepository();
 		const service = new EvaluationScoreUpdateService(sheets, milestoneRepository(), common);
-		await service.updateObjectiveScore(11, undefined, 4);
+		await service.updateObjectiveScore(100, 11, undefined, 4);
 		await service.refreshCommonEvaluationTotals(100);
-		await createSheetWithCommonEvaluation(10, 1, [], sheets, common);
 		for (const [, totals] of sheets.updateScoreTotals.mock.calls) {
 			expect(totals.allocatedScores).toMatchObject({
 				objectiveAllocationScore: 35,
@@ -205,7 +203,7 @@ describe("configurable allocation", () => {
 				totalEvaluationScore: 100,
 			});
 		}
-		expect(sheets.updateScoreTotals).toHaveBeenCalledTimes(3);
+		expect(sheets.updateScoreTotals).toHaveBeenCalledTimes(2);
 	});
 });
 it("rounds an exact half point up even when dividing first would fall just short of it", () => {
@@ -282,14 +280,12 @@ it.each([
 		expect(current.allocatedScores.totalEvaluationScore).toBe(points + allocation.common);
 		const sheets = sheetRepository();
 		sheets.findById.mockResolvedValue(current);
-		const milestones = milestoneRepository();
-		milestones.findBySheetId.mockResolvedValue(objectives);
-		milestones.updateScore.mockResolvedValue(objectives[objectives.length - 1]);
 		await new EvaluationScoreUpdateService(
 			sheets,
-			milestones,
+			milestoneRepository(),
 			commonRepository(),
 		).updateObjectiveScore(
+			100,
 			objectives[objectives.length - 1].id,
 			undefined,
 			scores[scores.length - 1],

@@ -106,46 +106,26 @@ export function employeeRepository() {
 		findCurrentEmployeeId: vi
 			.fn<EmployeeRepository["findCurrentEmployeeId"]>()
 			.mockResolvedValue({ data: 1, error: null }),
-		findById: vi.fn<EmployeeRepository["findById"]>().mockResolvedValue(employee()),
-		findByEmployeeNo: vi.fn<EmployeeRepository["findByEmployeeNo"]>().mockResolvedValue(employee()),
-		findEvaluatorNames: vi
-			.fn<EmployeeRepository["findEvaluatorNames"]>()
-			.mockResolvedValue({ primaryEvaluator: "一次", secondaryEvaluator: "二次" }),
 		findGradeName: vi.fn<EmployeeRepository["findGradeName"]>().mockResolvedValue("等級"),
-		findRegistrationStatus: vi
-			.fn<EmployeeRepository["findRegistrationStatus"]>()
-			.mockResolvedValue("available"),
-		linkUserToEmployee: vi.fn<EmployeeRepository["linkUserToEmployee"]>().mockResolvedValue(true),
+		beginRegistration: vi
+			.fn<EmployeeRepository["beginRegistration"]>()
+			.mockResolvedValue({ status: "available", token: "ticket" }),
+		completeRegistration: vi
+			.fn<EmployeeRepository["completeRegistration"]>()
+			.mockResolvedValue(true),
 		checkUserLinked: vi.fn<EmployeeRepository["checkUserLinked"]>().mockResolvedValue(true),
 	} satisfies EmployeeRepository;
 }
 export function milestoneRepository() {
 	return {
 		delete: vi.fn<MilestoneRepository["delete"]>().mockResolvedValue(undefined),
-		findBySheetId: vi.fn<MilestoneRepository["findBySheetId"]>().mockResolvedValue([milestone()]),
-		updateText: vi.fn<MilestoneRepository["updateText"]>().mockResolvedValue(milestone()),
-		upsertText: vi.fn<MilestoneRepository["upsertText"]>().mockResolvedValue(milestone()),
-		updateScore: vi.fn<MilestoneRepository["updateScore"]>().mockResolvedValue(milestone()),
+		updateText: vi.fn<MilestoneRepository["updateText"]>().mockResolvedValue(undefined),
+		upsertText: vi.fn<MilestoneRepository["upsertText"]>().mockResolvedValue(undefined),
+		updateScore: vi.fn<MilestoneRepository["updateScore"]>().mockResolvedValue(undefined),
 	} satisfies MilestoneRepository;
 }
 export function commonRepository() {
 	return {
-		findItemsByGrade: vi
-			.fn<CommonEvaluationRepository["findItemsByGrade"]>()
-			.mockResolvedValue([commonResult().item]),
-		findResultsBySheetId: vi
-			.fn<CommonEvaluationRepository["findResultsBySheetId"]>()
-			.mockResolvedValue({
-				results: [commonResult()],
-				totalFirstScore: 15,
-				totalSecondScore: 20,
-				totalWeight: 5,
-				firstRate: 75,
-				secondRate: 100,
-			}),
-		createResultsForSheet: vi
-			.fn<CommonEvaluationRepository["createResultsForSheet"]>()
-			.mockResolvedValue(undefined),
 		upsertResults: vi
 			.fn<CommonEvaluationRepository["upsertResults"]>()
 			.mockResolvedValue(undefined),

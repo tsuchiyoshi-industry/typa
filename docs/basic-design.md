@@ -53,30 +53,30 @@ flowchart LR
   subgraph PC["利用者の PC（Windows）"]
     subgraph Tauri["Tauri 2 アプリ"]
       UI["WebView<br/>Solid + Solid Router"]
-      Rust["Rust<br/>PDF 生成 / メール送信"]
+      Rust["Rust<br/>PDF 生成"]
       UI -- "IPC (invoke)" --> Rust
     end
     File["PDF ファイル"]
     Rust --> File
   end
-  Supabase["Supabase<br/>Auth / PostgreSQL / RPC"]
+  Supabase["Supabase<br/>Auth / PostgreSQL / RPC<br/>Edge Function（通知メール）"]
   SMTP["SMTP サーバー"]
   GitHub["GitHub Releases<br/>latest.json"]
   UI -- "HTTPS (supabase-js)" --> Supabase
-  Rust -- "STARTTLS" --> SMTP
+  Supabase -- "TLS" --> SMTP
   Rust -- "更新確認" --> GitHub
 ```
 
 | 要素 | 技術 | 役割 |
 | --- | --- | --- |
 | 画面 | Solid 1.9、@solidjs/router、lucide-solid | 画面表示と操作 |
-| デスクトップ | Tauri 2（Rust） | ウィンドウ、保存ダイアログ、自動更新、PDF 生成、メール送信 |
+| デスクトップ | Tauri 2（Rust） | ウィンドウ、保存ダイアログ、自動更新、PDF 生成 |
 | データ・認証 | Supabase（Auth、PostgreSQL、RPC） | 社員・評価データの保存、ログイン |
 | 帳票 | Typst（typst-as-lib、typst-pdf） | 評価シート PDF の組版 |
-| メール | lettre（SMTP、STARTTLS） | 評価者への通知 |
+| メール | Supabase Edge Function（Deno、nodemailer） | 評価者への通知。SMTP の認証情報はサーバー側だけが扱う |
 | ビルド・検査 | Vite 8、TypeScript 7、Biome、Vitest 5、PGlite | ビルド、型検査、整形、テスト |
 
-業務ロジックを持つサーバーはありません。画面が Supabase のテーブルと DB 関数（RPC）を直接呼びます。このため、認可はアプリ側のポリシーと DB 側の制約の両方で成り立ちます（[12](#12-セキュリティ設計)）。
+業務ロジックを持つサーバーはありません。画面が Supabase のテーブルと DB 関数（RPC）を直接呼びます。配布するアプリに入っている公開キーがあれば誰でも同じ API を呼べるので、「誰が何をできるか」は DB が決めます（行レベルセキュリティ、列権限、トリガー、DB 関数）。アプリ側のポリシーは、できない操作を画面に出さず、分かりやすい理由で断るためのものです（[12](#12-セキュリティ設計)）。
 
 ---
 
@@ -131,6 +131,7 @@ stateDiagram-v2
 - **確定には、確定する本人の評価がすべて入っていること。** 一次評価の確定は一次評価の、評価の確定は二次評価（二次評価者「なし」の社員は一次評価）の、チャレンジ目標と共通評価の全項目が 1〜4 であること。0 は未評価として扱い、不足している項目を一覧で返す。相手の評価者の入力は要求しない。同じ検査を DB のトリガー `check_evaluation_completion` でも行う。
 - **二次評価者が「未設定」の社員は確定できない。** 設定漏れで一次評価者が最終評価者にならないよう、「なし」と明示した社員だけが一次評価の確定で完了する。
 - **確定した時点の値を保存する。** 一次評価の確定時に一次評価ランクを、評価の確定時に最終評価ランク・集計値・評価点・配点を保存する。以後は保存値を使い、配点の変更や評価者の付け替えに左右されない（[5.5](#55-確定した値の固定)）。
+- **遷移は DB でも強制する。** 上の図にない遷移、その段の本人以外による遷移、確定したシートの変更は、DB のトリガーが拒否する。確定時に保存する評価ランク・評価点・配点は、DB が点数と現在の配点から計算し直し、一致しなければ拒否する（[8.2](#82-制約トリガーdb-関数)）。
 - **通知の失敗で確定は取り消さない。** 状態を保存した後にメールを送り、送信の結果は宛先ごとにトーストで知らせる。通知を送るかどうかは、確定の確認ダイアログで選べる（[10](#10-通知メール)）。
 
 ### 3.1 評価期間と期間締め
@@ -179,7 +180,8 @@ Admin は、全社員の評価シートを一覧で見られます（誰のシ�
 - 評価期間の追加・変更・削除は RLS が、期間締めは DB 関数（`activate_evaluation_period`）が、Admin であることを確かめる。実施中かどうか（`is_active`）は、クライアントから直接は書き換えられない。
 - Admin を 0 人にする変更は、アプリと DB 関数の両方で拒否する。
 - 自分自身の登録は取り消せない。自分自身を評価者には設定できない。
-- 評価者と等級の更新は `employees` テーブルの直接更新で、アプリ側の判定のみ（DB 側の強制は SEC-002 の対象）。
+- 評価者と等級の更新は `employees` テーブルの直接更新。DB の行ポリシーが Admin と Reviewer だけに更新を許し、等級の変更は Admin に限る（トリガー）。クライアントが書ける列は、評価者・等級・二次評価者「なし」だけ。社員の追加・削除、氏名・社員番号・権限・アカウントの紐付けは、クライアントからは書けない。
+- 社員マスタを読める範囲も DB が決める。Admin と Reviewer は全員、それ以外は自分・自分の評価者・自分が評価する人・自分のシートに載っている人だけ。
 
 ### 4.2 シート上の役割と操作
 
@@ -218,6 +220,8 @@ Admin は、全社員の評価シートを一覧で見られます（誰のシ�
 | 点数・集計・得点率・評価点 | `null` |
 | 総評 | 空文字 |
 | 評価ランク | 項目ごと省略 |
+
+DB も同じ絞り込みを行います。評価シートは DB 関数 `get_sheet` で読み、呼び出した人がいまの段階で見られない点数は 0、コメントは空文字、集計とランクは空で返ります（本人には共通評価と総評、一次評価者には二次評価）。確定したシートは評価の記録なので、本人と評価者の全員に全部が返ります（PDF に出る内容と同じ）。このため、ユースケースが DTO を作る前の時点で、見せない値はアプリに届いていません。
 
 評価者向けの一覧（`get_reviewer_workspace`）は DB 関数の中で同じ絞り込みを行い、一次評価者には二次評価の値を返しません。評価シート一覧の旧項目 `totalScore` は、誰に対しても `null` です。Admin 向けの全社の一覧（`get_sheet_overview`）が持つのは、期間・社員・作成時の等級・状態・評価者・更新日時、確定したランク（一次評価ランク・最終評価ランク）と評価点、一次・二次の総評です。このうち一次評価ランクと総評は一覧の PDF にだけ載せ、画面の一覧には渡しません（`FetchSheetOverviewInteractor` が DTO に入れない）。
 
@@ -474,11 +478,11 @@ flowchart TB
 | 分類 | ユースケース（Interactor） | 内容 |
 | --- | --- | --- |
 | 認証 | `SignInEmployee` | 社員番号でログインする。社員に紐付かないアカウントはログアウトさせる |
-| 認証 | `RegisterEmployeeAccount` | 認証コードと社員番号を確かめ、アカウントを作って社員に紐付ける |
+| 認証 | `RegisterEmployeeAccount` | 認証コードを確かめ、DB に登録の開始を申し出てトークンを受け取り、アカウントを作って、そのトークンで社員に紐付ける |
 | 一覧 | `FetchCategorizedSheets` | 自分のシートと、シートの評価者が自分であるシート（下書きを除く）を取得する |
 | 一覧 | `FetchSheetOverview` | 全社員の評価シートの一覧を取得する。Admin 以外には読まずに「なし」を返す |
 | 一覧 | `FetchDistinctPeriods` | 評価期間を取得する（同じ期間名は1件にまとめる） |
-| シート | `CreateEvaluationSheet` | 実施中の評価期間にだけ、シートを作成（既にあれば取得）し、集計を保存する。締めた期間・まだ始めていない期間は拒否する |
+| シート | `CreateEvaluationSheet` | 実施中の評価期間にだけ、シートを作成（既にあれば取得）する。共通評価の結果は、評価者が保存したときにできる。締めた期間・まだ始めていない期間は拒否する |
 | シート | `FetchEvaluationSheet` | 閲覧権限を確かめ、見せてよい値だけを DTO にする |
 | シート | `CheckEvaluatorRole` | そのシートで自分に何ができるかを返す |
 | シート | `UpdateMilestone` | 目標の文言または点数を保存する。書き込む前にリクエスト全体を検証する |
@@ -502,17 +506,16 @@ flowchart TB
 | インターフェース（domain / application） | 実装 | 接続先 |
 | --- | --- | --- |
 | `AuthRepository` | `SupabaseAuthRepository` | Supabase Auth |
-| `EmployeeRepository` | `SupabaseEmployeeRepository` | `employees`、`employee_grades` |
+| `EmployeeRepository` | `SupabaseEmployeeRepository` | `employees`、`employee_grades`、RPC（新規登録の開始と完了） |
 | `EmployeeMasterRepository` | `SupabaseEmployeeMasterRepository` | `employees`、`roles`、`employee_grades`、RPC |
-| `EvaluationSheetRepository` | `SupabaseEvaluationSheetRepository` | `evaluation_sheets` ほか、RPC `get_sheet_overview` |
-| `MilestoneRepository` | `SupabaseMilestoneRepository` | `milestones` |
-| `CommonEvaluationRepository` | `SupabaseCommonEvaluationRepository` | `common_evaluation_items`、`common_evaluation_results` |
+| `EvaluationSheetRepository` | `SupabaseEvaluationSheetRepository` | RPC `get_sheet`（シート1枚の読み取り）・`get_sheet_overview`、`evaluation_sheets`（一覧、作成、集計・総評・状態の更新） |
+| `MilestoneRepository` | `SupabaseMilestoneRepository` | `milestones`（書き込みのみ。保存後の内容は `get_sheet` で読み直す） |
+| `CommonEvaluationRepository` | `SupabaseCommonEvaluationRepository` | RPC `save_common_evaluation`（全項目を1回で保存） |
 | `EvaluationPeriodRepository` | `SupabaseEvaluationPeriodRepository` | `evaluation_periods`、RPC（期間締め、シートの状態別件数） |
 | `EvaluationSettingsRepository` | `SupabaseEvaluationSettingsRepository` | `evaluation_settings` |
-| `WorkspaceSettingsRepository` | `SupabaseWorkspaceSettingsRepository` | `workspace_settings`、RPC（会社ドメイン、通知用の SMTP 設定） |
+| `WorkspaceSettingsRepository` | `SupabaseWorkspaceSettingsRepository` | `workspace_settings`、RPC（会社ドメイン） |
 | `ReviewerWorkspaceRepository` | `SupabaseReviewerWorkspaceRepository` | RPC `get_reviewer_workspace` |
-| `EvaluationNotificationRecipientRepository` | `SupabaseEvaluationNotificationRecipientRepository` | RPC（通知先の取得） |
-| `EmailNotificationRepository` | `TauriEmailNotificationRepository` | Tauri コマンド `send_email` |
+| `EmailNotificationRepository` | `SupabaseEmailNotificationRepository` | Edge Function `notify-sheet` |
 | `SheetPdfGateway` | `TauriSheetPdfGateway` | 保存ダイアログ、Tauri コマンド `generate_pdf_with_typst`・`generate_sheet_overview_pdf` |
 
 Tauri コマンド（[src-tauri/src/lib.rs](../src-tauri/src/lib.rs)）:
@@ -521,7 +524,14 @@ Tauri コマンド（[src-tauri/src/lib.rs](../src-tauri/src/lib.rs)）:
 | --- | --- | --- |
 | `generate_pdf_with_typst` | 帳票データ、保存先のパス | 保存先を検証し、Typst で PDF を生成して書き出す |
 | `generate_sheet_overview_pdf` | 全社の一覧のデータ、保存先のパス | 同じ検証の後、一覧のテンプレートで PDF を生成して書き出す |
-| `send_email` | SMTP の接続情報、宛先、件名、本文 | STARTTLS で SMTP サーバーに接続し、1通送る |
+
+PDF の生成は重い計算なので、どちらのコマンドも非同期ランタイムのスレッドを塞がないよう、ブロッキング用のスレッドで実行します。
+
+通信の回数を抑えるための決めごと:
+
+- 評価シート1枚は、DB 関数 `get_sheet` の1回の呼び出しで読む（シート・本人・評価者名・期間・目標・共通評価・設定）。
+- ログイン中の社員 ID と社員情報は、同じアカウントの間はリポジトリが覚えておく。Auth サーバーには問い合わせず、手元のセッションから利用者を特定する（誰の操作かは、どの問い合わせでも DB が確かめる）。等級名も一度だけ読む。
+- 共通評価は、項目数にかかわらず1回の呼び出しで保存する。
 
 環境変数（ビルド時に埋め込む）:
 
@@ -529,7 +539,7 @@ Tauri コマンド（[src-tauri/src/lib.rs](../src-tauri/src/lib.rs)）:
 | --- | --- |
 | `VITE_SUPABASE_URL` / `VITE_SUPABASE_PUBLISHABLE_KEY` | Supabase の接続先と公開キー |
 
-ビルド時に埋め込むのは、この2つだけです。DB につなぐための値なので DB には置けません。公開キーは配布アプリに含まれる前提の値で、データは RLS と DB 関数の権限で守ります。会社のメールドメインと SMTP の設定は、DB の `workspace_settings` にあります（[8.1](#81-テーブル)）。
+ビルド時に埋め込むのは、この2つだけです。DB につなぐための値なので DB には置けません。公開キーは配布アプリに含まれる前提の値で、データは RLS と DB 関数の権限で守ります。ログインのセッションは `sessionStorage` に置き、アプリを閉じると消えます（共有 PC で、前の人のログインが残らないようにするため）。会社のメールドメインと SMTP の設定は、DB の `workspace_settings` にあります（[8.1](#81-テーブル)）。
 
 ---
 
@@ -537,7 +547,7 @@ Tauri コマンド（[src-tauri/src/lib.rs](../src-tauri/src/lib.rs)）:
 
 ### 8.1 テーブル
 
-基礎となるテーブルの定義（作成時の DDL、RLS ポリシー）は、このリポジトリにありません。下の表は、マイグレーション（`supabase/migrations/`）と実装が参照している列から読み取ったものです。
+基礎となるテーブルの定義は、2026-10-07 時点の本番スキーマのダンプ（[202610040000_baseline.sql](../supabase/migrations/202610040000_baseline.sql)）としてリポジトリにあります。その時点の行ポリシーは緩いもので、`202610120001_access_control.sql` が置き換えます。新しい環境は、ベースラインと以降のマイグレーションを順に適用して作ります。
 
 ```mermaid
 erDiagram
@@ -567,6 +577,8 @@ erDiagram
 | `common_evaluation_results` | 共通評価の結果 | `sheet_id`、`item_id`、`first_score`、`second_score`、`first_comment` |
 | `evaluation_settings` | 評価の設定（常に1行） | `objective_allocation`、`common_allocation`、`updated_at` |
 | `workspace_settings` | ワークスペース全体の設定（常に1行） | `required_domain`（会社のメールドメイン。`@` なし）、`smtp_host`、`smtp_port`、`smtp_user`（送信元メールアドレス）、`smtp_password`、`smtp_password_set`（生成列）、`updated_at` |
+| `employee_contacts` | 登録済みの社員の通知先（社員ごとに1行） | `employee_id`、`email`（新規登録のときに認証コードで確認したメールアドレス）。クライアントからは読み書きできない |
+| `registration_tickets` | 進行中の新規登録（社員ごとに1行、15 分で失効） | `employee_id`、`token`、`contact_email`、`expires_at`。クライアントからは読み書きできない |
 
 `evaluation_sheets` の列:
 
@@ -610,27 +622,45 @@ erDiagram
 | トリガー | `evaluation_sheets_set_evaluators` | シートの挿入時に、社員のそのときの評価者をシートに入れる |
 | トリガー | `employees_sync_sheet_evaluators` | 社員の評価者が変わったら、実施中の期間の未確定のシートに反映する。確定済みのシートには触れない |
 | トリガー | `evaluation_sheets_check_completion` | `first_evaluated` / `finalized` へ進む更新で、確定する段の全項目（シート作成時の等級の項目）が 1〜4 であることを確かめる。どの段を見るかは、シートの評価者（二次評価者「なし」かどうか）で決める |
+| トリガー | `evaluation_sheets_access_guard` | クライアントによるシートの更新を、役割と段階で絞る。本人は提出と下書きへの戻しだけ、一次評価者は提出済みの間の一次総評・集計と一次評価の確定、二次評価者は一次評価済みの間の二次総評・集計と評価の確定。確定済みは変更不可。確定時は、保存するランク・評価点・配点が、DB が点数から計算した値と一致することを確かめる |
+| トリガー | `milestones_guard_write`、`common_evaluation_results_guard_write` | 本人は目標の文言だけ、一次評価者は一次の点数（共通評価はコメントも）だけ、二次評価者は二次の点数だけを書ける |
+| トリガー | `employees_guard_write` | 等級の変更は Admin だけ。自分自身を評価者にできない |
+| 一意 | `employees_user_id_key` | 1つのアカウントは1人の社員 |
+| RLS | `employees` | 読めるのは、Admin と Reviewer は全員、それ以外は自分・自分の評価者・自分が評価する人・自分のシートに載っている人。更新は Admin と Reviewer。追加・削除は不可 |
+| RLS | `evaluation_sheets` | 読み書きできるのは、シートの本人とシートの評価者。作成は自分のシートだけ。削除は不可 |
+| RLS | `milestones` | 読めるのは本人と、提出済み以降の評価者。追加・削除は下書きの間の本人。更新は、下書きの間の本人と、自分の段階の評価者 |
+| RLS | `common_evaluation_results` | 読めるのは提出済み以降の評価者と、確定後の本人。書けるのは自分の段階の評価者（`202610120010` の適用後は、クライアントからは読み書き不可で、DB 関数だけが扱う） |
+| RLS | `employee_contacts`、`registration_tickets` | ポリシーなし（クライアントからは読み書き不可） |
+| 列権限 | `evaluation_sheets`、`milestones` | クライアントが書ける列を列挙している（評価者・等級・期間などは書けない）。`202610120010` の適用後は、読める列も絞る（総評・集計・ランク・二次の点数は `get_sheet` からだけ） |
+| 権限 | anon | テーブルは何も読み書きできない。呼べる DB 関数は `get_required_domain` だけ。以後に作るテーブルと関数は、マイグレーションで権限を与えるまで API に出ない |
 | RLS | `evaluation_settings` | 読み取りはログイン済みの全員、更新は Admin のみ。挿入・削除は不可 |
 | RLS・列権限 | `workspace_settings` | 読み取りと更新は Admin のみ。挿入・削除は不可。`smtp_password` は書けるが読めない（読むのは DB 関数だけ）。`required_domain` はクライアントから変更できない |
 | RLS | `common_evaluation_item_sets` | ポリシーなし（クライアントからは読み書き不可） |
 | RLS | `evaluation_periods` | 読み取りは従来どおり。追加・変更・削除は Admin のみ。追加する行は必ず実施中でない |
-| 列権限 | `employees` | クライアントが直接更新できる列から `role_id` を外す |
+| 列権限 | `employees` | クライアントが直接更新できるのは、評価者・等級・二次評価者「なし」だけ |
 | 列権限 | `evaluation_periods` | クライアントが書けるのは期間名と日付だけ。`is_active` は DB 関数でしか変わらない |
 
 | DB 関数（RPC） | 呼び出せる人 | 内容 |
 | --- | --- | --- |
 | `get_reviewer_workspace(period_id)` | ログイン済みの社員 | シートの評価者が自分である社員全員の進捗と評価内容（その期間のシートがない社員は、社員マスタの評価者で判定）。等級と共通評価の項目はシート作成時の等級による。下書きは内容なし。一次評価者には二次評価の値を返さない |
-| `get_first_evaluated_sheet_notification_recipient(sheet_id)` | 一次評価済みのシートの、シートの一次評価者 | シートの二次評価者の通知先メールアドレス |
-| `get_finalized_sheet_notification_recipients(sheet_id)` | 確定済みのシートの、シートの最終評価者 | シートの一次・二次評価者の通知先メールアドレス |
+| `get_sheet(sheet_id)` | シートの本人と評価者 | 評価シート1枚（本人、評価者名、期間、目標、共通評価、設定）。呼び出した人がいまの段階で見てよい範囲だけ。それ以外の人には null |
+| `save_common_evaluation(sheet_id, results)` | 自分の段階の評価者 | 共通評価をまとめて保存する。一次評価者なら一次の点数とコメント、二次評価者なら二次の点数だけが書かれる |
+| `begin_registration(employee_no)` | 会社のメールアドレスに届いた認証コードでログインしたセッション | 新規登録を始める。未登録の社員番号なら、15 分有効なトークンを返す。確認したメールアドレスを通知先として控える |
+| `complete_registration(token)` | その社員番号のログイン用アカウント | トークンが `begin_registration` の発行したものであれば、社員にアカウントを紐付ける |
+| `get_sheet_notification(sheet_id, actor)` | Edge Function（service_role）のみ | シートのいまの状態について、誰に通知するかと、その宛先。actor がその状態にした本人でなければ拒否する |
+| `hook_before_user_created(event)` | Supabase Auth のみ | アカウントの作成を、会社ドメインのメールアドレスと、登録の途中にある社員のログイン用アドレスに限る（Auth のフックに設定して使う） |
 | `set_employee_role(employee_no, role_name)` | Admin | 権限を変える。最後の Admin は外せない |
-| `reset_employee_registration(employee_no)` | Admin | `employees.user_id` を null に戻し、Auth ユーザーを削除する。自分自身は不可 |
+| `reset_employee_registration(employee_no)` | Admin | `employees.user_id` を null に戻し、Auth ユーザー・通知先・登録途中のトークンを削除する。紐付けの前で止まったログイン用アカウントも削除する。自分自身は不可 |
 | `activate_evaluation_period(period_id)` | Admin | 期間締め。指定した期間を実施中にし、それまでの実施中の期間を締める。締める期間に未確定のシートがあれば拒否する |
 | `get_evaluation_period_sheet_counts(period_id)` | Admin | その期間の評価シートの、状態ごとの件数（内容は返さない） |
 | `get_sheet_overview()` | Admin | 全期間・全社員の評価シートの一覧。期間、社員、作成時の等級、状態、シートの評価者、更新日時、確定した一次評価ランク・最終評価ランク・評価点、一次・二次の総評。下書きも含む |
 | `get_required_domain()` | 誰でも（ログイン前を含む） | 会社のメールドメイン。ログイン画面が使う |
-| `get_notification_smtp_settings()` | いずれかの評価シートの評価者 | 通知メールの送信に使う SMTP 設定（パスワードを含む） |
 
-DB 関数はすべて `security definer` で、呼び出し元を `auth.uid()` から社員に解決してから権限を確かめます。匿名での実行を許可しているのは `get_required_domain` だけです。内部用の `reviewer_sheet_snapshot` はクライアントから呼べません。
+0.9.8 以前のアプリのために、SMTP 設定を返す `get_notification_smtp_settings` と、通知先を返す3つの関数（`get_*_notification_recipient(s)`）が残っています。`202610120010_after_app_update.sql` で削除します。
+
+DB 関数は `security definer` で、呼び出し元を `auth.uid()` から社員に解決してから権限を確かめます。匿名での実行を許可しているのは `get_required_domain` だけです。内部用の `reviewer_sheet_snapshot` はクライアントから呼べません。
+
+列を絞るトリガー（`*_guard_write`、`*_access_guard`）だけは `security invoker` です。`current_user` が API のロール（`authenticated`）のときだけ検査し、DB 関数の中からの更新（社員マスタの評価者をシートへ反映するトリガーなど）は通します。
 
 ---
 
@@ -649,34 +679,41 @@ sequenceDiagram
   actor U as 利用者
   participant V as ログイン画面
   participant A as Supabase Auth
-  participant D as employees
+  participant D as DB 関数
   U->>V: 会社のメールアドレスを入力
   V->>A: 認証コードを送る
   A-->>U: メールで認証コード
   U->>V: 認証コード・社員番号・パスワードを入力
-  V->>A: 認証コードを確認
-  V->>D: 社員番号が存在し、未登録か
-  V->>A: 内部用アドレスでアカウントを作成
-  V->>D: 社員にアカウントを紐付け（user_id）
+  V->>A: 認証コードを確認（メールアドレスのセッションになる）
+  V->>D: begin_registration（社員番号）
+  D-->>V: トークン（未登録の社員番号のとき）
+  V->>A: 内部用アドレスでアカウントを作成（そのアカウントのセッションになる）
+  V->>D: complete_registration（トークン）
   V-->>U: 社員番号を確認して完了
 ```
 
-- 認証コードの宛先は、会社ドメインで終わるメールアドレスに限る（画面側の制限）。共有 PC のアドレスを複数の社員が使ってよい。
-- 認証コードを受け取ったメールアドレスは、Auth ユーザーのメタデータ `contact_email` に保存し、通知の宛先に使う。
+- 登録してよいかは DB が決める。`begin_registration` は、会社ドメインのメールアドレスに届いた認証コードでログインしたセッション（JWT の `amr` が `otp`）からの呼び出しだけを受け付ける。パスワードでログインしただけのセッションや、内部用アドレスのセッションは受け付けない。画面のドメイン判定は、入力の案内にすぎない。
+- 社員への紐付け（`employees.user_id`）は `complete_registration` だけが行う。トークンを知っていて、かつその社員番号の内部用アドレスのアカウントであることが条件。クライアントは `user_id` を直接書けない。
+- 認証コードを受け取ったメールアドレスは、`begin_registration` が控え、紐付けのときに `employee_contacts` に保存して通知の宛先に使う。クライアントからは読み書きできない（以前は利用者が書き換えられる Auth のメタデータにあった）。
+- 共有 PC のアドレスを複数の社員が使ってよい。
 - 認証コードは一度しか使えないため、確認が済んだ後に社員番号やパスワードを直して送り直すときは、確認を繰り返さない。
 - 登録済みの社員番号、社員マスタにない社員番号は拒否する。
 - アカウント作成後に紐付けの前で止まった登録は、同じパスワードなら続きから再開する。違うパスワードなら拒否する。
-- 紐付けに失敗したときはログアウトし、社員に紐付かないセッションを残さない。
+- メールアドレスの確認が切れている、または紐付けに失敗したときはログアウトし、社員に紐付かないセッションを残さない。
+- 0.9.8 以前のアプリは、`202610120002_registration.sql` の適用後は新規登録できない（ログインと評価は続けられる）。
 
 ### 9.2 ログインとパスワード忘れ
 
 - ログインに成功しても、社員に紐付いていないアカウントはログアウトさせ、新規登録のやり直しへ案内する。
 - パスワードの再設定画面はない。パスワードを忘れたとき、別人が登録してしまったときは、Admin が社員マスタで登録を取り消し、本人が新規登録をやり直す。取り消しても社員の行と評価データは残る。
+- 紐付けの前で止まり、パスワードも分からなくなったログイン用アカウントは、画面からは取り消せない（取り消しの操作は登録済みの社員にだけ出している）。Supabase のダッシュボード（Authentication > Users）で、`typa-<社員番号>@…` のユーザーを削除する。
+- セッションはアプリを閉じると消える。共有 PC では、使い終わったらアプリを閉じればログアウトになる。
 
 ### 9.3 前提となる Supabase の設定
 
 - Auth の「Confirm email」を無効にする（内部用アドレスは確認メールを受け取れない）。
 - メールテンプレートに `{{ .Token }}` を含める。
+- Authentication > Hooks の「Before User Created」に、Postgres 関数 `public.hook_before_user_created` を設定する。会社ドメインのメールアドレスと、登録の途中にある社員の内部用アドレス以外では、アカウントが作られなくなる（外部からのアカウントの大量作成と、内部用アドレスの先取りを防ぐ）。設定しなくても、社員に紐付かないアカウントは何も読み書きできない。
 
 ---
 
@@ -684,16 +721,19 @@ sequenceDiagram
 
 | きっかけ | 宛先 | 件名 |
 | --- | --- | --- |
+| 提出 | 一次評価者 | 【TYPA】一次評価のお願い（氏名 / 評価期間） |
 | 一次評価の確定 | 二次評価者 | 【TYPA】二次評価のお願い（氏名 / 評価期間） |
 | 評価の確定 | 一次評価者と二次評価者 | 【TYPA】評価シート確定通知（氏名 / 評価期間） |
 
-- 宛先になるのは、そのシートの評価者（[5.7](#57-シートの評価者)）。社員マスタで評価者を付け替えた後でも、シートを評価した人に届く。メールアドレスは、評価者が新規登録のときに認証コードを受け取ったもの。DB 関数が、そのシートの評価者からの呼び出しにだけ返す。
+- 送信するのは Supabase の Edge Function `notify-sheet`（[supabase/functions/notify-sheet](../supabase/functions/notify-sheet/index.ts)）。アプリは、状態を保存した後に「どのシートか」だけを伝える。
+- 誰に送るかは、DB 関数 `get_sheet_notification` がシートのいまの状態から決める。呼び出した人が、その状態にした本人（提出なら本人、一次評価の確定なら一次評価者、評価の確定なら最終評価者）でなければ拒否する。
+- 宛先になるのは、そのシートの評価者（[5.7](#57-シートの評価者)）。社員マスタで評価者を付け替えた後でも、シートを評価した人に届く。メールアドレスは、評価者が新規登録のときに認証コードで確認したもの（`employee_contacts`）。宛先のメールアドレスも SMTP のパスワードも、アプリには渡らない。
 - 評価の確定通知は、評価者ごとに別のメールで送る（互いのアドレスを見せない）。同じアドレスは1通にまとめる。片方への送信が失敗しても、もう片方には送る。
 - 二次評価者「なし」の社員では、一次評価の確定がそのまま評価の確定になり、一次評価者にだけ確定通知を送る。
-- 提出時の通知はない。
 - 通知を送るかどうかは、確定の確認ダイアログのチェックボックスで選ぶ。初めは「送る」。
-- 送信は確定の保存の後に、画面を待たせずに行う。結果は宛先ごとにトーストで知らせる（「〇〇（二次評価者）に通知メールを送信しました」。失敗したときは、宛先と SMTP サーバーが返した理由）。宛先が未登録、SMTP 設定が未登録、送信に失敗、などの場合も確定は維持する。自動の再送はない。
-- 送信は Rust 側が SMTP（STARTTLS）で行う。SMTP の接続情報は `workspace_settings` にあり、Admin が設定画面で変更する。送信するアプリが、送信のたびに DB 関数 `get_notification_smtp_settings` で読む（SEC-001）。
+- 送信は状態の保存の後に、画面を待たせずに行う。結果は宛先ごとにトーストで知らせる（「〇〇（二次評価者）に通知メールを送信しました」。失敗したときは、宛先と SMTP サーバーが返した理由）。宛先が未登録、SMTP 設定が未登録、送信に失敗、などの場合も提出・確定は維持する。自動の再送はない。
+- SMTP の接続情報は `workspace_settings` にあり、Admin が設定画面で変更する。Edge Function からはポート 25 と 587 に接続できないため、465（TLS）を登録する。465 以外のポートでは STARTTLS を必須にしていて、暗号化できない接続では送らない。
+- 同じ通知を何度も送らせない仕組み（回数の制限）はない。送れるのはその状態にした本人だけで、内容と宛先は固定。
 
 ---
 
@@ -758,25 +798,40 @@ Admin が、評価シート一覧の「全社の評価シート」から出力�
 | 入力検証 | 最初の書き込みの前にリクエスト全体を検証する。別シートの目標 ID、範囲外の点数、未知・重複の共通評価項目を拒否する |
 | 失敗時の安全側 | 社員を特定できない・シートが読めない・状態が未知の値、のときは権限なしとして扱う。読み取りに失敗したときに空のデータとして集計を上書きしない |
 | WebView | CSP を有効にし、接続先を自身・IPC・Supabase の1オリジンに限る |
-| Tauri の権限 | メインウィンドウに許可するのは、保存ダイアログ、ウィンドウの破棄、プロセス（再起動）、自動更新のみ |
+| Tauri の権限 | メインウィンドウに許可するのは、保存ダイアログ、ウィンドウの破棄、プロセス（再起動）、自動更新のみ。Rust 側のコマンドは PDF の生成だけで、SMTP の認証情報は扱わない |
+| セッション | `sessionStorage` に置き、アプリを閉じると消える |
 | 公開される設定値 | ビルド時に、秘密鍵・サービスロールキーなどが `VITE_*` に含まれていないこと、Supabase の URL が HTTPS で CSP と一致することを検査する（[scripts/releaseEnvironment.ts](../scripts/releaseEnvironment.ts)） |
 | 自動更新 | 署名付きの更新物を、公開鍵で検証して適用する |
 
 ### 12.2 DB 側で行っていること
 
-[8.2](#82-制約トリガーdb-関数) の制約・トリガー・DB 関数です。権限の変更、登録の取り消し、配点の更新、SMTP 設定の読み書き、評価者向け一覧の出し分け、通知先の取得、確定時の未評価項目の検査、シートの等級の固定、実施中の評価期間が1つであること、締めた期間のシートを変更できないことは、DB 側でも強制しています。
+配布するアプリに入っている公開キーがあれば、誰でも API を直接呼べます。このため、守るべきことは DB 側で強制しています（[8.2](#82-制約トリガーdb-関数)）。
+
+| 対象 | DB 側の強制 |
+| --- | --- |
+| ログイン前 | 読めるのは会社ドメインだけ。テーブルは何も読み書きできない |
+| 社員に紐付かないアカウント | 何も読み書きできない。社員への紐付けは、会社のメールアドレスを認証コードで確認した登録だけが行える |
+| 社員マスタ | 読める範囲、更新できる人と列。権限の変更と登録の取り消しは DB 関数 |
+| 評価シート | 本人と評価者だけが読み書きできる。段階ごとに書ける人と列、状態遷移、確定済みの固定、確定時のランク・評価点の検算 |
+| 見せない値 | 一次評価者に二次評価を、本人に共通評価と総評を返さない（`get_sheet`、`get_reviewer_workspace`。`202610120010` の適用後はテーブルからも読めない） |
+| 設定 | 配点・SMTP 設定の更新は Admin だけ。SMTP のパスワードは、クライアントからは読めない |
+| 評価期間 | 実施中の期間は1つ。締めた期間のシートは変更できない |
+| 通知 | 宛先と SMTP の認証情報はサーバー側（Edge Function）だけが扱う |
+
+これらは PGlite のテスト（[13.1](#131-テスト)）で、本番相当のスキーマに対して役割ごとに確かめています。
 
 ### 12.3 残っている課題
 
-業務ロジックを持つサーバーがなく、画面が Supabase を直接呼ぶ構成のため、アプリ側のポリシーだけでは API を直接呼ぶ利用者を止められません。次の点は未解決または未確認です。
+以前の SEC-001（SMTP の認証情報がアプリに渡る）、SEC-002（テーブルの行ポリシーが `using (true)` で、ログインなしでも読み書きできた）、SEC-003（新規登録の確認が画面側だけ）は、`202610120001`〜`202610120010` とアプリの変更で解消しました。SEC-001 と、見せない値をテーブルから読める点は、`202610120010_after_app_update.sql` を適用した時点で完了します（[13.3](#133-アクセス制御のマイグレーションを当てる順番)）。
 
 | ID | 内容 |
 | --- | --- |
-| SEC-001 | SMTP の認証情報を、評価者のアプリが DB から読んで送信に使う。配布アプリには含まれず、評価者でない社員とログイン前の利用者は読めないが、評価者は API を直接呼べばパスワードを取り出せる。なくすには、送信をサーバー側（Edge Function など）へ移す必要がある |
-| SEC-002 | 各テーブルの RLS・権限の定義がリポジトリになく、状態遷移や評価の編集可否を DB 側で強制していることを確認できていない。2026-10-08 にローカル環境（本番のダンプから復元した DB）で見た限り、`evaluation_sheets`・`milestones`・`common_evaluation_results`・`employees` のポリシーは `using (true)` で、ログイン済みなら誰でも読み書きできる。本人・評価者だけが変更でき、Admin は閲覧のみ、という制限は、いまはアプリ側のポリシーだけが担っている |
-| SEC-003 | 新規登録の本人確認（メールドメインの制限、社員番号の未登録確認）が画面側の手順で、Auth API を直接呼べば迂回できる |
-| SEC-006 | 点数の保存と集計の更新、確定の検査と更新が複数のリクエストに分かれており、原子的でない |
-| SEC-011 / SEC-012 | 配布物の署名検証、サーバー側の監査ログ・バックアップ・退職者のセッション失効が未確認 |
+| SEC-006 | 点数の保存と集計の更新、確定前の集計の保存と確定が、複数のリクエストに分かれており、原子的でない。途中で失敗すると、保存済みの集計が古いまま残ることがある。確定時は DB が評価点とランクを検算するので、食い違った値では確定できない（読み直してやり直す） |
+| SEC-011 / SEC-012 | 配布物のコード署名（Windows の SmartScreen）、サーバー側の監査ログ・バックアップ・退職者のセッション失効が未確認 |
+| SEC-013 | Reviewer は、社員マスタで誰の評価者も付け替えられる（仕様）。自分を評価者にすれば、その社員の提出済みのシートを読める。Reviewer の権限は、それを任せられる人にだけ与える |
+| SEC-014 | 社員の行を読める相手には、権限（`role_id`）とアカウントの有無（`user_id`）も読める。画面では Admin にだけ出している |
+| SEC-015 | 通知メールの送信に回数の制限がない。その状態にした本人は、同じ通知を繰り返し送れる |
+| SEC-016 | Edge Function の SMTP 送信は、本番のメールサーバーに対しては未確認（ローカルでは、認可・設定なし・TLS のない接続の拒否までを確認）。ポート 465 での送信を、配布前に確認する |
 
 ---
 
@@ -784,14 +839,16 @@ Admin が、評価シート一覧の「全社の評価シート」から出力�
 
 ### 13.1 テスト
 
-2026-10-08 に `bun run test` を実行し、46 ファイル・623 件がすべて合格することを確認しました。Rust のテスト（`bun run test:rust`、5 件）も同日に合格しています。結合・E2E は実行していません。
+2026-10-12 に `bun run test` を実行し、48 ファイル・638 件がすべて合格することを確認しました。Rust のテスト（`bun run test:rust`、5 件）も同日に合格しています。同日、ローカルの Supabase（本番のダンプから復元した DB に `202610120001`〜`202610120010` を適用）に対して、実際のリポジトリとユースケースで「新規登録 → 作成 → 提出 → 一次評価 → 二次評価 → 確定」を通し、0.9.8 のコードでも `202610120003` までの DB で同じ流れ（新規登録を除く）が通ることを確認しました。この通しの確認は手元のスクリプトで行ったもので、リポジトリのテストには含めていません。
 
 | 対象 | 場所 | 方法 | 確かめていること |
 | --- | --- | --- | --- |
 | ドメイン | `src/domain/**/*.test.ts` | 単体 | 役割 × 状態の権限マトリクス、点数・配点・丸め・ランク、保存値からの復元、不変性 |
 | ユースケース | `src/application/**/*.test.ts` | リポジトリを型付きモックで差し替え | 拒否された操作で書き込み・通知・PDF 生成が起きないこと、見せない値が DTO に残らないこと、確定の条件、登録の各分岐 |
-| インフラ | `src/infrastructure/**/*.test.ts` | Supabase クライアントと Tauri IPC をモック | DB エラーを空データとして扱わないこと、通知の宛先の重複排除と部分失敗、IPC の引数 |
+| インフラ | `src/infrastructure/**/*.test.ts` | Supabase クライアントと Tauri IPC をモック | DB エラーを空データとして扱わないこと、シートを1回で読むこと、書き込みが拒否されたら失敗にすること、IPC の引数 |
 | DB | `src/test/*Sql.test.ts` | PGlite（インメモリの PostgreSQL）で実際のマイグレーションを実行 | DB 関数の権限（Admin・評価者・無関係・匿名）、出し分け、トリガー、制約 |
+| DB（アクセス制御） | `src/test/AccessControlSql.test.ts`、`RegistrationSql.test.ts`、`SheetApiSql.test.ts` | 本番相当のスキーマ（[prodLikeDb.ts](../src/test/prodLikeDb.ts)。当初の緩いポリシーと権限から始める）に全マイグレーションを当て、アプリが送るのと同じ文を役割ごとに実行 | ログイン前・紐付かないアカウント・無関係の社員が何もできないこと、下書きから確定までの各段階で書ける人と列、遷移、確定時の検算（アプリの計算と乱数で突き合わせ）、登録の条件、`get_sheet` の出し分け、アプリ更新後の締め付けの後も書き込みが通ること |
+| 通知メール | `src/test/NotifySheetMail.test.ts` | Edge Function の文面・宛先の組み立て（[mail.ts](../supabase/functions/notify-sheet/mail.ts)）を直接呼ぶ | 状態ごとの文面、宛先の重複排除、アドレスのない宛先の報告 |
 | 画面 | `src/adapter/**/*.test.ts(x)` | jsdom と @solidjs/testing-library | 絞り込みと並べ替え、確認ダイアログ、未保存の保護、遅れて届いた応答の破棄 |
 | 配布設定 | `src/test/ReleaseConfiguration.test.ts` | 設定ファイルを読む | CSP、Tauri の権限、公開環境変数の検査、リリース前の検査の順序 |
 | Rust | `src-tauri/src/lib.rs` | `tauri::test` の MockRuntime | 保存先の検証、IPC の拒否、Typst の入力がデータとして扱われること、PDF の生成 |
@@ -817,10 +874,24 @@ Admin が、評価シート一覧の「全社の評価シート」から出力�
 
 配布済みのアプリは GitHub Releases の `latest.json` を見て自動更新します。DB のマイグレーションは自動では適用されないため、アプリの配布前に Supabase へ適用しておく必要があります。
 
+### 13.3 アクセス制御のマイグレーションを当てる順番
+
+`202610120001`〜`202610120010` は、配布済みのアプリを止めずに切り替えられるよう、2段階に分かれています。
+
+| 順 | 作業 | このときのアプリ |
+| --- | --- | --- |
+| 1 | `202610120001_access_control.sql`、`202610120002_registration.sql`、`202610120003_sheet_api.sql` を適用する | 0.9.8 はそのまま動く。ただし新規登録はできなくなる |
+| 2 | Edge Function `notify-sheet` をデプロイし、設定画面の SMTP のポートを 465 にする | |
+| 3 | Auth のフック「Before User Created」に `public.hook_before_user_created` を設定する | |
+| 4 | 新しいアプリを配布し、テスト用のシートで通知メールが届くことを確かめる | 新しいアプリは `get_sheet` と Edge Function を使う |
+| 5 | 全員が新しいアプリになったら、`202610120010_after_app_update.sql` を適用する | 0.9.8 以前は動かなくなる |
+
+1 だけでも、ログインなしでの読み書きと、社員へのなりすましは塞がります。5 を適用するまでは、0.9.8 のために SMTP 設定を返す DB 関数が残り、シートの本人・評価者は、見せない値（一次評価者にとっての二次評価など）を API から直接読めます。
+
 ---
 
 ## 14. 実装から読み取れた注意点
 
 実装同士、または実装と資料の食い違いを見つけたら、ここに記録します。
 
-2026-10-08 時点で、把握している食い違いはありません。これまでに挙げたもの（共通評価の項目を決める等級、PDF 出力の権限、評価者のシートへの埋め込み、通知先を決める評価者、帳票データの項目名、未使用の依存、シート作成の判定、行の一意制約と README の記述）は、すべて解消済みです。
+2026-10-12 時点で、把握している食い違いはありません。これまでに挙げたもの（共通評価の項目を決める等級、PDF 出力の権限、評価者のシートへの埋め込み、通知先を決める評価者、帳票データの項目名、未使用の依存、シート作成の判定、行の一意制約と README の記述）は、すべて解消済みです。

@@ -3,17 +3,39 @@ import { commonRepository, milestoneRepository, sheetRepository } from "../../te
 import { EvaluationScoreUpdateService } from "./EvaluationScoreUpdateService";
 
 describe("score update service failure boundaries", () => {
-	it("does not overwrite totals with zero when objective read fails", async () => {
+	it("does not overwrite totals with zero when the sheet read fails", async () => {
 		const sheets = sheetRepository(),
 			milestones = milestoneRepository();
-		milestones.findBySheetId.mockRejectedValue(new Error("read failed"));
+		sheets.findById.mockRejectedValue(new Error("read failed"));
 		await expect(
 			new EvaluationScoreUpdateService(sheets, milestones, commonRepository()).updateObjectiveScore(
+				100,
 				11,
 				2,
 			),
 		).rejects.toThrow("read failed");
 		expect(sheets.updateScoreTotals).not.toHaveBeenCalled();
+	});
+	it("saves the score, then stores totals from the sheet as it is after the save", async () => {
+		const sheets = sheetRepository(),
+			milestones = milestoneRepository();
+		const saved = await new EvaluationScoreUpdateService(
+			sheets,
+			milestones,
+			commonRepository(),
+		).updateObjectiveScore(100, 11, 2);
+		expect(milestones.updateScore).toHaveBeenCalledWith(11, 2, undefined);
+		expect(milestones.updateScore.mock.invocationCallOrder[0]).toBeLessThan(
+			sheets.findById.mock.invocationCallOrder[0],
+		);
+		// 目標は1件で、一次 2・二次 4
+		expect(sheets.updateScoreTotals).toHaveBeenCalledWith(
+			100,
+			expect.objectContaining({
+				objectives: expect.objectContaining({ firstTotalScore: 2, secondTotalScore: 4 }),
+			}),
+		);
+		expect(saved.sheetId).toBe(100);
 	});
 	it("does not recompute totals after failed objective write", async () => {
 		const sheets = sheetRepository();
@@ -21,6 +43,7 @@ describe("score update service failure boundaries", () => {
 		milestones.updateScore.mockRejectedValue(new Error("write failed"));
 		await expect(
 			new EvaluationScoreUpdateService(sheets, milestones, commonRepository()).updateObjectiveScore(
+				100,
 				11,
 				2,
 			),
@@ -39,7 +62,7 @@ describe("score update service failure boundaries", () => {
 			);
 			await expect(
 				kind === "objective"
-					? service.updateObjectiveScore(11, 2)
+					? service.updateObjectiveScore(100, 11, 2)
 					: service.refreshCommonEvaluationTotals(100),
 			).rejects.toThrow("Failed to load");
 			expect(sheets.updateScoreTotals).not.toHaveBeenCalled();

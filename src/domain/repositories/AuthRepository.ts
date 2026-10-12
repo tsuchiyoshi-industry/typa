@@ -21,7 +21,7 @@ export interface AuthRepository {
 	sendEmailCode(email: string): Promise<{ error: Error | null }>;
 	/** 成功すると、そのメールアドレスの確認用セッションになる(社員にはまだ紐付かない)。 */
 	verifyEmailCode(email: string, token: string): Promise<{ error: Error | null }>;
-	/** contactEmail は認証コードを受け取ったメールアドレス。評価者への通知の宛先になる。 */
-	signUp(employeeNo: string, password: string, contactEmail: string): Promise<SignUpResult>;
+	/** 社員番号のログイン用アカウントを作る。社員への紐付けは EmployeeRepository.completeRegistration。 */
+	signUp(employeeNo: string, password: string): Promise<SignUpResult>;
 	signOut(): Promise<void>;
 }

@@ -1,98 +1,80 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { EvaluationAllocation } from "../../domain/valueObjects/EvaluationAllocation";
-import { commonRepository, commonResult, employeeRepository } from "../../test/fixtures";
 
 const db = vi.hoisted(() => ({ from: vi.fn(), rpc: vi.fn() }));
 vi.mock("../db/supabase", () => ({ supabase: { from: db.from, rpc: db.rpc } }));
 
 import { SupabaseEvaluationSheetRepository } from "./SupabaseEvaluationSheetRepository";
 
-function setup(status = "first_evaluated") {
-	const employee = {
-		name: "社員",
-		employee_no: "TEST001",
-		career_course: "技術",
-		grade_id: 1,
-		primary_evaluator_id: 2,
-		secondary_evaluator_id: 3,
-	};
-	const sheet = {
-		id: 100,
-		period_id: 10,
-		employee_id: 1,
-		status,
-		total_score: 0,
-		first_overall_comment: "一次",
-		second_overall_comment: "二次",
-		objectives_first_total_score: 8,
-		objectives_first_total_rate: 100,
-		objectives_second_total_score: 5,
-		objectives_second_total_rate: 63,
-		common_evaluation_first_total_score: 15,
-		common_evaluation_first_total_rate: 75,
-		common_evaluation_second_total_score: 20,
-		common_evaluation_second_total_rate: 100,
-		// 保存された集計が古くても、未確定のシートは現在の配点で換算する
-		objectives_second_evaluation_score: 13,
-		common_evaluation_second_evaluation_score: 80,
-		total_evaluation_score: 93,
-		objective_allocation: 20,
-		common_allocation: 80,
-		final_rank_letter: "A",
-		final_rank_level: "none",
-		primary_evaluator_id: 2,
-		secondary_evaluator_id: 3,
-		no_secondary_evaluator: false,
-		period: { period_name: "テスト期間", start_date: "2026-04-01", end_date: "2026-09-30" },
-		employee,
-	};
-	const objectives = [2, 3].map((score, i) => ({
-		id: 11 + i,
-		sheet_id: 100,
-		goal_number: i + 1,
-		challenge_goal: "目標",
-		midterm_goal: "中間",
+/** DB 関数 get_sheet が返す形。目標 2 件(一次 4・4、二次 2・3)と、配点 5 の共通評価(一次 3・二次 4)。 */
+const sheetRow = (overrides: object = {}) => ({
+	id: 100,
+	status: "first_evaluated",
+	gradeId: 1,
+	gradeName: "等級",
+	subject: { id: 1, name: "社員", employeeNo: "TEST001", roleId: 1, careerCourse: "技術" },
+	primaryEvaluatorId: 2,
+	secondaryEvaluatorId: 3,
+	noSecondaryEvaluator: false,
+	primaryEvaluatorName: "一次",
+	secondaryEvaluatorName: "二次",
+	period: {
+		id: 10,
+		periodName: "テスト期間",
+		startDate: "2026-04-01",
+		endDate: "2026-09-30",
+		isActive: true,
+	},
+	firstOverallComment: "一次総評",
+	secondOverallComment: "二次総評",
+	firstRank: "B+",
+	finalRankLetter: null,
+	finalRankLevel: null,
+	stored: {},
+	objectives: [2, 3].map((secondScore, index) => ({
+		id: 11 + index,
+		goalNumber: index + 1,
+		challengeGoal: "目標",
+		midtermGoal: "中間",
 		achievement: "達成",
-		first_score: 4,
-		second_score: score,
-	}));
-	db.from.mockImplementation((table: string) => ({
-		select: vi.fn().mockReturnThis(),
-		eq: vi.fn().mockReturnThis(),
-		single: vi.fn().mockResolvedValue({ data: sheet, error: null }),
-		maybeSingle: vi.fn().mockResolvedValue({
-			data: {
-				id: 10,
-				period_name: "テスト期間",
-				start_date: "2026-04-01",
-				end_date: "2026-09-30",
-				is_active: true,
-			},
-			error: null,
-		}),
-		order: vi
-			.fn()
-			.mockResolvedValue({ data: table === "milestones" ? objectives : null, error: null }),
-	}));
-	const settings = {
-		findAllocation: vi.fn().mockResolvedValue(EvaluationAllocation.of(31, 69)),
-		saveAllocation: vi.fn(),
-		findMaxChallengeGoals: vi.fn().mockResolvedValue(4),
-		saveMaxChallengeGoals: vi.fn(),
-	};
-	const common = commonRepository();
-	common.findResultsBySheetId.mockResolvedValue({
-		results: [commonResult()],
-		totalFirstScore: 15,
-		totalSecondScore: 20,
-		totalWeight: 5,
-		firstRate: 75,
-		secondRate: 100,
-	});
-	const employees = employeeRepository();
-	const repo = new SupabaseEvaluationSheetRepository(employees, common, settings);
-	return { sheet, repo, settings, common, employees };
-}
+		firstScore: 4,
+		secondScore,
+	})),
+	commonResults: [
+		{
+			id: 21,
+			itemId: 31,
+			title: "共通項目",
+			description: "説明",
+			weight: 5,
+			itemSetId: 5,
+			firstScore: 3,
+			secondScore: 4,
+			firstComment: "所見",
+		},
+	],
+	allocation: { objective: 31, common: 69 },
+	maxChallengeGoals: 4,
+	...overrides,
+});
+const stored = {
+	objectivesFirstTotalScore: 8,
+	objectivesFirstTotalRate: 100,
+	objectivesSecondTotalScore: 5,
+	objectivesSecondTotalRate: 63,
+	commonEvaluationFirstTotalScore: 15,
+	commonEvaluationFirstTotalRate: 75,
+	commonEvaluationSecondTotalScore: 20,
+	commonEvaluationSecondTotalRate: 100,
+	objectivesSecondEvaluationScore: 13,
+	commonEvaluationSecondEvaluationScore: 80,
+	totalEvaluationScore: 93,
+	objectiveAllocation: 20,
+	commonAllocation: 80,
+};
+const find = (overrides: object = {}) => {
+	db.rpc.mockResolvedValue({ data: sheetRow(overrides), error: null });
+	return new SupabaseEvaluationSheetRepository().findById(100);
+};
 
 beforeEach(() => vi.clearAllMocks());
 
@@ -136,7 +118,7 @@ describe("the overview of every sheet", () => {
 			],
 			error: null,
 		});
-		const rows = await setup().repo.findOverview();
+		const rows = await new SupabaseEvaluationSheetRepository().findOverview();
 		expect(db.rpc).toHaveBeenCalledExactlyOnceWith("get_sheet_overview");
 		expect(rows.map((item) => [item.primaryEvaluatorName, item.secondaryEvaluatorName])).toEqual([
 			["一次", "二次"],
@@ -156,42 +138,62 @@ describe("the overview of every sheet", () => {
 	});
 	it("does not treat a refused or failed read as an empty company", async () => {
 		db.rpc.mockResolvedValue({ data: null, error: new Error("Only Admin") });
-		await expect(setup().repo.findOverview()).rejects.toThrow("Only Admin");
+		await expect(new SupabaseEvaluationSheetRepository().findOverview()).rejects.toThrow(
+			"Only Admin",
+		);
 	});
 });
 
-describe("restoring a sheet from stored rows", () => {
-	it("does not treat failed objective reads as an empty, complete set of evaluation items", async () => {
-		const { repo } = setup();
-		const makeQuery = db.from.getMockImplementation();
-		if (!makeQuery) {
-			throw new Error("mock is not initialized");
-		}
-		db.from.mockImplementation((table: string) => {
-			const query = makeQuery(table);
-			if (table === "milestones") {
-				query.order.mockResolvedValue({ data: null, error: new Error("goal read failed") });
-			}
-			return query;
+describe("reading a sheet", () => {
+	it("reads the whole sheet in one request", async () => {
+		const sheet = await find();
+		expect(db.rpc).toHaveBeenCalledExactlyOnceWith("get_sheet", { p_sheet_id: 100 });
+		expect(db.from).not.toHaveBeenCalled();
+		expect(sheet).toMatchObject({
+			sheetId: 100,
+			primaryEvaluatorName: "一次",
+			secondaryEvaluatorName: "二次",
+			firstOverallComment: "一次総評",
+			maxObjectives: 4,
 		});
-		await expect(repo.findById(100)).rejects.toThrow("goal read failed");
+		expect(sheet?.evaluationPeriod).toMatchObject({ id: 10, isActive: true });
+		expect(sheet?.objectives.map((goal) => [goal.id, goal.sheetId, goal.goalNumber])).toEqual([
+			[11, 100, 1],
+			[12, 100, 2],
+		]);
+		expect(sheet?.commonEvaluationResults[0]).toMatchObject({ id: 21, sheetId: 100, itemId: 31 });
+		expect(sheet?.commonEvaluationResults[0].item).toMatchObject({ title: "共通項目", weight: 5 });
+		expect(sheet?.resolveFirstEvaluationRank().toDisplayText()).toBe("B+");
 	});
-	it("uses the evaluators the sheet carries, not the employee's current ones", async () => {
-		// 社員マスタでは評価者が 2・3 に付け替わっていても、シートは 7 が評価して二次評価者「なし」
-		const { sheet: row, repo, employees } = setup("finalized");
-		Object.assign(row, {
-			primary_evaluator_id: 7,
-			secondary_evaluator_id: null,
-			no_secondary_evaluator: true,
-		});
-		const sheet = await repo.findById(100);
-		expect(sheet?.subject).toMatchObject({ primaryEvaluatorId: 7, secondaryEvaluatorId: null });
-		expect(sheet?.primaryIsFinalEvaluator()).toBe(true);
-		expect(employees.findEvaluatorNames).toHaveBeenCalledWith(7, null, true);
+	it("does not treat a failed read as a missing sheet", async () => {
+		db.rpc.mockResolvedValue({ data: null, error: new Error("read failed") });
+		await expect(new SupabaseEvaluationSheetRepository().findById(100)).rejects.toThrow(
+			"read failed",
+		);
+	});
+	it("returns null for a sheet the caller is not on", async () => {
+		db.rpc.mockResolvedValue({ data: null, error: null });
+		await expect(new SupabaseEvaluationSheetRepository().findById(100)).resolves.toBeNull();
+	});
+	it("uses the evaluators the sheet carries, telling 'none by decision' from 'not assigned yet'", async () => {
+		const withoutSecondary = {
+			primaryEvaluatorId: 7,
+			secondaryEvaluatorId: null,
+			secondaryEvaluatorName: null,
+		};
+		const none = await find({ ...withoutSecondary, noSecondaryEvaluator: true });
+		expect(none?.subject).toMatchObject({ primaryEvaluatorId: 7, secondaryEvaluatorId: null });
+		expect(none?.primaryIsFinalEvaluator()).toBe(true);
+		expect(none?.secondaryEvaluatorName).toBe("なし");
+		const unassigned = await find({ ...withoutSecondary, primaryEvaluatorName: null });
+		expect(unassigned?.primaryIsFinalEvaluator()).toBe(false);
+		expect([unassigned?.primaryEvaluatorName, unassigned?.secondaryEvaluatorName]).toEqual([
+			"未設定",
+			"未設定",
+		]);
 	});
 	it("uses current settings and the exact fraction in an open sheet and export", async () => {
-		const { repo } = setup();
-		const sheet = await repo.findById(100);
+		const sheet = await find();
 		expect(sheet?.allocatedScores).toMatchObject({
 			objectiveAllocationScore: 31,
 			objectiveEvaluationScore: 19,
@@ -204,14 +206,15 @@ describe("restoring a sheet from stored rows", () => {
 	});
 	it("ignores stale stored totals in an open sheet and calculates from the actual scores", async () => {
 		// 等級や項目が変わる前に保存された合計(28点・280%)が残っていても、いまの点数(配点 5 × 評価 3 = 15 / 20)で計算する
-		const { sheet: row, repo } = setup("submitted");
-		Object.assign(row, {
-			objectives_first_total_score: 4,
-			objectives_first_total_rate: 100,
-			common_evaluation_first_total_score: 28,
-			common_evaluation_first_total_rate: 280,
+		const sheet = await find({
+			status: "submitted",
+			stored: {
+				...stored,
+				objectivesFirstTotalScore: 4,
+				commonEvaluationFirstTotalScore: 28,
+				commonEvaluationFirstTotalRate: 280,
+			},
 		});
-		const sheet = await repo.findById(100);
 		expect(sheet?.commonEvaluationScoreTotals).toMatchObject({
 			firstTotalScore: 15,
 			firstTotalRate: 75,
@@ -220,35 +223,33 @@ describe("restoring a sheet from stored rows", () => {
 		// 31 × 8/8 + 69 × 15/20 = 31 + 52 = 83 点。100 点を超えない
 		expect(sheet?.firstEvaluationScore()).toBe(83);
 	});
-	it("preserves finalized scores, weights and ranks without reading current settings", async () => {
-		const { repo, settings } = setup("finalized");
-		const sheet = await repo.findById(100);
+	it("preserves finalized scores, weights and ranks whatever the current settings are", async () => {
+		const sheet = await find({
+			status: "finalized",
+			stored,
+			finalRankLetter: "A",
+			finalRankLevel: "none",
+		});
 		expect(sheet?.allocatedScores).toMatchObject({
 			objectiveAllocationScore: 20,
 			commonEvaluationAllocationScore: 80,
 			totalEvaluationScore: 93,
 		});
 		expect(sheet?.resolveFinalEvaluationRank().toDisplayText()).toBe("A");
-		expect(settings.findAllocation).not.toHaveBeenCalled();
 	});
-	it("restores the grade held when the sheet was created, not the employee's current grade", async () => {
-		const { sheet: row, repo, common } = setup();
-		// 社員の今の等級は 5(fixtures)。シートは等級 1 のときに作った
-		Object.assign(row, { grade_id: 1 });
-		const sheet = await repo.findById(100);
-		expect(sheet?.gradeId).toBe(1);
-		expect(sheet?.subject.gradeId).toBe(5);
-		expect(common.findResultsBySheetId).toHaveBeenCalledWith(100, 1);
+	it("restores the grade held when the sheet was created, also when it had none", async () => {
+		expect((await find({ gradeId: 1 }))?.gradeId).toBe(1);
+		expect((await find({ gradeId: null }))?.gradeId).toBeNull();
 	});
-	it("keeps a sheet without a grade ungraded instead of using the current grade", async () => {
-		const { sheet: row, repo, common } = setup();
-		Object.assign(row, { grade_id: null });
-		expect((await repo.findById(100))?.gradeId).toBeNull();
-		expect(common.findResultsBySheetId).toHaveBeenCalledWith(100, null);
+	it("gives an item without a saved result a placeholder id", async () => {
+		const sheet = await find({
+			commonResults: [{ ...sheetRow().commonResults[0], id: null, firstScore: 0, secondScore: 0 }],
+		});
+		expect(sheet?.commonEvaluationResults[0]).toMatchObject({ id: -31, itemId: 31 });
+		expect(sheet?.pendingEvaluationItems("first")).toContain("共通評価「共通項目」");
 	});
-	it("fails an active calculation if settings cannot be loaded instead of silently using 20/80", async () => {
-		const { repo, settings } = setup();
-		settings.findAllocation.mockRejectedValue(new Error("settings unavailable"));
-		await expect(repo.findById(100)).rejects.toThrow("settings unavailable");
+	it("fails if the settings are missing instead of silently using 20/80 or 4 goals", async () => {
+		await expect(find({ allocation: null })).rejects.toThrow("配点設定");
+		await expect(find({ maxChallengeGoals: null })).rejects.toThrow("上限");
 	});
 });

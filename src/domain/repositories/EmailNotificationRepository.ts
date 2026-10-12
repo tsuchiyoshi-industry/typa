@@ -17,7 +17,10 @@ export interface NotificationDelivery {
 
 export type ReportDelivery = (delivery: NotificationDelivery) => void;
 
-/** 送信の結果は、宛先ごとに結果が出るたび report で知らせる。宛先や SMTP 設定を読めないときは reject する。 */
+/**
+ * 送信はサーバー側で行う(宛先のメールアドレスと SMTP のパスワードはアプリに来ない)。
+ * 送信の結果は宛先ごとに report で知らせる。送信を頼めなかったときは reject する。
+ */
 export interface EmailNotificationRepository {
 	/** シートが提出され、一次評価を始められることを一次評価者へ知らせる。 */
 	notifySheetSubmitted(notification: SheetNotification, report: ReportDelivery): Promise<void>;

@@ -70,17 +70,13 @@ export class SupabaseAuthRepository implements AuthRepository {
 		return { error };
 	}
 
-	async signUp(employeeNo: string, password: string, contactEmail: string): Promise<SignUpResult> {
+	async signUp(employeeNo: string, password: string): Promise<SignUpResult> {
 		const email = await this.authEmail(employeeNo);
 		if (!email) {
 			return { status: "error", error: new Error("社員番号の形式が正しくありません。") };
 		}
 
-		const { data, error } = await supabase.auth.signUp({
-			email,
-			password,
-			options: { data: { employee_no: employeeNo, contact_email: contactEmail } },
-		});
+		const { data, error } = await supabase.auth.signUp({ email, password });
 
 		if (error) {
 			return error.code === "user_already_exists"

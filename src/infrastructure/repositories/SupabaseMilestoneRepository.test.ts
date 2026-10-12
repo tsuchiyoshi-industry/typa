@@ -1,23 +1,45 @@
-import { expect, it, vi } from "vitest";
+import { beforeEach, expect, it, vi } from "vitest";
 
 const db = vi.hoisted(() => {
-	const order = vi.fn();
-	const eq = vi.fn(() => ({ order }));
-	const select = vi.fn(() => ({ eq }));
-	const from = vi.fn(() => ({ select }));
-	return { from, select, eq, order };
+	const single = vi.fn();
+	const select = vi.fn(() => ({ single }));
+	const eq = vi.fn(() => ({ select }));
+	const update = vi.fn(() => ({ eq }));
+	const remove = vi.fn(() => ({ eq }));
+	const from = vi.fn(() => ({ update, delete: remove }));
+	return { from, update, remove, eq, select, single };
 });
 vi.mock("../db/supabase", () => ({ supabase: { from: db.from } }));
 
 import { SupabaseMilestoneRepository } from "./SupabaseMilestoneRepository";
 
-it("propagates DB errors instead of representing them as empty objectives", async () => {
-	const error = new Error("read denied");
-	db.order.mockResolvedValueOnce({ data: null, error });
-	await expect(new SupabaseMilestoneRepository().findBySheetId(100)).rejects.toThrow("read denied");
+beforeEach(() => {
+	vi.clearAllMocks();
+	db.single.mockResolvedValue({ data: { id: 11 }, error: null });
 });
-it("maps a successful empty response to an empty list", async () => {
-	db.order.mockResolvedValueOnce({ data: null, error: null });
-	await expect(new SupabaseMilestoneRepository().findBySheetId(100)).resolves.toEqual([]);
-	expect(db.eq).toHaveBeenCalledWith("sheet_id", 100);
+
+it("writes only the score that was given, and reads back nothing but the id", async () => {
+	const repository = new SupabaseMilestoneRepository();
+	await repository.updateScore(11, 3);
+	expect(db.update).toHaveBeenLastCalledWith({ first_score: 3 });
+	await repository.updateScore(11, undefined, 4);
+	expect(db.update).toHaveBeenLastCalledWith({ second_score: 4 });
+	expect(db.eq).toHaveBeenCalledWith("id", 11);
+	// 点数は評価シートを読み直して得る(見せてよい範囲は DB が決める)
+	expect(db.select).toHaveBeenCalledWith("id");
+});
+
+it.each([
+	["updateScore", (repository: SupabaseMilestoneRepository) => repository.updateScore(11, 3)],
+	[
+		"updateText",
+		(repository: SupabaseMilestoneRepository) => repository.updateText(11, "a", "b", "c"),
+	],
+	["delete", (repository: SupabaseMilestoneRepository) => repository.delete(11)],
+] as const)("fails %s when the database refused the write", async (_name, write) => {
+	db.single.mockResolvedValueOnce({ data: null, error: new Error("write denied") });
+	await expect(write(new SupabaseMilestoneRepository())).rejects.toThrow("write denied");
+	// 権限で拒否された書き込みは、エラーではなく 0 件で返ることがある
+	db.single.mockResolvedValueOnce({ data: null, error: null });
+	await expect(write(new SupabaseMilestoneRepository())).rejects.toThrow();
 });

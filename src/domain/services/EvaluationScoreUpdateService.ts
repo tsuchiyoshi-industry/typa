@@ -1,4 +1,4 @@
-import type { Milestone } from "../entities/Milestone";
+import type { EvaluationSheet } from "../entities/EvaluationSheet";
 import type {
 	CommonEvaluationRepository,
 	CommonEvaluationResultPayload,
@@ -15,24 +15,21 @@ export class EvaluationScoreUpdateService {
 		private readonly commonEvaluationRepository: CommonEvaluationRepository,
 	) {}
 
+	/** 目標の点数を保存して集計を更新し、保存後の評価シートを返す。 */
 	async updateObjectiveScore(
+		sheetId: number,
 		milestoneId: number,
 		firstScore?: number,
 		secondScore?: number,
-	): Promise<Milestone> {
-		const updated = await this.milestoneRepository.updateScore(
-			milestoneId,
-			firstScore,
-			secondScore,
-		);
-		const objectives = await this.milestoneRepository.findBySheetId(updated.sheetId);
-		const objectiveScoreTotals = EvaluationScoreTotals.fromObjectives(objectives);
-		const sheet = await this.evaluationSheetRepository.findById(updated.sheetId);
+	): Promise<EvaluationSheet> {
+		await this.milestoneRepository.updateScore(milestoneId, firstScore, secondScore);
+		const sheet = await this.evaluationSheetRepository.findById(sheetId);
 		if (!sheet) {
 			throw new Error("Failed to load evaluation sheet for score totals.");
 		}
+		const objectiveScoreTotals = EvaluationScoreTotals.fromObjectives(sheet.objectives);
 
-		await this.evaluationSheetRepository.updateScoreTotals(updated.sheetId, {
+		await this.evaluationSheetRepository.updateScoreTotals(sheetId, {
 			objectives: objectiveScoreTotals,
 			allocatedScores: EvaluationAllocatedScores.fromTotals(
 				objectiveScoreTotals,
@@ -42,7 +39,7 @@ export class EvaluationScoreUpdateService {
 			),
 		});
 
-		return updated;
+		return sheet;
 	}
 
 	async upsertCommonEvaluationResults(

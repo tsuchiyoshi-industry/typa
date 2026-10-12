@@ -1,12 +1,15 @@
 import type { AuthRepository } from "../../domain/repositories/AuthRepository";
-import type { EmployeeRepository } from "../../domain/repositories/EmployeeRepository";
+import type {
+	EmployeeRepository,
+	RegistrationStart,
+} from "../../domain/repositories/EmployeeRepository";
 import type { OutputPort } from "../ports/OutputPort";
 import type { UseCase } from "../ports/UseCase";
 
 export interface RegisterEmployeeAccountRequest {
 	employeeNo: string;
 	password: string;
-	/** 認証コードを受け取ったメールアドレス。評価者への通知の宛先になる。 */
+	/** 認証コードを受け取ったメールアドレス。評価者への通知の宛先として DB が控える。 */
 	email: string;
 	/** まだ確認していない認証コード。確認が済んでいれば省く(認証コードは一度しか使えない)。 */
 	verificationCode?: string;
@@ -17,7 +20,7 @@ export interface RegisterEmployeeAccountRequest {
  * employee_not_found / employee_registered: 社員マスタにない番号 / 登録済みの番号。
  * stalled_account: 前回の登録が紐付けの前で止まっていて、パスワードが前回と違う。
  * weak_password / signup_failed: アカウントを作れなかった。
- * link_failed: 社員番号の紐付けに失敗した。確認用セッションは破棄済みで、登録は最初からやり直す。
+ * link_failed: メールアドレスの確認が切れているか、社員番号の紐付けに失敗した。セッションは破棄済みで、登録は最初からやり直す。
  */
 export type RegisterEmployeeAccountResponse = {
 	status:
@@ -57,11 +60,20 @@ export class RegisterEmployeeAccountInteractor
 			}
 		}
 
-		// 社員番号は管理者が社員マスタに登録した値。登録済みの番号は二重に使わせない
-		const registration = await this.employeeRepository.findRegistrationStatus(request.employeeNo);
-		if (registration !== "available") {
+		// 社員番号は管理者が社員マスタに登録した値。登録済みの番号は二重に使わせない。
+		// 登録を始めてよいか(会社のメールアドレスを確認済みか)は DB が確かめ、紐付けに使うトークンを返す
+		let registration: RegistrationStart;
+		try {
+			registration = await this.employeeRepository.beginRegistration(request.employeeNo);
+		} catch {
+			// メールアドレスの確認用セッションが切れている。登録は最初からやり直す
+			await this.authRepository.signOut();
+			presenter.present({ status: "link_failed" });
+			return;
+		}
+		if (registration.status !== "available") {
 			presenter.present({
-				status: registration === "registered" ? "employee_registered" : "employee_not_found",
+				status: registration.status === "registered" ? "employee_registered" : "employee_not_found",
 			});
 			return;
 		}
@@ -72,7 +84,8 @@ export class RegisterEmployeeAccountInteractor
 			return;
 		}
 
-		if (!(await this.employeeRepository.linkUserToEmployee(request.employeeNo, account.userId))) {
+		// ここからは、作ったログイン用アカウントのセッション
+		if (!(await this.employeeRepository.completeRegistration(registration.token))) {
 			await this.authRepository.signOut();
 			presenter.present({ status: "link_failed" });
 			return;
@@ -87,11 +100,7 @@ export class RegisterEmployeeAccountInteractor
 		| { status: "created"; userId: string }
 		| { status: "stalled_account" | "weak_password" | "signup_failed" }
 	> {
-		const result = await this.authRepository.signUp(
-			request.employeeNo,
-			request.password,
-			request.email,
-		);
+		const result = await this.authRepository.signUp(request.employeeNo, request.password);
 		if (result.status === "created") {
 			return result;
 		}

@@ -234,14 +234,7 @@ export class SheetEditorController {
 		}
 	}
 
-	async createSheet(
-		drafts: Array<{
-			itemId: number;
-			firstComment: string;
-			firstScore: number;
-			secondScore: number;
-		}>,
-	): Promise<number | null> {
+	async createSheet(): Promise<number | null> {
 		const currentEmployeeId = await this.requireCurrentEmployeeId(
 			this.presenter.presentCreateError,
 		);
@@ -260,7 +253,6 @@ export class SheetEditorController {
 				{
 					periodId: selectedPeriodId,
 					employeeId: currentEmployeeId,
-					drafts,
 				},
 				this.presenter.outputPort.createSheet,
 			);

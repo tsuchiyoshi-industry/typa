@@ -309,8 +309,8 @@ async fn generate_pdf_with_typst<R: tauri::Runtime>(
     let pdf_file_path = std::path::PathBuf::from(&output_path);
     validate_pdf_destination(&pdf_file_path, &app.fs_scope())?;
 
-    // Typstコンパイルを実行
-    compile_typst_to_pdf(&data, &pdf_file_path)?;
+    // Typstコンパイルは重い計算なので、非同期ランタイムのスレッドを塞がずに実行する
+    run_blocking(move || compile_typst_to_pdf(&data, &pdf_file_path)).await?;
 
     Ok(output_path)
 }
@@ -325,13 +325,24 @@ async fn generate_sheet_overview_pdf<R: tauri::Runtime>(
     let pdf_file_path = std::path::PathBuf::from(&output_path);
     validate_pdf_destination(&pdf_file_path, &app.fs_scope())?;
 
-    compile_template(
-        OVERVIEW_TEMPLATE_FILE,
-        convert_overview_to_dict(&data),
-        &pdf_file_path,
-    )?;
+    run_blocking(move || {
+        compile_template(
+            OVERVIEW_TEMPLATE_FILE,
+            convert_overview_to_dict(&data),
+            &pdf_file_path,
+        )
+    })
+    .await?;
 
     Ok(output_path)
+}
+
+async fn run_blocking(
+    task: impl FnOnce() -> Result<(), String> + Send + 'static,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(task)
+        .await
+        .map_err(|e| format!("PDF generation task failed: {}", e))?
 }
 
 fn validate_pdf_destination(
@@ -411,59 +422,6 @@ fn compile_template(
     Ok(())
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct SendEmailRequest {
-    smtp_host: String,
-    smtp_port: u16,
-    smtp_user: String,
-    smtp_password: String,
-    to: String,
-    subject: String,
-    body: String,
-}
-
-// SMTP経由でメールを送信するTauriコマンド
-#[tauri::command]
-async fn send_email(request: SendEmailRequest) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        use lettre::message::Message;
-        use lettre::transport::smtp::authentication::Credentials;
-        use lettre::{SmtpTransport, Transport};
-
-        let email = Message::builder()
-            .from(
-                request
-                    .smtp_user
-                    .parse()
-                    .map_err(|e| format!("送信元メールアドレスが不正です: {}", e))?,
-            )
-            .to(request
-                .to
-                .parse()
-                .map_err(|e| format!("宛先メールアドレスが不正です: {}", e))?)
-            .subject(request.subject)
-            .body(request.body)
-            .map_err(|e| format!("メール本文の生成に失敗しました: {}", e))?;
-
-        let credentials = Credentials::new(request.smtp_user, request.smtp_password);
-
-        let mailer = SmtpTransport::starttls_relay(&request.smtp_host)
-            .map_err(|e| format!("SMTPサーバーへの接続設定に失敗しました: {}", e))?
-            .port(request.smtp_port)
-            .credentials(credentials)
-            .build();
-
-        mailer
-            .send(&email)
-            .map_err(|e| format!("メール送信に失敗しました: {}", e))?;
-
-        Ok(())
-    })
-    .await
-    .map_err(|e| format!("メール送信タスクの実行に失敗しました: {}", e))?
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -478,10 +436,10 @@ pub fn run() {
             }
             Ok(())
         })
+        // 通知メールはサーバー側(Edge Function)が送る。アプリは SMTP の認証情報を扱わない
         .invoke_handler(tauri::generate_handler![
             generate_pdf_with_typst,
-            generate_sheet_overview_pdf,
-            send_email
+            generate_sheet_overview_pdf
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

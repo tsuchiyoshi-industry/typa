@@ -226,7 +226,7 @@
 	height: 1.9rem;
 	border-radius: 50%;
 	background: var(--hr-accent-hover);
-	color: #fff;
+	color: var(--hr-on-accent);
 	font-size: 0.8125rem;
 	font-weight: 600;
 }

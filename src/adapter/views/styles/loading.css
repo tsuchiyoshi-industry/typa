@@ -1,119 +1,178 @@
+/* 読み込み中の画面。墨を一滴落としたときの輪が、ゆっくり広がっては消える。
+   速い動きは置かない。一瞬で終わる読み込みでは、ほとんど現れないうちに消える。 */
 .loading-container {
 	position: fixed;
 	inset: 0;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	background-color: var(--hr-bg);
+	display: grid;
+	place-items: center;
+	background: var(--hr-bg);
 	z-index: 9999;
 	overflow: hidden;
 }
 
+/* 地の模様(global.css の body と同じもの)。この画面は body を覆うので、自分でも持つ */
+.loading-container::before,
+.loading-container::after {
+	content: "";
+	position: absolute;
+	pointer-events: none;
+}
+
+.loading-container::before {
+	inset: 0;
+	background: var(--hr-wash);
+}
+
+/* 流す分だけ外にはみ出させておく */
+.loading-container::after {
+	inset: -12%;
+	background: var(--hr-veins);
+	mask: var(--hr-marble) 0 0 / var(--hr-marble-size);
+}
+
 .loading-content {
+	position: relative;
 	display: flex;
 	flex-direction: column;
 	align-items: center;
+	gap: 1.25rem;
 }
 
-/* ロゴ全体のコンテナ */
-.logo-wrapper {
-	height: 60px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	margin-bottom: 2rem;
+/* 墨の輪。真円にしない */
+.loading-ripple {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	width: 22rem;
+	height: 22rem;
+	translate: -50% -50%;
+	pointer-events: none;
+}
+
+.loading-ripple span {
+	position: absolute;
+	inset: 0;
+	border: 1px solid var(--hr-accent);
+	border-radius: 49% 51% 52% 48% / 52% 48% 51% 49%;
+	opacity: 0.22;
+}
+
+/* 動きを止めている環境では、広がりきる途中の三つの輪として見せる */
+.loading-ripple span:nth-child(1) {
+	scale: 0.5;
+}
+
+.loading-ripple span:nth-child(2) {
+	scale: 0.75;
+	rotate: 70deg;
+}
+
+.loading-ripple span:nth-child(3) {
+	rotate: 150deg;
 }
 
 .logo-full-text {
-	font-family: "Inter", sans-serif;
-	font-weight: 900;
-	font-size: 1.4rem;
-	letter-spacing: -0.02em;
+	position: relative;
 	display: flex;
 	align-items: baseline;
+	height: 2.5rem;
+	font-size: 1.4rem;
+	font-weight: 900;
+	letter-spacing: -0.02em;
 	color: var(--hr-text);
 }
 
-/* TYPAの4文字（メイン） */
+/* TYPA の 4 文字 */
 .main-char {
 	display: inline-block;
-	color: var(--hr-text);
 	transform: scale(1.1);
-	font-weight: 900;
 }
 
-/* 隠れる文字 */
+/* TYPA のあいだを埋める綴り。読ませてから畳む */
 .sub-text {
 	display: inline-block;
-	max-width: 500px; /* 十分な幅 */
-	opacity: 1;
+	max-width: 500px;
 	font-weight: 400;
 	font-size: 1.2rem;
 	color: var(--hr-text-muted);
 	white-space: nowrap;
 	overflow: hidden;
-	/* 1.4秒の構成: 0~0.4sで見える、0.4~1.1sで縮小消去、1.1~1.4sは余韻 */
-	animation: shrinkText 1.4s cubic-bezier(0.65, 0, 0.35, 1) forwards;
-}
-
-/* 下部のバー */
-.loading-bar-container {
-	width: 120px;
-	height: 2px;
-	background: var(--hr-border-strong);
-	border-radius: 2px;
-	position: relative;
-	overflow: hidden;
-	margin-bottom: 0.5rem;
-}
-
-.loading-bar-fill {
-	position: absolute;
-	height: 100%;
-	width: 0%;
-	background: var(--hr-text);
-	animation: progressFill 1.4s ease-in-out forwards;
 }
 
 .loading-text {
-	font-size: 0.8125rem;
-	text-transform: uppercase;
-	letter-spacing: 0.3em;
-	color: var(--hr-text-muted);
+	position: relative;
 	margin: 0;
+	font-size: 0.8125rem;
+	letter-spacing: 0.24em;
+	color: var(--hr-text-muted);
 }
 
+@media (prefers-reduced-motion: no-preference) {
+	.loading-container {
+		animation: loadingIn 0.7s ease 0.1s both;
+	}
+
+	.loading-container::after {
+		animation: loadingDrift 48s ease-in-out infinite alternate;
+	}
+
+	.loading-ripple span {
+		opacity: 0;
+		animation: loadingRipple 6s cubic-bezier(0.2, 0.6, 0.3, 1) infinite;
+	}
+
+	.loading-ripple span:nth-child(2) {
+		animation-delay: 2s;
+	}
+
+	.loading-ripple span:nth-child(3) {
+		animation-delay: 4s;
+	}
+
+	.sub-text {
+		animation: shrinkText 3.6s cubic-bezier(0.65, 0, 0.35, 1) 0.3s both;
+	}
+}
+
+@keyframes loadingIn {
+	from {
+		opacity: 0;
+	}
+}
+
+@keyframes loadingDrift {
+	to {
+		transform: translate3d(6%, -4%, 0);
+	}
+}
+
+@keyframes loadingRipple {
+	0% {
+		opacity: 0;
+		scale: 0.18;
+	}
+	25% {
+		opacity: 0.42;
+	}
+	100% {
+		opacity: 0;
+		scale: 1;
+	}
+}
+
+/* 0〜20% で現れ、55% まで読ませ、残りでゆっくり畳む */
 @keyframes shrinkText {
 	0% {
 		opacity: 0;
-		max-width: 0px;
-		filter: blur(8px);
+		max-width: 0;
 	}
-	20% {
+	20%,
+	55% {
 		opacity: 1;
 		max-width: 500px;
-		filter: blur(0px);
-	}
-	60% {
-		opacity: 1;
-		max-width: 500px;
-		margin-right: 4px;
 	}
 	100% {
 		opacity: 0;
-		max-width: 0px;
-		margin-right: 0px;
-		filter: blur(4px);
-	}
-}
-
-@keyframes progressFill {
-	0% {
-		width: 0%;
-		left: 0;
-	}
-	100% {
-		width: 100%;
-		left: 0;
+		max-width: 0;
 	}
 }

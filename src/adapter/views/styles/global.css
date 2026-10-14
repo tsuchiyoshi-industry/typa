@@ -1,99 +1,80 @@
 /* TYPA 人事考課 — デザイントークン・リセット・ログイン・アプリ枠 */
 
+/* 配色は「紙と墨」。値は light-dark(ライト, ダーク) の順に並べる。
+   ライトは紙に墨: 青みのある白い紙に、墨色の文字と深い藍。
+   ダークは墨に紙: 藍墨の地に、生成りの文字と淡い藍。ライトを暗くしたものではなく、面は手前に重なるほど明るくなり、
+   塗りは淡い色の上に濃い文字を載せる。
+   文字は地に対して 4.5:1 以上、押せる部品の枠と塗りは 3:1 以上を保つ(WCAG AA)。tokens.test.ts で確かめている。 */
 :root {
-	color-scheme: dark;
-	--hr-bg: #0c0e12;
-	--hr-bg-elevated: #12151c;
-	--hr-surface: #161a22;
-	--hr-surface-hover: #1c212c;
-	--hr-border: rgba(255, 255, 255, 0.1);
-	--hr-border-strong: rgba(255, 255, 255, 0.18);
-	/* 入力欄・押せる部品の枠。背景とのコントラスト 3:1 以上 */
-	--hr-border-input: rgba(255, 255, 255, 0.36);
-	/* 本文中のリンク。背景とのコントラスト 4.5:1 以上 */
-	--hr-link: #6f9fd8;
-	--hr-text: #e6e8ec;
-	--hr-text-muted: #8a9199;
-	--hr-accent: #3d6a9e;
-	--hr-accent-hover: #4a7eb8;
-	--hr-accent-muted: rgba(61, 106, 158, 0.22);
+	color-scheme: light dark;
+	/* 地。--hr-bg-elevated は一段沈んだ面(入力欄・表の見出し)、--hr-surface は手前に載るカード */
+	--hr-bg: light-dark(#edf0f0, #131b22);
+	--hr-bg-end: light-dark(#e2e7e8, #0e151b);
+	--hr-bg-elevated: light-dark(#e4e9ea, #18222b);
+	--hr-surface: light-dark(#fbfcfc, #1d2933);
+	--hr-surface-hover: light-dark(#f1f4f4, #253340);
+	--hr-border: light-dark(rgba(27, 38, 45, 0.11), rgba(214, 228, 238, 0.1));
+	--hr-border-strong: light-dark(rgba(27, 38, 45, 0.22), rgba(214, 228, 238, 0.19));
+	/* 入力欄・押せる部品の枠 */
+	--hr-border-input: light-dark(#75848d, #6f808c);
+	--hr-text: light-dark(#1b262d, #e6e3dc);
+	--hr-text-muted: light-dark(#4d5b64, #9eabb4);
+	--hr-link: light-dark(#1a5c80, #8fc3de);
+	--hr-accent: light-dark(#1a5c80, #86bcd9);
+	--hr-accent-hover: light-dark(#134a68, #a6d0e6);
+	--hr-accent-muted: light-dark(rgba(26, 92, 128, 0.12), rgba(134, 188, 217, 0.16));
+	/* 塗り(--hr-accent / success / warning / danger)の上に載せる文字 */
+	--hr-on-accent: light-dark(#ffffff, #0e1a22);
 	--hr-primary: var(--hr-accent);
 	--hr-primary-hover: var(--hr-accent-hover);
-	--hr-success: #3d7a5c;
-	--hr-success-text: #7fc8a0;
-	--hr-warning: #b45309;
-	--hr-warning-text: #e0a35a;
-	--hr-danger: #b85c5c;
-	--hr-danger-text: #f0d0d0;
-	--hr-bg-glow: rgba(61, 106, 158, 0.12);
-	--hr-bg-end: #0a0c0f;
+	--hr-success: light-dark(#35733f, #86c796);
+	--hr-success-text: light-dark(#2a6336, #93d1a2);
+	--hr-warning: light-dark(#a15c0a, #e0ad63);
+	--hr-warning-text: light-dark(#8a4a06, #e6b672);
+	--hr-danger: light-dark(#b23f3a, #e79a90);
+	--hr-danger-text: light-dark(#96302c, #f0b0a7);
 	--hr-radius-sm: 6px;
 	--hr-radius-md: 10px;
 	--hr-radius-lg: 14px;
-	--hr-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 12px 40px rgba(0, 0, 0, 0.35);
+	/* ライトは影で浮かせる。ダークは影が地に沈んで見えないので、上端の細い光と面の明るさで浮かせる */
+	--hr-shadow:
+		0 1px 0 light-dark(rgba(255, 255, 255, 0.85), rgba(214, 228, 238, 0.07)) inset,
+		0 1px 2px light-dark(rgba(27, 38, 45, 0.06), rgba(0, 0, 0, 0.3)),
+		0 14px 36px -14px light-dark(rgba(27, 38, 45, 0.2), rgba(0, 0, 0, 0.55));
 	--hr-font:
 		"Segoe UI", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", system-ui, sans-serif;
 	--hr-tracking: 0.02em;
+
+	/* 地の模様。墨流しのように、藍・藤・青磁の淡い筋が漂う。
+	   --hr-marble は筋の形(雑音の等高線を抜いたマスク)で、色は --hr-veins がテーマごとに決める */
+	--hr-wash:
+		radial-gradient(
+			ellipse 70% 55% at 8% -8%,
+			light-dark(rgba(26, 92, 128, 0.1), rgba(63, 126, 163, 0.2)),
+			transparent 70%
+		),
+		radial-gradient(
+			ellipse 60% 50% at 104% 108%,
+			light-dark(rgba(140, 120, 170, 0.1), rgba(96, 78, 140, 0.18)),
+			transparent 70%
+		);
+	--hr-veins: linear-gradient(
+		115deg,
+		light-dark(rgba(70, 110, 140, 0.2), rgba(92, 160, 200, 0.17)),
+		light-dark(rgba(128, 112, 160, 0.17), rgba(140, 120, 190, 0.15)) 45%,
+		light-dark(rgba(84, 140, 124, 0.19), rgba(84, 168, 146, 0.15)) 85%
+	);
+	--hr-marble: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1600' height='1000'%3E%3Cfilter id='m' filterUnits='userSpaceOnUse' x='-40' y='-40' width='1680' height='1080' color-interpolation-filters='sRGB'%3E%3CfeTurbulence x='0' y='0' width='1600' height='1000' type='fractalNoise' baseFrequency='.0009 .003' numOctaves='3' seed='4' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='table' tableValues='0 0 0 0 0 0 0 0 0 0 0 0 0 0 .45 0 0 0 1 .15 0 0 0 .6 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0'/%3E%3C/feComponentTransfer%3E%3CfeTile x='-40' y='-40' width='1680' height='1080'/%3E%3CfeGaussianBlur stdDeviation='3.5'/%3E%3C/filter%3E%3Crect x='-40' y='-40' width='1680' height='1080' filter='url(%23m)'/%3E%3C/svg%3E");
+	--hr-marble-size: 1600px 1000px;
 }
 
-/* ライトテーマ: 明示指定(data-theme="light")、または未指定時は OS 設定(prefers-color-scheme: light)に従う。
-   まぶしくないよう白/黒は避けつつ、補足の文字も背景とのコントラスト 4.5:1 以上を保つ(WCAG AA)。 */
+/* 明示指定(data-theme)があればそれに、なければ OS の設定に従う */
 :root[data-theme="light"] {
 	color-scheme: light;
-	--hr-bg: #f3f2ee;
-	--hr-bg-elevated: #ebe9e1;
-	--hr-surface: #ffffff;
-	--hr-surface-hover: #f6f5f0;
-	--hr-border: rgba(35, 32, 25, 0.12);
-	--hr-border-strong: rgba(35, 32, 25, 0.24);
-	--hr-border-input: rgba(35, 32, 25, 0.52);
-	--hr-link: #335e8c;
-	--hr-text: #33322d;
-	--hr-text-muted: #625e55;
-	--hr-accent: #3d6a9e;
-	--hr-accent-hover: #335e8c;
-	--hr-accent-muted: rgba(61, 106, 158, 0.14);
-	--hr-primary: var(--hr-accent);
-	--hr-primary-hover: var(--hr-accent-hover);
-	--hr-success: #3d7a5c;
-	--hr-success-text: #2f6a4d;
-	--hr-warning: #b45309;
-	--hr-warning-text: #9a4a08;
-	--hr-danger: #b85c5c;
-	--hr-danger-text: #8a3a3a;
-	--hr-bg-glow: rgba(61, 106, 158, 0.06);
-	--hr-bg-end: #e7e5dc;
-	--hr-shadow: 0 1px 0 rgba(255, 255, 255, 0.7) inset, 0 10px 30px rgba(35, 32, 25, 0.08);
 }
 
-@media (prefers-color-scheme: light) {
-	:root:not([data-theme="dark"]) {
-		color-scheme: light;
-		--hr-bg: #f3f2ee;
-		--hr-bg-elevated: #ebe9e1;
-		--hr-surface: #ffffff;
-		--hr-surface-hover: #f6f5f0;
-		--hr-border: rgba(35, 32, 25, 0.12);
-		--hr-border-strong: rgba(35, 32, 25, 0.24);
-		--hr-border-input: rgba(35, 32, 25, 0.52);
-		--hr-link: #335e8c;
-		--hr-text: #33322d;
-		--hr-text-muted: #625e55;
-		--hr-accent: #3d6a9e;
-		--hr-accent-hover: #335e8c;
-		--hr-accent-muted: rgba(61, 106, 158, 0.14);
-		--hr-primary: var(--hr-accent);
-		--hr-primary-hover: var(--hr-accent-hover);
-		--hr-success: #3d7a5c;
-		--hr-success-text: #2f6a4d;
-		--hr-warning: #b45309;
-		--hr-warning-text: #9a4a08;
-		--hr-danger: #b85c5c;
-		--hr-danger-text: #8a3a3a;
-		--hr-bg-glow: rgba(61, 106, 158, 0.06);
-		--hr-bg-end: #e7e5dc;
-		--hr-shadow: 0 1px 0 rgba(255, 255, 255, 0.7) inset, 0 10px 30px rgba(35, 32, 25, 0.08);
-	}
+:root[data-theme="dark"] {
+	color-scheme: dark;
 }
 
 *,
@@ -114,10 +95,34 @@ body {
 	line-height: 1.7;
 	color: var(--hr-text);
 	background: var(--hr-bg);
-	background-image:
-		radial-gradient(ellipse 80% 50% at 50% -20%, var(--hr-bg-glow), transparent),
-		linear-gradient(180deg, var(--hr-bg) 0%, var(--hr-bg-end) 100%);
 	-webkit-font-smoothing: antialiased;
+}
+
+/* 地の模様は画面に固定する。送っても動かず、長いページでも引き伸ばされない */
+body::before,
+body::after {
+	content: "";
+	position: fixed;
+	inset: 0;
+	z-index: -1;
+	pointer-events: none;
+}
+
+body::before {
+	background: var(--hr-wash);
+}
+
+body::after {
+	background: var(--hr-veins);
+	mask: var(--hr-marble) 0 0 / var(--hr-marble-size);
+}
+
+/* 色を強制している、またはコントラストを上げている環境では、地を無地にする */
+@media (forced-colors: active), (prefers-contrast: more) {
+	body::before,
+	body::after {
+		display: none;
+	}
 }
 
 button,
@@ -321,7 +326,7 @@ a:hover {
 	padding: 0.75rem 1rem;
 	border-radius: var(--hr-radius-sm);
 	background: var(--hr-accent);
-	color: #fff;
+	color: var(--hr-on-accent);
 	font-weight: 600;
 	font-size: 0.9rem;
 	letter-spacing: var(--hr-tracking);
@@ -345,8 +350,8 @@ a:hover {
 	padding: 0.65rem 0.85rem;
 	font-size: 0.875rem;
 	color: var(--hr-danger-text);
-	background: rgba(184, 92, 92, 0.12);
-	border: 1px solid rgba(184, 92, 92, 0.35);
+	background: color-mix(in srgb, var(--hr-danger) 12%, transparent);
+	border: 1px solid color-mix(in srgb, var(--hr-danger) 40%, transparent);
 	border-radius: var(--hr-radius-sm);
 }
 
@@ -578,9 +583,7 @@ a:hover {
 	}
 
 	.toast,
-	.toast.leaving,
-	.sub-text,
-	.loading-bar-fill {
+	.toast.leaving {
 		animation: none;
 	}
 }

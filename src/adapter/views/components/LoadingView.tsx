@@ -5,22 +5,23 @@ const LoadingView: Component = () => {
 	return (
 		<div class="loading-container" role="status" aria-busy="true">
 			<div class="loading-content">
-				{/* ロゴアニメ */}
-				<div class="logo-wrapper">
-					<div class="logo-full-text">
-						<span class="main-char">T</span>
-						<span class="main-char">Y&nbsp;</span>
-						<span class="main-char">P</span>
-						<span class="sub-text">erformance&nbsp;</span>
-						<span class="main-char">A</span>
-						<span class="sub-text">ppraisal</span>
-					</div>
+				{/* 広がっては消える墨の輪 */}
+				<div class="loading-ripple" aria-hidden="true">
+					<span />
+					<span />
+					<span />
 				</div>
 
-				{/* 補助的なインジケーター */}
-				<div class="loading-bar-container">
-					<div class="loading-bar-fill"></div>
+				{/* ロゴアニメ */}
+				<div class="logo-full-text">
+					<span class="main-char">T</span>
+					<span class="main-char">Y&nbsp;</span>
+					<span class="main-char">P</span>
+					<span class="sub-text">erformance&nbsp;</span>
+					<span class="main-char">A</span>
+					<span class="sub-text">ppraisal</span>
 				</div>
+
 				<p class="loading-text">読み込み中</p>
 			</div>
 		</div>

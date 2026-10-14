@@ -95,7 +95,7 @@
 	padding: 10px 18px;
 	border-radius: var(--hr-radius-sm);
 	background: var(--hr-accent);
-	color: #fff;
+	color: var(--hr-on-accent);
 	font-size: 0.875rem;
 	font-weight: 600;
 }

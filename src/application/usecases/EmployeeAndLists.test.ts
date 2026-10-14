@@ -10,10 +10,10 @@ import {
 	sheet,
 	sheetRepository,
 } from "../../test/fixtures";
-import { CheckEvaluatorRoleInteractor } from "./CheckEvaluatorRoleInteractor";
 import { CreateEvaluationSheetInteractor } from "./CreateEvaluationSheetInteractor";
 import { FetchCategorizedSheetsInteractor } from "./FetchCategorizedSheetsInteractor";
 import { FetchDistinctPeriodsInteractor } from "./FetchDistinctPeriodsInteractor";
+import { FetchEvaluationSheetInteractor } from "./FetchEvaluationSheetInteractor";
 import { LoadEmployeeMasterInteractor } from "./LoadEmployeeMasterInteractor";
 import { ResetEmployeeRegistrationInteractor } from "./ResetEmployeeRegistrationInteractor";
 import { UpdateEmployeeEvaluatorInteractor } from "./UpdateEmployeeEvaluatorInteractor";
@@ -275,60 +275,53 @@ describe("lists and permission queries", () => {
 		repo.findDistinctPeriods.mockRejectedValue(new Error("DB"));
 		await expect(interactor.execute({}, out)).rejects.toThrow("DB");
 	});
-	it.each(["nullSheet", "missingSheet", "missingIdentity", "identityError"])(
-		"returns no permissions for %s",
-		async (kind) => {
-			const employees = employeeRepository();
-			const sheets = sheetRepository();
-			if (kind === "missingSheet") {
-				sheets.findById.mockResolvedValue(null);
-			}
-			if (kind === "missingIdentity") {
-				employees.findCurrentEmployeeId.mockResolvedValue({ data: null, error: null });
-			}
-			if (kind === "identityError") {
-				employees.findCurrentEmployeeId.mockResolvedValue({ data: 2, error: new Error("DB") });
-			}
-			vi.spyOn(console, "error").mockImplementation(() => {});
-			const out = output<import("./CheckEvaluatorRoleInteractor").CheckEvaluatorRoleResponse>();
-			await new CheckEvaluatorRoleInteractor(employees, sheets).execute(
-				{ sheetId: kind === "nullSheet" ? null : 100 },
-				out,
-			);
-			expect(Object.values(out.present.mock.calls[0][0]).every((value) => value === false)).toBe(
-				true,
-			);
-		},
-	);
-	it.each([1, 2, 3, 4])("resolves sheet-specific permissions for %s", async (id) => {
-		const employees = employeeRepository();
-		employees.findCurrentEmployeeId.mockResolvedValue({ data: id, error: null });
+	it("gives no permissions on a sheet that does not exist", async () => {
+		const sheets = sheetRepository();
+		sheets.findById.mockResolvedValue(null);
+		const out = output<import("../dtos/EvaluationSheetDto").EvaluationSheetDto>();
+		await new FetchEvaluationSheetInteractor(sheets, employeeRepository()).execute(
+			{ sheetId: 100, currentEmployeeId: 2 },
+			out,
+		);
+		expect(Object.values(out.present.mock.calls[0][0].permissions).every((value) => !value)).toBe(
+			true,
+		);
+	});
+	// シートを読めない人(4)は、権限を返す前に断る(SheetSecurity.test.ts)
+	it.each([1, 2, 3])("resolves sheet-specific permissions for %s", async (id) => {
 		const out = output<never>();
 		// 提出済みは一次評価の段階。二次評価者は読めるが、一次評価が確定するまで入力できない
-		await new CheckEvaluatorRoleInteractor(employees, sheetRepository()).execute(
-			{ sheetId: 100 },
+		await new FetchEvaluationSheetInteractor(sheetRepository(), employeeRepository()).execute(
+			{ sheetId: 100, currentEmployeeId: id },
 			out,
 		);
 		expect(out.present).toHaveBeenCalledWith(
 			expect.objectContaining({
-				isSubject: id === 1,
-				canEditFirst: id === 2,
-				canEditSecond: false,
-				canViewCommonEvaluation: id === 2 || id === 3,
-				canConfirmFirstEvaluation: id === 2,
-				canFinalizeEvaluation: false,
+				permissions: expect.objectContaining({
+					isSubject: id === 1,
+					canEditFirst: id === 2,
+					canEditSecond: false,
+					canViewCommonEvaluation: id === 2 || id === 3,
+					canConfirmFirstEvaluation: id === 2,
+					canFinalizeEvaluation: false,
+				}),
 			}),
 		);
 		const sheets = sheetRepository();
 		sheets.findById.mockResolvedValue(sheet(EvaluationStatus.FIRST_EVALUATED));
 		const next = output<never>();
-		await new CheckEvaluatorRoleInteractor(employees, sheets).execute({ sheetId: 100 }, next);
+		await new FetchEvaluationSheetInteractor(sheets, employeeRepository()).execute(
+			{ sheetId: 100, currentEmployeeId: id },
+			next,
+		);
 		expect(next.present).toHaveBeenCalledWith(
 			expect.objectContaining({
-				canEditFirst: false,
-				canEditSecond: id === 3,
-				canConfirmFirstEvaluation: false,
-				canFinalizeEvaluation: id === 3,
+				permissions: expect.objectContaining({
+					canEditFirst: false,
+					canEditSecond: id === 3,
+					canConfirmFirstEvaluation: false,
+					canFinalizeEvaluation: id === 3,
+				}),
 			}),
 		);
 	});
@@ -378,12 +371,17 @@ describe("sheet creation orchestration", () => {
 		const sheets = sheetRepository();
 		sheets.findById.mockResolvedValue(sheet(EvaluationStatus.DRAFT));
 		const out = output<never>();
-		await new CheckEvaluatorRoleInteractor(employeeRepository(), sheets).execute(
-			{ sheetId: 100 },
+		await new FetchEvaluationSheetInteractor(sheets, employeeRepository()).execute(
+			{ sheetId: 100, currentEmployeeId: 1 },
 			out,
 		);
 		expect(out.present).toHaveBeenCalledWith(
-			expect.objectContaining({ canEditMilestoneGoal: true, canSubmitOwnSheet: true }),
+			expect.objectContaining({
+				permissions: expect.objectContaining({
+					canEditMilestoneGoal: true,
+					canSubmitOwnSheet: true,
+				}),
+			}),
 		);
 	});
 });

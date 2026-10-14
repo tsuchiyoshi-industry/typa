@@ -219,14 +219,24 @@ export class EvaluationSheet {
 
 	/** 確定する評価者自身の、まだ評価されていない項目。0 は未評価。 */
 	pendingEvaluationItems(stage: "first" | "second"): string[] {
+		return this.pendingEvaluationTargets(stage).map((target) => target.label);
+	}
+
+	/** pendingEvaluationItems に、その項目がどれか(目標の番号・共通評価の項目)を付けたもの。 */
+	pendingEvaluationTargets(
+		stage: "first" | "second",
+	): { label: string; goalNumber?: number; itemId?: number }[] {
 		const scoreKey = stage === "first" ? "firstScore" : "secondScore";
 		return [
 			...this.objectives
 				.filter((objective) => objective[scoreKey].toNumber() === 0)
-				.map((objective) => `チャレンジ目標 ${objective.goalNumber}`),
+				.map((objective) => ({
+					label: `チャレンジ目標 ${objective.goalNumber}`,
+					goalNumber: objective.goalNumber,
+				})),
 			...this.commonEvaluationResults
 				.filter((result) => result[scoreKey].toNumber() === 0)
-				.map((result) => `共通評価「${result.item.title}」`),
+				.map((result) => ({ label: `共通評価「${result.item.title}」`, itemId: result.itemId })),
 		];
 	}
 

@@ -17,7 +17,7 @@ const STATUS_HINTS: Record<EvaluationStatusValue, string> = {
 	draft: "本人が編集中です。提出するまで評価者には表示されません。",
 	submitted: "一次評価者の評価を待っています。",
 	first_evaluated: "一次評価が確定しました。二次評価者の評価を待っています。",
-	finalized: "最終評価が済みました。内容は変更できません。",
+	finalized: "最終評価済みです。内容は変更できません。",
 };
 
 /** いまの状態で「誰の番か」を一文で示す。 */

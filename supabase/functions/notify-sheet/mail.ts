@@ -3,7 +3,7 @@
 
 /** What the database function get_sheet_notification returns. */
 export interface SheetNotification {
-	status: "submitted" | "first_evaluated" | "finalized";
+	status: "submitted" | "first_evaluated";
 	sheetId: number;
 	employeeName: string;
 	employeeNo: string;
@@ -41,13 +41,11 @@ function content(notification: SheetNotification): { title: string; lines: strin
 				title: "一次評価のお願い",
 				lines: [`${who}が評価シートを提出しました。`, "一次評価を入力し、確定してください。"],
 			};
-		case "first_evaluated":
+		default:
 			return {
 				title: "二次評価のお願い",
 				lines: [`${who}の一次評価が確定しました。`, "二次評価を入力し、評価を確定してください。"],
 			};
-		default:
-			return { title: "評価シート確定通知", lines: [`${who}の評価シートが確定しました。`] };
 	}
 }
 

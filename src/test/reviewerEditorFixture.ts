@@ -30,7 +30,38 @@ export function reviewerEditorFixture(
 		}
 		return row;
 	};
+	const commonEvaluation = (row: ReviewerRowDto): EvaluationSheetDto["commonEvaluation"] => {
+		const totalWeight = row.commonItems.reduce((sum, item) => sum + item.weight, 0);
+		const totalFirstScore = row.commonItems.reduce((sum, item) => sum + item.firstScore, 0);
+		const totalSecondScore = row.commonItems.reduce(
+			(sum, item) => sum + (item.secondScore ?? 0),
+			0,
+		);
+		return {
+			results: row.commonItems.map((item) => ({
+				id: item.id,
+				sheetId: row.sheetId as number,
+				itemId: item.id,
+				firstScore: item.firstScore,
+				secondScore: item.secondScore,
+				firstComment: item.firstComment,
+				item: {
+					id: item.id,
+					title: item.title,
+					description: "日々の業務における遂行力・品質・改善への取り組み",
+					weight: item.weight,
+					itemSetId: 1,
+				},
+			})),
+			totalFirstScore,
+			totalSecondScore,
+			totalWeight,
+			firstRate: totalWeight ? Math.round((totalFirstScore / totalWeight) * 100) : 0,
+			secondRate: totalWeight ? Math.round((totalSecondScore / totalWeight) * 100) : 0,
+		};
+	};
 	const dto = (row: ReviewerRowDto): EvaluationSheetDto => ({
+		commonEvaluation: commonEvaluation(row),
 		sheetId: row.sheetId as number,
 		subject: {
 			id: row.employeeId,
@@ -84,15 +115,30 @@ export function reviewerEditorFixture(
 		},
 		status: EvaluationStatus.from(row.status).toString(),
 		isEditable: false,
+		permissions: {
+			isSubject: false,
+			canEditFirst: row.isPrimary && !!sheetStatus(row)?.isAwaitingFirstEvaluation(),
+			canEditSecond: row.canViewSecond && !!sheetStatus(row)?.isAwaitingSecondEvaluation(),
+			canEditMilestoneGoal: false,
+			canViewCommonEvaluation: true,
+			canViewSecondEvaluation: row.canViewSecond,
+			canSubmitOwnSheet: false,
+			canRevertOwnSheetToDraft: false,
+			canConfirmFirstEvaluation: canConfirmFirst(row),
+			canFinalizeEvaluation: canFinalize(row),
+		},
 		pendingEvaluationItems: (() => {
 			const score = row.status === "submitted" ? "firstScore" : "secondScore";
 			return [
 				...row.objectives
 					.filter((goal) => goal[score] === 0)
-					.map((goal) => `チャレンジ目標 ${goal.goalNumber}`),
+					.map((goal) => ({
+						label: `チャレンジ目標 ${goal.goalNumber}`,
+						goalNumber: goal.goalNumber,
+					})),
 				...row.commonItems
 					.filter((item) => item[score] === 0)
-					.map((item) => `共通評価「${item.title}」`),
+					.map((item) => ({ label: `共通評価「${item.title}」`, itemId: item.id })),
 			];
 		})(),
 		firstEvaluationRank: {
@@ -123,21 +169,6 @@ export function reviewerEditorFixture(
 			presenter.outputPort.sheet.present(dto(find(id)));
 			return id;
 		},
-		async loadRoles(id: number) {
-			const row = find(id);
-			presenter.outputPort.role.present({
-				isSubject: false,
-				canEditFirst: row.isPrimary && !!sheetStatus(row)?.isAwaitingFirstEvaluation(),
-				canEditSecond: row.canViewSecond && !!sheetStatus(row)?.isAwaitingSecondEvaluation(),
-				canEditMilestoneGoal: false,
-				canViewCommonEvaluation: true,
-				canViewSecondEvaluation: row.canViewSecond,
-				canSubmitOwnSheet: false,
-				canRevertOwnSheetToDraft: false,
-				canConfirmFirstEvaluation: canConfirmFirst(row),
-				canFinalizeEvaluation: canFinalize(row),
-			});
-		},
 		async updateOverallComment(target: "first" | "second", comment: string) {
 			const row = find(presenter.viewModel().sheet?.sheetId as number);
 			if (target === "first") {
@@ -167,37 +198,6 @@ export function reviewerEditorFixture(
 		},
 	} as unknown as SheetEditorController;
 	const commonController = {
-		async load(id: number) {
-			const row = find(id);
-			const totalWeight = row.commonItems.reduce((sum, item) => sum + item.weight, 0);
-			const totalFirstScore = row.commonItems.reduce((sum, item) => sum + item.firstScore, 0);
-			const totalSecondScore = row.commonItems.reduce(
-				(sum, item) => sum + (item.secondScore ?? 0),
-				0,
-			);
-			common.outputPort.load.present({
-				results: row.commonItems.map((item) => ({
-					id: item.id,
-					sheetId: id,
-					itemId: item.id,
-					firstScore: item.firstScore,
-					secondScore: item.secondScore,
-					firstComment: item.firstComment,
-					item: {
-						id: item.id,
-						title: item.title,
-						description: "日々の業務における遂行力・品質・改善への取り組み",
-						weight: item.weight,
-						itemSetId: 1,
-					},
-				})),
-				totalFirstScore,
-				totalSecondScore,
-				totalWeight,
-				firstRate: totalWeight ? Math.round((totalFirstScore / totalWeight) * 100) : 0,
-				secondRate: totalWeight ? Math.round((totalSecondScore / totalWeight) * 100) : 0,
-			});
-		},
 		async upsert(
 			id: number,
 			results: { itemId: number; firstScore: number; secondScore: number; firstComment: string }[],

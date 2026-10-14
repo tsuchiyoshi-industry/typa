@@ -1,8 +1,11 @@
 import { createSignal } from "solid-js";
 import type { EvaluationPeriodDto } from "../../application/dtos/EvaluationPeriodDto";
-import type { EvaluationSheetDto } from "../../application/dtos/EvaluationSheetDto";
+import {
+	type EvaluationSheetDto,
+	NO_SHEET_PERMISSIONS,
+	type SheetPermissionsDto,
+} from "../../application/dtos/EvaluationSheetDto";
 import type { CategorizedSheetsDto } from "../../application/dtos/SheetListDto";
-import type { CheckEvaluatorRoleOutputPort } from "../../application/usecases/CheckEvaluatorRoleInteractor";
 import type {
 	CreateEvaluationSheetOutputPort,
 	CreateEvaluationSheetResponse,
@@ -26,23 +29,13 @@ import type {
 } from "../../application/usecases/UpdateOverallCommentInteractor";
 import { showToast } from "../views/feedback";
 
-export interface SheetEditorViewModel {
+export interface SheetEditorViewModel extends SheetPermissionsDto {
 	loadingSheet: boolean;
 	sheet: EvaluationSheetDto | null;
 	loadingAccessibleSheets: boolean;
 	accessibleSheets: CategorizedSheetsDto;
 	periods: EvaluationPeriodDto[];
 	selectedPeriodId: number | null;
-	isSubject: boolean;
-	canEditFirst: boolean;
-	canEditSecond: boolean;
-	canEditMilestoneGoal: boolean;
-	canViewCommonEvaluation: boolean;
-	canViewSecondEvaluation: boolean;
-	canSubmitOwnSheet: boolean;
-	canRevertOwnSheetToDraft: boolean;
-	canConfirmFirstEvaluation: boolean;
-	canFinalizeEvaluation: boolean;
 	updatingOverallComment: boolean;
 	overallCommentUpdateError: string | null;
 	updatingStatus: boolean;
@@ -59,7 +52,6 @@ export function createSheetEditorPresenter(): {
 		sheet: FetchEvaluationSheetOutputPort;
 		periods: FetchDistinctPeriodsOutputPort;
 		createSheet: CreateEvaluationSheetOutputPort;
-		role: CheckEvaluatorRoleOutputPort;
 		accessibleSheets: FetchCategorizedSheetsOutputPort;
 		overallComment: UpdateOverallCommentOutputPort;
 		status: UpdateEvaluationStatusOutputPort;
@@ -72,7 +64,6 @@ export function createSheetEditorPresenter(): {
 	presentAccessibleSheetsError: (message: string) => void;
 	presentPeriodsError: (message: string) => void;
 	presentCreateError: (message: string) => void;
-	presentRoleError: (message: string) => void;
 	beginOverallCommentUpdate: () => void;
 	presentOverallCommentUpdateError: (message: string) => void;
 	beginStatusUpdate: () => void;
@@ -88,16 +79,7 @@ export function createSheetEditorPresenter(): {
 		},
 		periods: [],
 		selectedPeriodId: null,
-		isSubject: false,
-		canEditFirst: false,
-		canEditSecond: false,
-		canEditMilestoneGoal: false,
-		canViewCommonEvaluation: false,
-		canViewSecondEvaluation: false,
-		canSubmitOwnSheet: false,
-		canRevertOwnSheetToDraft: false,
-		canConfirmFirstEvaluation: false,
-		canFinalizeEvaluation: false,
+		...NO_SHEET_PERMISSIONS,
 		updatingOverallComment: false,
 		overallCommentUpdateError: null,
 		updatingStatus: false,
@@ -114,6 +96,7 @@ export function createSheetEditorPresenter(): {
 				...prev,
 				loadingSheet: false,
 				sheet: response,
+				...response.permissions,
 				createdSheetId: null,
 				fetchError: null,
 				overallCommentUpdateError: null,
@@ -157,29 +140,12 @@ export function createSheetEditorPresenter(): {
 		},
 	};
 
-	const roleOutputPort: CheckEvaluatorRoleOutputPort = {
-		present(response) {
-			setViewModel((prev) => ({
-				...prev,
-				isSubject: response.isSubject,
-				canEditFirst: response.canEditFirst,
-				canEditSecond: response.canEditSecond,
-				canEditMilestoneGoal: response.canEditMilestoneGoal,
-				canViewCommonEvaluation: response.canViewCommonEvaluation,
-				canViewSecondEvaluation: response.canViewSecondEvaluation,
-				canSubmitOwnSheet: response.canSubmitOwnSheet,
-				canRevertOwnSheetToDraft: response.canRevertOwnSheetToDraft,
-				canConfirmFirstEvaluation: response.canConfirmFirstEvaluation,
-				canFinalizeEvaluation: response.canFinalizeEvaluation,
-			}));
-		},
-	};
-
 	const overallCommentOutputPort: UpdateOverallCommentOutputPort = {
 		present(response: UpdateOverallCommentResponse) {
 			setViewModel((prev) => ({
 				...prev,
 				sheet: response.sheet,
+				...response.sheet.permissions,
 				updatingOverallComment: false,
 				overallCommentUpdateError: null,
 			}));
@@ -191,6 +157,7 @@ export function createSheetEditorPresenter(): {
 			setViewModel((prev) => ({
 				...prev,
 				sheet: response.sheet,
+				...response.sheet.permissions,
 				updatingStatus: false,
 				statusUpdateError: null,
 			}));
@@ -228,10 +195,6 @@ export function createSheetEditorPresenter(): {
 			createError: message,
 			createdSheetId: null,
 		}));
-	};
-
-	const presentRoleError = (message: string) => {
-		setViewModel((prev) => ({ ...prev, fetchError: message }));
 	};
 
 	const beginOverallCommentUpdate = () => {
@@ -279,16 +242,7 @@ export function createSheetEditorPresenter(): {
 				: {
 						loadingSheet: true,
 						sheet: null,
-						isSubject: false,
-						canEditFirst: false,
-						canEditSecond: false,
-						canEditMilestoneGoal: false,
-						canViewCommonEvaluation: false,
-						canViewSecondEvaluation: false,
-						canSubmitOwnSheet: false,
-						canRevertOwnSheetToDraft: false,
-						canConfirmFirstEvaluation: false,
-						canFinalizeEvaluation: false,
+						...NO_SHEET_PERMISSIONS,
 						// 別のシートを開いたら、前のシートの確定時の警告は持ち越さない
 						statusUpdateError: null,
 					}),
@@ -321,7 +275,6 @@ export function createSheetEditorPresenter(): {
 			sheet: sheetOutputPort,
 			periods: periodsOutputPort,
 			createSheet: createSheetOutputPort,
-			role: roleOutputPort,
 			accessibleSheets: accessibleSheetsOutputPort,
 			overallComment: overallCommentOutputPort,
 			status: statusOutputPort,
@@ -334,7 +287,6 @@ export function createSheetEditorPresenter(): {
 		presentAccessibleSheetsError,
 		presentPeriodsError,
 		presentCreateError,
-		presentRoleError,
 		beginOverallCommentUpdate,
 		presentOverallCommentUpdateError,
 		beginStatusUpdate,

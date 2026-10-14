@@ -39,8 +39,4 @@ export class SupabaseEmailNotificationRepository implements EmailNotificationRep
 	): Promise<void> {
 		return this.notify(notification, report);
 	}
-
-	notifySheetFinalized(notification: SheetNotification, report: ReportDelivery): Promise<void> {
-		return this.notify(notification, report);
-	}
 }

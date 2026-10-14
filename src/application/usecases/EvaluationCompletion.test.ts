@@ -71,7 +71,6 @@ function setup(testCase: (typeof cases)[number], goalScore = 4, commonScore = 4)
 	const notifications = {
 		notifySheetSubmitted: vi.fn(),
 		notifyFirstEvaluationConfirmed: vi.fn(),
-		notifySheetFinalized: vi.fn(),
 	};
 	const request = { sheetId: 100, currentEmployeeId: testCase.employeeId, status: testCase.next };
 	const useCase = new UpdateEvaluationStatusInteractor(sheets, employeeRepository(), notifications);
@@ -90,7 +89,6 @@ describe.each(cases)("$label", (testCase) => {
 			expect(sheets.updateScoreTotals).not.toHaveBeenCalled();
 			expect(sheets.updateStatus).not.toHaveBeenCalled();
 			expect(notifications.notifyFirstEvaluationConfirmed).not.toHaveBeenCalled();
-			expect(notifications.notifySheetFinalized).not.toHaveBeenCalled();
 			expect(out.present).not.toHaveBeenCalled();
 		},
 	);
@@ -112,7 +110,10 @@ describe.each(cases)("$label", (testCase) => {
 			"等級",
 			EvaluationSheetAccessPolicy.for(testCase.employeeId, current),
 		);
-		expect(dto.pendingEvaluationItems).toEqual(["チャレンジ目標 1", "共通評価「共通項目」"]);
+		expect(dto.pendingEvaluationItems).toEqual([
+			{ label: "チャレンジ目標 1", goalNumber: 1 },
+			{ label: "共通評価「共通項目」", itemId: 31 },
+		]);
 		const subjectDto = toEvaluationSheetDto(
 			current,
 			"等級",

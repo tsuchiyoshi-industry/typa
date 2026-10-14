@@ -2218,6 +2218,15 @@
 	outline: 2px solid var(--hr-accent);
 	outline-offset: 3px;
 }
+/* 「未設定の項目」から送られた先。どの行かが分かるようにする */
+.evaluation-table tr:focus {
+	outline: 2px solid var(--hr-accent);
+	outline-offset: -2px;
+}
+.evaluation-table tr,
+.challenge-tab {
+	scroll-margin-block: 5rem;
+}
 .status-track__notice {
 	white-space: pre-line;
 }

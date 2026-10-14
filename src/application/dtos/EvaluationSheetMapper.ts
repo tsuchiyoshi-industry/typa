@@ -1,5 +1,6 @@
 import type { EvaluationSheet } from "../../domain/entities/EvaluationSheet";
 import type { EvaluationSheetAccessPolicy } from "../../domain/services/EvaluationSheetAccessPolicy";
+import { EvaluationScoreTotals } from "../../domain/valueObjects/EvaluationScoreTotals";
 import type { EvaluationSheetDto } from "./EvaluationSheetDto";
 
 export function toEvaluationSheetDto(
@@ -14,6 +15,9 @@ export function toEvaluationSheetDto(
 	const canViewCommon = policy.canViewCommonEvaluation();
 	const canViewSecond = canViewCommon && policy.canViewCommonEvaluationSecond();
 	const canViewFinal = canViewCommon && policy.canViewFinalEvaluation();
+	const commonTotals = EvaluationScoreTotals.fromCommonEvaluationResults(
+		sheet.commonEvaluationResults,
+	);
 
 	return {
 		sheetId: sheet.sheetId,
@@ -52,6 +56,34 @@ export function toEvaluationSheetDto(
 			secondScore: canViewSecondMilestoneScore ? objective.secondScore.toNumber() : null,
 		})),
 		maxObjectives: sheet.maxObjectives,
+		// 項目はシート作成時の等級のもの。合計は「配点 × 評価」で、満点は totalWeight × 4
+		commonEvaluation: canViewCommon
+			? {
+					results: sheet.commonEvaluationResults.map((result) => ({
+						id: result.id,
+						sheetId: result.sheetId,
+						itemId: result.itemId,
+						firstScore: result.firstScore.toNumber(),
+						secondScore: canViewSecond ? result.secondScore.toNumber() : null,
+						firstComment: result.firstComment.toString(),
+						item: {
+							id: result.item.id,
+							title: result.item.title,
+							description: result.item.description,
+							weight: result.item.weight,
+							itemSetId: result.item.itemSetId,
+						},
+					})),
+					totalFirstScore: commonTotals.firstTotalScore,
+					totalSecondScore: canViewSecond ? commonTotals.secondTotalScore : null,
+					totalWeight: sheet.commonEvaluationResults.reduce(
+						(sum, result) => sum + result.item.weight,
+						0,
+					),
+					firstRate: commonTotals.firstTotalRate,
+					secondRate: canViewSecond ? commonTotals.secondTotalRate : null,
+				}
+			: null,
 		objectiveScoreTotals: {
 			firstTotalScore: sheet.objectiveScoreTotals.firstTotalScore,
 			firstTotalRate: sheet.objectiveScoreTotals.firstTotalRate,
@@ -89,9 +121,21 @@ export function toEvaluationSheetDto(
 		},
 		status: sheet.status.toString(),
 		isEditable: sheet.isEditable(),
+		permissions: {
+			isSubject: policy.isSubject(),
+			canEditFirst: policy.canEditCommonEvaluationFirst(),
+			canEditSecond: policy.canEditCommonEvaluationSecond(),
+			canEditMilestoneGoal: policy.canEditMilestoneGoal(),
+			canViewCommonEvaluation: canViewCommon,
+			canViewSecondEvaluation: policy.canViewCommonEvaluationSecond(),
+			canSubmitOwnSheet: policy.canSubmitOwnSheet(),
+			canRevertOwnSheetToDraft: policy.canRevertOwnSheetToDraft(),
+			canConfirmFirstEvaluation: policy.canConfirmFirstEvaluation(),
+			canFinalizeEvaluation: policy.canFinalizeEvaluation(),
+		},
 		...(policy.canConfirmFirstEvaluation() || policy.canFinalizeEvaluation()
 			? {
-					pendingEvaluationItems: sheet.pendingEvaluationItems(
+					pendingEvaluationItems: sheet.pendingEvaluationTargets(
 						policy.canConfirmFirstEvaluation() || sheet.primaryIsFinalEvaluator()
 							? "first"
 							: "second",

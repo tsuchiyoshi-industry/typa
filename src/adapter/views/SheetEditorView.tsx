@@ -15,7 +15,10 @@ import {
 	onCleanup,
 	Show,
 } from "solid-js";
-import type { EvaluationRankDto } from "../../application/dtos/EvaluationSheetDto";
+import type {
+	EvaluationRankDto,
+	PendingEvaluationItemDto,
+} from "../../application/dtos/EvaluationSheetDto";
 import type { SheetSummaryDto } from "../../application/dtos/SheetListDto";
 import { EvaluationStatus } from "../../domain/valueObjects/EvaluationStatus";
 import type { ChallengeEvaluationController } from "../controllers/ChallengeEvaluationController";
@@ -70,7 +73,6 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 
 	const sheet = createMemo(() => viewModel().sheet);
 	const sheetId = createMemo(() => sheet()?.sheetId ?? null);
-	const gradeId = createMemo(() => sheet()?.subject?.gradeId ?? null);
 	const canEditFirst = createMemo(() => viewModel().canEditFirst);
 	const canEditSecond = createMemo(() => viewModel().canEditSecond);
 	const pendingEvaluationItems = createMemo(() => sheet()?.pendingEvaluationItems ?? []);
@@ -117,11 +119,11 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 	// 確定した評価の内訳。共通評価を見られる人(評価者)にだけ、項目のタイトルごとの得点を図で見せる
 	const radar = createMemo(() => {
 		const current = sheet();
-		const summary = props.commonEvaluationViewModel().summary;
+		const summary = current?.commonEvaluation;
 		return current &&
 			EvaluationStatus.from(current.status).isFinalized() &&
 			viewModel().canViewCommonEvaluation &&
-			summary?.results[0]?.sheetId === current.sheetId
+			summary
 			? commonEvaluationRadar(summary.results, current.primaryIsFinalEvaluator)
 			: null;
 	});
@@ -151,18 +153,9 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 		const routeSheetId = Number(idParam());
 		if (!Number.isNaN(routeSheetId)) {
 			if (!props.embedded) {
-				void props.controller.loadPeriods();
 				void props.controller.loadAccessibleSheets();
 			}
 			void props.controller.loadSheet(routeSheetId);
-		}
-	});
-
-	createEffect(() => {
-		const currentSheetId = sheetId();
-		// sheet() を購読し、保存後の再取得でも権限を取り直す
-		if (sheet() && currentSheetId) {
-			void props.controller.loadRoles(currentSheetId);
 		}
 	});
 
@@ -213,10 +206,11 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 	/** 保存後の再取得。画面を消さずに裏で読み直す。 */
 	const reloadCurrentSheetFromRoute = () => {
 		const id = Number(idParam());
-		if (!Number.isNaN(id)) {
-			void props.controller.loadSheet(id, true);
-			props.onUpdated?.();
+		if (Number.isNaN(id)) {
+			return;
 		}
+		props.onUpdated?.();
+		return props.controller.loadSheet(id, true);
 	};
 
 	const saveOverallComment = async (target: OverallCommentTarget) => {
@@ -252,7 +246,8 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 		const success = await props.controller.updateStatus(status, notify);
 		if (success) {
 			showToast("success", doneMessage);
-			reloadCurrentSheetFromRoute();
+			// 変更後のシートは保存の結果として届いているので、読み直さない
+			props.onUpdated?.();
 		} else if (viewModel().statusUpdateError) {
 			await confirmAction({
 				title: "変更できませんでした",
@@ -362,31 +357,14 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 		if (!ensureNothingUnsaved() || !ensureEvaluationComplete()) {
 			return;
 		}
-		// 二次評価者「なし」の社員では、確定を知らせる相手は一次評価者だけ
-		const evaluators = [
-			sheet()?.primaryEvaluator,
-			sheet()?.primaryIsFinalEvaluator ? null : sheet()?.secondaryEvaluator,
-		]
-			.filter(Boolean)
-			.join("・");
-		let notify = true;
 		const confirmed = await confirmAction({
 			title: "評価を確定しますか？",
 			message: `最終評価ランクは ${rankText(sheet()?.finalEvaluationRank)} です。確定すると評価シートはロックされ、本人も評価者も変更できなくなります。この操作は取り消せません。`,
 			note: nextNote(),
-			checkbox: {
-				label: `評価者（${evaluators}）に通知メールを送る`,
-				onChange: (checked) => {
-					notify = checked;
-				},
-			},
 			confirmLabel: "評価を確定する",
 			tone: "danger",
 		});
-		if (
-			confirmed &&
-			(await changeStatus(EvaluationStatus.FINALIZED, "評価を確定しました", notify))
-		) {
+		if (confirmed && (await changeStatus(EvaluationStatus.FINALIZED, "評価を確定しました"))) {
 			props.onStageCompleted?.();
 		}
 	};
@@ -399,6 +377,18 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 		completionNotice?.focus({ preventScroll: true });
 		completionNotice?.scrollIntoView?.({ block: "center", behavior: "smooth" });
 		return false;
+	};
+
+	/** 未設定の項目へ移る。目標はそのタブを選び(入力中なら破棄を確かめる)、共通評価はその行へ送る。 */
+	const showPending = (item: PendingEvaluationItemDto) => {
+		const element = document.getElementById(
+			item.goalNumber != null ? `objective-tab-${item.goalNumber}` : `common-item-${item.itemId}`,
+		);
+		if (item.goalNumber != null) {
+			element?.click();
+		}
+		element?.scrollIntoView?.({ block: "center", behavior: "smooth" });
+		element?.focus({ preventScroll: true });
 	};
 
 	const toSubjectOption = (sheet: SheetSummaryDto) => ({
@@ -720,7 +710,19 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 										<details open={attemptedConfirmation()}>
 											<summary>未設定の項目を確認する</summary>
 											<ul>
-												<For each={pendingEvaluationItems()}>{(item) => <li>{item}</li>}</For>
+												<For each={pendingEvaluationItems()}>
+													{(item) => (
+														<li>
+															<button
+																type="button"
+																class="link-button"
+																onClick={() => showPending(item)}
+															>
+																{item.label}
+															</button>
+														</li>
+													)}
+												</For>
 											</ul>
 										</details>
 									</div>
@@ -742,7 +744,7 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 								<Show when={viewModel().canViewCommonEvaluation}>
 									<CommonEvaluationView
 										sheetId={sheetId()}
-										gradeId={gradeId()}
+										summary={sheet()?.commonEvaluation ?? null}
 										canEditFirst={canEditFirst()}
 										canEditSecond={canEditSecond()}
 										canViewSecondEvaluation={viewModel().canViewSecondEvaluation}

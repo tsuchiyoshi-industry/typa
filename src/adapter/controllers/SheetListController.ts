@@ -28,15 +28,17 @@ export class SheetListController {
 	) {}
 
 	async load(): Promise<void> {
-		await this.attempt(
-			() => this.fetchUseCase.execute({}, this.fetchOutputPort),
-			"シート一覧の取得に失敗しました",
-		);
-		// 全社の一覧(Admin)が読めなくても、自分と部下の一覧は出したままにする
-		await this.attempt(
-			() => this.fetchOverviewUseCase.execute({}, this.overviewOutputPort),
-			"全社の評価シートの取得に失敗しました",
-		);
+		// 互いを待たずに読む。全社の一覧(Admin)が読めなくても、自分と部下の一覧は出したままにする
+		await Promise.all([
+			this.attempt(
+				() => this.fetchUseCase.execute({}, this.fetchOutputPort),
+				"シート一覧の取得に失敗しました",
+			),
+			this.attempt(
+				() => this.fetchOverviewUseCase.execute({}, this.overviewOutputPort),
+				"全社の評価シートの取得に失敗しました",
+			),
+		]);
 	}
 
 	async exportSheet(sheetId: number, employeeId: number, periodId: number): Promise<void> {

@@ -101,7 +101,14 @@ export class UpdateEvaluationStatusInteractor
 		});
 		const gradeName = await this.employeeRepository.findGradeName(updated.gradeId);
 
-		outputPort.present({ sheet: toEvaluationSheetDto(updated, gradeName, policy) });
+		// 変更後のシートで判定し直す(提出・確定で、できることが変わる)
+		outputPort.present({
+			sheet: toEvaluationSheetDto(
+				updated,
+				gradeName,
+				EvaluationSheetAccessPolicy.for(request.currentEmployeeId, updated),
+			),
+		});
 
 		// 送信の完了は待たない。確定は済んでおり、結果は宛先ごとに後から知らせる
 		if (request.notify !== false) {
@@ -110,14 +117,15 @@ export class UpdateEvaluationStatusInteractor
 	}
 
 	/**
-	 * 提出は一次評価者へ、一次評価の確定は二次評価者へ、評価の確定は評価者へメールで知らせる。
-	 * 送信の失敗で提出・確定は取り消さない。下書きに戻したときは知らせない。
+	 * 次に評価する人へメールで知らせる。提出は一次評価者へ、一次評価の確定は二次評価者へ。
+	 * 評価の確定は、次に動く人がいないので知らせない。下書きに戻したときも知らせない。
+	 * 送信の失敗で提出・確定は取り消さない。
 	 */
 	private async notify(sheet: EvaluationSheet, report: ReportDelivery): Promise<void> {
 		const repository = this.emailNotificationRepository;
 		const submitted = sheet.status.isAwaitingFirstEvaluation();
 		const firstConfirmed = sheet.status.isAwaitingSecondEvaluation();
-		if (!repository || !(submitted || firstConfirmed || sheet.status.isFinalized())) {
+		if (!repository || !(submitted || firstConfirmed)) {
 			return;
 		}
 
@@ -132,15 +140,13 @@ export class UpdateEvaluationStatusInteractor
 		try {
 			await (submitted
 				? repository.notifySheetSubmitted(notification, report)
-				: firstConfirmed
-					? repository.notifyFirstEvaluationConfirmed(notification, report)
-					: repository.notifySheetFinalized(notification, report));
+				: repository.notifyFirstEvaluationConfirmed(notification, report));
 		} catch (error) {
 			// 宛先や SMTP 設定を読めず、誰にも送れなかった
 			console.error("評価の通知メールの送信に失敗しました:", error);
 			const message = (error as { message?: unknown } | null)?.message;
 			report({
-				recipient: submitted ? "一次評価者" : firstConfirmed ? "二次評価者" : "評価者",
+				recipient: submitted ? "一次評価者" : "二次評価者",
 				error: typeof message === "string" ? message : "通知メールを送信できませんでした。",
 			});
 		}

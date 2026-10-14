@@ -31,7 +31,6 @@ import LoadingView from "./adapter/views/components/LoadingView";
 import { NotFound } from "./adapter/views/components/NotFound";
 import DashboardLayout from "./adapter/views/DashboardLayout";
 import LoginView from "./adapter/views/LoginView";
-import { CheckEvaluatorRoleInteractor } from "./application/usecases/CheckEvaluatorRoleInteractor";
 import { CloseEvaluationPeriodInteractor } from "./application/usecases/CloseEvaluationPeriodInteractor";
 import { CreateEvaluationSheetInteractor } from "./application/usecases/CreateEvaluationSheetInteractor";
 import { DeleteEvaluationPeriodInteractor } from "./application/usecases/DeleteEvaluationPeriodInteractor";
@@ -41,7 +40,6 @@ import { FetchCategorizedSheetsInteractor } from "./application/usecases/FetchCa
 import { FetchDistinctPeriodsInteractor } from "./application/usecases/FetchDistinctPeriodsInteractor";
 import { FetchEvaluationSheetInteractor } from "./application/usecases/FetchEvaluationSheetInteractor";
 import { FetchSheetOverviewInteractor } from "./application/usecases/FetchSheetOverviewInteractor";
-import { LoadCommonEvaluationInteractor } from "./application/usecases/LoadCommonEvaluationInteractor";
 import { LoadEmployeeMasterInteractor } from "./application/usecases/LoadEmployeeMasterInteractor";
 import { RegisterEmployeeAccountInteractor } from "./application/usecases/RegisterEmployeeAccountInteractor";
 import { ResetEmployeeRegistrationInteractor } from "./application/usecases/ResetEmployeeRegistrationInteractor";
@@ -128,11 +126,6 @@ const createEvaluationSheetUseCase = new CreateEvaluationSheetInteractor(
 	evaluationSheetRepository,
 	evaluationPeriodRepository,
 );
-const checkEvaluatorRoleUseCase = new CheckEvaluatorRoleInteractor(
-	employeeRepository,
-	evaluationSheetRepository,
-);
-const loadCommonEvaluationUseCase = new LoadCommonEvaluationInteractor(evaluationSheetRepository);
 const upsertCommonEvaluationUseCase = new UpsertCommonEvaluationInteractor(
 	evaluationSheetRepository,
 	evaluationScoreUpdateService,
@@ -192,7 +185,6 @@ const sheetEditorController = new SheetEditorController(
 	fetchEvaluationSheetUseCase,
 	fetchDistinctPeriodsUseCase,
 	createEvaluationSheetUseCase,
-	checkEvaluatorRoleUseCase,
 	fetchCategorizedSheetsUseCase,
 	updateOverallCommentUseCase,
 	updateEvaluationStatusUseCase,
@@ -200,7 +192,6 @@ const sheetEditorController = new SheetEditorController(
 	employeeRepository,
 );
 const commonEvaluationController = new CommonEvaluationController(
-	loadCommonEvaluationUseCase,
 	upsertCommonEvaluationUseCase,
 	commonEvaluationPresenter,
 	employeeRepository,

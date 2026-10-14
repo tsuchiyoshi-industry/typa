@@ -16,7 +16,6 @@ import {
 	sheetRepository,
 } from "../../test/fixtures";
 import { FetchEvaluationSheetInteractor } from "./FetchEvaluationSheetInteractor";
-import { LoadCommonEvaluationInteractor } from "./LoadCommonEvaluationInteractor";
 import { UpdateEvaluationStatusInteractor } from "./UpdateEvaluationStatusInteractor";
 import { UpdateMilestoneInteractor } from "./UpdateMilestoneInteractor";
 import { UpdateOverallCommentInteractor } from "./UpdateOverallCommentInteractor";
@@ -37,7 +36,6 @@ const stageOf = (evaluatorId: number) =>
 const notificationRepository = () => ({
 	notifySheetSubmitted: vi.fn().mockResolvedValue(undefined),
 	notifyFirstEvaluationConfirmed: vi.fn().mockResolvedValue(undefined),
-	notifySheetFinalized: vi.fn().mockResolvedValue(undefined),
 });
 
 describe("sheet reading and confidentiality", () => {
@@ -85,27 +83,26 @@ describe("sheet reading and confidentiality", () => {
 			id === 3 ? { displayText: "S", score: 100, confirmed: false } : undefined,
 		);
 	});
-	it.each([1, 4])("does not present common evaluation to unauthorized role %s", async (id) => {
-		const { sheets, out } = setup();
-		await expect(
-			new LoadCommonEvaluationInteractor(sheets).execute(
-				{ sheetId: 100, gradeId: 99, currentEmployeeId: id },
-				out,
-			),
-		).rejects.toThrow("権限");
-		expect(out.present).not.toHaveBeenCalled();
+	it("does not present common evaluation to the subject", async () => {
+		const { sheets, employees } = setup();
+		const out = output<import("../dtos/EvaluationSheetDto").EvaluationSheetDto>();
+		// 評価関係のない人(4)は、シートごと断る(denies viewer)
+		await new FetchEvaluationSheetInteractor(sheets, employees).execute(
+			{ sheetId: 100, currentEmployeeId: 1 },
+			out,
+		);
+		expect(out.present.mock.calls[0][0].commonEvaluation).toBeNull();
 	});
 	it.each([2, 3])(
 		"lists the sheet's own items and masks common secondary scores for %s",
 		async (id) => {
-			const { sheets } = setup();
-			const out = output<import("./LoadCommonEvaluationInteractor").LoadCommonEvaluationResponse>();
-			// 画面から渡された等級(99)は使わない。項目はシートが持つもの
-			await new LoadCommonEvaluationInteractor(sheets).execute(
-				{ sheetId: 100, gradeId: 99, currentEmployeeId: id },
+			const { sheets, employees } = setup();
+			const out = output<import("../dtos/EvaluationSheetDto").EvaluationSheetDto>();
+			await new FetchEvaluationSheetInteractor(sheets, employees).execute(
+				{ sheetId: 100, currentEmployeeId: id },
 				out,
 			);
-			expect(out.present.mock.calls[0][0]).toMatchObject({
+			expect(out.present.mock.calls[0][0].commonEvaluation).toMatchObject({
 				totalFirstScore: 15,
 				firstRate: 75,
 				totalWeight: 5,
@@ -353,15 +350,12 @@ describe("comments, final rank, status and notifications", () => {
 			EvaluationStatus.from(status),
 			expect.anything(),
 		);
-		// 提出は一次評価者へ、一次評価の確定は二次評価者へ、評価の確定は評価者へ知らせる。下書きに戻すときは知らせない
+		// 次に評価する人へ知らせる(提出は一次評価者、一次評価の確定は二次評価者)。評価の確定と、下書きに戻すときは知らせない
 		expect(notifications.notifySheetSubmitted).toHaveBeenCalledTimes(
 			status === "submitted" ? 1 : 0,
 		);
 		expect(notifications.notifyFirstEvaluationConfirmed).toHaveBeenCalledTimes(
 			status === "first_evaluated" ? 1 : 0,
-		);
-		expect(notifications.notifySheetFinalized).toHaveBeenCalledTimes(
-			status === "finalized" ? 1 : 0,
 		);
 	});
 	it.each([
@@ -391,7 +385,6 @@ describe("comments, final rank, status and notifications", () => {
 		).rejects.toThrow();
 		expect(sheets.updateStatus).not.toHaveBeenCalled();
 		expect(notifications.notifyFirstEvaluationConfirmed).not.toHaveBeenCalled();
-		expect(notifications.notifySheetFinalized).not.toHaveBeenCalled();
 	});
 	it("stores the rank decided by the score rate when each stage is confirmed", async () => {
 		// 一次評価 70点 → B、二次評価 100点 → S。評価者はランクを選べない
@@ -415,22 +408,21 @@ describe("comments, final rank, status and notifications", () => {
 		});
 	});
 	it("failed save cannot send a notification or present success", async () => {
-		const { sheets, employees, out } = setup(EvaluationStatus.FIRST_EVALUATED);
+		const { sheets, employees, out } = setup(EvaluationStatus.SUBMITTED);
 		const notifications = notificationRepository();
 		sheets.updateStatus.mockRejectedValue(new Error("DB unavailable"));
 		await expect(
 			new UpdateEvaluationStatusInteractor(sheets, employees, notifications).execute(
-				{ sheetId: 100, currentEmployeeId: 3, status: EvaluationStatus.FINALIZED },
+				{ sheetId: 100, currentEmployeeId: 2, status: EvaluationStatus.FIRST_EVALUATED },
 				out,
 			),
 		).rejects.toThrow("DB unavailable");
-		expect(notifications.notifySheetFinalized).not.toHaveBeenCalled();
+		expect(notifications.notifyFirstEvaluationConfirmed).not.toHaveBeenCalled();
 		expect(out.present).not.toHaveBeenCalled();
 	});
 	it.each([
 		[EvaluationStatus.DRAFT, 1, "submitted", "一次評価者"],
 		[EvaluationStatus.SUBMITTED, 2, "first_evaluated", "二次評価者"],
-		[EvaluationStatus.FIRST_EVALUATED, 3, "finalized", "評価者"],
 	] as const)(
 		"notification failure does not undo the saved stage %s by %s to %s",
 		async (initial, id, status, recipient) => {
@@ -439,7 +431,6 @@ describe("comments, final rank, status and notifications", () => {
 			const notifications = {
 				notifySheetSubmitted: vi.fn().mockRejectedValue(new Error("SMTP unavailable")),
 				notifyFirstEvaluationConfirmed: vi.fn().mockRejectedValue(new Error("SMTP unavailable")),
-				notifySheetFinalized: vi.fn().mockRejectedValue(new Error("SMTP unavailable")),
 			};
 			const out = { present: vi.fn(), presentNotificationDelivery: vi.fn() };
 			await new UpdateEvaluationStatusInteractor(sheets, employees, notifications).execute(
@@ -457,16 +448,15 @@ describe("comments, final rank, status and notifications", () => {
 		},
 	);
 	it("presents the saved stage without waiting for mail, then each delivery as it finishes", async () => {
-		const { sheets, employees } = setup(EvaluationStatus.FIRST_EVALUATED);
+		const { sheets, employees } = setup(EvaluationStatus.SUBMITTED);
 		let deliver!: () => void;
 		const notifications = {
 			notifySheetSubmitted: vi.fn(),
-			notifyFirstEvaluationConfirmed: vi.fn(),
-			notifySheetFinalized: vi.fn(
+			notifyFirstEvaluationConfirmed: vi.fn(
 				(_notification: unknown, report: (delivery: { recipient: string }) => void) =>
 					new Promise<void>((resolve) => {
 						deliver = () => {
-							report({ recipient: "一次（一次評価者）" });
+							report({ recipient: "二次（二次評価者）" });
 							resolve();
 						};
 					}),
@@ -474,18 +464,18 @@ describe("comments, final rank, status and notifications", () => {
 		};
 		const out = { present: vi.fn(), presentNotificationDelivery: vi.fn() };
 		await new UpdateEvaluationStatusInteractor(sheets, employees, notifications).execute(
-			{ sheetId: 100, currentEmployeeId: 3, status: EvaluationStatus.FINALIZED },
+			{ sheetId: 100, currentEmployeeId: 2, status: EvaluationStatus.FIRST_EVALUATED },
 			out,
 		);
 		expect(out.present).toHaveBeenCalledOnce();
-		expect(notifications.notifySheetFinalized).toHaveBeenCalledWith(
+		expect(notifications.notifyFirstEvaluationConfirmed).toHaveBeenCalledWith(
 			expect.objectContaining({ primaryEvaluatorName: "一次", secondaryEvaluatorName: "二次" }),
 			expect.any(Function),
 		);
 		expect(out.presentNotificationDelivery).not.toHaveBeenCalled();
 		deliver();
 		expect(out.presentNotificationDelivery).toHaveBeenCalledExactlyOnceWith({
-			recipient: "一次（一次評価者）",
+			recipient: "二次（二次評価者）",
 		});
 	});
 	it.each([
@@ -508,7 +498,6 @@ describe("comments, final rank, status and notifications", () => {
 			expect(out.present).toHaveBeenCalledWith({ sheet: expect.objectContaining({ status }) });
 			expect(notifications.notifySheetSubmitted).not.toHaveBeenCalled();
 			expect(notifications.notifyFirstEvaluationConfirmed).not.toHaveBeenCalled();
-			expect(notifications.notifySheetFinalized).not.toHaveBeenCalled();
 		},
 	);
 	it("primary evaluator finalizes with their own evaluation when secondary is explicitly none", async () => {
@@ -571,7 +560,7 @@ describe("comments, final rank, status and notifications", () => {
 			}),
 		);
 	});
-	it.each(["comment", "status", "milestone", "common", "loadCommon"])(
+	it.each(["comment", "status", "milestone", "common"])(
 		"missing sheet fails closed for %s",
 		async (kind) => {
 			const { sheets, employees, milestones, scores, out } = setup();
@@ -593,14 +582,9 @@ describe("comments, final rank, status and notifications", () => {
 							{ sheetId: 100, currentEmployeeId: 1 },
 							out,
 						);
-					case "common":
+					default:
 						return new UpsertCommonEvaluationInteractor(sheets, scores).execute(
 							{ sheetId: 100, currentEmployeeId: 2, results: [] },
-							out,
-						);
-					default:
-						return new LoadCommonEvaluationInteractor(sheets).execute(
-							{ sheetId: 100, currentEmployeeId: 2, gradeId: 5 },
 							out,
 						);
 				}

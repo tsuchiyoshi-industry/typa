@@ -29,5 +29,4 @@ export interface EmailNotificationRepository {
 		notification: SheetNotification,
 		report: ReportDelivery,
 	): Promise<void>;
-	notifySheetFinalized(notification: SheetNotification, report: ReportDelivery): Promise<void>;
 }

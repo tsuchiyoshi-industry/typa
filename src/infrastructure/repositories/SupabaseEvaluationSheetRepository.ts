@@ -347,7 +347,11 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 			.select(SHEET_LIST_SELECT)
 			.eq("employee_id", employeeId);
 
-		return error || !data ? [] : (data as EvaluationSheetListRow[]).map(toSheetSummary);
+		// 読めなかったことを「シートが無い」として扱わない
+		if (error) {
+			throw error;
+		}
+		return ((data ?? []) as EvaluationSheetListRow[]).map(toSheetSummary);
 	}
 
 	async findByEvaluator(employeeId: number): Promise<EvaluationSheetSummary[]> {
@@ -357,7 +361,11 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 			.or(`primary_evaluator_id.eq.${employeeId},secondary_evaluator_id.eq.${employeeId}`)
 			.neq("employee_id", employeeId);
 
-		return error || !data ? [] : (data as EvaluationSheetListRow[]).map(toSheetSummary);
+		// 読めなかったことを「シートが無い」として扱わない
+		if (error) {
+			throw error;
+		}
+		return ((data ?? []) as EvaluationSheetListRow[]).map(toSheetSummary);
 	}
 
 	async findOverview(): Promise<EvaluationSheetOverviewRow[]> {

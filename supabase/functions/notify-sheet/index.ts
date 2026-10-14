@@ -1,6 +1,6 @@
-// Sends the notification mail for a sheet's current status: to the primary evaluator when
-// it is submitted, to the secondary evaluator when the primary evaluation is confirmed, to
-// both evaluators when it is finalized.
+// Sends the notification mail for a sheet's current status, to whoever acts next: to the
+// primary evaluator when it is submitted, to the secondary evaluator when the primary
+// evaluation is confirmed. A finalized sheet has nobody left to act, so nothing is sent.
 //
 // The app only says which sheet. Who is told, and whether the caller is the person who made
 // that status change, is decided by the database (get_sheet_notification). The recipients'
@@ -54,6 +54,11 @@ Deno.serve(async (request) => {
 	});
 	if (error || !notification) {
 		return respond({ error: "この評価シートの通知を送る権限がありません。" }, 403);
+	}
+
+	// get_sheet_notification still answers for a finalized sheet (older apps ask); send nothing.
+	if (notification.status === "finalized") {
+		return respond({ deliveries: [] });
 	}
 
 	const { data: smtp } = await admin

@@ -1,8 +1,4 @@
 import type {
-	CheckEvaluatorRoleInteractor,
-	CheckEvaluatorRoleOutputPort,
-} from "../../application/usecases/CheckEvaluatorRoleInteractor";
-import type {
 	CreateEvaluationSheetInteractor,
 	CreateEvaluationSheetOutputPort,
 } from "../../application/usecases/CreateEvaluationSheetInteractor";
@@ -33,12 +29,10 @@ import { requireCurrentEmployeeId } from "./currentEmployee";
 
 export class SheetEditorController {
 	private sheetLoadGeneration = 0;
-	private roleLoadGeneration = 0;
 	constructor(
 		private readonly fetchSheetUseCase: FetchEvaluationSheetInteractor,
 		private readonly fetchPeriodsUseCase: FetchDistinctPeriodsInteractor,
 		private readonly createSheetUseCase: CreateEvaluationSheetInteractor,
-		private readonly checkRoleUseCase: CheckEvaluatorRoleInteractor,
 		private readonly fetchAccessibleSheetsUseCase: FetchCategorizedSheetsInteractor,
 		private readonly updateOverallCommentUseCase: UpdateOverallCommentInteractor,
 		private readonly updateStatusUseCase: UpdateEvaluationStatusInteractor,
@@ -48,7 +42,6 @@ export class SheetEditorController {
 				sheet: FetchEvaluationSheetOutputPort;
 				periods: FetchDistinctPeriodsOutputPort;
 				createSheet: CreateEvaluationSheetOutputPort;
-				role: CheckEvaluatorRoleOutputPort;
 				accessibleSheets: FetchCategorizedSheetsOutputPort;
 				overallComment: UpdateOverallCommentOutputPort;
 				status: UpdateEvaluationStatusOutputPort;
@@ -77,9 +70,6 @@ export class SheetEditorController {
 
 	async loadSheet(sheetId: number, silent = false): Promise<number | null> {
 		const generation = ++this.sheetLoadGeneration;
-		if (!silent) {
-			++this.roleLoadGeneration;
-		}
 		this.presenter.beginSheetLoad(silent);
 		try {
 			const { data: currentEmployeeId } = await this.employeeRepository.findCurrentEmployeeId();
@@ -129,31 +119,6 @@ export class SheetEditorController {
 			this.presenter.presentPeriodsError(
 				error instanceof Error ? error.message : "期間情報の取得に失敗しました",
 			);
-		}
-	}
-
-	async loadRoles(sheetId: number | null): Promise<void> {
-		const generation = ++this.roleLoadGeneration;
-		try {
-			await this.checkRoleUseCase.execute(
-				{ sheetId },
-				{
-					present: (response) => {
-						if (
-							generation === this.roleLoadGeneration &&
-							this.presenter.viewModel().sheet?.sheetId === sheetId
-						) {
-							this.presenter.outputPort.role.present(response);
-						}
-					},
-				},
-			);
-		} catch (error) {
-			if (generation === this.roleLoadGeneration) {
-				this.presenter.presentSheetError(
-					error instanceof Error ? error.message : "権限情報の取得に失敗しました",
-				);
-			}
 		}
 	}
 

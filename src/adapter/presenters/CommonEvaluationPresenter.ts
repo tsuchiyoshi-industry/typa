@@ -1,80 +1,29 @@
 import { createSignal } from "solid-js";
-import type { CommonEvaluationSummaryDto } from "../../application/dtos/CommonEvaluationDto";
-import type { LoadCommonEvaluationOutputPort } from "../../application/usecases/LoadCommonEvaluationInteractor";
 import type { UpsertCommonEvaluationOutputPort } from "../../application/usecases/UpsertCommonEvaluationInteractor";
 
+/** 共通評価の保存の結果。表示する項目と結果は、シートと一緒に読み込まれる。 */
 export interface CommonEvaluationViewModel {
-	loading: boolean;
-	summary: CommonEvaluationSummaryDto | null;
-	loadError: string | null;
-	updating: boolean;
 	updateError: string | null;
-	lastUpdatedSheetId: number | null;
 }
 
 export function createCommonEvaluationPresenter(): {
 	viewModel: () => CommonEvaluationViewModel;
 	outputPort: {
-		load: LoadCommonEvaluationOutputPort;
 		upsert: UpsertCommonEvaluationOutputPort;
 	};
-	beginLoad: () => void;
-	presentLoadError: (message: string) => void;
 	presentUpsertError: (message: string) => void;
 } {
-	const [viewModel, setViewModel] = createSignal<CommonEvaluationViewModel>({
-		loading: true,
-		summary: null,
-		loadError: null,
-		updating: false,
-		updateError: null,
-		lastUpdatedSheetId: null,
-	});
-
-	const outputPort: LoadCommonEvaluationOutputPort = {
-		present(response) {
-			setViewModel({
-				loading: false,
-				summary: response,
-				loadError: null,
-				updating: false,
-				updateError: null,
-				lastUpdatedSheetId: null,
-			});
-		},
-	};
-
-	const upsertOutputPort: UpsertCommonEvaluationOutputPort = {
-		present(response) {
-			setViewModel((prev) => ({
-				...prev,
-				updating: false,
-				updateError: null,
-				lastUpdatedSheetId: response.sheetId,
-			}));
-		},
-	};
-
-	const beginLoad = () => {
-		setViewModel((prev) => ({ ...prev, loading: true, loadError: null }));
-	};
-
-	const presentLoadError = (message: string) => {
-		setViewModel((prev) => ({ ...prev, loading: false, loadError: message }));
-	};
-
-	const presentUpsertError = (message: string) => {
-		setViewModel((prev) => ({ ...prev, updating: false, updateError: message }));
-	};
+	const [viewModel, setViewModel] = createSignal<CommonEvaluationViewModel>({ updateError: null });
 
 	return {
 		viewModel,
 		outputPort: {
-			load: outputPort,
-			upsert: upsertOutputPort,
+			upsert: {
+				present() {
+					setViewModel({ updateError: null });
+				},
+			},
 		},
-		beginLoad,
-		presentLoadError,
-		presentUpsertError,
+		presentUpsertError: (message: string) => setViewModel({ updateError: message }),
 	};
 }

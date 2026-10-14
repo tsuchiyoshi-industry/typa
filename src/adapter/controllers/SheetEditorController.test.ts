@@ -2,14 +2,11 @@ import { createRoot } from "solid-js";
 import { expect, it } from "vitest";
 import { toEvaluationSheetDto } from "../../application/dtos/EvaluationSheetMapper";
 import type {
-	CheckEvaluatorRoleInteractor,
-	CheckEvaluatorRoleOutputPort,
-} from "../../application/usecases/CheckEvaluatorRoleInteractor";
-import type {
 	FetchEvaluationSheetInteractor,
 	FetchEvaluationSheetOutputPort,
 } from "../../application/usecases/FetchEvaluationSheetInteractor";
 import { EvaluationSheetAccessPolicy } from "../../domain/services/EvaluationSheetAccessPolicy";
+import { EvaluationStatus } from "../../domain/valueObjects/EvaluationStatus";
 import { employeeRepository, sheet } from "../../test/fixtures";
 import { createSheetEditorPresenter } from "../presenters/SheetEditorPresenter";
 import { SheetEditorController } from "./SheetEditorController";
@@ -37,7 +34,6 @@ it("ignores a late sheet response after the reviewer has moved to another person
 		{} as Args[3],
 		{} as Args[4],
 		{} as Args[5],
-		{} as Args[6],
 		presenter,
 		employeeRepository(),
 	);
@@ -52,55 +48,44 @@ it("ignores a late sheet response after the reviewer has moved to another person
 	await first;
 	expect(presenter.viewModel().sheet?.sheetId).toBe(102);
 });
-it("resets edit permissions on navigation and rejects late permissions for the previous sheet", async () => {
-	let oldPort: CheckEvaluatorRoleOutputPort | undefined;
-	let finish: (() => void) | undefined;
-	const roleCase = {
-		async execute(_request: unknown, port: CheckEvaluatorRoleOutputPort) {
-			oldPort = port;
-			await new Promise<void>((resolve) => {
-				finish = resolve;
-			});
-		},
-	} as CheckEvaluatorRoleInteractor;
-	const presenter = createRoot(() => createSheetEditorPresenter());
-	presenter.outputPort.sheet.present(response(101));
-	const permissions = {
-		isSubject: false,
-		canEditFirst: false,
-		canEditSecond: true,
-		canEditMilestoneGoal: false,
-		canViewCommonEvaluation: true,
-		canViewSecondEvaluation: true,
-		canSubmitOwnSheet: false,
-		canRevertOwnSheetToDraft: false,
-		canConfirmFirstEvaluation: false,
-		canFinalizeEvaluation: true,
-	};
-	presenter.outputPort.role.present(permissions);
-	type Args = ConstructorParameters<typeof SheetEditorController>;
+it("takes permissions from the sheet it shows, and drops them while another sheet loads", async () => {
+	let present: (() => void) | undefined;
 	const fetchCase = {
 		async execute(_request: unknown, port: FetchEvaluationSheetOutputPort) {
-			port.present(response(102));
+			await new Promise<void>((resolve) => {
+				present = () => {
+					port.present(response(102));
+					resolve();
+				};
+			});
 		},
 	} as FetchEvaluationSheetInteractor;
+	const presenter = createRoot(() => createSheetEditorPresenter());
+	// 3 は二次評価者。一次評価が確定したシートを確定できる
+	const evaluated = sheet(EvaluationStatus.FIRST_EVALUATED);
+	presenter.outputPort.sheet.present(
+		toEvaluationSheetDto(evaluated, "技術1級", EvaluationSheetAccessPolicy.for(3, evaluated)),
+	);
+	expect(presenter.viewModel().canEditSecond).toBe(true);
+	expect(presenter.viewModel().canFinalizeEvaluation).toBe(true);
+	type Args = ConstructorParameters<typeof SheetEditorController>;
 	const controller = new SheetEditorController(
 		fetchCase,
 		{} as Args[1],
 		{} as Args[2],
-		roleCase,
+		{} as Args[3],
 		{} as Args[4],
 		{} as Args[5],
-		{} as Args[6],
 		presenter,
 		employeeRepository(),
 	);
-	const pending = controller.loadRoles(101);
-	await controller.loadSheet(102);
-	expect(presenter.viewModel().canEditSecond).toBe(false);
-	oldPort?.present(permissions);
-	finish?.();
-	await pending;
+	const pending = controller.loadSheet(102);
+	await Promise.resolve();
 	expect(presenter.viewModel().canEditSecond).toBe(false);
 	expect(presenter.viewModel().canFinalizeEvaluation).toBe(false);
+	// 提出済みのシートでは、二次評価者はまだ入力できない
+	present?.();
+	await pending;
+	expect(presenter.viewModel().sheet?.sheetId).toBe(102);
+	expect(presenter.viewModel().canEditSecond).toBe(false);
 });

@@ -252,10 +252,8 @@ it("finalizes after confirmation and advances to the reviewer's next turn", asyn
 	// ランクは選ばせず、点数から決まった結果を確定前に見せる
 	const dialog = await view.findByRole("dialog");
 	expect(dialog.textContent).toContain("最終評価ランクは S（95 点 / 100 点）");
-	expect(
-		(within(dialog).getByRole("checkbox", { name: /通知メールを送る/ }) as HTMLInputElement)
-			.checked,
-	).toBe(true);
+	// 評価の確定は誰にも通知しない(次に動く人がいない)
+	expect(within(dialog).queryByRole("checkbox")).toBeNull();
 	// 確定の後に誰の評価へ進むかを、押す前に知らせる
 	expect(dialog.textContent).toContain("確定後は、次の 社員3 さんの評価に進みます。");
 	const updateStatus = vi.spyOn(view.editor.controller, "updateStatus");
@@ -366,6 +364,13 @@ it.each([
 		expect(notice?.textContent).toContain("チャレンジ目標 1");
 		expect(notice?.textContent).toContain("共通評価「業務遂行」");
 		expect(notice?.querySelector<HTMLDetailsElement>("details")?.open).toBe(true);
+		// 未設定の項目を押すと、その行・その目標のタブへ移る
+		const pending = within(notice as HTMLElement);
+		fireEvent.click(pending.getByRole("button", { name: "共通評価「業務遂行」" }));
+		expect(document.activeElement?.tagName).toBe("TR");
+		expect(document.activeElement?.textContent).toContain("業務遂行");
+		fireEvent.click(pending.getByRole("button", { name: "チャレンジ目標 1" }));
+		expect(document.activeElement?.getAttribute("role")).toBe("tab");
 		expect(row.status).not.toBe("finalized");
 		expect(view.history.get()).toContain("sheet=101");
 	},

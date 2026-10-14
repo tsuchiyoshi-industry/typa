@@ -1,8 +1,11 @@
 import Check from "lucide-solid/icons/check";
 import SquarePen from "lucide-solid/icons/square-pen";
 import X from "lucide-solid/icons/x";
-import { type Component, createEffect, createMemo, createSignal, For, Show } from "solid-js";
-import type { CommonEvaluationResultDto } from "../../../application/dtos/CommonEvaluationDto";
+import { type Component, createEffect, createSignal, For, Show } from "solid-js";
+import type {
+	CommonEvaluationResultDto,
+	CommonEvaluationSummaryDto,
+} from "../../../application/dtos/CommonEvaluationDto";
 import { Score } from "../../../domain/valueObjects/Score";
 import type { CommonEvaluationController } from "../../controllers/CommonEvaluationController";
 import type { CommonEvaluationViewModel } from "../../presenters/CommonEvaluationPresenter";
@@ -11,13 +14,15 @@ import ScoreScale from "./ScoreScale";
 
 interface CommonEvaluationViewProps {
 	sheetId: number | null;
-	gradeId: number | null;
+	/** 開いているシートの共通評価。シートと一緒に読み込まれる。 */
+	summary: CommonEvaluationSummaryDto | null;
 	controller: CommonEvaluationController;
 	viewModel: () => CommonEvaluationViewModel;
 	canEditFirst: boolean;
 	canEditSecond: boolean;
 	canViewSecondEvaluation: boolean;
-	onUpdated: () => void;
+	/** 保存後にシートを読み直す。読み直しが済むまで、入力した値を表示し続ける。 */
+	onUpdated: () => unknown;
 	onSavingChange?: (saving: boolean) => void;
 }
 
@@ -42,18 +47,7 @@ export default function CommonEvaluationView(props: CommonEvaluationViewProps) {
 	const [submitting, setSubmitting] = createSignal(false);
 	createEffect(() => props.onSavingChange?.(submitting()));
 
-	createEffect(() => {
-		if (props.sheetId != null) {
-			void props.controller.load(props.sheetId, props.gradeId);
-		}
-	});
-
-	// プレゼンターは画面をまたいで生きているので、別シートの古い集計を出さないよう照合する
-	const summary = createMemo(() => {
-		const current = props.viewModel().summary;
-		const loadedSheetId = current?.results[0]?.sheetId;
-		return current && (loadedSheetId == null || loadedSheetId === props.sheetId) ? current : null;
-	});
+	const summary = () => props.summary;
 	const results = () => summary()?.results ?? [];
 
 	const draftOf = (result: CommonEvaluationResultDto): Draft =>
@@ -126,11 +120,10 @@ export default function CommonEvaluationView(props: CommonEvaluationViewProps) {
 		);
 
 		if (success) {
-			// 画面を消さずに集計を取り直してから編集モードを抜ける
-			await props.controller.load(props.sheetId, props.gradeId);
+			// 画面を消さずにシートを読み直してから編集モードを抜ける
+			await props.onUpdated();
 			cancelEdit();
 			showToast("success", "共通評価を保存しました");
-			props.onUpdated();
 		}
 		setSubmitting(false);
 	};
@@ -207,20 +200,7 @@ export default function CommonEvaluationView(props: CommonEvaluationViewProps) {
 				</Show>
 			</div>
 
-			<Show when={props.viewModel().loadError}>
-				<p class="error-message" role="alert">
-					{props.viewModel().loadError}
-				</p>
-			</Show>
-
-			<Show
-				when={summary()}
-				fallback={
-					<Show when={props.viewModel().loading}>
-						<p>共通評価を読み込んでいます...</p>
-					</Show>
-				}
-			>
+			<Show when={summary()}>
 				<div class="table-scroll">
 					<table class="evaluation-table" classList={{ editing: isEditing() }}>
 						<thead>
@@ -238,7 +218,7 @@ export default function CommonEvaluationView(props: CommonEvaluationViewProps) {
 						<tbody>
 							<For each={results()}>
 								{(result) => (
-									<tr>
+									<tr id={`common-item-${result.item.id}`} tabIndex={-1}>
 										<th scope="row" class="col-item">
 											{result.item.title}
 										</th>

@@ -23,7 +23,8 @@ interface ChallengeEvaluationViewProps {
 	canViewSecondEvaluation: boolean;
 	controller: ChallengeEvaluationController;
 	viewModel: () => ChallengeEvaluationViewModel;
-	onUpdated: () => void;
+	/** 保存後にシートを読み直す。 */
+	onUpdated: () => unknown;
 	onSavingChange?: (saving: boolean) => void;
 }
 
@@ -273,12 +274,13 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 						draftText().midtermGoal,
 						draftText().achievement,
 					);
-		setTextUpdating(false);
 		if (success) {
+			// シートを読み直してから編集を抜ける(抜けた直後に、保存前の文が一瞬出ないようにする)
+			await props.onUpdated();
 			setIsTextEditing(false);
 			showToast("success", `目標 ${objective.goalNumber} を保存しました`);
-			props.onUpdated();
 		}
+		setTextUpdating(false);
 	};
 
 	const startScoreEditing = () => {
@@ -305,12 +307,13 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 			props.canEditFirst ? draftScore().firstScore : undefined,
 			props.canEditSecond ? draftScore().secondScore : undefined,
 		);
-		setScoreUpdating(false);
 		if (success) {
+			// シートを読み直してから編集を抜ける(抜けた直後に、保存前の点数が一瞬出ないようにする)
+			await props.onUpdated();
 			setIsScoreEditing(false);
 			showToast("success", `目標 ${objective.goalNumber} の評価を保存しました`);
-			props.onUpdated();
 		}
+		setScoreUpdating(false);
 	};
 
 	const ScoreReadout: Component<{ label: string; value: number | null | undefined }> = (
@@ -342,6 +345,7 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 						<button
 							type="button"
 							role="tab"
+							id={`objective-tab-${item.goalNumber}`}
 							aria-selected={activeTab() === Number(item.goalNumber)}
 							class="challenge-tab"
 							classList={{ active: activeTab() === Number(item.goalNumber) }}
@@ -360,7 +364,9 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 						class="challenge-tab"
 						aria-label="目標を追加"
 						onClick={addTab}
-						disabled={displayObjectives().length >= 4 || textUpdating() || scoreUpdating()}
+						disabled={
+							displayObjectives().length >= props.maxObjectives || textUpdating() || scoreUpdating()
+						}
 					>
 						<Plus class="action-icon" />
 						目標を追加

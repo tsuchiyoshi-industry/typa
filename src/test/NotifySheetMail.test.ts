@@ -23,7 +23,6 @@ it.each([
 		"二次評価のお願い",
 		"テスト社員（TEST001）の一次評価が確定しました。",
 	],
-	["finalized", primary, "評価シート確定通知", "テスト社員（TEST001）の評価シートが確定しました。"],
 ] as const)(
 	"tells the recipient what happened when a sheet is %s",
 	(status, recipient, title, line) => {
@@ -40,7 +39,7 @@ it.each([
 );
 
 it("sends each evaluator their own mail, so neither learns the other's address", () => {
-	const { mails } = composeMails(notification("finalized", [primary, secondary]));
+	const { mails } = composeMails(notification("first_evaluated", [primary, secondary]));
 	expect(mails.map((mail) => [mail.recipient, mail.to])).toEqual([
 		["一次（一次評価者）", "first@example.jp"],
 		["二次（二次評価者）", "second@example.jp"],
@@ -49,7 +48,7 @@ it("sends each evaluator their own mail, so neither learns the other's address",
 
 it("sends one mail to an evaluator who holds both roles", () => {
 	const { mails } = composeMails(
-		notification("finalized", [primary, { ...secondary, email: "First@Example.jp " }]),
+		notification("first_evaluated", [primary, { ...secondary, email: "First@Example.jp " }]),
 	);
 	expect(mails).toHaveLength(1);
 	expect(mails[0]).toMatchObject({
@@ -62,7 +61,7 @@ it.each([null, "", "not an address", "a@b.jp, c@d.jp", "<a@b.jp>"])(
 	"reports a recipient without a usable address (%s) instead of sending",
 	(email) => {
 		const { mails, undeliverable } = composeMails(
-			notification("finalized", [primary, { ...secondary, email }]),
+			notification("first_evaluated", [primary, { ...secondary, email }]),
 		);
 		expect(mails.map((mail) => mail.to)).toEqual(["first@example.jp"]);
 		expect(undeliverable).toEqual([

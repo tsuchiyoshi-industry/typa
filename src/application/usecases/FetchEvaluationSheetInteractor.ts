@@ -3,7 +3,7 @@ import type { EvaluationSheetRepository } from "../../domain/repositories/Evalua
 import { EvaluationSheetAccessPolicy } from "../../domain/services/EvaluationSheetAccessPolicy";
 import { EvaluationAllocation } from "../../domain/valueObjects/EvaluationAllocation";
 import { EvaluationStatus } from "../../domain/valueObjects/EvaluationStatus";
-import type { EvaluationSheetDto } from "../dtos/EvaluationSheetDto";
+import { type EvaluationSheetDto, NO_SHEET_PERMISSIONS } from "../dtos/EvaluationSheetDto";
 import { toEvaluationSheetDto } from "../dtos/EvaluationSheetMapper";
 import type { OutputPort } from "../ports/OutputPort";
 import type { UseCase } from "../ports/UseCase";
@@ -42,6 +42,7 @@ export class FetchEvaluationSheetInteractor
 				firstOverallComment: "",
 				secondOverallComment: "",
 				objectives: [],
+				commonEvaluation: null,
 				objectiveScoreTotals: {
 					firstTotalScore: 0,
 					firstTotalRate: 0,
@@ -65,6 +66,7 @@ export class FetchEvaluationSheetInteractor
 				},
 				status: EvaluationStatus.DRAFT.toString(),
 				isEditable: true,
+				permissions: NO_SHEET_PERMISSIONS,
 			});
 			return;
 		}

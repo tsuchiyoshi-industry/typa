@@ -25,8 +25,6 @@
 	--hr-accent-muted: light-dark(rgba(26, 92, 128, 0.12), rgba(134, 188, 217, 0.16));
 	/* 塗り(--hr-accent / success / warning / danger)の上に載せる文字 */
 	--hr-on-accent: light-dark(#ffffff, #0e1a22);
-	--hr-primary: var(--hr-accent);
-	--hr-primary-hover: var(--hr-accent-hover);
 	--hr-success: light-dark(#35733f, #86c796);
 	--hr-success-text: light-dark(#2a6336, #93d1a2);
 	--hr-warning: light-dark(#a15c0a, #e0ad63);
@@ -50,12 +48,12 @@
 	--hr-wash:
 		radial-gradient(
 			ellipse 70% 55% at 8% -8%,
-			light-dark(rgba(26, 92, 128, 0.1), rgba(63, 126, 163, 0.2)),
+			light-dark(rgba(26, 92, 128, 0.1), rgba(63, 126, 163, 0.14)),
 			transparent 70%
 		),
 		radial-gradient(
 			ellipse 60% 50% at 104% 108%,
-			light-dark(rgba(140, 120, 170, 0.1), rgba(96, 78, 140, 0.18)),
+			light-dark(rgba(140, 120, 170, 0.1), rgba(96, 78, 140, 0.14)),
 			transparent 70%
 		);
 	--hr-veins: linear-gradient(

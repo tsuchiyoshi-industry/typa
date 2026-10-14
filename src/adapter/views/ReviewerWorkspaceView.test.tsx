@@ -286,9 +286,9 @@ it("finalizes after confirmation and advances to the reviewer's next turn", asyn
 	await waitFor(() => expect(updateStatus).toHaveBeenCalledWith(EvaluationStatus.FINALIZED, true));
 	await waitFor(() => expect(view.history.get()).toContain("sheet=103"));
 	await view.findByText("社員3 さんの評価に進みました");
-	expect(
-		view.getByRole("checkbox", { name: "社員1を比較に選択" }).closest("tr")?.textContent,
-	).toContain("最終評価済み");
+	within(
+		view.getByRole("checkbox", { name: "社員1を比較に選択" }).closest("tr") as HTMLElement,
+	).getByText("最終評価済み");
 });
 it("goes to the person announced in the dialog even though confirming reorders the list", async () => {
 	// 並びは「評価が必要な順」。社員2を確定すると社員2は末尾へ移り、並びだけで選ぶと先頭の社員1になる
@@ -326,9 +326,9 @@ it("confirms the primary evaluation and notifies the secondary evaluator unless 
 		expect(updateStatus).toHaveBeenCalledWith(EvaluationStatus.FIRST_EVALUATED, false),
 	);
 	await waitFor(() =>
-		expect(
-			view.getByRole("checkbox", { name: "社員1を比較に選択" }).closest("tr")?.textContent,
-		).toContain("二次評価する"),
+		within(
+			view.getByRole("checkbox", { name: "社員1を比較に選択" }).closest("tr") as HTMLElement,
+		).getByText("二次評価する"),
 	);
 	// 確定後は一次評価を変更できない
 	expect(

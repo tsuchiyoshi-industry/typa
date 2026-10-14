@@ -51,6 +51,22 @@ export const reviewLabel = (row: ReviewerRowDto): string => {
 	return "最終評価済み";
 };
 
+/**
+ * 進み具合。段階は「本人の提出 → 一次評価 → 二次評価」で、二次評価者なしの社員は2段階。
+ * done は済んだ段階の数。
+ */
+export function reviewProgress(row: ReviewerRowDto): { steps: number; done: number } {
+	const steps = row.primaryIsFinal ? 2 : 3;
+	const status = sheetStatus(row);
+	if (!status?.isSubmitted()) {
+		return { steps, done: 0 };
+	}
+	return {
+		steps,
+		done: status.isFinalized() ? steps : status.isFirstEvaluationConfirmed() ? 2 : 1,
+	};
+}
+
 /** 最終評価(二次評価。「なし」の社員は一次評価)が始まっているか。始まる前の点数は意味を持たない。 */
 const finalEvaluationStarted = (row: ReviewerRowDto): boolean => {
 	const status = sheetStatus(row);

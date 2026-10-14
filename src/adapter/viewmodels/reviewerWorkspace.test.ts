@@ -9,6 +9,7 @@ import {
 	nextMyTurn,
 	primaryEvaluatorOptions,
 	reviewLabel,
+	reviewProgress,
 	reviewRank,
 	reviewScore,
 	reviewStats,
@@ -74,6 +75,20 @@ it("tells whose turn it is from the stage and the reviewer's role", () => {
 	for (const [row, task, label] of cases) {
 		expect(reviewTask(row)).toBe(task);
 		expect(reviewLabel(row)).toBe(label);
+	}
+});
+it("counts the finished stages; a subject without a secondary evaluator has two", () => {
+	const cases = [
+		[reviewerRow(1, { sheetId: null, status: "missing" }), 3, 0],
+		[reviewerRow(1, { status: "draft" }), 3, 0],
+		[reviewerRow(1, { status: "submitted" }), 3, 1],
+		[reviewerRow(1), 3, 2],
+		[reviewerRow(1, { status: "finalized" }), 3, 3],
+		[reviewerRow(1, { ...submittedToPrimary, primaryIsFinal: true }), 2, 1],
+		[reviewerRow(1, { status: "finalized", primaryIsFinal: true }), 2, 2],
+	] as const;
+	for (const [row, steps, done] of cases) {
+		expect(reviewProgress(row)).toEqual({ steps, done });
 	}
 });
 it("treats zero as a real score: an unscored submitted sheet is still the reviewer's turn", () => {

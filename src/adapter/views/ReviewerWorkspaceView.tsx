@@ -32,6 +32,7 @@ import {
 	type ReviewFilter,
 	type ReviewSort,
 	reviewLabel,
+	reviewProgress,
 	reviewRank,
 	reviewScore,
 	reviewStats,
@@ -49,18 +50,63 @@ interface Props {
 }
 
 const scoreText = (value: number | null) => (value === null ? "—" : String(value));
-const Badge: Component<{ row: ReviewerRowDto }> = (props) => (
-	<span
-		class="review-badge"
-		classList={{
-			action: isMyTurn(props.row),
-			done: reviewTask(props.row) === "finalized",
-			waiting: reviewTask(props.row) === "waiting",
-		}}
-	>
-		{reviewLabel(props.row)}
-	</span>
-);
+/** 図の寸法(viewBox 24)。gap はピースの間のすき間の半分。 */
+const PIE = { center: 12, radius: 8.5, gap: 0.7 };
+/**
+ * 円を steps 個に切り分けたときの index 番目のピース(12時から時計回り)。
+ * すき間を中心までどこも同じ幅にするため、切り口を境の線から平行にずらす。
+ */
+const piePiece = (index: number, steps: number): string => {
+	const angle = (2 * Math.PI) / steps;
+	const from = index * angle;
+	const to = from + angle;
+	const middle = from + angle / 2;
+	const reach = Math.sqrt(PIE.radius ** 2 - PIE.gap ** 2);
+	const tip = PIE.gap / Math.sin(angle / 2);
+	const at = (x: number, y: number) =>
+		`${(PIE.center + x).toFixed(2)} ${(PIE.center + y).toFixed(2)}`;
+	return [
+		`M${at(tip * Math.sin(middle), -tip * Math.cos(middle))}`,
+		`L${at(PIE.gap * Math.cos(from) + reach * Math.sin(from), PIE.gap * Math.sin(from) - reach * Math.cos(from))}`,
+		`A${PIE.radius} ${PIE.radius} 0 0 1 ${at(reach * Math.sin(to) - PIE.gap * Math.cos(to), -reach * Math.cos(to) - PIE.gap * Math.sin(to))}`,
+		"Z",
+	].join("");
+};
+/**
+ * その人の進み具合。円を段階の数(提出 → 一次評価 → 二次評価)に切り分け、済んだ段階を塗る。
+ * 外側の輪は「自分の番」、破線の円はシート未作成。図の右に、状態を言葉でも書く。
+ */
+const Stage: Component<{ row: ReviewerRowDto }> = (props) => {
+	const progress = () => reviewProgress(props.row);
+	return (
+		<span class="review-stage" classList={{ mine: isMyTurn(props.row) }}>
+			<svg
+				class="review-pie"
+				classList={{ complete: progress().done >= progress().steps }}
+				viewBox="0 0 24 24"
+				aria-hidden="true"
+			>
+				<Show
+					when={sheetStatus(props.row)}
+					fallback={<circle class="review-pie__missing" cx="12" cy="12" r={PIE.radius - 0.75} />}
+				>
+					<For each={Array.from({ length: progress().steps }, (_, index) => index)}>
+						{(index) => (
+							<path
+								classList={{ done: index < progress().done }}
+								d={piePiece(index, progress().steps)}
+							/>
+						)}
+					</For>
+				</Show>
+				<Show when={isMyTurn(props.row)}>
+					<circle class="review-pie__mine" cx="12" cy="12" r="11" />
+				</Show>
+			</svg>
+			{reviewLabel(props.row)}
+		</span>
+	);
+};
 /** 評価点とランク。確定前のランクは見込みとして控えめに出す。 */
 const ScoreRank: Component<{ row: ReviewerRowDto; stage: "first" | "final" }> = (props) => {
 	const score = () =>
@@ -474,7 +520,7 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 								</td>
 								<td>{row.gradeName}</td>
 								<td>
-									<Badge row={row} />
+									<Stage row={row} />
 								</td>
 								<td>
 									<button
@@ -541,7 +587,7 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 									{(row) => (
 										<th scope="col">
 											<PersonButton row={row} />
-											<Badge row={row} />
+											<Stage row={row} />
 										</th>
 									)}
 								</For>
@@ -887,7 +933,7 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 												{row().employeeNo} · {row().gradeName} · 一次評価者 {row().primaryEvaluator}
 											</small>
 										</div>
-										<Badge row={row()} />
+										<Stage row={row()} />
 									</div>
 									<Show when={comparing()}>
 										<button

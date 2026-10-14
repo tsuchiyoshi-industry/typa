@@ -456,36 +456,45 @@
 	margin-left: auto;
 	font-size: 0.8125rem;
 }
-.review-badge {
+/* 進み具合の図と、その右の状態名。済んだ段階のピースを塗る */
+.review-stage {
 	display: inline-flex;
 	align-items: center;
+	gap: 0.5rem;
 	white-space: nowrap;
-	border: 1px solid var(--hr-border-strong);
-	border-radius: 5px;
 	font-size: 0.8125rem;
-	padding: 0.14rem 0.45rem;
-	color: var(--hr-text);
-	background: var(--hr-accent-muted);
-	font-weight: 500;
-}
-.review-badge.action {
-	color: #fff;
-	background: var(--hr-accent-hover);
-	border-color: var(--hr-accent-hover);
-}
-.review-badge.done {
-	color: var(--hr-success-text);
-	background: color-mix(in srgb, var(--hr-success) 12%, transparent);
-	border-color: color-mix(in srgb, var(--hr-success) 30%, transparent);
-}
-.review-badge.attention {
-	color: var(--hr-warning-text);
-	background: color-mix(in srgb, var(--hr-warning) 12%, transparent);
-	border-color: color-mix(in srgb, var(--hr-warning) 30%, transparent);
-}
-.review-badge.waiting {
+	line-height: 1;
 	color: var(--hr-text-muted);
-	background: var(--hr-bg-elevated);
+}
+.review-stage.mine {
+	color: var(--hr-text);
+	font-weight: 550;
+}
+/* viewBox と同じ 24px で描く(線やすき間がにじまない) */
+.review-pie {
+	flex: none;
+	width: 24px;
+	height: 24px;
+}
+.review-pie path {
+	fill: color-mix(in srgb, var(--hr-border-strong) 55%, transparent);
+}
+.review-pie path.done {
+	fill: var(--hr-accent-hover);
+}
+.review-pie.complete path {
+	fill: var(--hr-success);
+}
+.review-pie circle {
+	fill: none;
+	stroke-width: 1.5;
+}
+.review-pie__missing {
+	stroke: var(--hr-border-strong);
+	stroke-dasharray: 2.5 2.5;
+}
+.review-pie__mine {
+	stroke: var(--hr-accent-hover);
 }
 .review-positive {
 	color: var(--hr-success-text);
@@ -638,7 +647,7 @@
 .review-matrix thead th {
 	font-size: 0.8125rem;
 }
-.review-matrix thead .review-badge {
+.review-matrix thead .review-stage {
 	margin-top: 0.6rem;
 }
 .review-matrix .review-score-large {

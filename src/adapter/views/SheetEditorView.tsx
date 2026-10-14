@@ -34,6 +34,7 @@ import OverallCommentSection, {
 	type OverallCommentTarget,
 } from "./components/OverallCommentSectionView";
 import RadarChart from "./components/RadarChart";
+import SearchableEvaluatorSelect from "./components/SearchableEvaluatorSelect";
 import SheetStatusTrack from "./components/SheetStatusTrack";
 import {
 	clearUnsavedChanges,
@@ -421,94 +422,61 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 		dedupeSubjectOptions(viewModel().accessibleSheets.subordinateSheets),
 	);
 
-	const formatSubjectOption = (name: string, employeeNo: string) => `${name}（${employeeNo}）`;
+	/**
+	 * 表示するシートの切り替え。部下が多くても探せるよう、氏名・社員番号で絞り込める。
+	 * 一覧にまだ無いシート(読み込み中・一覧の対象外)も、いま開いている人として出す。
+	 */
+	const subjectOptions = createMemo(() => {
+		const mine = mySubjectOptions().map((item) => ({
+			value: String(item.sheetId),
+			name: item.employeeName,
+			employeeNo: `${item.employeeNo} · 自分`,
+		}));
+		const subordinates = subordinateSubjectOptions().map((item) => ({
+			value: String(item.sheetId),
+			name: item.employeeName,
+			employeeNo: item.employeeNo,
+		}));
+		const options = [...mine, ...subordinates];
+		const subject = sheet()?.subject;
+		return options.some((option) => option.value === idParam())
+			? options
+			: [
+					{
+						value: idParam(),
+						name: subject?.name ?? "読み込み中...",
+						employeeNo: subject?.employeeNo,
+					},
+					...options,
+				];
+	});
 
-	const SubjectSwitcher = () => {
-		let selectRef: HTMLSelectElement | undefined;
-
-		const isCurrentIdInList = createMemo(() => {
-			const id = idParam();
-			return (
-				mySubjectOptions().some((o) => String(o.sheetId) === id) ||
-				subordinateSubjectOptions().some((o) => String(o.sheetId) === id)
-			);
-		});
-
-		// optionリストが変わった後、命令的にvalueを強制セット
-		createEffect(() => {
-			const id = idParam();
-			// isCurrentIdInList()を購読して、option追加後に再実行させる
-			isCurrentIdInList();
-			mySubjectOptions();
-			subordinateSubjectOptions();
-
-			if (selectRef) {
-				selectRef.value = id;
-			}
-		});
-
-		const handleSubjectChange = async (selectedSheetId: string) => {
-			if (selectedSheetId === idParam()) {
-				return;
-			}
-			if (!(await confirmDiscard())) {
-				// 移動をやめたので、セレクトの表示を今のシートに戻す
-				if (selectRef) {
-					selectRef.value = idParam();
-				}
-				return;
-			}
-			clearUnsavedChanges();
-			navigate(`/sheet/${selectedSheetId}`);
-		};
-
-		return (
-			<label class="subject-switcher">
-				<Users class="subject-switcher__icon" />
-				<span class="visually-hidden">表示する評価対象者</span>
-				<select
-					ref={selectRef}
-					id="subject-select"
-					class="subject-select"
-					disabled={viewModel().loadingAccessibleSheets || viewModel().loadingSheet}
-					onChange={(event) => void handleSubjectChange(event.currentTarget.value)}
-				>
-					<Show when={!isCurrentIdInList()}>
-						<option value={idParam()}>
-							{(() => {
-								const subject = sheet()?.subject;
-								return subject
-									? formatSubjectOption(subject.name, subject.employeeNo)
-									: "読み込み中...";
-							})()}
-						</option>
-					</Show>
-					<Show when={mySubjectOptions().length > 0}>
-						<optgroup label="自分">
-							<For each={mySubjectOptions()}>
-								{(item) => (
-									<option value={String(item.sheetId)}>
-										{formatSubjectOption(item.employeeName, item.employeeNo)}
-									</option>
-								)}
-							</For>
-						</optgroup>
-					</Show>
-					<Show when={subordinateSubjectOptions().length > 0}>
-						<optgroup label="部下">
-							<For each={subordinateSubjectOptions()}>
-								{(item) => (
-									<option value={String(item.sheetId)}>
-										{formatSubjectOption(item.employeeName, item.employeeNo)}
-									</option>
-								)}
-							</For>
-						</optgroup>
-					</Show>
-				</select>
-			</label>
-		);
+	const handleSubjectChange = async (selectedSheetId: string) => {
+		if (!(await confirmDiscard())) {
+			return false;
+		}
+		clearUnsavedChanges();
+		navigate(`/sheet/${selectedSheetId}`);
+		return true;
 	};
+
+	const SubjectSwitcher = () => (
+		<div class="subject-switcher">
+			<span class="subject-switcher__label">
+				<Users class="subject-switcher__icon" />
+				シートを切り替え
+			</span>
+			<SearchableEvaluatorSelect
+				label="表示する評価対象者"
+				noun="評価対象者"
+				value={idParam()}
+				options={subjectOptions()}
+				disabled={viewModel().loadingAccessibleSheets || viewModel().loadingSheet}
+				saving={false}
+				onPick={handleSubjectChange}
+			/>
+		</div>
+	);
 
 	const ProfileCards = () => (
 		<section class="sheet-info-card">
@@ -637,7 +605,7 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 			<Show when={!props.embedded && !isNew() && viewModel().canViewCommonEvaluation}>
 				<A
 					class="review-editor-entry"
-					href={`/review?period=${sheet()?.evaluationPeriod?.id}&sheet=${sheetId()}&mode=evaluate`}
+					href={`/review?period=${sheet()?.evaluationPeriod?.id}&sheet=${sheetId()}`}
 				>
 					<Users size={16} />
 					部下の一覧を見ながら評価する
@@ -649,7 +617,7 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 						<FileText class="header-icon" />
 						{isNew() ? "新規評価シート" : "評価シート"}
 					</h1>
-					<Show when={!isNew() && !props.embedded}>
+					<Show when={!isNew() && !props.embedded && subjectOptions().length > 1}>
 						<SubjectSwitcher />
 					</Show>
 				</div>

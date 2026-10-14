@@ -978,47 +978,30 @@
 	opacity: 0.9;
 }
 
+/* 表示するシートの切り替え。何をする欄かを言葉で示し、入力で絞り込める */
 .subject-switcher {
 	display: inline-flex;
 	align-items: center;
-	gap: 0.5rem;
-	padding: 0.3rem 0.4rem 0.3rem 0.7rem;
-	background: var(--hr-bg-elevated);
-	border: 1px solid var(--hr-border);
-	border-radius: var(--hr-radius-sm);
+	gap: 0.6rem;
+}
+
+.subject-switcher__label {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+	font-size: 0.8125rem;
+	color: var(--hr-text-muted);
+	white-space: nowrap;
 }
 
 .subject-switcher__icon {
 	width: 1rem;
 	height: 1rem;
 	flex-shrink: 0;
-	color: var(--hr-text-muted);
 }
 
-.subject-select {
-	min-width: 220px;
-	padding: 0.35rem 0.6rem;
-	border-radius: var(--hr-radius-sm);
-	border: 1px solid var(--hr-border-input);
-	background: var(--hr-surface);
-	color: var(--hr-text);
-	font-size: 0.875rem;
-	cursor: pointer;
-}
-
-.subject-select:hover:not(:disabled) {
-	border-color: var(--hr-border-strong);
-}
-
-.subject-select:focus {
-	outline: none;
-	border-color: var(--hr-accent);
-	box-shadow: 0 0 0 2px var(--hr-accent-muted);
-}
-
-.subject-select:disabled {
-	opacity: 0.6;
-	cursor: wait;
+.subject-switcher .evaluator-combobox {
+	width: 240px;
 }
 
 /* 進行トラック: 下書き → 一次評価待ち → 二次評価待ち → 最終評価済み */
@@ -1964,10 +1947,6 @@
 	background: var(--hr-bg-elevated);
 	border-bottom: 1px solid var(--hr-border);
 	border-radius: var(--hr-radius-lg) var(--hr-radius-lg) 0 0;
-	/* トップバー(3.5rem)の下に貼り付く */
-	position: sticky;
-	top: 3.5rem;
-	z-index: 5;
 }
 
 .common-evaluation-card__header .challenge-helper {

@@ -10,7 +10,7 @@ import { Portal } from "solid-js/web";
 const SheetWindow: Component<{
 	/** 読み上げ用の窓の名前。 */
 	label: string;
-	/** 窓の上端の帯に出す、誰のシートかと、その場でできる操作。 */
+	/** 窓の上端の帯に出す、何を開いているかと、その場でできる操作。 */
 	heading: JSX.Element;
 	/** ×・Esc・窓の外を押したとき。閉じてよいかは呼び出し側が決める。 */
 	onClose: () => void;
@@ -68,7 +68,7 @@ const SheetWindow: Component<{
 						<button
 							type="button"
 							class="review-icon-button"
-							aria-label="評価シートを閉じる"
+							aria-label="閉じる"
 							title="閉じる（Esc）"
 							onClick={() => props.onClose()}
 						>

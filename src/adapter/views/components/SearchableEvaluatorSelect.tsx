@@ -25,8 +25,11 @@ const SearchableEvaluatorSelect: Component<{
 	options: EvaluatorOption[];
 	disabled: boolean;
 	saving: boolean;
+	/** 選ぶものの呼び名。既定は「評価者」。 */
+	noun?: string;
 	onPick: (value: string) => Promise<boolean>;
 }> = (props) => {
+	const noun = () => props.noun ?? "評価者";
 	const id = createUniqueId();
 	const [open, setOpen] = createSignal(false);
 	const [query, setQuery] = createSignal("");
@@ -132,7 +135,7 @@ const SearchableEvaluatorSelect: Component<{
 				aria-busy={props.saving}
 				autocomplete="off"
 				disabled={props.disabled}
-				placeholder="評価者を選択"
+				placeholder={`${noun()}を選択`}
 				value={open() ? query() : (selected()?.name ?? "未設定")}
 				onFocus={begin}
 				onClick={begin}
@@ -202,7 +205,7 @@ const SearchableEvaluatorSelect: Component<{
 							</For>
 						</div>
 						<Show when={!filtered().length}>
-							<p class="evaluator-no-results">一致する評価者がいません</p>
+							<p class="evaluator-no-results">一致する{noun()}がいません</p>
 						</Show>
 					</div>
 				</Portal>

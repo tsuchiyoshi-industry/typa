@@ -1,7 +1,6 @@
 import { useSearchParams } from "@solidjs/router";
 import ArrowRight from "lucide-solid/icons/arrow-right";
 import ChevronRight from "lucide-solid/icons/chevron-right";
-import ClipboardCheck from "lucide-solid/icons/clipboard-check";
 import Columns3 from "lucide-solid/icons/columns-3";
 import ListFilter from "lucide-solid/icons/list-filter";
 import RotateCw from "lucide-solid/icons/rotate-cw";
@@ -40,7 +39,7 @@ import {
 	sheetStatus,
 } from "../viewmodels/reviewerWorkspace";
 import SheetWindow from "./components/SheetWindow";
-import { clearUnsavedChanges, confirmDiscard, hasUnsavedChanges, showToast } from "./feedback";
+import { clearUnsavedChanges, confirmDiscard, showToast } from "./feedback";
 import { formatDateTime } from "./format";
 import SheetEditorView, { type SheetEditorViewProps } from "./SheetEditorView";
 
@@ -93,13 +92,14 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 	const [refreshing, setRefreshing] = createSignal(false);
 	const [error, setError] = createSignal<string | null>(null);
 	const [editorSaving, setEditorSaving] = createSignal(false);
-	const [editorRefresh, setEditorRefresh] = createSignal(0);
 	const [query, setQuery] = createSignal("");
 	const [grade, setGrade] = createSignal("");
 	const [primaryEvaluator, setPrimaryEvaluator] = createSignal("");
 	const [filter, setFilter] = createSignal<ReviewFilter>("all");
 	const [sort, setSort] = createSignal<ReviewSort>("priority");
 	const [selected, setSelected] = createSignal<ReadonlySet<number>>(new Set());
+	/** 一覧を等級ごとに区切る。同じ等級の中で点数を見比べるときに使う。 */
+	const [byGrade, setByGrade] = createSignal(false);
 	const [syncedAt, setSyncedAt] = createSignal<string | null>(null);
 	let generation = 0;
 	let alive = true;
@@ -113,9 +113,6 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 			periods().find((p) => p.isActive)?.id ||
 			periods()[0]?.id ||
 			null,
-	);
-	const mode = createMemo(() =>
-		params.mode === "compare" ? "compare" : params.mode === "evaluate" ? "evaluate" : "list",
 	);
 	const current = createMemo(() =>
 		rows().find((row) => canOpen(row) && String(row.sheetId) === params.sheet),
@@ -136,17 +133,18 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 	const count = (task: ReviewFilter) => rows().filter((row) => reviewTask(row) === task).length;
 	const stats = createMemo(() => reviewStats(rows()));
 	const next = createMemo(() => nextMyTurn(visible(), current()?.employeeId));
-	const detailedComparison = () => params.detail === "1" && selected().size > 0;
-	const comparisonRows = createMemo(() =>
-		detailedComparison() ? visible().filter((row) => selected().has(row.employeeId)) : visible(),
-	);
-	const groups = createMemo(() => groupByGrade(comparisonRows()));
+	const listGroups = createMemo(() => (byGrade() ? groupByGrade(visible()) : [visible()]));
+	/** 比較に選んだ人のうち、いまの絞り込みで一覧に出ている人。 */
+	const compared = createMemo(() => visible().filter((row) => selected().has(row.employeeId)));
+	const comparing = () => params.compare === "1" && compared().length > 0;
+	// 比べる人がいなくなったら比較をやめる(次に誰かを選んだ途端に、窓が開かないようにする)
+	createEffect(() => {
+		if (params.compare && !compared().length) {
+			setParams({ compare: undefined }, { replace: true, scroll: false });
+		}
+	});
 	const mutationBusy = () => refreshing() || loading() || editorSaving();
 	const currentSheetId = createMemo(() => current()?.sheetId);
-	const editorIdentity = createMemo(() => ({
-		sheetId: currentSheetId(),
-		refresh: editorRefresh(),
-	}));
 
 	const load = async (id: number, initial = false): Promise<ReviewerRowDto[] | null> => {
 		const request = ++generation;
@@ -230,16 +228,12 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 		clearUnsavedChanges();
 		setParams(values, { scroll: false });
 	};
-	/**
-	 * シートを開く。一覧・横断比較からは、見ていた表を残したまま、その上に窓で浮かべる。
-	 * 評価タブでは、右側に出す。
-	 */
+	/** シートを開く。見ていた一覧(または比較)を残したまま、その上に窓で浮かべる。 */
 	const open = (row: ReviewerRowDto) => {
 		if (canOpen(row)) {
 			void navigate({ sheet: row.sheetId as number, period: periodId() ?? undefined });
 		}
 	};
-	const floating = createMemo(() => (mode() === "evaluate" ? undefined : current()));
 	const updateRows = () => {
 		const id = periodId();
 		if (id) {
@@ -247,21 +241,12 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 		}
 	};
 	const refresh = async () => {
-		if (hasUnsavedChanges()) {
-			showToast("info", "入力中の内容があります", "保存してから再読み込みしてください。");
-			return;
-		}
 		const id = periodId();
 		if (!id) {
 			await initializePeriods();
 			return;
 		}
-		if (current()?.sheetId && mode() === "evaluate") {
-			setEditorRefresh((value) => value + 1);
-		}
-		if (id) {
-			await load(id);
-		}
+		await load(id);
 	};
 	// 確定の確認で案内した「次の対象者」。確定で一覧の並びが変わっても、案内した人へ進む
 	let announcedNext: number | undefined;
@@ -306,10 +291,9 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 		setPrimaryEvaluator("");
 		setFilter("all");
 	};
-	const selectionCount = () => visible().filter((row) => selected().has(row.employeeId)).length;
 	const clearSelection = () => {
 		setSelected(new Set<number>());
-		setParams({ detail: undefined }, { replace: true, scroll: false });
+		setParams({ compare: undefined }, { replace: true, scroll: false });
 	};
 
 	const Filters = () => (
@@ -407,7 +391,7 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 			次へ <ArrowRight size={16} />
 		</button>
 	);
-	/** 評価シートの本体。評価タブの右側と、一覧の上に浮かべる窓で同じものを出す。 */
+	/** 評価シートの本体。窓の中に出す。 */
 	const Editor: Component<{ row: ReviewerRowDto }> = (editor) => (
 		<>
 			<Show when={sheetStatus(editor.row)?.isAwaitingFirstEvaluation() && !editor.row.isPrimary}>
@@ -421,12 +405,12 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 			>
 				<p class="review-notice muted">一次評価は確定済みです。二次評価者の確定を待っています。</p>
 			</Show>
-			<Show when={editorIdentity()} keyed>
-				{(identity) => (
+			<Show when={currentSheetId()} keyed>
+				{(sheetId) => (
 					<SheetEditorView
 						{...props.editor}
 						embedded
-						selectedSheetId={identity.sheetId as number}
+						selectedSheetId={sheetId}
 						onUpdated={updateRows}
 						onSavingChange={setEditorSaving}
 						announceNext={announceNext}
@@ -441,9 +425,7 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 			<table class="review-table">
 				<thead>
 					<tr>
-						<th scope="col">
-							<span class="visually-hidden">比較に選択</span>
-						</th>
+						<th scope="col">比較</th>
 						<th scope="col">評価対象者</th>
 						<th scope="col">等級</th>
 						<th scope="col">状態</th>
@@ -470,7 +452,7 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 									openable: canOpen(row),
 									mine: isMyTurn(row),
 									// 窓を閉じたときに、どの行を開いていたかが分かる
-									current: floating()?.employeeId === row.employeeId,
+									current: current()?.employeeId === row.employeeId,
 								}}
 								title={canOpen(row) ? undefined : "本人が提出すると開けるようになります"}
 								onClick={() => open(row)}
@@ -550,145 +532,142 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 						<p>{comparison.people.length} 名 · 同じ等級で比較</p>
 					</div>
 				</header>
-				<Show when={detailedComparison()} fallback={<SummaryTable people={comparison.people} />}>
-					<div class="review-table-scroll">
-						<table class="review-matrix">
-							<thead>
-								<tr>
-									<th scope="col">比較項目</th>
-									<For each={comparison.people}>
-										{(row) => (
-											<th scope="col">
-												<PersonButton row={row} />
-												<Badge row={row} />
-											</th>
-										)}
-									</For>
-								</tr>
-							</thead>
-							<tbody>
-								<tr>
-									<th scope="row">一次評価者</th>
-									<For each={comparison.people}>{(row) => <td>{row.primaryEvaluator}</td>}</For>
-								</tr>
-								<tr>
-									<th scope="row">一次評価点 / ランク</th>
-									<For each={comparison.people}>
-										{(row) => (
-											<td class="review-score-large">
-												<ScoreRank row={row} stage="first" />
-											</td>
-										)}
-									</For>
-								</tr>
-								<tr>
-									<th scope="row">二次評価点</th>
-									<For each={comparison.people}>
-										{(row) => (
-											<td class="review-score-large">{scoreText(reviewScore(row, "second"))}</td>
-										)}
-									</For>
-								</tr>
-								<tr>
-									<th scope="row">一次・二次の差</th>
-									<For each={comparison.people}>{(row) => <td>{gap(row)}</td>}</For>
-								</tr>
-								<tr>
-									<th scope="row">最終評価点 / ランク</th>
-									<For each={comparison.people}>
-										{(row) => (
-											<td class="review-score-large">
-												<ScoreRank row={row} stage="final" />
-											</td>
-										)}
-									</For>
-								</tr>
-								<For
-									each={[
-										...new Set(
-											comparison.people.flatMap((row) =>
-												row.objectives.map((goal) => goal.goalNumber),
-											),
+				<div class="review-table-scroll">
+					<table class="review-matrix">
+						<thead>
+							<tr>
+								<th scope="col">比較項目</th>
+								<For each={comparison.people}>
+									{(row) => (
+										<th scope="col">
+											<PersonButton row={row} />
+											<Badge row={row} />
+										</th>
+									)}
+								</For>
+							</tr>
+						</thead>
+						<tbody>
+							<tr>
+								<th scope="row">一次評価者</th>
+								<For each={comparison.people}>{(row) => <td>{row.primaryEvaluator}</td>}</For>
+							</tr>
+							<tr>
+								<th scope="row">一次評価点 / ランク</th>
+								<For each={comparison.people}>
+									{(row) => (
+										<td class="review-score-large">
+											<ScoreRank row={row} stage="first" />
+										</td>
+									)}
+								</For>
+							</tr>
+							<tr>
+								<th scope="row">二次評価点</th>
+								<For each={comparison.people}>
+									{(row) => (
+										<td class="review-score-large">{scoreText(reviewScore(row, "second"))}</td>
+									)}
+								</For>
+							</tr>
+							<tr>
+								<th scope="row">一次・二次の差</th>
+								<For each={comparison.people}>{(row) => <td>{gap(row)}</td>}</For>
+							</tr>
+							<tr>
+								<th scope="row">最終評価点 / ランク</th>
+								<For each={comparison.people}>
+									{(row) => (
+										<td class="review-score-large">
+											<ScoreRank row={row} stage="final" />
+										</td>
+									)}
+								</For>
+							</tr>
+							<For
+								each={[
+									...new Set(
+										comparison.people.flatMap((row) =>
+											row.objectives.map((goal) => goal.goalNumber),
 										),
-									].sort((a, b) => a - b)}
-								>
-									{(goalNumber) => (
-										<tr>
-											<th scope="row">チャレンジ目標 {goalNumber}</th>
-											<For each={comparison.people}>
-												{(row) => {
-													const goal = () =>
-														row.objectives.find((item) => item.goalNumber === goalNumber);
-													return (
-														<td>
-															<p class="review-evidence">{goal()?.challengeGoal || "—"}</p>
-															<p class="review-evidence muted">
-																{goal()?.achievement || "達成状況の記載なし"}
-															</p>
-															<small>
-																一次 {goal()?.firstScore ?? "—"} / 二次 {goal()?.secondScore ?? "—"}{" "}
-																/ 配点 4
-															</small>
-														</td>
-													);
-												}}
-											</For>
-										</tr>
+									),
+								].sort((a, b) => a - b)}
+							>
+								{(goalNumber) => (
+									<tr>
+										<th scope="row">チャレンジ目標 {goalNumber}</th>
+										<For each={comparison.people}>
+											{(row) => {
+												const goal = () =>
+													row.objectives.find((item) => item.goalNumber === goalNumber);
+												return (
+													<td>
+														<p class="review-evidence">{goal()?.challengeGoal || "—"}</p>
+														<p class="review-evidence muted">
+															{goal()?.achievement || "達成状況の記載なし"}
+														</p>
+														<small>
+															一次 {goal()?.firstScore ?? "—"} / 二次 {goal()?.secondScore ?? "—"} /
+															配点 4
+														</small>
+													</td>
+												);
+											}}
+										</For>
+									</tr>
+								)}
+							</For>
+							<For each={items()}>
+								{(item) => (
+									<tr>
+										<th scope="row">
+											{item.title}
+											<small>配点 {item.weight}</small>
+										</th>
+										<For each={comparison.people}>
+											{(row) => {
+												const result = () => row.commonItems.find((entry) => entry.id === item.id);
+												return (
+													<td>
+														<strong>
+															一次 {result()?.firstScore ?? "—"} / 二次{" "}
+															{result()?.secondScore ?? "—"}
+														</strong>
+														<p class="review-evidence muted">
+															{result()?.firstComment || "コメントなし"}
+														</p>
+													</td>
+												);
+											}}
+										</For>
+									</tr>
+								)}
+							</For>
+							<tr>
+								<th scope="row">一次総評</th>
+								<For each={comparison.people}>
+									{(row) => (
+										<td>
+											<p class="review-evidence">{row.firstOverallComment || "記載なし"}</p>
+										</td>
 									)}
 								</For>
-								<For each={items()}>
-									{(item) => (
-										<tr>
-											<th scope="row">
-												{item.title}
-												<small>配点 {item.weight}</small>
-											</th>
-											<For each={comparison.people}>
-												{(row) => {
-													const result = () =>
-														row.commonItems.find((entry) => entry.id === item.id);
-													return (
-														<td>
-															<strong>
-																一次 {result()?.firstScore ?? "—"} / 二次{" "}
-																{result()?.secondScore ?? "—"}
-															</strong>
-															<p class="review-evidence muted">
-																{result()?.firstComment || "コメントなし"}
-															</p>
-														</td>
-													);
-												}}
-											</For>
-										</tr>
+							</tr>
+							<tr>
+								<th scope="row">二次総評</th>
+								<For each={comparison.people}>
+									{(row) => (
+										<td>
+											<p class="review-evidence">
+												{row.canViewSecond ? row.secondOverallComment || "記載なし" : "—"}
+											</p>
+										</td>
 									)}
 								</For>
-								<tr>
-									<th scope="row">一次総評</th>
-									<For each={comparison.people}>
-										{(row) => (
-											<td>
-												<p class="review-evidence">{row.firstOverallComment || "記載なし"}</p>
-											</td>
-										)}
-									</For>
-								</tr>
-								<tr>
-									<th scope="row">二次総評</th>
-									<For each={comparison.people}>
-										{(row) => (
-											<td>
-												<p class="review-evidence">
-													{row.canViewSecond ? row.secondOverallComment || "記載なし" : "—"}
-												</p>
-											</td>
-										)}
-									</For>
-								</tr>
-							</tbody>
-						</table>
-					</div>
-				</Show>
+							</tr>
+						</tbody>
+					</table>
+				</div>
 			</section>
 		);
 	};
@@ -718,6 +697,13 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 							</For>
 						</select>
 					</label>
+					<span class="review-sync" role="status">
+						{refreshing()
+							? "更新中…"
+							: syncedAt()
+								? `${formatDateTime(syncedAt() as string)} 時点`
+								: ""}
+					</span>
 					<button
 						type="button"
 						class="review-icon-button"
@@ -766,44 +752,6 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 					)}
 				</For>
 			</div>
-			<div class="review-navigation">
-				<div class="review-mode-tabs">
-					<For
-						each={
-							[
-								["list", "一覧", Users],
-								["evaluate", "評価", ClipboardCheck],
-								["compare", "横断比較", Columns3],
-							] as const
-						}
-					>
-						{([key, label, Icon]) => (
-							<button
-								type="button"
-								aria-pressed={mode() === key}
-								onClick={() =>
-									void navigate({
-										mode: key,
-										detail: key === "compare" && selected().size ? "1" : undefined,
-										// 評価タブで選んでいたシートを、一覧・横断比較の上に窓で開き直さない
-										...(key === "evaluate" ? {} : { sheet: undefined }),
-									})
-								}
-							>
-								<Icon size={16} />
-								{label}
-							</button>
-						)}
-					</For>
-				</div>
-				<span class="review-sync" role="status">
-					{refreshing()
-						? "更新中…"
-						: syncedAt()
-							? `${formatDateTime(syncedAt() as string)} 時点`
-							: ""}
-				</span>
-			</div>
 			<Show when={error()}>
 				<div class="inline-alert" role="alert">
 					<span>{error()}</span>
@@ -846,155 +794,128 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 						</div>
 					}
 				>
-					<Show
-						when={mode() !== "evaluate"}
-						fallback={
-							<div class="review-split">
-								<aside class="review-caseload" aria-label="部下の一覧">
-									<header>
-										<strong>対象者</strong>
-										<span>{visible().length} 名</span>
-									</header>
-									<Show when={visible().length} fallback={<Empty />}>
-										<div class="review-caseload-list">
-											<For each={visible()}>
-												{(row) => (
-													<button
-														type="button"
-														class="review-caseload-person"
-														aria-label={`${row.employeeName}の評価を開く`}
-														aria-pressed={current()?.employeeId === row.employeeId}
-														disabled={!canOpen(row)}
-														onClick={() => open(row)}
-													>
-														<span class="review-avatar">{row.employeeName.slice(0, 1)}</span>
-														<span class="review-caseload-person-info">
-															<strong>{row.employeeName}</strong>
-															<small>{row.gradeName}</small>
-															<Badge row={row} />
-														</span>
-														<Show when={reviewRank(row, "final") ?? reviewRank(row, "first")}>
-															{(rank) => (
-																<span
-																	class="review-mini-rank"
-																	classList={{ provisional: !rank().confirmed }}
-																>
-																	{rank().text}
-																</span>
-															)}
-														</Show>
-													</button>
-												)}
-											</For>
-										</div>
-									</Show>
-								</aside>
-								<div class="review-detail">
-									<Show
-										when={current()}
-										fallback={
-											<div class="review-empty">
-												<ClipboardCheck size={34} />
-												<h2>評価する対象者を選んでください</h2>
-												<p>左の一覧から選択すると、ここで評価を進められます。</p>
-												<Show when={next()}>
-													{(target) => (
-														<button
-															type="button"
-															class="primary-action"
-															onClick={() => open(target())}
-														>
-															自分の番のシートから開始 <ArrowRight size={16} />
-														</button>
-													)}
-												</Show>
-											</div>
-										}
-									>
-										{(row) => (
-											<>
-												<div class="review-detail-toolbar">
-													<div>
-														<Badge row={row()} />
-														<span>一次評価者 {row().primaryEvaluator}</span>
-													</div>
-													<NextButton />
-												</div>
-												<Editor row={row()} />
-											</>
-										)}
-									</Show>
-								</div>
-							</div>
-						}
-					>
-						<div class="review-results-header">
-							<span>
-								{visible().length} 名を表示
-								<Show when={mode() === "compare"}> · 等級ごとに比較</Show>
-							</span>
-							<div>
-								<Show when={selected().size}>
-									<button type="button" onClick={clearSelection}>
-										選択を解除
-									</button>
-								</Show>
-								<button
-									type="button"
-									class="secondary-action"
-									disabled={!selectionCount()}
-									onClick={() => void navigate({ mode: "compare", detail: "1" })}
-								>
-									<Columns3 size={16} />
-									選択して比較 {selectionCount()} / 6
+					<div class="review-results-header">
+						<span>{visible().length} 名を表示</span>
+						<div>
+							<button
+								type="button"
+								class="review-toggle"
+								aria-pressed={byGrade()}
+								onClick={() => setByGrade(!byGrade())}
+							>
+								等級ごとに区切る
+							</button>
+							<Show when={selected().size}>
+								<button type="button" onClick={clearSelection}>
+									選択を解除
 								</button>
-							</div>
-						</div>
-						<Show when={visible().length} fallback={<Empty />}>
-							<Show when={mode() === "compare"} fallback={<SummaryTable people={visible()} />}>
-								<p class="review-comparison-help">
-									評価点は「設定」の配点（チャレンジ目標＋共通評価で100点）で換算。詳細は一覧で最大6名を選択して比較できます。
-								</p>
-								<Show
-									when={groups().length}
-									fallback={
-										<p class="review-notice">
-											選択した対象者が絞り込み条件に含まれていません。選択か絞り込みを解除してください。
-										</p>
-									}
-								>
-									<For each={groups()}>{(people) => <Comparison people={people} />}</For>
-								</Show>
 							</Show>
-						</Show>
+							<button
+								type="button"
+								class="secondary-action"
+								disabled={!compared().length}
+								title="一覧のチェックで最大6名を選ぶと、評価の中身を横に並べて比べられます"
+								onClick={() => void navigate({ compare: "1" })}
+							>
+								<Columns3 size={16} />
+								選択して比較 {compared().length} / 6
+							</button>
+							{/* 評価者がこの画面でいちばんよくやること。絞り込んだ一覧の順に進む */}
+							<Show when={next()}>
+								{(target) => (
+									<button
+										type="button"
+										class="primary-action"
+										disabled={mutationBusy()}
+										onClick={() => open(target())}
+									>
+										自分の番を評価する（{visible().filter(isMyTurn).length}）
+										<ArrowRight size={16} />
+									</button>
+								)}
+							</Show>
+						</div>
+					</div>
+					<Show when={visible().length} fallback={<Empty />}>
+						<For each={listGroups()}>
+							{(people) => (
+								<Show when={byGrade()} fallback={<SummaryTable people={people} />}>
+									<section class="review-comparison-group">
+										<header>
+											<div>
+												<h2>{people[0]?.gradeName}</h2>
+												<p>{people.length} 名</p>
+											</div>
+										</header>
+										<SummaryTable people={people} />
+									</section>
+								</Show>
+							)}
+						</For>
 					</Show>
 				</Show>
 			</Show>
-			<Show when={floating()}>
-				{(row) => (
-					<SheetWindow
-						label={`${row().employeeName} さんの評価シート`}
-						contentKey={row().sheetId}
-						onClose={() => void navigate({ sheet: undefined })}
-						heading={
-							<>
+			{/* 評価シートも比較も、同じ一つの窓に出す。比較から人を開いて閉じると、比較に戻る */}
+			<Show when={current() || comparing()}>
+				<SheetWindow
+					label={current() ? `${current()?.employeeName} さんの評価シート` : "選択した対象者の比較"}
+					contentKey={currentSheetId() ?? "compare"}
+					onClose={() => void navigate(current() ? { sheet: undefined } : { compare: undefined })}
+					heading={
+						<Show
+							when={current()}
+							fallback={
 								<div class="sheet-window__who">
-									<span class="review-avatar">{row().employeeName.slice(0, 1)}</span>
+									<Columns3 size={18} />
 									<div>
-										<strong>{row().employeeName}</strong>
+										<strong>{compared().length} 名を比較</strong>
 										<small>
-											{row().employeeNo} · {row().gradeName} · 一次評価者 {row().primaryEvaluator}
+											評価点は「設定」の配点（チャレンジ目標＋共通評価で100点）で換算 ·
+											氏名を押すと評価シートを開きます
 										</small>
 									</div>
-									<Badge row={row()} />
 								</div>
-								<NextButton />
-							</>
+							}
+						>
+							{(row) => (
+								<>
+									<div class="sheet-window__who">
+										<span class="review-avatar">{row().employeeName.slice(0, 1)}</span>
+										<div>
+											<strong>{row().employeeName}</strong>
+											<small>
+												{row().employeeNo} · {row().gradeName} · 一次評価者 {row().primaryEvaluator}
+											</small>
+										</div>
+										<Badge row={row()} />
+									</div>
+									<Show when={comparing()}>
+										<button
+											type="button"
+											class="secondary-action"
+											onClick={() => void navigate({ sheet: undefined })}
+										>
+											<Columns3 size={16} />
+											比較に戻る
+										</button>
+									</Show>
+									<NextButton />
+								</>
+							)}
+						</Show>
+					}
+				>
+					<Show
+						when={current()}
+						fallback={
+							<For each={groupByGrade(compared())}>
+								{(people) => <Comparison people={people} />}
+							</For>
 						}
 					>
-						<Editor row={row()} />
-					</SheetWindow>
-				)}
+						{(row) => <Editor row={row()} />}
+					</Show>
+				</SheetWindow>
 			</Show>
 		</div>
 	);

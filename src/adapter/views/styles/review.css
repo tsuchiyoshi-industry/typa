@@ -141,32 +141,21 @@
 	font-weight: 400;
 	color: var(--hr-text-muted);
 }
-.review-navigation {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	border-bottom: 1px solid var(--hr-border);
-}
-.review-mode-tabs {
-	display: flex;
-	gap: 1.2rem;
-}
-.review-mode-tabs button {
-	display: flex;
-	align-items: center;
-	gap: 0.45rem;
-	color: var(--hr-text-muted);
-	padding: 0.7rem 0.15rem 0.85rem;
-	font-size: 0.85rem;
-	border-bottom: 2px solid transparent;
-}
-.review-mode-tabs button[aria-pressed="true"] {
-	color: var(--hr-text);
-	border-bottom-color: var(--hr-accent-hover);
-}
 .review-sync {
 	color: var(--hr-text-muted);
 	font-size: 0.8125rem;
+}
+/* 一覧の見え方を切り替えるボタン。押している間は等級ごとに区切る */
+.review-toggle {
+	padding: 0.4rem 0.7rem;
+	border: 1px solid var(--hr-border);
+	border-radius: var(--hr-radius-sm);
+	color: var(--hr-text-muted);
+}
+.review-toggle[aria-pressed="true"] {
+	color: var(--hr-text);
+	border-color: var(--hr-accent-hover);
+	background: var(--hr-accent-muted);
 }
 .review-filters {
 	display: flex;
@@ -232,7 +221,8 @@
 	align-items: center;
 	gap: 0.85rem;
 }
-.review-results-header .secondary-action {
+.review-results-header .secondary-action,
+.review-results-header .primary-action {
 	padding: 0.4rem 0.7rem;
 	font-size: 0.8125rem;
 }
@@ -361,10 +351,6 @@
 	overscroll-behavior: contain;
 	scrollbar-gutter: stable;
 }
-/* ページではトップバーの下に貼り付く見出しを、窓の中では窓の上端に貼り付ける */
-.sheet-window__body .common-evaluation-card__header {
-	top: 0;
-}
 @media (prefers-reduced-motion: no-preference) {
 	.sheet-window-backdrop {
 		animation: sheet-window-dim 0.16s ease-out;
@@ -400,8 +386,7 @@
 	font-weight: 600;
 }
 /* 確定前のランクは見込み */
-.review-rank.provisional,
-.review-mini-rank.provisional {
+.review-rank.provisional {
 	font-weight: 400;
 	color: var(--hr-text-muted);
 }
@@ -505,52 +490,6 @@
 .review-positive {
 	color: var(--hr-success-text);
 }
-.review-split {
-	display: grid;
-	grid-template-columns: 250px minmax(0, 1fr);
-	gap: 1.2rem;
-	align-items: start;
-}
-.review-caseload {
-	border: 1px solid var(--hr-border);
-	border-radius: var(--hr-radius-md);
-	background: var(--hr-surface);
-	position: sticky;
-	top: 4.5rem;
-	overflow: hidden;
-}
-.review-caseload > header {
-	display: flex;
-	justify-content: space-between;
-	align-items: center;
-	padding: 0.8rem 1rem;
-	border-bottom: 1px solid var(--hr-border);
-	font-size: 0.8125rem;
-}
-
-.review-caseload-list {
-	max-height: calc(100dvh - 10rem);
-	overflow: auto;
-	scrollbar-width: thin;
-	padding: 0.4rem;
-}
-.review-caseload-person {
-	display: flex;
-	width: 100%;
-	align-items: center;
-	gap: 0.65rem;
-	padding: 0.75rem 0.55rem;
-	text-align: left;
-	border: 1px solid transparent;
-	border-radius: var(--hr-radius-sm);
-}
-.review-caseload-person:hover:not(:disabled) {
-	background: var(--hr-surface-hover);
-}
-.review-caseload-person[aria-pressed="true"] {
-	background: var(--hr-accent-muted);
-	border-color: color-mix(in srgb, var(--hr-accent-hover) 45%, transparent);
-}
 .review-avatar {
 	flex: 0 0 30px;
 	height: 30px;
@@ -561,50 +500,6 @@
 	border-radius: 50%;
 	font-size: 0.8125rem;
 	color: var(--hr-text-muted);
-}
-.review-caseload-person-info {
-	min-width: 0;
-	flex: 1;
-}
-.review-caseload-person-info > strong {
-	display: block;
-	font-size: 0.8125rem;
-	font-weight: 550;
-	overflow-wrap: anywhere;
-}
-.review-caseload-person-info > small {
-	display: block;
-	color: var(--hr-text-muted);
-	font-size: 0.8125rem;
-	margin: 0.15rem 0 0.35rem;
-}
-.review-mini-rank {
-	font-size: 0.85rem;
-	font-weight: 650;
-}
-.review-detail {
-	min-width: 0;
-}
-.review-detail-toolbar {
-	display: flex;
-	justify-content: space-between;
-	align-items: center;
-	gap: 0.5rem;
-	padding: 0.8rem 0 1rem;
-}
-.review-detail-toolbar > div {
-	display: flex;
-	align-items: center;
-	flex-wrap: wrap;
-	gap: 0.65rem;
-	font-size: 0.8125rem;
-	color: var(--hr-text-muted);
-}
-.review-detail-toolbar small {
-	font-size: 0.8125rem;
-}
-.review-detail-toolbar button {
-	font-size: 0.8125rem;
 }
 .review-notice {
 	border-left: 2px solid var(--hr-warning);
@@ -700,10 +595,6 @@
 	font-size: 0.8125rem;
 	margin: 0 0 0.4rem;
 }
-.review-caseload .review-empty {
-	padding: 2rem 0.75rem;
-	border: none;
-}
 .review-comparison-group {
 	margin-bottom: 1.3rem;
 }
@@ -722,11 +613,6 @@
 	color: var(--hr-text-muted);
 	font-size: 0.8125rem;
 	margin: 0.1rem 0 0;
-}
-.review-comparison-help {
-	margin: -0.2rem 0 0.5rem;
-	font-size: 0.8125rem;
-	color: var(--hr-text-muted);
 }
 .review-matrix {
 	width: max-content;
@@ -797,9 +683,6 @@
 .review-matrix tbody tr:last-child > * {
 	border-bottom: none;
 }
-.review-caseload > header span {
-	color: var(--hr-text-muted);
-}
 @media (prefers-reduced-motion: no-preference) {
 	.review-spinning {
 		animation: review-spin 1.2s linear infinite;
@@ -821,10 +704,6 @@
 	}
 	.review-stat:nth-child(2) {
 		border-left: none;
-	}
-	.review-split {
-		grid-template-columns: 205px minmax(0, 1fr);
-		gap: 0.8rem;
 	}
 }
 @media (max-width: 760px) {
@@ -863,18 +742,6 @@
 	}
 	.review-filter-tabs {
 		gap: 0.1rem;
-	}
-	.review-split {
-		grid-template-columns: 1fr;
-	}
-	.review-caseload {
-		position: static;
-	}
-	.review-caseload-list {
-		max-height: 190px;
-	}
-	.review-detail-toolbar {
-		flex-wrap: wrap;
 	}
 	.review-results-header {
 		flex-wrap: wrap;

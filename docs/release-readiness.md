@@ -77,6 +77,8 @@ bun scripts/verifyReleaseApi.ts typa_release_verify
 
 fresh は全 SQL を最初から適用する。verify は旧スキーマに合成の確定済み履歴を作ってから更新し、値が変わらないことを確認する。PostgreSQL では保存と確定の並行実行、確定後の更新拒否、同時 Admin 降格、停止後の JWT 拒否を実測する。API テストは実際の Auth フック・OTP 検証・アプリのリポジトリとユースケース・PostgREST・通知 HTTP を通す。OTP はローカル Auth の管理 API で発行して検証する。実メールの配送とは分け、SMTP の465・STARTTLS・平文拒否をローカルの実ソケットで検証する。
 
+スキーマ点検の関数ハッシュは、CRLF を LF に正規化して計算する。Windows と Linux のチェックアウト差で誤検知せず、SQL 本体の変更は検出する。初回の Linux CI で見つかった差は、この正規化と期待値の再生成で修正した。
+
 CI の database.yml でも両経路を実行する。ローカル相当のコマンドは確認したが、GitHub Actions 上の実行結果は push 後に確認する。
 
 ## 検証の限界と次の仕様候補

@@ -34,14 +34,14 @@ from (
   where table_schema = 'public' and grantee in ('anon', 'authenticated')
   group by table_name, grantee, privilege_type
   union all
-  -- md5: the function body, so that an old version of a function shows up as a difference.
+  -- Detect old function bodies, but ignore Windows vs Linux checkout line endings.
   select 'FUNCTION ' || p.oid::regprocedure || ' definer=' || p.prosecdef
          || ' anon=' || has_function_privilege('anon', p.oid, 'execute')
          || ' authenticated=' || has_function_privilege('authenticated', p.oid, 'execute')
          || ' service_role=' || has_function_privilege('service_role', p.oid, 'execute')
          || ' auth_admin=' || has_function_privilege('supabase_auth_admin', p.oid, 'execute')
          || ' config=' || coalesce(p.proconfig::text, '-')
-         || ' md5=' || md5(p.prosrc)
+         || ' md5=' || md5(replace(p.prosrc, chr(13) || chr(10), chr(10)))
   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
   where n.nspname = 'public'
   union all

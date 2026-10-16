@@ -27,15 +27,16 @@ describe("employee master authorization", () => {
 			repo.findCurrentEmployeeProfile.mockResolvedValue(profile(role, 2));
 			const out = output<never>();
 			await new LoadEmployeeMasterInteractor(repo).execute({}, out);
-			const editsEvaluators = role === "Admin" || role === "Reviewer";
-			expect(repo.findAllEmployeeProfiles).toHaveBeenCalledTimes(editsEvaluators ? 1 : 0);
+			const editsEvaluators = role === "Admin";
+			const viewsRelations = role === "Admin" || role === "Reviewer";
+			expect(repo.findAllEmployeeProfiles).toHaveBeenCalledTimes(viewsRelations ? 1 : 0);
 			expect(repo.findGrades).toHaveBeenCalledTimes(role === "Admin" ? 1 : 0);
 			expect(out.present).toHaveBeenCalledWith(
 				expect.objectContaining({
 					canEditEvaluators: editsEvaluators,
 					canEditGrades: role === "Admin",
 					canResetRegistrations: role === "Admin",
-					relations: editsEvaluators ? [expect.objectContaining({ employeeNo: "TEST001" })] : [],
+					relations: viewsRelations ? [expect.objectContaining({ employeeNo: "TEST001" })] : [],
 				}),
 			);
 		},
@@ -50,22 +51,23 @@ describe("employee master authorization", () => {
 		);
 		expect(repo.findAllEmployeeProfiles).not.toHaveBeenCalled();
 	});
-	it.each(["Employee", "unknown", null])("denies evaluator update by %s", async (role) => {
-		const repo = masterRepository();
-		repo.findCurrentEmployeeProfile.mockResolvedValue(role === null ? null : profile(role));
-		const out = output<never>();
-		await new UpdateEmployeeEvaluatorInteractor(repo).execute(
-			{ targetEmployeeNo: "TEST001", evaluatorEmployeeNo: "TEST003", evaluatorType: "secondary" },
-			out,
-		);
-		expect(repo.updateEvaluatorByEmployeeNo).not.toHaveBeenCalled();
-		expect(out.present).toHaveBeenCalledWith(expect.objectContaining({ success: false }));
-	});
+	it.each(["Reviewer", "Employee", "unknown", null])(
+		"denies evaluator update by %s",
+		async (role) => {
+			const repo = masterRepository();
+			repo.findCurrentEmployeeProfile.mockResolvedValue(role === null ? null : profile(role));
+			const out = output<never>();
+			await new UpdateEmployeeEvaluatorInteractor(repo).execute(
+				{ targetEmployeeNo: "TEST001", evaluatorEmployeeNo: "TEST003", evaluatorType: "secondary" },
+				out,
+			);
+			expect(repo.updateEvaluatorByEmployeeNo).not.toHaveBeenCalled();
+			expect(out.present).toHaveBeenCalledWith(expect.objectContaining({ success: false }));
+		},
+	);
 	it.each([
 		["Admin", "primary"],
 		["Admin", "secondary"],
-		["Reviewer", "primary"],
-		["Reviewer", "secondary"],
 	] as const)("%s can update %s after normalizing numbers", async (role, evaluatorType) => {
 		const repo = masterRepository();
 		repo.findCurrentEmployeeProfile.mockResolvedValue(profile(role, 2));
@@ -86,6 +88,7 @@ describe("employee master authorization", () => {
 	});
 	it("clears only the secondary evaluator", async () => {
 		const repo = masterRepository();
+		repo.findCurrentEmployeeProfile.mockResolvedValue(profile("Admin", 2));
 		const out = output<never>();
 		const interactor = new UpdateEmployeeEvaluatorInteractor(repo);
 		await interactor.execute(

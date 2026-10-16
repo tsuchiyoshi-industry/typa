@@ -132,6 +132,7 @@ export function toEvaluationSheetDto(
 			canRevertOwnSheetToDraft: policy.canRevertOwnSheetToDraft(),
 			canConfirmFirstEvaluation: policy.canConfirmFirstEvaluation(),
 			canFinalizeEvaluation: policy.canFinalizeEvaluation(),
+			canResendNotification: policy.canResendNotification(),
 		},
 		...(policy.canConfirmFirstEvaluation() || policy.canFinalizeEvaluation()
 			? {

@@ -22,7 +22,10 @@ import type {
 	UpdateEmployeeRoleInteractor,
 	UpdateEmployeeRoleOutputPort,
 } from "../../application/usecases/UpdateEmployeeRoleInteractor";
-import type { EvaluatorType } from "../../domain/repositories/EmployeeMasterRepository";
+import type {
+	EmployeeMasterRepository,
+	EvaluatorType,
+} from "../../domain/repositories/EmployeeMasterRepository";
 import type { EmployeeMasterViewModel } from "../presenters/EmployeeMasterPresenter";
 
 export class EmployeeMasterController {
@@ -46,6 +49,7 @@ export class EmployeeMasterController {
 			beginLoad: () => void;
 			presentError: (message: string) => void;
 		},
+		private readonly accessRepository?: EmployeeMasterRepository,
 	) {}
 
 	async load(): Promise<void> {
@@ -117,6 +121,29 @@ export class EmployeeMasterController {
 				),
 			"登録の取り消しに失敗しました",
 		);
+	}
+
+	async issueInvitation(employeeNo: string): Promise<{ code: string; expiresAt: string }> {
+		const repo = await this.requireAccessAdmin();
+		return repo.issueInvitation(employeeNo);
+	}
+
+	async setEnabled(employeeNo: string, enabled: boolean): Promise<boolean> {
+		const repo = await this.requireAccessAdmin();
+		const changed = await repo.setEnabled(employeeNo, enabled);
+		if (changed) {
+			await this.load();
+		}
+		return changed;
+	}
+
+	private async requireAccessAdmin(): Promise<EmployeeMasterRepository> {
+		const repo = this.accessRepository;
+		const current = await repo?.findCurrentEmployeeProfile();
+		if (!repo || !current?.role.isAdmin()) {
+			throw new Error("Admin のみ操作できます。");
+		}
+		return repo;
 	}
 
 	private async applyUpdate(

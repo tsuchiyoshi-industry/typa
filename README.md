@@ -70,6 +70,8 @@ Supabase の環境を新しく作る手順と、どこに何を設定してい�
 
 `202610080003_employee_roles.sql` は、Admin が社員マスタから TYPA の権限（Admin / Reviewer / Employee）を変えるための DB 関数 `set_employee_role` を追加します。最後の Admin は外せません。あわせて、クライアントから `employees.role_id` を直接更新する権限を外します（`employees` に列を追加したら、クライアントから更新させる列はこのマイグレーションと同じ形で `grant update` が必要です）。誰がどの権限かは Admin の画面にだけ表示しますが、`role_id` の読み取り自体は、行を読める相手には DB 側で制限していません。
 
+リリース前の変更・検証・DB 適用順は [リリース前検証](docs/release-readiness.md) を参照してください。初回登録は社員ごとの招待コードを使い、評価者の変更は Admin のみ行えます。
+
 ## 開発
 
 フロントエンドのみ起動:

@@ -20,6 +20,7 @@ export class EmployeeProfile {
 		public readonly registered = false,
 		/** アプリを閉じた後もログインを残す社員か。共有PCを使う社員は false。 */
 		public readonly keepSignedIn = false,
+		public readonly enabled = true,
 	) {}
 
 	equals(other: EmployeeProfile): boolean {

@@ -1,4 +1,11 @@
 /* Employee master: consistent spacing and visible editing controls. */
+.master-invitation input {
+	display: block;
+	width: min(100%, 26rem);
+	margin: 0.75rem 0;
+	padding: 0.5rem;
+	font-family: monospace;
+}
 .employee-master-page {
 	display: grid;
 	gap: 24px;
@@ -418,7 +425,7 @@
 	text-align: center;
 }
 .master-table thead th.col-action {
-	width: 88px;
+	width: 156px;
 }
 .row-action {
 	display: inline-flex;
@@ -609,4 +616,27 @@
 	.master-scope button {
 		padding-inline: 9px;
 	}
+}
+
+.registration-actions {
+	display: flex;
+	gap: 0.2rem;
+	align-items: center;
+	justify-content: center;
+	flex-wrap: wrap;
+}
+.registration-actions > .cell-text {
+	flex-basis: 100%;
+	padding: 0;
+	line-height: 1.3;
+}
+.registration-actions .row-action {
+	padding: 4px 6px;
+}
+.master-invitation {
+	margin-bottom: 1rem;
+	padding: 1rem;
+	border: 1px solid var(--hr-border);
+	border-radius: 12px;
+	background: var(--hr-bg);
 }

@@ -194,16 +194,14 @@ describe("configurable allocation", () => {
 		);
 		const common = commonRepository();
 		const service = new EvaluationScoreUpdateService(sheets, milestoneRepository(), common);
-		await service.updateObjectiveScore(100, 11, undefined, 4);
-		await service.refreshCommonEvaluationTotals(100);
-		for (const [, totals] of sheets.updateScoreTotals.mock.calls) {
-			expect(totals.allocatedScores).toMatchObject({
-				objectiveAllocationScore: 35,
-				commonEvaluationAllocationScore: 65,
-				totalEvaluationScore: 100,
-			});
-		}
-		expect(sheets.updateScoreTotals).toHaveBeenCalledTimes(2);
+		const saved = await service.updateObjectiveScore(100, 11, undefined, 4);
+		await service.upsertCommonEvaluationResults(100, [], false, true);
+		expect(saved.allocatedScores).toMatchObject({
+			objectiveAllocationScore: 35,
+			commonEvaluationAllocationScore: 65,
+			totalEvaluationScore: 100,
+		});
+		expect(sheets.updateScoreTotals).not.toHaveBeenCalled();
 	});
 });
 it("rounds an exact half point up even when dividing first would fall just short of it", () => {
@@ -280,7 +278,7 @@ it.each([
 		expect(current.allocatedScores.totalEvaluationScore).toBe(points + allocation.common);
 		const sheets = sheetRepository();
 		sheets.findById.mockResolvedValue(current);
-		await new EvaluationScoreUpdateService(
+		const saved = await new EvaluationScoreUpdateService(
 			sheets,
 			milestoneRepository(),
 			commonRepository(),
@@ -290,21 +288,17 @@ it.each([
 			undefined,
 			scores[scores.length - 1],
 		);
-		expect(sheets.updateScoreTotals).toHaveBeenCalledWith(
-			100,
-			expect.objectContaining({
-				objectives: expect.objectContaining({
-					firstTotalScore: sum,
-					secondTotalScore: sum,
-					firstTotalRate: rate,
-					secondTotalRate: rate,
-				}),
-				allocatedScores: expect.objectContaining({
-					objectiveEvaluationScore: points,
-					totalEvaluationScore: points + allocation.common,
-				}),
-			}),
-		);
+		expect(sheets.updateScoreTotals).not.toHaveBeenCalled();
+		expect(saved.objectiveScoreTotals).toMatchObject({
+			firstTotalScore: sum,
+			secondTotalScore: sum,
+			firstTotalRate: rate,
+			secondTotalRate: rate,
+		});
+		expect(saved.allocatedScores).toMatchObject({
+			objectiveEvaluationScore: points,
+			totalEvaluationScore: points + allocation.common,
+		});
 		const exported = toSheetExportDataDto(current, "等級");
 		expect(exported.objectives).toHaveLength(scores.length);
 		expect(exported.objectiveSecondRate).toBe(String(rate));

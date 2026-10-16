@@ -20,7 +20,10 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  database:
+    uses: ./.github/workflows/database.yml
   build-and-release:
+    needs: database
     runs-on: windows-latest
     timeout-minutes: 50
     env:
@@ -70,7 +73,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version: 1.3.0
 
       - name: Install frontend dependencies
         shell: bash
@@ -79,9 +82,29 @@ jobs:
       - name: Frontend release checks
         shell: bash
         run: |
+          bun scripts/releaseVersion.ts "${{ steps.release_meta.outputs.version }}"
+          TAG="${{ steps.release_meta.outputs.tag }}"
+          if git rev-parse --verify "refs/tags/$TAG" >/dev/null 2>&1; then
+            test "$(git rev-list -n 1 "$TAG")" = "$(git rev-parse HEAD)" || { echo "Tag points to a different commit"; exit 1; }
+          fi
           bun run typecheck
           bun run test:coverage
           bun audit
+          cd supabase/functions/notify-sheet
+          bun install --frozen-lockfile --ignore-scripts
+          bun audit
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: 2.9.5
+      - name: Notification function checks
+        shell: bash
+        env:
+          OPENSSL_BIN: C:/Program Files/Git/usr/bin/openssl.exe
+        run: |
+          bun install --cwd supabase/functions/notify-sheet --frozen-lockfile --ignore-scripts
+          deno check --config supabase/functions/notify-sheet/deno.json --frozen supabase/functions/notify-sheet/index.ts
+          deno test --allow-all --config supabase/functions/notify-sheet/deno.json --frozen supabase/functions/notify-sheet/smtp.test.ts
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -123,20 +146,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          TOKEN="${{ secrets.RELEASE_TOKEN }}"
           TAG="${{ steps.release_meta.outputs.tag }}"
-
-          if [[ -z "$TOKEN" ]]; then
-            echo "secrets.RELEASE_TOKEN is required for workflow_dispatch tag push."
-            echo "Create a PAT with repository contents write + workflows write, then set RELEASE_TOKEN."
-            exit 1
-          fi
 
           if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
             echo "Tag $TAG already exists on origin"
           else
             git tag "$TAG"
-            git push "https://x-access-token:${TOKEN}@github.com/${{ github.repository }}.git" "$TAG"
+            git push origin "$TAG"
           fi
 
       - name: Ensure release assets exist
@@ -209,6 +225,10 @@ jobs:
             MSI_SIG=$(cat "$MSI_SIG_FILE")
           fi
 
+          if [[ -z "$NSIS_SIG" || -z "$NSIS_FILE" ]]; then
+            echo "Signed NSIS updater assets are required"
+            exit 1
+          fi
           NSIS_NAME=$(basename "$NSIS_FILE")
           MSI_NAME=$(basename "$MSI_FILE")
 
@@ -245,7 +265,8 @@ jobs:
         with:
           tag_name: ${{ steps.release_meta.outputs.tag }}
           name: ${{ steps.release_meta.outputs.tag }}
-          make_latest: true
+          prerelease: ${{ contains(steps.release_meta.outputs.version, '-') }}
+          make_latest: ${{ !contains(steps.release_meta.outputs.version, '-') }}
           body_path: release-notes.md
           files: |
             src-tauri/target/release/bundle/**/*.msi

@@ -20,6 +20,7 @@ describe("release security configuration", () => {
 	});
 	it.each([
 		"VITE_SERVICE_ROLE",
+		"VITE_SUPABASE_SERVICE_ROLE_KEY",
 		"VITE_SIGNING_PRIVATE_KEY",
 		"VITE_CLIENT_SECRET",
 		"VITE_ACCESS_TOKEN",
@@ -63,6 +64,19 @@ describe("release security configuration", () => {
 			),
 		).toThrow("CSP");
 	});
+	it("rejects missing build configuration and unreviewed public variables", () => {
+		expect(() => assertPublicBuildEnvironment({}, "")).toThrow("required");
+		expect(() =>
+			assertPublicBuildEnvironment(
+				{ VITE_SUPABASE_URL: "https://test.supabase.co" },
+				"connect-src https://test.supabase.co",
+			),
+		).toThrow("key is required");
+		expect(() => assertPublicBuildEnvironment({ VITE_EXTRA_KEY: "private" }, "")).toThrow(
+			"VITE_EXTRA_KEY",
+		);
+	});
+
 	it("keeps tests and type checks ahead of release packaging", () => {
 		const workflow = readFileSync(
 			new URL("../../.github/workflows/release.yml", import.meta.url),

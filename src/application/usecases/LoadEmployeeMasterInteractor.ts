@@ -51,6 +51,7 @@ function toApprovalRelationDto(profile: EmployeeProfile, showRole: boolean): App
 		secondaryEvaluatorName: profile.secondaryEvaluatorName,
 		noSecondaryEvaluator: profile.noSecondaryEvaluator,
 		registered: profile.registered,
+		enabled: profile.enabled,
 		keepSignedIn: showRole ? profile.keepSignedIn : null,
 	};
 }
@@ -82,9 +83,10 @@ export class LoadEmployeeMasterInteractor
 		const editableEvaluators = canEditEvaluators(currentEmployee.role);
 		const editableGrades = canEditGrades(currentEmployee.role);
 		const editableRoles = canEditRoles(currentEmployee.role);
-		const relations = editableEvaluators
-			? await this.employeeMasterRepository.findAllEmployeeProfiles()
-			: [];
+		const relations =
+			resolveEmployeeMasterMode(currentEmployee.role) !== "employee"
+				? await this.employeeMasterRepository.findAllEmployeeProfiles()
+				: [];
 		const grades = editableGrades ? await this.employeeMasterRepository.findGrades() : [];
 
 		outputPort.present({

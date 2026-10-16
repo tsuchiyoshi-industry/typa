@@ -5,6 +5,11 @@ import type {
 import { supabase } from "../db/supabase";
 
 export class SupabaseEmployeeRepository implements EmployeeRepository {
+	async findCurrentAccessState(): Promise<"enabled" | "disabled" | "unregistered"> {
+		const { data, error } = await supabase.rpc("get_current_employee_access_state");
+		return !error && (data === "enabled" || data === "disabled") ? data : "unregistered";
+	}
+
 	/** ログイン中のアカウントと、その社員ID。同じアカウントの間は問い合わせ直さない。 */
 	private current?: { userId: string; employeeId: Promise<number | null> };
 	/** 等級名。評価シートを開くたびに引かれるが、ほとんど変わらないので一度だけ読む。 */
@@ -120,9 +125,10 @@ export class SupabaseEmployeeRepository implements EmployeeRepository {
 		);
 	}
 
-	async beginRegistration(employeeNo: string): Promise<RegistrationStart> {
+	async beginRegistration(employeeNo: string, invitationCode = ""): Promise<RegistrationStart> {
 		const { data, error } = await supabase.rpc("begin_registration", {
 			p_employee_no: employeeNo,
+			p_invitation_code: invitationCode,
 		});
 		if (error) {
 			throw error;
@@ -131,7 +137,14 @@ export class SupabaseEmployeeRepository implements EmployeeRepository {
 		if (start?.status === "available" && typeof start.token === "string") {
 			return { status: "available", token: start.token };
 		}
-		return { status: start?.status === "registered" ? "registered" : "missing" };
+		return {
+			status:
+				start?.status === "registered"
+					? "registered"
+					: start?.status === "missing"
+						? "missing"
+						: "invalid_invitation",
+		};
 	}
 
 	async completeRegistration(token: string): Promise<boolean> {

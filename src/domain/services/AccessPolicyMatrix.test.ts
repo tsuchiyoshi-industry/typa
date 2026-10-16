@@ -34,6 +34,9 @@ describe("authorization matrix", () => {
 				expect(policy.canEditOverallComment("first")).toBe(id === 2 && firstStage);
 				expect(policy.canEditOverallComment("second")).toBe(id === 3 && secondStage);
 				expect(policy.canSubmitOwnSheet()).toBe(id === 1 && draft);
+				expect(policy.canResendNotification()).toBe(
+					(id === 1 && firstStage) || (id === 2 && secondStage),
+				);
 				expect(policy.canRevertOwnSheetToDraft()).toBe(id === 1 && firstStage);
 				expect(policy.canConfirmFirstEvaluation()).toBe(id === 2 && firstStage);
 				expect(policy.canFinalizeEvaluation()).toBe(id === 3 && secondStage);

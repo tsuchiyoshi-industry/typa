@@ -5,8 +5,6 @@ import type {
 } from "../repositories/CommonEvaluationRepository";
 import type { EvaluationSheetRepository } from "../repositories/EvaluationSheetRepository";
 import type { MilestoneRepository } from "../repositories/MilestoneRepository";
-import { EvaluationAllocatedScores } from "../valueObjects/EvaluationAllocatedScores";
-import { EvaluationScoreTotals } from "../valueObjects/EvaluationScoreTotals";
 
 export class EvaluationScoreUpdateService {
 	constructor(
@@ -15,7 +13,7 @@ export class EvaluationScoreUpdateService {
 		private readonly commonEvaluationRepository: CommonEvaluationRepository,
 	) {}
 
-	/** 目標の点数を保存して集計を更新し、保存後の評価シートを返す。 */
+	/** 目標の点数を保存し、表示用の集計を含むシートを読み直す。確定値の保存はDBが行う。 */
 	async updateObjectiveScore(
 		sheetId: number,
 		milestoneId: number,
@@ -27,17 +25,6 @@ export class EvaluationScoreUpdateService {
 		if (!sheet) {
 			throw new Error("Failed to load evaluation sheet for score totals.");
 		}
-		const objectiveScoreTotals = EvaluationScoreTotals.fromObjectives(sheet.objectives);
-
-		await this.evaluationSheetRepository.updateScoreTotals(sheetId, {
-			objectives: objectiveScoreTotals,
-			allocatedScores: EvaluationAllocatedScores.fromTotals(
-				objectiveScoreTotals,
-				sheet.commonEvaluationScoreTotals,
-				sheet.primaryIsFinalEvaluator(),
-				sheet.allocation,
-			),
-		});
 
 		return sheet;
 	}
@@ -54,27 +41,5 @@ export class EvaluationScoreUpdateService {
 			canEditFirst,
 			canEditSecond,
 		);
-		await this.refreshCommonEvaluationTotals(sheetId);
-	}
-
-	async refreshCommonEvaluationTotals(sheetId: number): Promise<void> {
-		const sheet = await this.evaluationSheetRepository.findById(sheetId);
-		if (!sheet) {
-			throw new Error("Failed to load evaluation sheet for score totals.");
-		}
-
-		const commonEvaluationScoreTotals = EvaluationScoreTotals.fromCommonEvaluationResults(
-			sheet.commonEvaluationResults,
-		);
-
-		await this.evaluationSheetRepository.updateScoreTotals(sheetId, {
-			commonEvaluationResults: commonEvaluationScoreTotals,
-			allocatedScores: EvaluationAllocatedScores.fromTotals(
-				sheet.objectiveScoreTotals,
-				commonEvaluationScoreTotals,
-				sheet.primaryIsFinalEvaluator(),
-				sheet.allocation,
-			),
-		});
 	}
 }

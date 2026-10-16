@@ -39,7 +39,7 @@ type ListView = "list" | "structure";
 
 const ROLE_DESCRIPTIONS: Record<EmployeeRoleName, string> = {
 	Admin: "社員マスタで全員の権限・等級・評価者を変更でき、登録の取り消しもできます。",
-	Reviewer: "社員マスタで全員の評価者を変更でき、評価構造を確認できます。",
+	Reviewer: "社員マスタと評価構造を確認できます。評価者の変更は Admin が行います。",
 	Employee: "社員マスタでは自分の情報だけを閲覧できます。",
 };
 
@@ -47,6 +47,12 @@ const ROLE_DESCRIPTIONS: Record<EmployeeRoleName, string> = {
 const NO_SECONDARY = "__none__";
 
 const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
+	const [invitation, setInvitation] = createSignal<{
+		employeeNo: string;
+		name: string;
+		code: string;
+		expiresAt: string;
+	} | null>(null);
 	const [keyword, setKeyword] = createSignal("");
 	const [scope, setScope] = createSignal<Scope>("all");
 	const [listView, setListView] = createSignal<ListView>("list");
@@ -121,7 +127,7 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 			return `「${keyword().trim()}」に一致する社員はいません。`;
 		}
 		if (scope() === "mine") {
-			return "あなたが評価者になっている社員はまだいません。「全員」の一覧で評価者に自分を選ぶと、ここに並びます。";
+			return "あなたが評価者になっている社員はまだいません。評価者の設定は Admin に依頼してください。";
 		}
 		return scope() === "unset" ? "未設定の項目はありません。" : "表示できる社員はいません。";
 	};
@@ -263,7 +269,7 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 			const confirmed = await confirmAction({
 				title: `${cell.relation.name}さんの等級を「${grade.name}」に変更しますか？`,
 				message:
-					"共通評価の項目は等級ごとに決まります。進行中の評価シートがある場合、その項目も新しい等級のものに切り替わります。",
+					"変更した等級は、これから作成する評価シートに使います。作成済みの評価シートの等級・評価項目は変わりません。",
 				confirmLabel: "等級を変更する",
 			});
 			return confirmed && props.controller.updateGrade(cell.relation.employeeNo, grade.id);
@@ -354,7 +360,7 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 		const confirmed = await confirmAction({
 			title: `${relation.name}さんの登録を取り消しますか？`,
 			message:
-				"ログイン用のアカウントを削除します。本人が新規登録をやり直すまで、この社員番号ではログインできなくなります。評価シートなどのデータは残ります。",
+				"ログイン用のアカウントを削除します。再登録には、新たに発行する招待コードが必要です。退職・休職などで利用を止める場合は「利用停止」を使ってください。評価シートなどのデータは残ります。",
 			confirmLabel: "登録を取り消す",
 			tone: "danger",
 		});
@@ -366,23 +372,94 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 		setSavingKey(null);
 	};
 
+	const issueInvitation = async (relation: ApprovalRelationDto) => {
+		setSavingKey(`${relation.employeeNo}:invitation`);
+		try {
+			const result = await props.controller.issueInvitation(relation.employeeNo);
+			setInvitation({ ...result, employeeNo: relation.employeeNo, name: relation.name });
+		} catch (error) {
+			showToast(
+				"error",
+				error instanceof Error ? error.message : "招待コードを発行できませんでした。",
+			);
+		} finally {
+			setSavingKey(null);
+		}
+	};
+	const changeEnabled = async (relation: ApprovalRelationDto) => {
+		const enabled = relation.enabled === false;
+		if (
+			!(await confirmAction({
+				title: `${relation.name}さんの利用を${enabled ? "再開" : "停止"}しますか？`,
+				message: enabled
+					? "以前のアカウントで再びログインできます。未登録の場合は招待コードを発行してください。"
+					: "現在のログインを含め、閲覧・保存・新規登録を停止します。評価データとアカウントは残ります。",
+				confirmLabel: enabled ? "利用を再開" : "利用を停止",
+				tone: enabled ? "default" : "danger",
+			}))
+		) {
+			return;
+		}
+		setSavingKey(`${relation.employeeNo}:enabled`);
+		try {
+			if (!(await props.controller.setEnabled(relation.employeeNo, enabled))) {
+				throw new Error("利用状態を変更できませんでした。");
+			}
+			setInvitation(null);
+			showToast("success", `${relation.name}さんの利用を${enabled ? "再開" : "停止"}しました。`);
+		} catch (error) {
+			showToast(
+				"error",
+				error instanceof Error ? error.message : "利用状態を変更できませんでした。",
+			);
+		} finally {
+			setSavingKey(null);
+		}
+	};
 	const RegistrationCell: Component<{ relation: ApprovalRelationDto }> = (cell) => (
-		<Show when={cell.relation.registered} fallback={<span class="cell-text unset">未登録</span>}>
-			{/* 自分の登録を消すと操作中のセッションごと使えなくなるため、自分の行には出さない */}
-			<Show when={cell.relation.employeeId !== me()?.id}>
+		<div class="registration-actions">
+			<span class="cell-text" classList={{ unset: !cell.relation.registered }}>
+				{cell.relation.enabled === false
+					? "利用停止中"
+					: cell.relation.registered
+						? "登録済み"
+						: "未登録"}
+			</span>
+			<Show when={cell.relation.enabled !== false && !cell.relation.registered}>
 				<button
 					type="button"
 					class="row-action"
-					aria-label={`${cell.relation.name}さんの登録を取り消す`}
-					title="登録を取り消す"
 					disabled={savingKey() !== null}
-					onClick={() => void resetRegistration(cell.relation)}
+					aria-label={`${cell.relation.name}さんの招待コードを発行する`}
+					onClick={() => void issueInvitation(cell.relation)}
 				>
-					<Trash size={15} />
-					<span>取消</span>
+					招待コード
 				</button>
 			</Show>
-		</Show>
+			<Show when={cell.relation.employeeId !== me()?.id}>
+				<Show when={cell.relation.registered}>
+					<button
+						type="button"
+						class="row-action"
+						disabled={savingKey() !== null}
+						aria-label={`${cell.relation.name}さんの登録を取り消す`}
+						onClick={() => void resetRegistration(cell.relation)}
+					>
+						<Trash size={15} />
+						<span>取消</span>
+					</button>
+				</Show>
+				<button
+					type="button"
+					class="row-action"
+					disabled={savingKey() !== null}
+					aria-label={`${cell.relation.name}さんの利用を${cell.relation.enabled === false ? "再開" : "停止"}する`}
+					onClick={() => void changeEnabled(cell.relation)}
+				>
+					{cell.relation.enabled === false ? "利用再開" : "利用停止"}
+				</button>
+			</Show>
+		</div>
 	);
 
 	const ProfilePanel = () => (
@@ -413,6 +490,28 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 
 	const EmployeeList = () => (
 		<section class="master-list">
+			<Show when={invitation()}>
+				{(issued) => (
+					<aside class="master-invitation" role="status">
+						<strong>
+							{issued().name}さん（{issued().employeeNo}）の招待コード
+						</strong>
+						<input
+							aria-label="招待コード"
+							readonly
+							value={issued().code}
+							onFocus={(e) => e.currentTarget.select()}
+						/>
+						<p>
+							有効期限：{new Date(issued().expiresAt).toLocaleString("ja-JP")}
+							。本人に個別に渡してください。再発行すると前のコードは無効になります。
+						</p>
+						<button type="button" class="secondary-action" onClick={() => setInvitation(null)}>
+							閉じる
+						</button>
+					</aside>
+				)}
+			</Show>
 			<div class="master-list-head">
 				<div>
 					<h2>社員一覧</h2>
@@ -422,7 +521,9 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 							: props.viewModel().canEditGrades
 								? "等級と評価者"
 								: "評価者"}
-						を変更できます。選択すると自動で保存されます。
+						{props.viewModel().canEditEvaluators
+							? "を変更できます。選択すると自動で保存されます。"
+							: "を確認できます。変更は Admin に依頼してください。"}
 					</p>
 				</div>
 				<label class="master-search">
@@ -577,10 +678,24 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 												</Show>
 											</td>
 											<td>
-												<EvaluatorCell relation={relation()} evaluatorType="primary" />
+												<Show
+													when={props.viewModel().canEditEvaluators}
+													fallback={
+														<span class="cell-text">{relation().primaryEvaluatorName}</span>
+													}
+												>
+													<EvaluatorCell relation={relation()} evaluatorType="primary" />
+												</Show>
 											</td>
 											<td>
-												<EvaluatorCell relation={relation()} evaluatorType="secondary" />
+												<Show
+													when={props.viewModel().canEditEvaluators}
+													fallback={
+														<span class="cell-text">{relation().secondaryEvaluatorName}</span>
+													}
+												>
+													<EvaluatorCell relation={relation()} evaluatorType="secondary" />
+												</Show>
 											</td>
 											<Show when={props.viewModel().canResetRegistrations}>
 												<td class="col-action">
@@ -628,7 +743,7 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 				fallback={<p class="page-note">社員マスタを読み込んでいます...</p>}
 			>
 				<ProfilePanel />
-				<Show when={props.viewModel().canEditEvaluators}>
+				<Show when={props.viewModel().mode !== "employee"}>
 					<EmployeeList />
 				</Show>
 			</Show>

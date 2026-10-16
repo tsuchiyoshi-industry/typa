@@ -316,28 +316,23 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 	async updateStatus(
 		sheetId: number,
 		status: EvaluationStatus,
-		ranks: { first?: EvaluationRank; final?: EvaluationRank } = {},
+		_ranks: { first?: EvaluationRank; final?: EvaluationRank } = {},
 	): Promise<EvaluationSheet> {
-		const { error } = await supabase
-			.from("evaluation_sheets")
-			.update({
-				status: status.toString(),
-				...(ranks.first ? { first_rank: ranks.first.toDisplayText() } : {}),
-				...(ranks.final
-					? { final_rank_letter: ranks.final.letter, final_rank_level: ranks.final.level }
-					: {}),
-			})
-			.eq("id", sheetId);
-
+		// The DB locks the sheet, checks the transition and computes all final values.
+		const { data, error } = await supabase.rpc("transition_evaluation_sheet", {
+			p_sheet_id: sheetId,
+			p_status: status.toString(),
+		});
 		if (error) {
 			throw error;
 		}
-
-		const updated = await this.findById(sheetId);
+		if (!data) {
+			throw new Error("Failed to load updated evaluation sheet.");
+		}
+		const updated = toSheet(data as SheetRpcRow);
 		if (!updated) {
 			throw new Error("Failed to load updated evaluation sheet.");
 		}
-
 		return updated;
 	}
 

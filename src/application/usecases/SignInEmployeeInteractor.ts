@@ -13,7 +13,7 @@ export interface SignInEmployeeRequest {
  * registration_incomplete: アカウントはあるが、社員番号の紐付けの前で登録が止まっている。
  */
 export type SignInEmployeeResponse = {
-	status: "signed_in" | "invalid_credentials" | "registration_incomplete";
+	status: "signed_in" | "invalid_credentials" | "registration_incomplete" | "account_disabled";
 };
 
 export type SignInEmployeeOutputPort = OutputPort<SignInEmployeeResponse>;
@@ -40,9 +40,12 @@ export class SignInEmployeeInteractor
 		}
 
 		if (!(await this.employeeRepository.checkUserLinked(userId))) {
+			const access = await this.employeeRepository.findCurrentAccessState();
 			// 社員に紐付かないセッションを残さない。新規登録をやり直すと続きから再開できる
 			await this.authRepository.signOut();
-			presenter.present({ status: "registration_incomplete" });
+			presenter.present({
+				status: access === "disabled" ? "account_disabled" : "registration_incomplete",
+			});
 			return;
 		}
 

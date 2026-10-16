@@ -13,6 +13,7 @@ export interface NotificationDelivery {
 	recipient: string;
 	/** 送れなかった理由。送信できたときは無い。 */
 	error?: string;
+	alreadySent?: boolean;
 }
 
 export type ReportDelivery = (delivery: NotificationDelivery) => void;

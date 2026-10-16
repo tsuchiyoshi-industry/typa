@@ -19,6 +19,7 @@ interface EmployeeRow {
 	secondary_evaluator_id: number | null;
 	no_secondary_evaluator?: boolean | null;
 	keep_signed_in?: boolean | null;
+	is_enabled?: boolean;
 }
 
 interface RoleRow {
@@ -36,7 +37,7 @@ export class SupabaseEmployeeMasterRepository implements EmployeeMasterRepositor
 	 * ログイン中の社員。画面の出し分けと操作前の確認のたびに引かれるので、同じアカウントの間は覚えておく。
 	 * 権限が変わっても古い表示が残るだけで、操作してよいかは DB が毎回確かめる。
 	 */
-	private current?: { userId: string; profile: Promise<EmployeeProfile | null> };
+	private current?: { userId: string; profile: Promise<EmployeeProfile | null>; expiresAt: number };
 
 	async findCurrentEmployeeProfile(): Promise<EmployeeProfile | null> {
 		// 手元のセッションを読むだけで、通信しない
@@ -51,8 +52,12 @@ export class SupabaseEmployeeMasterRepository implements EmployeeMasterRepositor
 		}
 
 		const userId = session.user.id;
-		if (this.current?.userId !== userId) {
-			this.current = { userId, profile: this.findProfileByUserId(userId) };
+		if (this.current?.userId !== userId || this.current.expiresAt <= Date.now()) {
+			this.current = {
+				userId,
+				profile: this.findProfileByUserId(userId),
+				expiresAt: Date.now() + 30_000,
+			};
 		}
 		const lookup = this.current;
 		const profile = await lookup.profile.catch(() => null);
@@ -146,6 +151,28 @@ export class SupabaseEmployeeMasterRepository implements EmployeeMasterRepositor
 		}
 
 		// 自分の権限を変えたかもしれない
+		this.current = undefined;
+		return data === true;
+	}
+
+	async issueInvitation(employeeNo: string): Promise<{ code: string; expiresAt: string }> {
+		const { data, error } = await supabase.rpc("issue_employee_invitation", {
+			p_employee_no: employeeNo,
+		});
+		if (error || !data || typeof data.code !== "string" || typeof data.expiresAt !== "string") {
+			throw new Error(error?.message ?? "招待コードを発行できませんでした。");
+		}
+		return data;
+	}
+
+	async setEnabled(employeeNo: string, enabled: boolean): Promise<boolean> {
+		const { data, error } = await supabase.rpc("set_employee_enabled", {
+			p_employee_no: employeeNo,
+			p_enabled: enabled,
+		});
+		if (error) {
+			throw new Error(error.message);
+		}
 		this.current = undefined;
 		return data === true;
 	}
@@ -244,6 +271,7 @@ export class SupabaseEmployeeMasterRepository implements EmployeeMasterRepositor
 					employee.no_secondary_evaluator ?? false,
 					employee.user_id != null,
 					employee.keep_signed_in ?? false,
+					employee.is_enabled ?? true,
 				),
 		);
 	}

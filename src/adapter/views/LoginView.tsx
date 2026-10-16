@@ -20,6 +20,7 @@ const LoginView = (props: LoginViewProps) => {
 	const [password, setPassword] = createSignal("");
 	const [confirmPassword, setConfirmPassword] = createSignal("");
 	const [employeeNo, setEmployeeNo] = createSignal("");
+	const [invitationCode, setInvitationCode] = createSignal("");
 	const [otp, setOtp] = createSignal("");
 	// 認証コードは一度しか使えないため、確認が済んだことを覚えておく
 	const [emailVerified, setEmailVerified] = createSignal(false);
@@ -82,7 +83,8 @@ const LoginView = (props: LoginViewProps) => {
 
 		// 新規登録の2歩目: 認証コードとパスワードの確認も必要
 		return (
-			viewMode() === "otp-verify" && (!otp().trim() || !confirmPassword() || passwordMismatch())
+			viewMode() === "otp-verify" &&
+			(!otp().trim() || !invitationCode().trim() || !confirmPassword() || passwordMismatch())
 		);
 	});
 
@@ -95,6 +97,7 @@ const LoginView = (props: LoginViewProps) => {
 		setOtp("");
 		setPassword("");
 		setConfirmPassword("");
+		setInvitationCode("");
 		// 登録をやめたら、メールアドレスの確認用セッションを共有PCに残さない
 		if (emailVerified()) {
 			setEmailVerified(false);
@@ -115,6 +118,8 @@ const LoginView = (props: LoginViewProps) => {
 			setErrorMessage(
 				"社員番号またはパスワードが正しくありません。初めて利用する場合は、新規登録をしてください。",
 			);
+		} else if (status === "account_disabled") {
+			setErrorMessage("利用が停止されています。再開が必要な場合は管理者に連絡してください。");
 		} else if (status === "registration_incomplete") {
 			// 登録が社員番号の紐付けの前で止まったアカウント。新規登録をやり直すと続きから再開できる
 			switchMode("signup", "登録が完了していません。新規登録をやり直してください。");
@@ -150,6 +155,7 @@ const LoginView = (props: LoginViewProps) => {
 
 		const status = await props.controller.register({
 			employeeNo: employeeNo(),
+			invitationCode: invitationCode().trim(),
 			password: password(),
 			email: email().trim(),
 			// 社員番号やパスワードを直して送り直すときは、済んだ確認を繰り返さない
@@ -162,6 +168,11 @@ const LoginView = (props: LoginViewProps) => {
 		}
 
 		switch (status) {
+			case "invalid_invitation":
+				setErrorMessage(
+					"社員番号または招待コードが正しくないか、招待の期限が切れています。管理者に確認してください。",
+				);
+				return;
 			case "invalid_code":
 				setErrorMessage("認証コードが正しくないか、有効期限が切れています。");
 				return;
@@ -374,6 +385,21 @@ const LoginView = (props: LoginViewProps) => {
 							</div>
 
 							<EmployeeNoField />
+							<div class="login-fieldset">
+								<label for="invitation-code">招待コード</label>
+								<input
+									id="invitation-code"
+									type="text"
+									autocomplete="off"
+									spellcheck={false}
+									value={invitationCode()}
+									onInput={(e) => setInvitationCode(e.currentTarget.value)}
+									required
+								/>
+								<p class="field-hint">
+									管理者から受け取った、あなた専用のコードを入力してください。
+								</p>
+							</div>
 
 							<div class="login-fieldset">
 								<label for="new-password">パスワード</label>

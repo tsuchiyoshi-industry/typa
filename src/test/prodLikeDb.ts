@@ -166,7 +166,10 @@ export async function actAs(db: PGlite, id: number, method = "password"): Promis
 	await db.exec("reset role");
 	await db.query(
 		"select set_config('request.jwt.claim.sub', $1, false), set_config('request.jwt.claims', $2, false)",
-		[id ? uid(id) : "", id ? JSON.stringify({ amr: [{ method, timestamp: 0 }] }) : ""],
+		[
+			id ? uid(id) : "",
+			id ? JSON.stringify({ amr: [{ method, timestamp: Math.floor(Date.now() / 1000) }] }) : "",
+		],
 	);
 	await db.exec(id ? "set role authenticated" : "set role anon");
 }

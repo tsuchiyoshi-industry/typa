@@ -79,6 +79,10 @@ function setup() {
 		updateRole: vi.fn().mockResolvedValue(true),
 		updateKeepSignedIn: vi.fn().mockResolvedValue(true),
 		resetRegistration: vi.fn(),
+		issueInvitation: vi
+			.fn()
+			.mockResolvedValue({ code: "PERSONAL-INVITATION", expiresAt: "2026-10-23T00:00:00Z" }),
+		setEnabled: vi.fn().mockResolvedValue(true),
 	};
 	const screen = render(() => (
 		<EmployeeMasterView
@@ -243,5 +247,29 @@ it("confirms the explicit no-secondary option", async () => {
 	fireEvent.click(screen.getByRole("option", { name: "なし（一次評価が最終評価）" }));
 	await waitFor(() =>
 		expect(screen.controller.updateEvaluator).toHaveBeenCalledWith("E001", null, "secondary"),
+	);
+});
+
+it("shows the employee's invitation only after explicit issuance", async () => {
+	const view = setup();
+	view.setViewModel((prev) => ({
+		...prev,
+		relations: prev.relations.map((r) => (r.employeeId === 1 ? { ...r, registered: false } : r)),
+	}));
+	expect(view.queryByLabelText("招待コード")).toBeNull();
+	fireEvent.click(await view.findByRole("button", { name: "山田さんの招待コードを発行する" }));
+	const code = (await view.findByLabelText("招待コード")) as HTMLInputElement;
+	expect(code.value).toBe("PERSONAL-INVITATION");
+	expect(view.controller.issueInvitation).toHaveBeenCalledWith("E001");
+	fireEvent.click(view.getByRole("button", { name: "閉じる" }));
+	expect(view.queryByLabelText("招待コード")).toBeNull();
+});
+it("confirms suspension separately from deleting a registration", async () => {
+	const view = setup();
+	fireEvent.click(view.getByRole("button", { name: "山田さんの利用を停止する" }));
+	await waitFor(() => expect(view.controller.setEnabled).toHaveBeenCalledWith("E001", false));
+	expect(view.controller.resetRegistration).not.toHaveBeenCalled();
+	expect(confirmAction).toHaveBeenCalledWith(
+		expect.objectContaining({ confirmLabel: "利用を停止" }),
 	);
 });

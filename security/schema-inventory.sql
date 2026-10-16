@@ -39,6 +39,8 @@ from (
          || ' anon=' || has_function_privilege('anon', p.oid, 'execute')
          || ' authenticated=' || has_function_privilege('authenticated', p.oid, 'execute')
          || ' service_role=' || has_function_privilege('service_role', p.oid, 'execute')
+         || ' auth_admin=' || has_function_privilege('supabase_auth_admin', p.oid, 'execute')
+         || ' config=' || coalesce(p.proconfig::text, '-')
          || ' md5=' || md5(p.prosrc)
   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
   where n.nspname = 'public'
@@ -53,12 +55,16 @@ from (
   from pg_constraint c join pg_namespace n on n.oid = c.connamespace
   where n.nspname = 'public'
   union all
+  -- Platform-owned default ACLs vary by Supabase version; app migrations own postgres defaults.
+  select 'SCHEMA public ' || r || ' usage=' || has_schema_privilege(r, 'public', 'usage')
+  from unnest(array['anon','authenticated','service_role','supabase_auth_admin']) as r
+  union all
   select 'INDEX ' || indexdef from pg_indexes where schemaname = 'public'
   union all
   -- What a table or function created later is exposed to before a migration grants anything.
   select 'DEFAULT PRIVILEGES ' || a.defaclrole::regrole || ' ' || a.defaclobjtype::text || ' ' || a.defaclacl::text
   from pg_default_acl a join pg_namespace n on n.oid = a.defaclnamespace
-  where n.nspname = 'public'
+  where n.nspname = 'public' and a.defaclrole = 'postgres'::regrole
   union all
   -- Not created by any migration; listed so that a trigger added by hand is noticed.
   select 'TRIGGER ON auth.users ' || tgname from pg_trigger

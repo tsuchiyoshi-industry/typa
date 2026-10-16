@@ -55,6 +55,16 @@ export class EvaluationSheetAccessPolicy {
 		return this.viewerIsSubject;
 	}
 
+	canResendNotification(): boolean {
+		return (
+			this.periodIsOpen &&
+			((this.viewerIsSubject && this.sheet.status.isAwaitingFirstEvaluation()) ||
+				(!this.viewerIsSubject &&
+					this.viewerIsPrimaryEvaluator &&
+					this.sheet.status.isAwaitingSecondEvaluation()))
+		);
+	}
+
 	canViewSheet(): boolean {
 		return this.viewerIsSubject || this.viewerIsEvaluatorOfSubmittedSheet;
 	}

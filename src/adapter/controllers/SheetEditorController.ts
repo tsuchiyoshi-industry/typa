@@ -199,6 +199,20 @@ export class SheetEditorController {
 		}
 	}
 
+	async resendNotification(): Promise<void> {
+		const sheet = this.presenter.viewModel().sheet;
+		if (!sheet) {
+			throw new Error("評価シートがありません。");
+		}
+		const current = await this.requireCurrentEmployeeId(this.presenter.presentStatusUpdateError);
+		if (current === null) {
+			return;
+		}
+		await this.updateStatusUseCase.resendNotification(sheet.sheetId, current, (delivery) =>
+			this.presenter.outputPort.status.presentNotificationDelivery?.(delivery),
+		);
+	}
+
 	async createSheet(): Promise<number | null> {
 		const currentEmployeeId = await this.requireCurrentEmployeeId(
 			this.presenter.presentCreateError,

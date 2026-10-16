@@ -46,7 +46,13 @@ export class UpdateEmployeeRoleInteractor
 		if (
 			target.role.isAdmin() &&
 			!role.isAdmin() &&
-			!profiles.some((profile) => profile.role.isAdmin() && profile.id !== target.id)
+			!profiles.some(
+				(profile) =>
+					profile.role.isAdmin() &&
+					profile.registered &&
+					profile.enabled &&
+					profile.id !== target.id,
+			)
 		) {
 			outputPort.present({
 				success: false,

@@ -16,7 +16,7 @@ describe("score update service failure boundaries", () => {
 		).rejects.toThrow("read failed");
 		expect(sheets.updateScoreTotals).not.toHaveBeenCalled();
 	});
-	it("saves the score, then stores totals from the sheet as it is after the save", async () => {
+	it("saves the score and reads authoritative totals without a second write", async () => {
 		const sheets = sheetRepository(),
 			milestones = milestoneRepository();
 		const saved = await new EvaluationScoreUpdateService(
@@ -28,13 +28,7 @@ describe("score update service failure boundaries", () => {
 		expect(milestones.updateScore.mock.invocationCallOrder[0]).toBeLessThan(
 			sheets.findById.mock.invocationCallOrder[0],
 		);
-		// 目標は1件で、一次 2・二次 4
-		expect(sheets.updateScoreTotals).toHaveBeenCalledWith(
-			100,
-			expect.objectContaining({
-				objectives: expect.objectContaining({ firstTotalScore: 2, secondTotalScore: 4 }),
-			}),
-		);
+		expect(sheets.updateScoreTotals).not.toHaveBeenCalled();
 		expect(saved.sheetId).toBe(100);
 	});
 	it("does not recompute totals after failed objective write", async () => {
@@ -50,24 +44,31 @@ describe("score update service failure boundaries", () => {
 		).rejects.toThrow("write failed");
 		expect(sheets.updateScoreTotals).not.toHaveBeenCalled();
 	});
-	it.each(["objective", "common"])(
-		"rejects missing sheet during %s totals refresh",
-		async (kind) => {
-			const sheets = sheetRepository();
-			sheets.findById.mockResolvedValue(null);
-			const service = new EvaluationScoreUpdateService(
+
+	it("rejects a missing sheet after an objective save", async () => {
+		const sheets = sheetRepository();
+		sheets.findById.mockResolvedValue(null);
+		await expect(
+			new EvaluationScoreUpdateService(
 				sheets,
 				milestoneRepository(),
 				commonRepository(),
-			);
-			await expect(
-				kind === "objective"
-					? service.updateObjectiveScore(100, 11, 2)
-					: service.refreshCommonEvaluationTotals(100),
-			).rejects.toThrow("Failed to load");
-			expect(sheets.updateScoreTotals).not.toHaveBeenCalled();
-		},
-	);
+			).updateObjectiveScore(100, 11, 2),
+		).rejects.toThrow("Failed to load");
+		expect(sheets.updateScoreTotals).not.toHaveBeenCalled();
+	});
+	it("saves a common batch once, without writing or rereading provisional aggregates", async () => {
+		const sheets = sheetRepository(),
+			common = commonRepository();
+		await new EvaluationScoreUpdateService(
+			sheets,
+			milestoneRepository(),
+			common,
+		).upsertCommonEvaluationResults(100, [], true, false);
+		expect(common.upsertResults).toHaveBeenCalledOnce();
+		expect(sheets.findById).not.toHaveBeenCalled();
+		expect(sheets.updateScoreTotals).not.toHaveBeenCalled();
+	});
 	it("does not refresh totals after failed common batch", async () => {
 		const sheets = sheetRepository();
 		const common = commonRepository();

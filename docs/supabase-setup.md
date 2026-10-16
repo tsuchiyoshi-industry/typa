@@ -9,8 +9,8 @@ TYPA が使う Supabase の設定を、ひとつ残らず書き出した資料�
 
 | 項目 | 内容 |
 | --- | --- |
-| 対象 | `supabase/migrations/` の `202610130001` まで、Edge Function `notify-sheet` |
-| 確認日 | 2026-10-12 |
+| 対象 | `supabase/migrations/` の `202610160003` まで、Edge Function `notify-sheet` |
+| 確認日 | 2026-10-16 |
 | 確認した範囲 | [2.2](#22-データベースを作る)・[2.3](#23-初期データを入れる)・[2.4](#24-auth-を設定する) のフック・新規登録から評価の確定までを、ローカルに空から作った Supabase で実行して確認した |
 | 確認していない範囲 | クラウドのダッシュボードでの操作（[2.4](#24-auth-を設定する) のフック以外、[2.5](#25-edge-function-を配置する)）と、本番のメールサーバーへの送信。手順は実装と Supabase の仕様から書いたもので、新しい環境で最初に通すときに [2.8](#28-動作を確かめる) で確かめる |
 
@@ -176,11 +176,11 @@ npx supabase functions deploy notify-sheet --project-ref <ref>
 | [src-tauri/tauri.conf.json](../src-tauri/tauri.conf.json) の `app.security.csp` と `devCsp` | `connect-src` に、その環境の `https://<ref>.supabase.co` と `wss://<ref>.supabase.co` を書く。いまは本番のプロジェクトの値が直接書いてある |
 | 同じファイルの `plugins.updater`（`pubkey`、`endpoints`）、`identifier`、`productName` | 自動更新の配布元と署名の公開鍵。別の配布元から配るなら変える |
 
-URL と CSP が一致していないと、ビルドが「Supabase URL must use HTTPS and match an explicit production CSP connect-src origin.」で止まります（[scripts/releaseEnvironment.ts](../scripts/releaseEnvironment.ts)）。配布のワークフロー（[release.yml](../.github/workflows/release.yml)）が使う Secrets は、`VITE_SUPABASE_URL`、`VITE_SUPABASE_PUBLISHABLE_KEY`、`TAURI_SIGNING_PRIVATE_KEY`、`TAURI_SIGNING_PRIVATE_KEY_PASSWORD`、`RELEASE_TOKEN` です。
+URL と CSP が一致していないと、ビルドが「Supabase URL must use HTTPS and match an explicit production CSP connect-src origin.」で止まります（[scripts/releaseEnvironment.ts](../scripts/releaseEnvironment.ts)）。配布のワークフロー（[release.yml](../.github/workflows/release.yml)）が使う Secrets は、`VITE_SUPABASE_URL`、`VITE_SUPABASE_PUBLISHABLE_KEY`、`TAURI_SIGNING_PRIVATE_KEY`、`TAURI_SIGNING_PRIVATE_KEY_PASSWORD`です。手動タグ作成にはワークフローの `github.token` を使います。
 
 ### 2.7 最初の Admin が設定する
 
-1. [2.3](#23-初期データを入れる) で Admin にした社員が、アプリの「新規登録」で登録する（会社ドメインのメールアドレスで認証コードを受け取り、自分の社員番号とパスワードを入れる）。
+1. 最初の Admin には管理用 SQL で招待コードを発行する（下の例）。その社員が会社メールの認証コード・社員番号・招待コード・パスワードで登録する。以後の社員の招待は Admin がアプリの社員マスタから発行する。
 2. 「設定」で次を登録する。
 
 | 設定 | 内容 |
@@ -192,6 +192,22 @@ URL と CSP が一致していないと、ビルドが「Supabase URL must use H
 
 3. 「社員マスタ」で、社員の評価者（一次・二次。二次評価者を置かない社員は「なし」）と、Reviewer・Admin の権限を設定する。
 4. 自分だけが使う PC の社員は、「社員マスタ」の「ログイン」を「保持する」にする。初めは全員、アプリを閉じるとログアウトする。共有 PC を使う社員は変えない。
+
+最初の Admin 用だけ、SQL Editor で次を実行し、返されたコードを本人に渡します。社員番号を置き換えてください。コードはこの結果でだけ確認でき、7日間有効です。再実行すると古いコードは無効になります。
+
+```sql
+with invitation as (
+  select e.id, upper(replace(gen_random_uuid()::text, '-', '')) as code
+  from public.employees e join public.roles r on r.id=e.role_id
+  where e.employee_no='001' and e.user_id is null and e.is_enabled and r.role_name='Admin'
+), issued as (
+  insert into public.employee_invitations(employee_id,code_hash,expires_at)
+  select id, encode(sha256(convert_to(code,'UTF8')),'hex'), now()+interval '7 days' from invitation
+  on conflict(employee_id) do update set code_hash=excluded.code_hash, expires_at=excluded.expires_at
+  returning employee_id,expires_at
+)
+select invitation.code,issued.expires_at from invitation join issued on employee_id=invitation.id;
+```
 
 ### 2.8 動作を確かめる
 
@@ -300,18 +316,18 @@ Compare-Object (Get-Content security/schema-inventory.expected.txt) (Get-Content
 
 | やりたいこと | 方法 |
 | --- | --- |
-| 社員を追加する | SQL で `employees` に行を足す（[2.3](#23-初期データを入れる) の最後の文）。本人がアプリで新規登録する |
+| 社員を追加する | SQL で `employees` に行を足す（[2.3](#23-初期データを入れる) の最後の文）。Admin が招待コードを発行し、本人がアプリで新規登録する |
 | 社員の氏名・社員番号・コース区分を直す | SQL。登録済みの社員の社員番号は変えない（ログイン用の内部アドレスが社員番号から決まっているため。変えるなら、先にアプリで登録を取り消す） |
 | 評価者・等級・権限を変える | アプリの社員マスタ |
 | 毎回のログインを省く（自分の PC の社員だけ） | アプリの社員マスタで「ログイン」を「保持する」にする。本人の次のログインから反映される |
-| パスワードを忘れた、別人が登録した | Admin がアプリの社員マスタで登録を取り消し、本人が新規登録をやり直す |
-| 登録が途中で止まり、パスワードも分からない | ダッシュボードの Authentication > Users で、`typa-<社員番号>@<ドメイン>` のユーザーを削除する |
+| パスワードを忘れた、別人が登録した | Admin がアプリの社員マスタで登録を取り消し、新しい招待コードを発行して本人が新規登録をやり直す |
+| 登録が途中で止まり、パスワードも分からない | Admin が招待コードを再発行する（未紐付けの内部アカウントも整理される） |
 | 評価項目・等級を変える | SQL。確定済みのシートは、確定時の集計を持っているので影響を受けない。進行中のシートは、変えた後の項目で評価される |
 | 評価期間を締める | アプリの設定画面で、次の期間を開始する |
 | 通知メールの送信元・パスワードを変える | アプリの設定画面。アプリの再配布は要らない |
 | 構造を変える | マイグレーションを追加し、すべての環境に同じ順で適用する。期待値（[4 章](#4-環境を点検する)）を作り直す |
 
-- 退職した社員の行は消しません（評価シートが連鎖して消える定義のため）。アプリから登録を取り消せば、ログインできなくなります。
+- 退職した社員の行は消しません（評価シートが連鎖して消える定義のため）。Admin が社員マスタで「利用停止」してください。既存セッションの API 権限と再登録を止め、履歴を残します。登録の取り消しだけでは再登録できるため、退職時には使いません。
 - 1回の問い合わせで返る行は 1,000 行までです（Supabase の既定）。社員が 1,000 人を超える会社では、社員マスタの一覧が欠けます。
 - 新しいテーブルや関数は、マイグレーションで権限を与えるまで API に出ません（`postgres` ロールで作ったものに限る。既定の権限を外してあるため）。
 

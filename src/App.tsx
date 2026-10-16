@@ -217,6 +217,7 @@ const employeeMasterController = new EmployeeMasterController(
 	resetEmployeeRegistrationUseCase,
 	new UpdateEmployeeKeepSignedInInteractor(employeeMasterRepository),
 	employeeMasterPresenter,
+	employeeMasterRepository,
 );
 
 const AppLayout: Component<{ children?: JSX.Element | JSX.Element[] }> = (props) => (
@@ -233,37 +234,42 @@ const App: Component = () => {
 	const [isLinked, setIsLinked] = createSignal<boolean | null>(null);
 	const [initialized, setInitialized] = createSignal(false);
 
-	// ユーザーの状態（セッションとDB紐付け）を同期するコアロジック
+	// A late response from the previous account must never restore its protected view.
+	let userStatusGeneration = 0;
 	const checkUserStatus = async (currentSession: AuthSession | null) => {
-		setSession(currentSession);
-
-		if (currentSession) {
-			const linked = await employeeRepository.checkUserLinked(currentSession.userId);
-			// アプリを閉じた後もログインを残すのは、社員マスタでそう設定された社員だけ
-			authRepository.keepSignedIn(
-				linked && (await employeeRepository.findKeepSignedIn(currentSession.userId)),
-			);
-			setIsLinked(linked);
-		} else {
-			setIsLinked(false);
+		const generation = ++userStatusGeneration;
+		if (session()?.userId !== currentSession?.userId) {
+			setIsLinked(null);
 		}
+		setSession(currentSession);
+		const linked = currentSession
+			? await employeeRepository.checkUserLinked(currentSession.userId)
+			: false;
+		const keep =
+			linked && currentSession
+				? await employeeRepository.findKeepSignedIn(currentSession.userId)
+				: false;
+		if (generation !== userStatusGeneration) {
+			return;
+		}
+		authRepository.keepSignedIn(keep);
+		setIsLinked(linked);
 	};
 
 	let unsubscribeAuth: (() => void) | undefined;
-
 	onMount(async () => {
-		// 1. まず現在のセッションを一度だけ取得する（Authの初期化を待つ）
-		const initialSession = await authRepository.getSession();
-		await checkUserStatus(initialSession);
-
-		// 2. ここで初めて「初期化完了」とする（これでチラつきを防ぐ）
-		setInitialized(true);
-
-		// 3. その後の状態変化（ログアウトなど）を監視する
-		unsubscribeAuth = authRepository.onAuthStateChange((newSession) => {
-			checkUserStatus(newSession);
+		// Subscribe first so an account switch during initialization is not missed.
+		unsubscribeAuth = authRepository.onAuthStateChange((next) => {
+			void checkUserStatus(next).then(() => setInitialized(true));
 		});
+		const generation = userStatusGeneration;
+		const initial = await authRepository.getSession();
+		if (generation === userStatusGeneration) {
+			await checkUserStatus(initial);
+		}
+		setInitialized(true);
 	});
+
 	onCleanup(() => unsubscribeAuth?.());
 
 	// ログイン済みの画面はトップバーを共有する。ページ移動のたびに作り直さない。

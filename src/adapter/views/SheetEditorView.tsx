@@ -77,6 +77,7 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 	const canEditFirst = createMemo(() => viewModel().canEditFirst);
 	const canEditSecond = createMemo(() => viewModel().canEditSecond);
 	const pendingEvaluationItems = createMemo(() => sheet()?.pendingEvaluationItems ?? []);
+	const [resending, setResending] = createSignal(false);
 	const [attemptedConfirmation, setAttemptedConfirmation] = createSignal(false);
 	let completionNotice: HTMLDivElement | undefined;
 	createEffect(
@@ -637,6 +638,28 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 						onConfirmFirst={() => void handleConfirmFirst()}
 						onFinalize={() => void handleFinalize()}
 					/>
+				</Show>
+				<Show when={viewModel().canResendNotification}>
+					<button
+						type="button"
+						class="secondary-action"
+						disabled={resending() || saving()}
+						onClick={async () => {
+							setResending(true);
+							try {
+								await props.controller.resendNotification();
+							} catch (error) {
+								showToast(
+									"error",
+									error instanceof Error ? error.message : "通知を再送できませんでした。",
+								);
+							} finally {
+								setResending(false);
+							}
+						}}
+					>
+						{resending() ? "送信中…" : "通知を再送"}
+					</button>
 				</Show>
 			</header>
 

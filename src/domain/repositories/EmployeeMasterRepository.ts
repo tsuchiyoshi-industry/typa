@@ -9,6 +9,8 @@ export interface EmployeeGrade {
 }
 
 export interface EmployeeMasterRepository {
+	issueInvitation(employeeNo: string): Promise<{ code: string; expiresAt: string }>;
+	setEnabled(employeeNo: string, enabled: boolean): Promise<boolean>;
 	findCurrentEmployeeProfile(): Promise<EmployeeProfile | null>;
 	findAllEmployeeProfiles(): Promise<EmployeeProfile[]>;
 	findByEmployeeNo(employeeNo: string): Promise<EmployeeProfile | null>;

@@ -103,6 +103,9 @@ export function sheetRepository() {
 }
 export function employeeRepository() {
 	return {
+		findCurrentAccessState: vi
+			.fn<EmployeeRepository["findCurrentAccessState"]>()
+			.mockResolvedValue("unregistered"),
 		findCurrentEmployeeId: vi
 			.fn<EmployeeRepository["findCurrentEmployeeId"]>()
 			.mockResolvedValue({ data: 1, error: null }),
@@ -134,6 +137,10 @@ export function commonRepository() {
 }
 export function masterRepository() {
 	return {
+		issueInvitation: vi
+			.fn<EmployeeMasterRepository["issueInvitation"]>()
+			.mockResolvedValue({ code: "invitation", expiresAt: "2026-12-01T00:00:00Z" }),
+		setEnabled: vi.fn<EmployeeMasterRepository["setEnabled"]>().mockResolvedValue(true),
 		findCurrentEmployeeProfile: vi
 			.fn<EmployeeMasterRepository["findCurrentEmployeeProfile"]>()
 			.mockResolvedValue(profile("Reviewer", 2)),

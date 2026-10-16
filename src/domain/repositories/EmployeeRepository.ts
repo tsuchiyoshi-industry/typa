@@ -4,16 +4,17 @@
  */
 export type RegistrationStart =
 	| { status: "available"; token: string }
-	| { status: "registered" | "missing" };
+	| { status: "registered" | "missing" | "invalid_invitation" };
 
 export interface EmployeeRepository {
+	findCurrentAccessState(): Promise<"enabled" | "disabled" | "unregistered">;
 	findCurrentEmployeeId(): Promise<{ data: number | null; error: Error | null }>;
 	findGradeName(gradeId: number | null): Promise<string>;
 	/**
 	 * 会社のメールアドレスを認証コードで確認したセッションで呼ぶ。確認していなければ reject する。
 	 * 確認したメールアドレスは、評価者への通知の宛先として DB が控える。
 	 */
-	beginRegistration(employeeNo: string): Promise<RegistrationStart>;
+	beginRegistration(employeeNo: string, invitationCode?: string): Promise<RegistrationStart>;
 	/** 作ったログイン用アカウントのセッションで呼ぶ。社員に紐付いたら true。 */
 	completeRegistration(token: string): Promise<boolean>;
 	checkUserLinked(authUserId: string): Promise<boolean>;

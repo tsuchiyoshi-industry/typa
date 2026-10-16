@@ -8,6 +8,7 @@ import type { UseCase } from "../ports/UseCase";
 
 export interface RegisterEmployeeAccountRequest {
 	employeeNo: string;
+	invitationCode?: string;
 	password: string;
 	/** 認証コードを受け取ったメールアドレス。評価者への通知の宛先として DB が控える。 */
 	email: string;
@@ -26,6 +27,7 @@ export type RegisterEmployeeAccountResponse = {
 	status:
 		| "linked"
 		| "invalid_code"
+		| "invalid_invitation"
 		| "employee_not_found"
 		| "employee_registered"
 		| "stalled_account"
@@ -64,7 +66,10 @@ export class RegisterEmployeeAccountInteractor
 		// 登録を始めてよいか(会社のメールアドレスを確認済みか)は DB が確かめ、紐付けに使うトークンを返す
 		let registration: RegistrationStart;
 		try {
-			registration = await this.employeeRepository.beginRegistration(request.employeeNo);
+			registration = await this.employeeRepository.beginRegistration(
+				request.employeeNo,
+				request.invitationCode ?? "",
+			);
 		} catch {
 			// メールアドレスの確認用セッションが切れている。登録は最初からやり直す
 			await this.authRepository.signOut();
@@ -73,7 +78,12 @@ export class RegisterEmployeeAccountInteractor
 		}
 		if (registration.status !== "available") {
 			presenter.present({
-				status: registration.status === "registered" ? "employee_registered" : "employee_not_found",
+				status:
+					registration.status === "registered"
+						? "employee_registered"
+						: registration.status === "missing"
+							? "employee_not_found"
+							: "invalid_invitation",
 			});
 			return;
 		}

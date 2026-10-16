@@ -15,6 +15,7 @@ import {
 	Show,
 	Switch,
 } from "solid-js";
+import { confirmDiscard } from "../feedback";
 
 type UpdateStatus = "idle" | "available" | "downloading" | "installing" | "restarting" | "error";
 
@@ -49,6 +50,17 @@ const AutoUpdateNotification: Component = () => {
 	const [restartCountdown, setRestartCountdown] = createSignal(5);
 	let restartTimer: number | undefined;
 	let recheckTimer: number | undefined;
+	let downloadedUpdate: Update | null = null;
+	const releaseUpdate = () => {
+		const current = update();
+		setUpdate(null);
+		downloadedUpdate = null;
+		if (current) {
+			void current
+				.close()
+				.catch((error: unknown) => console.error("Failed to release update:", error));
+		}
+	};
 
 	const progress = createMemo(() => {
 		const total = contentLength();
@@ -78,6 +90,7 @@ const AutoUpdateNotification: Component = () => {
 		try {
 			const availableUpdate = await check();
 			if (availableUpdate) {
+				releaseUpdate();
 				setUpdate(availableUpdate);
 				setStatus("available");
 				setDismissed(false);
@@ -115,17 +128,15 @@ const AutoUpdateNotification: Component = () => {
 		if (recheckTimer !== undefined) {
 			window.clearInterval(recheckTimer);
 		}
-		const currentUpdate = update();
-		if (currentUpdate && status() !== "downloading" && status() !== "installing") {
-			void currentUpdate.close();
+		if (status() !== "downloading" && status() !== "installing") {
+			releaseUpdate();
 		}
 	});
 
 	const dismiss = () => {
 		setDismissed(true);
-		const currentUpdate = update();
-		if (currentUpdate && status() !== "downloading" && status() !== "installing") {
-			void currentUpdate.close();
+		if (status() !== "downloading" && status() !== "installing") {
+			releaseUpdate();
 		}
 	};
 
@@ -140,12 +151,14 @@ const AutoUpdateNotification: Component = () => {
 			setDownloadedBytes((value) => value + event.data.chunkLength);
 			return;
 		}
-
-		setStatus("installing");
 	};
 
 	const relaunchApp = async () => {
 		try {
+			if (!(await confirmDiscard())) {
+				postponeRelaunch();
+				return;
+			}
 			await relaunch();
 		} catch (error) {
 			if (restartTimer !== undefined) {
@@ -180,10 +193,7 @@ const AutoUpdateNotification: Component = () => {
 			window.clearInterval(restartTimer);
 			restartTimer = undefined;
 		}
-		const currentUpdate = update();
-		if (currentUpdate) {
-			void currentUpdate.close();
-		}
+		releaseUpdate();
 		setDismissed(true);
 	};
 
@@ -196,7 +206,19 @@ const AutoUpdateNotification: Component = () => {
 		setStatus("downloading");
 		setErrorMessage("");
 		try {
-			await currentUpdate.downloadAndInstall(handleDownloadEvent);
+			if (downloadedUpdate !== currentUpdate) {
+				await currentUpdate.download(handleDownloadEvent);
+				downloadedUpdate = currentUpdate;
+			}
+			// Windows exits inside install(), before a close/relaunch listener can run.
+			// Check after downloading too: the user may have edited while it downloaded.
+			if (!(await confirmDiscard())) {
+				setStatus("available");
+				return;
+			}
+			setStatus("installing");
+			await currentUpdate.install();
+			downloadedUpdate = null;
 			scheduleRelaunch();
 		} catch (error) {
 			setStatus("error");

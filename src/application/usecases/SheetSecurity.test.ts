@@ -221,12 +221,7 @@ describe("milestone updates validate before side effects", () => {
 				id === 2 ? 2 : undefined,
 				id === 3 ? 4 : undefined,
 			);
-			expect(sheets.updateScoreTotals).toHaveBeenCalledWith(
-				100,
-				expect.objectContaining({
-					allocatedScores: expect.objectContaining({ totalEvaluationScore: 100 }),
-				}),
-			);
+			expect(sheets.updateScoreTotals).not.toHaveBeenCalled();
 			expect(out.present).toHaveBeenCalledWith(
 				expect.objectContaining({
 					milestone: expect.objectContaining({ secondScore: id === 2 ? null : 4 }),
@@ -281,7 +276,7 @@ describe("common evaluation updates", () => {
 			out,
 		);
 		expect(common.upsertResults).toHaveBeenCalledWith(100, [result], id === 2, id === 3);
-		expect(sheets.updateScoreTotals).toHaveBeenCalled();
+		expect(sheets.updateScoreTotals).not.toHaveBeenCalled();
 		expect(out.present).toHaveBeenCalledWith({ sheetId: 100, success: true });
 	});
 	it.each([
@@ -537,15 +532,8 @@ describe("comments, final rank, status and notifications", () => {
 			{ sheetId: 100, currentEmployeeId: 2, status: EvaluationStatus.FINALIZED },
 			out,
 		);
-		// 一次評価 (目標50%・共通75%) が最終評価の集計として保存される
-		expect(sheets.updateScoreTotals).toHaveBeenCalledWith(100, {
-			objectives: expect.objectContaining({ secondTotalScore: 2, secondTotalRate: 50 }),
-			commonEvaluationResults: expect.objectContaining({
-				secondTotalScore: 15,
-				secondTotalRate: 75,
-			}),
-			allocatedScores: expect.objectContaining({ totalEvaluationScore: 70 }),
-		});
+		// 集計と確定はDBが一つの処理で行い、事前の集計保存はしない。
+		expect(sheets.updateScoreTotals).not.toHaveBeenCalled();
 		// 一次評価 70点 → B が、一次評価ランクと最終評価ランクの両方になる
 		expect(sheets.updateStatus).toHaveBeenCalledWith(100, EvaluationStatus.FINALIZED, {
 			first: expect.objectContaining({ letter: "B", level: "none" }),
@@ -627,4 +615,37 @@ it.each([1, 2])("allows only the subject to delete a tab (%s)", async (employeeI
 		await expect(result).rejects.toThrow("削除");
 		expect(milestones.delete).not.toHaveBeenCalled();
 	}
+});
+
+describe("deliberate notification retry", () => {
+	it.each([
+		[EvaluationStatus.SUBMITTED, 1],
+		[EvaluationStatus.FIRST_EVALUATED, 2],
+	] as const)("allows only the actor at %s", async (stage, actor) => {
+		const sheets = sheetRepository();
+		sheets.findById.mockResolvedValue(sheet(stage));
+		const mail = {
+			notifySheetSubmitted: vi.fn().mockResolvedValue(undefined),
+			notifyFirstEvaluationConfirmed: vi.fn().mockResolvedValue(undefined),
+		};
+		const useCase = new UpdateEvaluationStatusInteractor(sheets, employeeRepository(), mail);
+		await useCase.resendNotification(100, actor, vi.fn());
+		expect(
+			stage === EvaluationStatus.SUBMITTED
+				? mail.notifySheetSubmitted
+				: mail.notifyFirstEvaluationConfirmed,
+		).toHaveBeenCalledOnce();
+		expect(sheets.updateStatus).not.toHaveBeenCalled();
+	});
+	it.each([1, 2, 3, 4])("rejects retries on finalized sheets by %s", async (actor) => {
+		const sheets = sheetRepository();
+		sheets.findById.mockResolvedValue(sheet(EvaluationStatus.FINALIZED));
+		await expect(
+			new UpdateEvaluationStatusInteractor(sheets, employeeRepository()).resendNotification(
+				100,
+				actor,
+				vi.fn(),
+			),
+		).rejects.toThrow("権限");
+	});
 });

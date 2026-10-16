@@ -5,6 +5,8 @@ export default defineConfig({
 	plugins: [solid({ hot: false })],
 	resolve: { conditions: ["development", "browser"] },
 	test: {
+		pool: "threads",
+		maxWorkers: 2,
 		environment: "node",
 		include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
 		clearMocks: true,

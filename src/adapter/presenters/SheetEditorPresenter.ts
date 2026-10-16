@@ -163,9 +163,11 @@ export function createSheetEditorPresenter(): {
 			}));
 		},
 		// 送信が終わる頃には別のシートや画面に移っていることがあるので、画面に依らないトーストで知らせる
-		presentNotificationDelivery({ recipient, error }) {
+		presentNotificationDelivery({ recipient, error, alreadySent }) {
 			if (error) {
 				showToast("error", `${recipient}に通知メールを送信できませんでした`, error);
+			} else if (alreadySent) {
+				showToast("info", `${recipient}への通知メールは送信済みです`);
 			} else {
 				showToast("success", `${recipient}に通知メールを送信しました`);
 			}

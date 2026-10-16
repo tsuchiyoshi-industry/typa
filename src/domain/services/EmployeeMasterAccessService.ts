@@ -13,7 +13,7 @@ export function resolveEmployeeMasterMode(role: EmployeeRole): EmployeeMasterMod
 }
 
 export function canEditEvaluators(role: EmployeeRole): boolean {
-	return resolveEmployeeMasterMode(role) !== "employee";
+	return resolveEmployeeMasterMode(role) === "admin";
 }
 
 export function canEditGrades(role: EmployeeRole): boolean {

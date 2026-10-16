@@ -59,7 +59,8 @@ max_client_conn = 100
 
 [db.migrations]
 # If disabled, migrations will be skipped during a db push or reset.
-# ベーススキーマが migrations/ に無く空DBへ再生できないため無効。ローカルDBは本番ダンプから復元する。
+# 既存の開発DBはSQLを手動適用しており、CLIの適用履歴を持たないため無効。
+# baseline は追加済み。空環境への全SQL再生は scripts/prepareReleaseDb.ts で検証する。
 enabled = false
 # Specifies an ordered list of schema files, directories, or glob patterns that describe your database.
 # Supports paths relative to supabase directory: "./schemas/*.sql", "./database".
@@ -278,9 +279,9 @@ max_frequency = "5s"
 # inactivity_timeout = "8h"
 
 # This hook runs before a new user is created and allows developers to reject the request based on the incoming user object.
-# [auth.hook.before_user_created]
-# enabled = true
-# uri = "pg-functions://postgres/auth/before-user-created-hook"
+[auth.hook.before_user_created]
+enabled = true
+uri = "pg-functions://postgres/public/hook_before_user_created"
 
 # This hook runs before a token is issued and allows you to add additional claims based on the authentication method used.
 # [auth.hook.custom_access_token]

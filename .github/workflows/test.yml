@@ -6,6 +6,8 @@ on:
 permissions:
   contents: read
 jobs:
+  database:
+    uses: ./.github/workflows/database.yml
   test:
     runs-on: windows-latest
     timeout-minutes: 40
@@ -17,6 +19,18 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
       - run: bun run test:coverage
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: 2.9.5
+      - name: Notification function checks
+        shell: bash
+        env:
+          OPENSSL_BIN: C:/Program Files/Git/usr/bin/openssl.exe
+        run: |
+          bun install --cwd supabase/functions/notify-sheet --frozen-lockfile --ignore-scripts
+          deno check --config supabase/functions/notify-sheet/deno.json --frozen supabase/functions/notify-sheet/index.ts
+          deno test --allow-all --config supabase/functions/notify-sheet/deno.json --frozen supabase/functions/notify-sheet/smtp.test.ts
+
       - uses: dtolnay/rust-toolchain@stable
       # release.yml と同じ shared-key・release プロファイルにして、main で温めたキャッシュをリリース時に使う
       - uses: Swatinem/rust-cache@v2

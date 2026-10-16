@@ -78,19 +78,6 @@ export class UpdateEvaluationStatusInteractor
 				);
 			}
 		}
-		if (newStatus.isFinalized()) {
-			// 確定後は評価者の付け替えに左右されないよう、最終評価の集計をここで保存する。
-			// 二次評価者「なし」の社員は、一次評価の合計がそのまま最終評価の合計になる。
-			await this.evaluationSheetRepository.updateScoreTotals(request.sheetId, {
-				...(sheet.primaryIsFinalEvaluator()
-					? {
-							objectives: sheet.objectiveScoreTotals.withFirstAsFinal(),
-							commonEvaluationResults: sheet.commonEvaluationScoreTotals.withFirstAsFinal(),
-						}
-					: {}),
-				allocatedScores: sheet.allocatedScores,
-			});
-		}
 		// 評価ランクは確定した時点の点数で決まる。以後は保存値を使い、配点の見直しなどに左右されないようにする。
 		const updated = await this.evaluationSheetRepository.updateStatus(request.sheetId, newStatus, {
 			...(newStatus.isAwaitingSecondEvaluation() ||
@@ -114,6 +101,21 @@ export class UpdateEvaluationStatusInteractor
 		if (request.notify !== false) {
 			void this.notify(updated, (delivery) => outputPort.presentNotificationDelivery?.(delivery));
 		}
+	}
+
+	async resendNotification(
+		sheetId: number,
+		currentEmployeeId: number,
+		report: ReportDelivery,
+	): Promise<void> {
+		const sheet = await this.evaluationSheetRepository.findById(sheetId);
+		if (
+			!sheet ||
+			!EvaluationSheetAccessPolicy.for(currentEmployeeId, sheet).canResendNotification()
+		) {
+			throw new Error("この評価シートの通知を送る権限がありません。");
+		}
+		await this.notify(sheet, report);
 	}
 
 	/**

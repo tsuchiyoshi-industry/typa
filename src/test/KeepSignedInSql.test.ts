@@ -25,9 +25,9 @@ it("ends everyone's session with the app until an Admin says otherwise", async (
 });
 
 it("lets only an Admin decide who stays signed in", async () => {
-	// Reviewer は社員マスタで評価者を付け替えられるが、これは変えられない
+	// Reviewer は社員マスタを閲覧できるが、更新はできない
 	await actAs(db, 2);
-	await expect(keep(4, true)).rejects.toMatchObject({ code: "42501" });
+	expect(await keep(4, true)).toEqual([]);
 	// Employee は社員マスタを更新できない(自分の行も)
 	await actAs(db, 4);
 	expect(await keep(4, true)).toEqual([]);

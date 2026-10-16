@@ -42,10 +42,19 @@ describe("sign in with an employee number", () => {
 		expect(status).toBe("registration_incomplete");
 		expect(auth.signOut).toHaveBeenCalledOnce();
 	});
+	it("explains suspension without sending the user through registration", async () => {
+		const employees = employeeRepository();
+		employees.checkUserLinked.mockResolvedValue(false);
+		employees.findCurrentAccessState.mockResolvedValue("disabled");
+		const { auth, status } = await signIn(undefined, employees);
+		expect(status).toBe("account_disabled");
+		expect(auth.signOut).toHaveBeenCalledOnce();
+	});
 });
 
 describe("register an employee account", () => {
 	const request: RegisterEmployeeAccountRequest = {
+		invitationCode: "personal-invite",
 		employeeNo: "TEST001",
 		password: "Passw0rd",
 		email: "shared@example.com",
@@ -66,7 +75,7 @@ describe("register an employee account", () => {
 		const { auth, employees, status } = await register();
 		expect(status).toBe("linked");
 		expect(auth.verifyEmailCode).toHaveBeenCalledWith("shared@example.com", "123456");
-		expect(employees.beginRegistration).toHaveBeenCalledWith("TEST001");
+		expect(employees.beginRegistration).toHaveBeenCalledWith("TEST001", "personal-invite");
 		expect(auth.signUp).toHaveBeenCalledWith("TEST001", "Passw0rd");
 		// 紐付けに使うのは、登録を始めたときに DB が発行したトークン
 		expect(employees.completeRegistration).toHaveBeenCalledWith("ticket");
@@ -98,6 +107,7 @@ describe("register an employee account", () => {
 	it.each([
 		["registered", "employee_registered"],
 		["missing", "employee_not_found"],
+		["invalid_invitation", "invalid_invitation"],
 	] as const)(
 		"never creates an account for a %s employee number",
 		async (registration, expected) => {

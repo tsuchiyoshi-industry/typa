@@ -293,7 +293,8 @@ Deno.serve({hostname:"127.0.0.1",port:56423},createNotificationHandler(createNot
 	console.log("API: management password login passed.");
 	const master = new SupabaseEmployeeMasterRepository(),
 		employees = new SupabaseEmployeeRepository();
-	const invitation = await master.issueInvitation("RELEASE008");
+	const invitation = await master.issueInvitationByEmployeeNo("RELEASE008");
+	assert.ok(invitation);
 	console.log("API: management login and invitation passed.");
 	const mailbox = `release-shared-${Date.now()}@release.example`;
 	const link = required(
@@ -417,7 +418,7 @@ Deno.serve({hostname:"127.0.0.1",port:56423},createNotificationHandler(createNot
 			password: "ReleasePassw0rd!",
 		}),
 	);
-	assert.equal(await master.setEnabled("RELEASE008", false), true);
+	assert.equal(await master.updateEnabledByEmployeeNo("RELEASE008", false), true);
 	await supabase.auth.signOut({ scope: "local" });
 	let loginStatus = "";
 	await new SignInEmployeeInteractor(auth, employees).execute(

@@ -5414,7 +5414,7 @@ dependencies = [
 
 [[package]]
 name = "typa"
-version = "0.9.11"
+version = "0.9.12"
 dependencies = [
  "serde",
  "serde_json",

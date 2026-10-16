@@ -18,7 +18,7 @@ export interface IssuedEmployeeInvitation {
 export interface IssueEmployeeInvitationResponse {
 	success: boolean;
 	message: string;
-	invitation: IssuedEmployeeInvitation | null;
+	invitations: IssuedEmployeeInvitation[];
 }
 
 export interface IssueEmployeeInvitationOutputPort
@@ -36,7 +36,7 @@ export class IssueEmployeeInvitationInteractor
 	): Promise<void> {
 		const targetEmployeeNo = request.targetEmployeeNo.trim();
 		const fail = (message: string) =>
-			outputPort.present({ success: false, message, invitation: null });
+			outputPort.present({ success: false, message, invitations: [] });
 
 		const currentEmployee = await this.employeeMasterRepository.findCurrentEmployeeProfile();
 		if (!currentEmployee || !canManageEmployeeAccess(currentEmployee.role)) {
@@ -72,7 +72,42 @@ export class IssueEmployeeInvitationInteractor
 		outputPort.present({
 			success: true,
 			message: `${target.name}さんの招待コードを発行しました。`,
-			invitation: { employeeNo: target.employeeNo, name: target.name, ...invitation },
+			invitations: [{ employeeNo: target.employeeNo, name: target.name, ...invitation }],
+		});
+	}
+}
+
+/** 期限内のコードを持たない未登録の社員に、まとめて招待コードを発行する。 */
+export class IssuePendingEmployeeInvitationsInteractor
+	implements UseCase<Record<string, never>, IssueEmployeeInvitationOutputPort>
+{
+	constructor(private readonly employeeMasterRepository: EmployeeMasterRepository) {}
+
+	async execute(
+		_request: Record<string, never>,
+		outputPort: IssueEmployeeInvitationOutputPort,
+	): Promise<void> {
+		const fail = (message: string) =>
+			outputPort.present({ success: false, message, invitations: [] });
+
+		const currentEmployee = await this.employeeMasterRepository.findCurrentEmployeeProfile();
+		if (!currentEmployee || !canManageEmployeeAccess(currentEmployee.role)) {
+			fail("招待コードを発行する権限がありません。");
+			return;
+		}
+
+		const invitations = await this.employeeMasterRepository.issuePendingInvitations();
+		if (!invitations) {
+			fail("招待コードを発行できませんでした。");
+			return;
+		}
+
+		outputPort.present({
+			success: true,
+			message: invitations.length
+				? `${invitations.length}名の招待コードを発行しました。`
+				: "発行する相手はいません。未登録の社員は全員、期限内のコードを持っています。",
+			invitations,
 		});
 	}
 }

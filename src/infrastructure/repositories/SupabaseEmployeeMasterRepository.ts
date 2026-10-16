@@ -184,6 +184,20 @@ export class SupabaseEmployeeMasterRepository implements EmployeeMasterRepositor
 		return { code: data.code, expiresAt: data.expiresAt };
 	}
 
+	async issuePendingInvitations(): Promise<
+		(EmployeeInvitation & { employeeNo: string; name: string })[] | null
+	> {
+		// 全員分を1往復で発行する。対象の選び方と Admin の確認は DB 関数に任せる
+		const { data, error } = await supabase.rpc("issue_pending_employee_invitations");
+
+		if (error || !Array.isArray(data)) {
+			console.error("Error issuing pending employee invitations:", error);
+			return null;
+		}
+
+		return data;
+	}
+
 	async updateEnabledByEmployeeNo(targetEmployeeNo: string, enabled: boolean): Promise<boolean> {
 		// is_enabled はクライアントから直接更新できない。Admin の確認と「Admin を0人にしない」をDB関数に任せる
 		const { data, error } = await supabase.rpc("set_employee_enabled", {

@@ -1,10 +1,15 @@
 /* Employee master: consistent spacing and visible editing controls. */
-.master-invitation input {
+.master-invitation input,
+.master-invitation textarea {
 	display: block;
 	width: min(100%, 26rem);
 	margin: 0.75rem 0;
 	padding: 0.5rem;
 	font-family: monospace;
+}
+.master-invitation textarea {
+	width: 100%;
+	resize: vertical;
 }
 .employee-master-page {
 	display: grid;

@@ -140,6 +140,12 @@ export function masterRepository() {
 		issueInvitationByEmployeeNo: vi
 			.fn<EmployeeMasterRepository["issueInvitationByEmployeeNo"]>()
 			.mockResolvedValue({ code: "invitation", expiresAt: "2026-12-01T00:00:00Z" }),
+		issuePendingInvitations: vi
+			.fn<EmployeeMasterRepository["issuePendingInvitations"]>()
+			.mockResolvedValue([
+				{ employeeNo: "TEST001", name: "テスト1", code: "a", expiresAt: "2026-12-01T00:00:00Z" },
+				{ employeeNo: "TEST002", name: "テスト2", code: "b", expiresAt: "2026-12-01T00:00:00Z" },
+			]),
 		updateEnabledByEmployeeNo: vi
 			.fn<EmployeeMasterRepository["updateEnabledByEmployeeNo"]>()
 			.mockResolvedValue(true),

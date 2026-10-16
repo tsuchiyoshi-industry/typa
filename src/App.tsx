@@ -40,7 +40,10 @@ import { FetchCategorizedSheetsInteractor } from "./application/usecases/FetchCa
 import { FetchDistinctPeriodsInteractor } from "./application/usecases/FetchDistinctPeriodsInteractor";
 import { FetchEvaluationSheetInteractor } from "./application/usecases/FetchEvaluationSheetInteractor";
 import { FetchSheetOverviewInteractor } from "./application/usecases/FetchSheetOverviewInteractor";
-import { IssueEmployeeInvitationInteractor } from "./application/usecases/IssueEmployeeInvitationInteractor";
+import {
+	IssueEmployeeInvitationInteractor,
+	IssuePendingEmployeeInvitationsInteractor,
+} from "./application/usecases/IssueEmployeeInvitationInteractor";
 import { LoadEmployeeMasterInteractor } from "./application/usecases/LoadEmployeeMasterInteractor";
 import { RegisterEmployeeAccountInteractor } from "./application/usecases/RegisterEmployeeAccountInteractor";
 import { ResetEmployeeRegistrationInteractor } from "./application/usecases/ResetEmployeeRegistrationInteractor";
@@ -220,6 +223,7 @@ const employeeMasterController = new EmployeeMasterController(
 	new UpdateEmployeeKeepSignedInInteractor(employeeMasterRepository),
 	new UpdateEmployeeEnabledInteractor(employeeMasterRepository),
 	new IssueEmployeeInvitationInteractor(employeeMasterRepository),
+	new IssuePendingEmployeeInvitationsInteractor(employeeMasterRepository),
 	employeeMasterPresenter,
 );
 

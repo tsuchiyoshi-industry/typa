@@ -39,7 +39,7 @@ function setup() {
 		loading: false,
 		errorMessage: null,
 		updateStatus: { message: null, success: null },
-		invitation: null,
+		invitations: [],
 		mode: "admin",
 		canEditEvaluators: true,
 		canEditGrades: true,
@@ -84,15 +84,28 @@ function setup() {
 		issueInvitation: vi.fn(async (employeeNo: string) => {
 			setViewModel((prev) => ({
 				...prev,
-				invitation: {
-					employeeNo,
-					name: "山田",
-					code: "PERSONAL-INVITATION",
-					expiresAt: "2026-10-23T00:00:00Z",
-				},
+				invitations: [
+					{
+						employeeNo,
+						name: "山田",
+						code: "PERSONAL-INVITATION",
+						expiresAt: "2026-10-23T00:00:00Z",
+					},
+				],
 			}));
 		}),
-		dismissInvitation: vi.fn(() => setViewModel((prev) => ({ ...prev, invitation: null }))),
+		issuePendingInvitations: vi.fn(async () => {
+			setViewModel((prev) => ({
+				...prev,
+				invitations: ["E001", "E002"].map((employeeNo, i) => ({
+					employeeNo,
+					name: `社員${i}`,
+					code: `CODE${i}`,
+					expiresAt: "2026-10-23T00:00:00Z",
+				})),
+			}));
+		}),
+		dismissInvitation: vi.fn(() => setViewModel((prev) => ({ ...prev, invitations: [] }))),
 		updateEnabled: vi.fn().mockResolvedValue(true),
 	};
 	const screen = render(() => (
@@ -274,6 +287,23 @@ it("shows the employee's invitation only after explicit issuance", async () => {
 	expect(view.controller.issueInvitation).toHaveBeenCalledWith("E001");
 	fireEvent.click(view.getByRole("button", { name: "閉じる" }));
 	expect(view.queryByLabelText("招待コード")).toBeNull();
+});
+it("issues pending invitations at once as a pasteable table", async () => {
+	const view = setup();
+	expect(view.queryByRole("button", { name: "招待コードを一括発行" })).toBeNull();
+	view.setViewModel((prev) => ({
+		...prev,
+		relations: prev.relations.map((r) => (r.employeeId === 1 ? { ...r, registered: false } : r)),
+	}));
+	fireEvent.click(await view.findByRole("button", { name: "招待コードを一括発行" }));
+	const table = (await view.findByLabelText("招待コードの一覧")) as HTMLTextAreaElement;
+	expect(table.value.split("\n")).toHaveLength(3);
+	expect(table.value).toContain("E002\t社員1\tCODE1\t");
+	fireEvent.click(view.getByRole("button", { name: "閉じる" }));
+	await waitFor(() => expect(view.queryByLabelText("招待コードの一覧")).toBeNull());
+	expect(confirmAction).toHaveBeenLastCalledWith(
+		expect.objectContaining({ title: "招待コードの一覧を閉じますか？" }),
+	);
 });
 it("confirms suspension separately from deleting a registration", async () => {
 	const view = setup();

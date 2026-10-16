@@ -2,6 +2,7 @@ import { messageOf } from "../../application/errorMessage";
 import type {
 	IssueEmployeeInvitationInteractor,
 	IssueEmployeeInvitationOutputPort,
+	IssuePendingEmployeeInvitationsInteractor,
 } from "../../application/usecases/IssueEmployeeInvitationInteractor";
 import type {
 	LoadEmployeeMasterInteractor,
@@ -32,6 +33,7 @@ export class EmployeeMasterController {
 		private readonly updateKeepSignedInUseCase: UpdateEmployeeKeepSignedInInteractor,
 		private readonly updateEnabledUseCase: UpdateEmployeeEnabledInteractor,
 		private readonly issueInvitationUseCase: IssueEmployeeInvitationInteractor,
+		private readonly issuePendingInvitationsUseCase: IssuePendingEmployeeInvitationsInteractor,
 		private readonly presenter: {
 			viewModel: () => EmployeeMasterViewModel;
 			outputPort: {
@@ -126,11 +128,22 @@ export class EmployeeMasterController {
 		);
 	}
 
-	/** 発行しても一覧の中身は変わらないので、読み込み直さない。コードは viewModel.invitation に載る。 */
+	/** 発行しても一覧の中身は変わらないので、読み込み直さない。コードは viewModel.invitations に載る。 */
 	async issueInvitation(targetEmployeeNo: string): Promise<void> {
 		try {
 			await this.issueInvitationUseCase.execute(
 				{ targetEmployeeNo },
+				this.presenter.outputPort.issueInvitation,
+			);
+		} catch (error) {
+			this.presenter.presentError(messageOf(error, "招待コードを発行できませんでした"));
+		}
+	}
+
+	async issuePendingInvitations(): Promise<void> {
+		try {
+			await this.issuePendingInvitationsUseCase.execute(
+				{},
 				this.presenter.outputPort.issueInvitation,
 			);
 		} catch (error) {

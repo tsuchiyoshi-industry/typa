@@ -14,7 +14,10 @@ import { CreateEvaluationSheetInteractor } from "./CreateEvaluationSheetInteract
 import { FetchCategorizedSheetsInteractor } from "./FetchCategorizedSheetsInteractor";
 import { FetchDistinctPeriodsInteractor } from "./FetchDistinctPeriodsInteractor";
 import { FetchEvaluationSheetInteractor } from "./FetchEvaluationSheetInteractor";
-import { IssueEmployeeInvitationInteractor } from "./IssueEmployeeInvitationInteractor";
+import {
+	IssueEmployeeInvitationInteractor,
+	IssuePendingEmployeeInvitationsInteractor,
+} from "./IssueEmployeeInvitationInteractor";
 import { LoadEmployeeMasterInteractor } from "./LoadEmployeeMasterInteractor";
 import { ResetEmployeeRegistrationInteractor } from "./ResetEmployeeRegistrationInteractor";
 import { UpdateEmployeeEnabledInteractor } from "./UpdateEmployeeEnabledInteractor";
@@ -187,10 +190,12 @@ describe("employee master authorization", () => {
 				{ targetEmployeeNo: "TEST001", enabled: false },
 				suspended,
 			);
+			await new IssuePendingEmployeeInvitationsInteractor(repo).execute({}, issued);
 			expect(repo.issueInvitationByEmployeeNo).not.toHaveBeenCalled();
+			expect(repo.issuePendingInvitations).not.toHaveBeenCalled();
 			expect(repo.updateEnabledByEmployeeNo).not.toHaveBeenCalled();
 			expect(issued.present).toHaveBeenCalledWith(
-				expect.objectContaining({ success: false, invitation: null }),
+				expect.objectContaining({ success: false, invitations: [] }),
 			);
 			expect(suspended.present).toHaveBeenCalledWith(expect.objectContaining({ success: false }));
 		},
@@ -221,19 +226,36 @@ describe("employee master authorization", () => {
 			expect(out.present).toHaveBeenCalledWith(
 				expect.objectContaining({
 					success: kind === "ok",
-					invitation:
+					invitations:
 						kind === "ok"
-							? {
-									employeeNo: "TEST001",
-									name: "テスト1",
-									code: "invitation",
-									expiresAt: "2026-12-01T00:00:00Z",
-								}
-							: null,
+							? [
+									{
+										employeeNo: "TEST001",
+										name: "テスト1",
+										code: "invitation",
+										expiresAt: "2026-12-01T00:00:00Z",
+									},
+								]
+							: [],
 				}),
 			);
 		},
 	);
+	it.each(["ok", "none", "failed"])("admin bulk invitation case %s", async (kind) => {
+		const repo = masterRepository();
+		repo.findCurrentEmployeeProfile.mockResolvedValue(profile("Admin", 2));
+		if (kind !== "ok") {
+			repo.issuePendingInvitations.mockResolvedValue(kind === "none" ? [] : null);
+		}
+		const out = output<never>();
+		await new IssuePendingEmployeeInvitationsInteractor(repo).execute({}, out);
+		expect(out.present).toHaveBeenCalledWith(
+			expect.objectContaining({
+				success: kind !== "failed",
+				invitations: kind === "ok" ? expect.arrayContaining([expect.anything()]) : [],
+			}),
+		);
+	});
 	it.each(["suspend", "resume", "missingTarget", "self", "lastAdmin", "failed"])(
 		"admin suspension case %s",
 		async (kind) => {

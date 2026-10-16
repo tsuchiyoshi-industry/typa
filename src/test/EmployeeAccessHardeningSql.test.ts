@@ -136,3 +136,27 @@ it("requires a recent OTP and rejects expired invitations", async () => {
 		"invalid_invitation",
 	);
 });
+
+it("issues bulk invitations only to unregistered employees without an unexpired code", async () => {
+	type Issued = { employeeNo: string; code: string }[];
+	await actAs(db, 2);
+	await expect(value("public.issue_pending_employee_invitations()")).rejects.toMatchObject({
+		code: "42501",
+	});
+	await actAs(db, 1);
+	const first = await value<Issued>("public.issue_pending_employee_invitations()");
+	expect(first.map((i) => i.employeeNo)).toEqual(["E7"]);
+	expect(await value("public.issue_pending_employee_invitations()")).toEqual([]);
+	await db.exec(
+		"reset role; update public.employee_invitations set expires_at=now() where employee_id=7",
+	);
+	await actAs(db, 1);
+	const renewed = await value<Issued>("public.issue_pending_employee_invitations()");
+	expect(renewed.map((i) => i.employeeNo)).toEqual(["E7"]);
+	expect(renewed[0].code).not.toBe(first[0].code);
+	await actAs(db, 98, "otp");
+	expect(
+		(await value<{ status: string }>("public.begin_registration('E7',$1)", [renewed[0].code]))
+			.status,
+	).toBe("available");
+});

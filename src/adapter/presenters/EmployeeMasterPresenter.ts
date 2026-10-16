@@ -21,8 +21,8 @@ export interface EmployeeMasterViewModel extends EmployeeMasterDto {
 		message: string | null;
 		success: boolean | null;
 	};
-	/** 発行した直後の招待コード。閉じるか、利用状態を変えると消える */
-	invitation: IssuedEmployeeInvitation | null;
+	/** 発行した直後の招待コード(一括発行なら複数)。閉じるか、利用状態を変えると消える */
+	invitations: IssuedEmployeeInvitation[];
 }
 
 export function createEmployeeMasterPresenter(): {
@@ -52,7 +52,7 @@ export function createEmployeeMasterPresenter(): {
 			message: null,
 			success: null,
 		},
-		invitation: null,
+		invitations: [],
 	});
 
 	const loadOutputPort: LoadEmployeeMasterOutputPort = {
@@ -83,7 +83,7 @@ export function createEmployeeMasterPresenter(): {
 		present(response) {
 			updateOutputPort.present(response);
 			if (response.success) {
-				setViewModel((prev) => ({ ...prev, invitation: null }));
+				setViewModel((prev) => ({ ...prev, invitations: [] }));
 			}
 		},
 	};
@@ -92,7 +92,7 @@ export function createEmployeeMasterPresenter(): {
 		present(response) {
 			setViewModel((prev) => ({
 				...prev,
-				invitation: response.invitation,
+				invitations: response.invitations,
 				updateStatus: {
 					message: response.message,
 					success: response.success,
@@ -102,7 +102,7 @@ export function createEmployeeMasterPresenter(): {
 	};
 
 	const dismissInvitation = () => {
-		setViewModel((prev) => ({ ...prev, invitation: null }));
+		setViewModel((prev) => ({ ...prev, invitations: [] }));
 	};
 
 	const beginLoad = () => {

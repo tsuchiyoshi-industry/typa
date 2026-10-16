@@ -46,6 +46,13 @@ export interface EmployeeMasterRepository {
 	 */
 	issueInvitationByEmployeeNo(targetEmployeeNo: string): Promise<EmployeeInvitation | null>;
 	/**
+	 * 期限内のコードを持たない未登録の社員全員に招待コードを発行する。渡し済みで期限内のコードは変えない。
+	 * 発行できなければ null。
+	 */
+	issuePendingInvitations(): Promise<
+		(EmployeeInvitation & { employeeNo: string; name: string })[] | null
+	>;
+	/**
 	 * 利用を停止・再開する。停止するとログイン中のセッションも使えなくなり、発行済みの招待コードも消える。
 	 * 評価データとアカウントは残る。変更できたら true。
 	 */

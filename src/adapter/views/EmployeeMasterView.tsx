@@ -373,6 +373,58 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 		setSavingKey(null);
 	};
 
+	const invitations = () => props.viewModel().invitations;
+	const hasPendingRegistration = () =>
+		relations().some((relation) => relation.enabled !== false && !relation.registered);
+	// 表計算ソフトにそのまま貼れるタブ区切り
+	const invitationTable = () =>
+		[
+			["社員番号", "氏名", "招待コード", "有効期限"],
+			...invitations().map((i) => [i.employeeNo, i.name, i.code, formatDateTime(i.expiresAt)]),
+		]
+			.map((row) => row.join("\t"))
+			.join("\n");
+
+	const issuePendingInvitations = async () => {
+		const confirmed = await confirmAction({
+			title: "未登録の社員に招待コードをまとめて発行しますか？",
+			message:
+				"期限内のコードを持っていない未登録の社員全員に発行します。渡し済みで期限内のコードはそのまま使えます。",
+			confirmLabel: "まとめて発行",
+		});
+		if (!confirmed) {
+			return;
+		}
+		setSavingKey("invitations");
+		await props.controller.issuePendingInvitations();
+		setSavingKey(null);
+	};
+
+	const copyInvitations = async () => {
+		try {
+			await navigator.clipboard.writeText(invitationTable());
+			showToast("success", "招待コードの一覧をコピーしました。");
+		} catch {
+			showToast("error", "コピーできませんでした。一覧を選択してコピーしてください。");
+		}
+	};
+
+	// 一括発行したコードは期限内なので、閉じると一括発行では二度と出てこない
+	const dismissInvitations = async () => {
+		if (
+			invitations().length > 1 &&
+			!(await confirmAction({
+				title: "招待コードの一覧を閉じますか？",
+				message: "閉じると再表示できません。コピーや保存が済んでいるか確かめてください。",
+				confirmLabel: "閉じる",
+				tone: "danger",
+			}))
+		) {
+			return;
+		}
+		props.controller.dismissInvitation();
+	};
+
 	const changeEnabled = async (relation: ApprovalRelationDto) => {
 		const enabled = relation.enabled === false;
 		if (
@@ -466,31 +518,55 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 
 	const EmployeeList = () => (
 		<section class="master-list">
-			<Show when={props.viewModel().invitation}>
-				{(issued) => (
-					<aside class="master-invitation" role="status">
-						<strong>
-							{issued().name}さん（{issued().employeeNo}）の招待コード
-						</strong>
-						<input
-							aria-label="招待コード"
-							readonly
-							value={issued().code}
-							onFocus={(e) => e.currentTarget.select()}
-						/>
-						<p>
-							有効期限：{formatDateTime(issued().expiresAt)}
-							。本人に個別に渡してください。再発行すると前のコードは無効になります。
-						</p>
-						<button
-							type="button"
-							class="secondary-action"
-							onClick={() => props.controller.dismissInvitation()}
-						>
-							閉じる
-						</button>
-					</aside>
-				)}
+			<Show when={invitations().length > 0}>
+				<aside class="master-invitation" role="status">
+					<Show
+						when={invitations().length === 1 && invitations()[0]}
+						fallback={
+							<>
+								<strong>{invitations().length}名分の招待コード</strong>
+								<textarea
+									aria-label="招待コードの一覧"
+									readonly
+									rows={8}
+									value={invitationTable()}
+									onFocus={(e) => e.currentTarget.select()}
+								/>
+								<p>
+									表計算ソフトに貼り付けて印刷するなどして、本人に個別に渡してください。有効期限を過ぎたコードは、もう一度まとめて発行すると新しくなります。
+								</p>
+								<button
+									type="button"
+									class="secondary-action"
+									onClick={() => void copyInvitations()}
+								>
+									一覧をコピー
+								</button>
+							</>
+						}
+					>
+						{(issued) => (
+							<>
+								<strong>
+									{issued().name}さん（{issued().employeeNo}）の招待コード
+								</strong>
+								<input
+									aria-label="招待コード"
+									readonly
+									value={issued().code}
+									onFocus={(e) => e.currentTarget.select()}
+								/>
+								<p>
+									有効期限：{formatDateTime(issued().expiresAt)}
+									。本人に個別に渡してください。再発行すると前のコードは無効になります。
+								</p>
+							</>
+						)}
+					</Show>
+					<button type="button" class="secondary-action" onClick={() => void dismissInvitations()}>
+						閉じる
+					</button>
+				</aside>
 			</Show>
 			<div class="master-list-head">
 				<div>
@@ -534,6 +610,16 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 					</For>
 				</fieldset>
 				<div class="master-list-toolbar__side">
+					<Show when={props.viewModel().canResetRegistrations && hasPendingRegistration()}>
+						<button
+							type="button"
+							class="secondary-action"
+							disabled={savingKey() !== null}
+							onClick={() => void issuePendingInvitations()}
+						>
+							招待コードを一括発行
+						</button>
+					</Show>
 					<span class="master-result-count">{visibleRelations().length}名を表示</span>
 					<fieldset class="master-scope">
 						<legend class="visually-hidden">表示の形式</legend>

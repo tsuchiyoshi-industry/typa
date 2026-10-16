@@ -197,6 +197,11 @@
 .help-guide__faq h2 {
 	margin-bottom: 16px;
 }
+.help-guide__faq h3 {
+	margin: 28px 0 4px;
+	color: var(--hr-text-muted);
+	font-size: 0.875rem;
+}
 .help-guide__faq details {
 	border-bottom: 1px solid var(--hr-border-strong);
 }

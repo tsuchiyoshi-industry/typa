@@ -27,6 +27,7 @@ import type { EmployeeMasterViewModel } from "../presenters/EmployeeMasterPresen
 import EvaluationStructure from "./components/EvaluationStructure";
 import SearchableEvaluatorSelect from "./components/SearchableEvaluatorSelect";
 import { confirmAction, showToast } from "./feedback";
+import { formatDateTime } from "./format";
 
 interface EmployeeMasterViewProps {
 	controller: EmployeeMasterController;
@@ -478,7 +479,7 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 							onFocus={(e) => e.currentTarget.select()}
 						/>
 						<p>
-							有効期限：{new Date(issued().expiresAt).toLocaleString("ja-JP")}
+							有効期限：{formatDateTime(issued().expiresAt)}
 							。本人に個別に渡してください。再発行すると前のコードは無効になります。
 						</p>
 						<button

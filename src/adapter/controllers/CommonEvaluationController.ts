@@ -1,3 +1,4 @@
+import { messageOf } from "../../application/errorMessage";
 import type {
 	UpsertCommonEvaluationInteractor,
 	UpsertCommonEvaluationOutputPort,
@@ -44,9 +45,7 @@ export class CommonEvaluationController {
 			);
 			return true;
 		} catch (error) {
-			this.presenter.presentUpsertError(
-				error instanceof Error ? error.message : "登録に失敗しました",
-			);
+			this.presenter.presentUpsertError(messageOf(error, "登録に失敗しました"));
 			return false;
 		}
 	}

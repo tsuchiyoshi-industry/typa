@@ -154,6 +154,11 @@ const AutoUpdateNotification: Component = () => {
 	};
 
 	const relaunchApp = async () => {
+		// 秒読み中に「今すぐ再起動」を押されても、秒読みが二重に再起動を呼ばないよう先に止める
+		if (restartTimer !== undefined) {
+			window.clearInterval(restartTimer);
+			restartTimer = undefined;
+		}
 		try {
 			if (!(await confirmDiscard())) {
 				postponeRelaunch();
@@ -161,10 +166,6 @@ const AutoUpdateNotification: Component = () => {
 			}
 			await relaunch();
 		} catch (error) {
-			if (restartTimer !== undefined) {
-				window.clearInterval(restartTimer);
-				restartTimer = undefined;
-			}
 			setStatus("error");
 			setErrorMessage(describeError(error, "アプリの再起動に失敗しました。"));
 		}

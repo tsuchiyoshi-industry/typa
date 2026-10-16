@@ -1,3 +1,4 @@
+import { messageOf } from "../../application/errorMessage";
 import type {
 	IssueEmployeeInvitationInteractor,
 	IssueEmployeeInvitationOutputPort,
@@ -6,32 +7,20 @@ import type {
 	LoadEmployeeMasterInteractor,
 	LoadEmployeeMasterOutputPort,
 } from "../../application/usecases/LoadEmployeeMasterInteractor";
-import type {
-	ResetEmployeeRegistrationInteractor,
-	ResetEmployeeRegistrationOutputPort,
-} from "../../application/usecases/ResetEmployeeRegistrationInteractor";
+import type { ResetEmployeeRegistrationInteractor } from "../../application/usecases/ResetEmployeeRegistrationInteractor";
 import type {
 	UpdateEmployeeEnabledInteractor,
 	UpdateEmployeeEnabledOutputPort,
 } from "../../application/usecases/UpdateEmployeeEnabledInteractor";
-import type {
-	UpdateEmployeeEvaluatorInteractor,
-	UpdateEmployeeEvaluatorOutputPort,
-} from "../../application/usecases/UpdateEmployeeEvaluatorInteractor";
-import type {
-	UpdateEmployeeGradeInteractor,
-	UpdateEmployeeGradeOutputPort,
-} from "../../application/usecases/UpdateEmployeeGradeInteractor";
-import type {
-	UpdateEmployeeKeepSignedInInteractor,
-	UpdateEmployeeKeepSignedInOutputPort,
-} from "../../application/usecases/UpdateEmployeeKeepSignedInInteractor";
-import type {
-	UpdateEmployeeRoleInteractor,
-	UpdateEmployeeRoleOutputPort,
-} from "../../application/usecases/UpdateEmployeeRoleInteractor";
+import type { UpdateEmployeeEvaluatorInteractor } from "../../application/usecases/UpdateEmployeeEvaluatorInteractor";
+import type { UpdateEmployeeGradeInteractor } from "../../application/usecases/UpdateEmployeeGradeInteractor";
+import type { UpdateEmployeeKeepSignedInInteractor } from "../../application/usecases/UpdateEmployeeKeepSignedInInteractor";
+import type { UpdateEmployeeRoleInteractor } from "../../application/usecases/UpdateEmployeeRoleInteractor";
 import type { EvaluatorType } from "../../domain/repositories/EmployeeMasterRepository";
-import type { EmployeeMasterViewModel } from "../presenters/EmployeeMasterPresenter";
+import type {
+	EmployeeMasterViewModel,
+	EmployeeUpdateOutputPort,
+} from "../presenters/EmployeeMasterPresenter";
 
 export class EmployeeMasterController {
 	constructor(
@@ -47,11 +36,7 @@ export class EmployeeMasterController {
 			viewModel: () => EmployeeMasterViewModel;
 			outputPort: {
 				load: LoadEmployeeMasterOutputPort;
-				update: UpdateEmployeeEvaluatorOutputPort;
-				updateGrade: UpdateEmployeeGradeOutputPort;
-				updateRole: UpdateEmployeeRoleOutputPort;
-				updateKeepSignedIn: UpdateEmployeeKeepSignedInOutputPort;
-				resetRegistration: ResetEmployeeRegistrationOutputPort;
+				update: EmployeeUpdateOutputPort;
 				updateEnabled: UpdateEmployeeEnabledOutputPort;
 				issueInvitation: IssueEmployeeInvitationOutputPort;
 			};
@@ -66,9 +51,7 @@ export class EmployeeMasterController {
 		try {
 			await this.loadUseCase.execute({}, this.presenter.outputPort.load);
 		} catch (error) {
-			this.presenter.presentError(
-				error instanceof Error ? error.message : "社員マスタの取得に失敗しました",
-			);
+			this.presenter.presentError(messageOf(error, "社員マスタの取得に失敗しました"));
 		}
 	}
 
@@ -93,7 +76,7 @@ export class EmployeeMasterController {
 			() =>
 				this.updateGradeUseCase.execute(
 					{ targetEmployeeNo, gradeId },
-					this.presenter.outputPort.updateGrade,
+					this.presenter.outputPort.update,
 				),
 			"等級の更新に失敗しました",
 		);
@@ -104,7 +87,7 @@ export class EmployeeMasterController {
 			() =>
 				this.updateRoleUseCase.execute(
 					{ targetEmployeeNo, roleName },
-					this.presenter.outputPort.updateRole,
+					this.presenter.outputPort.update,
 				),
 			"権限の変更に失敗しました",
 		);
@@ -115,7 +98,7 @@ export class EmployeeMasterController {
 			() =>
 				this.updateKeepSignedInUseCase.execute(
 					{ targetEmployeeNo, keepSignedIn },
-					this.presenter.outputPort.updateKeepSignedIn,
+					this.presenter.outputPort.update,
 				),
 			"ログイン状態の保持を変更できませんでした",
 		);
@@ -126,7 +109,7 @@ export class EmployeeMasterController {
 			() =>
 				this.resetRegistrationUseCase.execute(
 					{ targetEmployeeNo },
-					this.presenter.outputPort.resetRegistration,
+					this.presenter.outputPort.update,
 				),
 			"登録の取り消しに失敗しました",
 		);
@@ -151,9 +134,7 @@ export class EmployeeMasterController {
 				this.presenter.outputPort.issueInvitation,
 			);
 		} catch (error) {
-			this.presenter.presentError(
-				error instanceof Error ? error.message : "招待コードを発行できませんでした",
-			);
+			this.presenter.presentError(messageOf(error, "招待コードを発行できませんでした"));
 		}
 	}
 
@@ -168,7 +149,7 @@ export class EmployeeMasterController {
 		try {
 			await execute();
 		} catch (error) {
-			this.presenter.presentError(error instanceof Error ? error.message : fallbackMessage);
+			this.presenter.presentError(messageOf(error, fallbackMessage));
 			return false;
 		}
 		if (!this.presenter.viewModel().updateStatus.success) {

@@ -1,5 +1,6 @@
 import type { EmployeeMasterRepository } from "../../domain/repositories/EmployeeMasterRepository";
 import type { EvaluationSheetRepository } from "../../domain/repositories/EvaluationSheetRepository";
+import { messageOf } from "../errorMessage";
 import type { SheetPdfGateway } from "../ports/SheetPdfGateway";
 import type { UseCase } from "../ports/UseCase";
 import {
@@ -101,7 +102,7 @@ export class ExportSheetOverviewInteractor
 			console.error("Sheet overview export error:", error);
 			presenter.present({
 				success: false,
-				message: error instanceof Error ? error.message : "PDFの出力中にエラーが発生しました",
+				message: messageOf(error, "PDFの出力中にエラーが発生しました"),
 			});
 		}
 	}

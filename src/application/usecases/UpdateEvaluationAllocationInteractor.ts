@@ -2,6 +2,7 @@ import type { EmployeeMasterRepository } from "../../domain/repositories/Employe
 import type { EvaluationSettingsRepository } from "../../domain/repositories/EvaluationSettingsRepository";
 import { canEditSettings } from "../../domain/services/EmployeeMasterAccessService";
 import { EvaluationAllocation } from "../../domain/valueObjects/EvaluationAllocation";
+import { messageOf } from "../errorMessage";
 import type { OutputPort } from "../ports/OutputPort";
 import type { UseCase } from "../ports/UseCase";
 
@@ -43,7 +44,7 @@ export class UpdateEvaluationAllocationInteractor
 		} catch (error) {
 			outputPort.present({
 				success: false,
-				message: error instanceof Error ? error.message : "配点が正しくありません。",
+				message: messageOf(error, "配点が正しくありません。"),
 			});
 			return;
 		}

@@ -1,3 +1,4 @@
+import { messageOf } from "../../application/errorMessage";
 import type {
 	UpdateMilestoneInteractor,
 	UpdateMilestoneOutputPort,
@@ -43,7 +44,7 @@ export class ChallengeEvaluationController {
 			);
 			return true;
 		} catch (error) {
-			this.presentUpdateError(error instanceof Error ? error.message : "更新に失敗しました");
+			this.presentUpdateError(messageOf(error, "更新に失敗しました"));
 			return false;
 		}
 	}
@@ -79,7 +80,7 @@ export class ChallengeEvaluationController {
 			);
 			return true;
 		} catch (error) {
-			this.presentUpdateError(error instanceof Error ? error.message : "更新に失敗しました");
+			this.presentUpdateError(messageOf(error, "更新に失敗しました"));
 			return false;
 		}
 	}
@@ -96,7 +97,7 @@ export class ChallengeEvaluationController {
 			);
 			return true;
 		} catch (error) {
-			this.presentUpdateError(error instanceof Error ? error.message : "削除に失敗しました");
+			this.presentUpdateError(messageOf(error, "削除に失敗しました"));
 			return false;
 		}
 	}
@@ -125,7 +126,7 @@ export class ChallengeEvaluationController {
 			);
 			return true;
 		} catch (error) {
-			this.presentUpdateError(error instanceof Error ? error.message : "更新に失敗しました");
+			this.presentUpdateError(messageOf(error, "更新に失敗しました"));
 			return false;
 		}
 	}

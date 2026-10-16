@@ -1,3 +1,4 @@
+import { messageOf } from "../../application/errorMessage";
 import type {
 	ExportEvaluationSheetInteractor,
 	ExportEvaluationSheetOutputPort,
@@ -72,7 +73,7 @@ export class SheetListController {
 		try {
 			await run();
 		} catch (error) {
-			this.presentError(error instanceof Error ? error.message : fallbackMessage);
+			this.presentError(messageOf(error, fallbackMessage));
 		}
 	}
 }

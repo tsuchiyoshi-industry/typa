@@ -3,6 +3,7 @@ import type { EvaluationSheetRepository } from "../../domain/repositories/Evalua
 import { EvaluationSheetAccessPolicy } from "../../domain/services/EvaluationSheetAccessPolicy";
 import type { ExportSheetOutputDto, ExportSheetRequestDto } from "../dtos/ExportSheetDto";
 import { toSheetExportDataDto } from "../dtos/ExportSheetMapper";
+import { messageOf } from "../errorMessage";
 import type { OutputPort } from "../ports/OutputPort";
 import type { SheetPdfGateway } from "../ports/SheetPdfGateway";
 import type { UseCase } from "../ports/UseCase";
@@ -87,7 +88,7 @@ export class ExportEvaluationSheetInteractor
 			console.error("Export error:", error);
 			presenter.present({
 				success: false,
-				message: error instanceof Error ? error.message : "PDFの出力中にエラーが発生しました",
+				message: messageOf(error, "PDFの出力中にエラーが発生しました"),
 			});
 		}
 	}

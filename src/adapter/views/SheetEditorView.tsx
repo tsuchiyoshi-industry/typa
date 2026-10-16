@@ -20,6 +20,7 @@ import type {
 	PendingEvaluationItemDto,
 } from "../../application/dtos/EvaluationSheetDto";
 import type { SheetSummaryDto } from "../../application/dtos/SheetListDto";
+import { messageOf } from "../../application/errorMessage";
 import { EvaluationStatus } from "../../domain/valueObjects/EvaluationStatus";
 import type { ChallengeEvaluationController } from "../controllers/ChallengeEvaluationController";
 import type { CommonEvaluationController } from "../controllers/CommonEvaluationController";
@@ -649,10 +650,7 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 							try {
 								await props.controller.resendNotification();
 							} catch (error) {
-								showToast(
-									"error",
-									error instanceof Error ? error.message : "通知を再送できませんでした。",
-								);
+								showToast("error", messageOf(error, "通知を再送できませんでした。"));
 							} finally {
 								setResending(false);
 							}

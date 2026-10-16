@@ -1,3 +1,4 @@
+import { messageOf } from "../../application/errorMessage";
 import type {
 	CreateEvaluationSheetInteractor,
 	CreateEvaluationSheetOutputPort,
@@ -86,9 +87,7 @@ export class SheetEditorController {
 			return sheetId;
 		} catch (error) {
 			if (generation === this.sheetLoadGeneration) {
-				this.presenter.presentSheetError(
-					error instanceof Error ? error.message : "シートを読み込めませんでした",
-				);
+				this.presenter.presentSheetError(messageOf(error, "シートを読み込めませんでした"));
 			}
 			return null;
 		}
@@ -103,7 +102,7 @@ export class SheetEditorController {
 			);
 		} catch (error) {
 			this.presenter.presentAccessibleSheetsError(
-				error instanceof Error ? error.message : "表示対象社員の取得に失敗しました",
+				messageOf(error, "表示対象社員の取得に失敗しました"),
 			);
 		}
 	}
@@ -116,9 +115,7 @@ export class SheetEditorController {
 		try {
 			await this.fetchPeriodsUseCase.execute({}, this.presenter.outputPort.periods);
 		} catch (error) {
-			this.presenter.presentPeriodsError(
-				error instanceof Error ? error.message : "期間情報の取得に失敗しました",
-			);
+			this.presenter.presentPeriodsError(messageOf(error, "期間情報の取得に失敗しました"));
 		}
 	}
 
@@ -155,9 +152,7 @@ export class SheetEditorController {
 			);
 			return true;
 		} catch (error) {
-			this.presenter.presentOverallCommentUpdateError(
-				error instanceof Error ? error.message : "総評の保存に失敗しました",
-			);
+			this.presenter.presentOverallCommentUpdateError(messageOf(error, "総評の保存に失敗しました"));
 			return false;
 		}
 	}
@@ -192,9 +187,7 @@ export class SheetEditorController {
 			);
 			return true;
 		} catch (error) {
-			this.presenter.presentStatusUpdateError(
-				error instanceof Error ? error.message : "ステータスの変更に失敗しました",
-			);
+			this.presenter.presentStatusUpdateError(messageOf(error, "ステータスの変更に失敗しました"));
 			return false;
 		}
 	}
@@ -237,9 +230,7 @@ export class SheetEditorController {
 			);
 			return this.presenter.viewModel().createdSheetId;
 		} catch (error) {
-			this.presenter.presentCreateError(
-				error instanceof Error ? error.message : "評価シートの作成に失敗しました",
-			);
+			this.presenter.presentCreateError(messageOf(error, "評価シートの作成に失敗しました"));
 			return null;
 		}
 	}

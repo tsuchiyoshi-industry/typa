@@ -179,12 +179,15 @@ a:hover {
 	max-height: 6rem;
 	border-radius: inherit;
 	background: var(--hr-veins);
-	mask: var(--hr-marble) var(--hr-marble-position, -70px -120px) / var(--hr-marble-size) no-repeat;
-	transform: var(--hr-marble-transform, none);
+	/* 下端は切らずに消えていくようにする */
+	mask:
+		var(--hr-marble) var(--hr-marble-position, -70px -120px) / var(--hr-marble-size) no-repeat,
+		linear-gradient(#000 45%, transparent);
+	mask-composite: intersect;
 	pointer-events: none;
 }
 
-/* 面ごとに縮尺・切り取り位置・反転を変える。図柄自体は回転させず面の中に収める。 */
+/* 面ごとに縮尺と切り取り位置を変える。反転は --hr-veins の濃淡の向きまで裏返すので使わない。 */
 :where(.dashboard-topbar) {
 	--hr-marble-size: 980px 610px;
 	--hr-marble-position: -180px -240px;
@@ -193,31 +196,26 @@ a:hover {
 :where(.auth-card) {
 	--hr-marble-size: 640px 400px;
 	--hr-marble-position: -210px -95px;
-	--hr-marble-transform: scaleX(-1);
 }
 
 :where(.master-profile) {
 	--hr-marble-size: 850px 530px;
 	--hr-marble-position: -120px -330px;
-	--hr-marble-transform: scaleY(-1);
 }
 
 :where(.master-list-head, .common-evaluation-card__header) {
 	--hr-marble-size: 760px 475px;
 	--hr-marble-position: -160px -70px;
-	--hr-marble-transform: scaleX(-1);
 }
 
 :where(.challenge-card__title, .sheet-window__bar) {
 	--hr-marble-size: 920px 575px;
 	--hr-marble-position: -240px -200px;
-	--hr-marble-transform: scale(-1);
 }
 
 :where(.overall-comment-card__header, .review-progress) {
 	--hr-marble-size: 680px 425px;
 	--hr-marble-position: -85px -285px;
-	--hr-marble-transform: scaleY(-1);
 }
 
 :where(.info-card) {
@@ -229,13 +227,11 @@ a:hover {
 :where(.sheet-section:nth-of-type(2n) .sheet-section-header, .info-card:nth-of-type(2n)) {
 	--hr-marble-size: 940px 590px;
 	--hr-marble-position: -310px -360px;
-	--hr-marble-transform: scaleX(-1);
 }
 
 :where(.sheet-section:nth-of-type(3n) .sheet-section-header, .info-card:nth-of-type(3n)) {
 	--hr-marble-size: 660px 410px;
 	--hr-marble-position: -40px -210px;
-	--hr-marble-transform: scaleY(-1);
 }
 
 @media (forced-colors: active), (prefers-contrast: more) {

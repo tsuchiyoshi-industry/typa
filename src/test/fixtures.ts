@@ -137,10 +137,12 @@ export function commonRepository() {
 }
 export function masterRepository() {
 	return {
-		issueInvitation: vi
-			.fn<EmployeeMasterRepository["issueInvitation"]>()
+		issueInvitationByEmployeeNo: vi
+			.fn<EmployeeMasterRepository["issueInvitationByEmployeeNo"]>()
 			.mockResolvedValue({ code: "invitation", expiresAt: "2026-12-01T00:00:00Z" }),
-		setEnabled: vi.fn<EmployeeMasterRepository["setEnabled"]>().mockResolvedValue(true),
+		updateEnabledByEmployeeNo: vi
+			.fn<EmployeeMasterRepository["updateEnabledByEmployeeNo"]>()
+			.mockResolvedValue(true),
 		findCurrentEmployeeProfile: vi
 			.fn<EmployeeMasterRepository["findCurrentEmployeeProfile"]>()
 			.mockResolvedValue(profile("Reviewer", 2)),

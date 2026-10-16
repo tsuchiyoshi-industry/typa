@@ -1,6 +1,7 @@
 import { EmployeeProfile } from "../../domain/entities/EmployeeProfile";
 import type {
 	EmployeeGrade,
+	EmployeeInvitation,
 	EmployeeMasterRepository,
 	EvaluatorType,
 } from "../../domain/repositories/EmployeeMasterRepository";
@@ -155,28 +156,6 @@ export class SupabaseEmployeeMasterRepository implements EmployeeMasterRepositor
 		return data === true;
 	}
 
-	async issueInvitation(employeeNo: string): Promise<{ code: string; expiresAt: string }> {
-		const { data, error } = await supabase.rpc("issue_employee_invitation", {
-			p_employee_no: employeeNo,
-		});
-		if (error || !data || typeof data.code !== "string" || typeof data.expiresAt !== "string") {
-			throw new Error(error?.message ?? "招待コードを発行できませんでした。");
-		}
-		return data;
-	}
-
-	async setEnabled(employeeNo: string, enabled: boolean): Promise<boolean> {
-		const { data, error } = await supabase.rpc("set_employee_enabled", {
-			p_employee_no: employeeNo,
-			p_enabled: enabled,
-		});
-		if (error) {
-			throw new Error(error.message);
-		}
-		this.current = undefined;
-		return data === true;
-	}
-
 	async resetRegistrationByEmployeeNo(targetEmployeeNo: string): Promise<boolean> {
 		// Authユーザーの削除はクライアントの権限ではできないため、Admin だけが実行できるDB関数に任せる
 		const { data, error } = await supabase.rpc("reset_employee_registration", {
@@ -188,6 +167,37 @@ export class SupabaseEmployeeMasterRepository implements EmployeeMasterRepositor
 			return false;
 		}
 
+		return data === true;
+	}
+
+	async issueInvitationByEmployeeNo(targetEmployeeNo: string): Promise<EmployeeInvitation | null> {
+		// コードは DB 関数が作り、平文はこの応答で一度だけ返る。Admin の確認も DB 関数に任せる
+		const { data, error } = await supabase.rpc("issue_employee_invitation", {
+			p_employee_no: targetEmployeeNo,
+		});
+
+		if (error || typeof data?.code !== "string" || typeof data?.expiresAt !== "string") {
+			console.error("Error issuing employee invitation:", error);
+			return null;
+		}
+
+		return { code: data.code, expiresAt: data.expiresAt };
+	}
+
+	async updateEnabledByEmployeeNo(targetEmployeeNo: string, enabled: boolean): Promise<boolean> {
+		// is_enabled はクライアントから直接更新できない。Admin の確認と「Admin を0人にしない」をDB関数に任せる
+		const { data, error } = await supabase.rpc("set_employee_enabled", {
+			p_employee_no: targetEmployeeNo,
+			p_enabled: enabled,
+		});
+
+		if (error) {
+			console.error("Error updating employee enabled:", error);
+			return false;
+		}
+
+		// 自分の利用状態を変えたかもしれない
+		this.current = undefined;
 		return data === true;
 	}
 

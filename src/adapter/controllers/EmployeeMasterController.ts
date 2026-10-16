@@ -1,4 +1,8 @@
 import type {
+	IssueEmployeeInvitationInteractor,
+	IssueEmployeeInvitationOutputPort,
+} from "../../application/usecases/IssueEmployeeInvitationInteractor";
+import type {
 	LoadEmployeeMasterInteractor,
 	LoadEmployeeMasterOutputPort,
 } from "../../application/usecases/LoadEmployeeMasterInteractor";
@@ -6,6 +10,10 @@ import type {
 	ResetEmployeeRegistrationInteractor,
 	ResetEmployeeRegistrationOutputPort,
 } from "../../application/usecases/ResetEmployeeRegistrationInteractor";
+import type {
+	UpdateEmployeeEnabledInteractor,
+	UpdateEmployeeEnabledOutputPort,
+} from "../../application/usecases/UpdateEmployeeEnabledInteractor";
 import type {
 	UpdateEmployeeEvaluatorInteractor,
 	UpdateEmployeeEvaluatorOutputPort,
@@ -22,10 +30,7 @@ import type {
 	UpdateEmployeeRoleInteractor,
 	UpdateEmployeeRoleOutputPort,
 } from "../../application/usecases/UpdateEmployeeRoleInteractor";
-import type {
-	EmployeeMasterRepository,
-	EvaluatorType,
-} from "../../domain/repositories/EmployeeMasterRepository";
+import type { EvaluatorType } from "../../domain/repositories/EmployeeMasterRepository";
 import type { EmployeeMasterViewModel } from "../presenters/EmployeeMasterPresenter";
 
 export class EmployeeMasterController {
@@ -36,6 +41,8 @@ export class EmployeeMasterController {
 		private readonly updateRoleUseCase: UpdateEmployeeRoleInteractor,
 		private readonly resetRegistrationUseCase: ResetEmployeeRegistrationInteractor,
 		private readonly updateKeepSignedInUseCase: UpdateEmployeeKeepSignedInInteractor,
+		private readonly updateEnabledUseCase: UpdateEmployeeEnabledInteractor,
+		private readonly issueInvitationUseCase: IssueEmployeeInvitationInteractor,
 		private readonly presenter: {
 			viewModel: () => EmployeeMasterViewModel;
 			outputPort: {
@@ -45,11 +52,13 @@ export class EmployeeMasterController {
 				updateRole: UpdateEmployeeRoleOutputPort;
 				updateKeepSignedIn: UpdateEmployeeKeepSignedInOutputPort;
 				resetRegistration: ResetEmployeeRegistrationOutputPort;
+				updateEnabled: UpdateEmployeeEnabledOutputPort;
+				issueInvitation: IssueEmployeeInvitationOutputPort;
 			};
 			beginLoad: () => void;
+			dismissInvitation: () => void;
 			presentError: (message: string) => void;
 		},
-		private readonly accessRepository?: EmployeeMasterRepository,
 	) {}
 
 	async load(): Promise<void> {
@@ -123,27 +132,33 @@ export class EmployeeMasterController {
 		);
 	}
 
-	async issueInvitation(employeeNo: string): Promise<{ code: string; expiresAt: string }> {
-		const repo = await this.requireAccessAdmin();
-		return repo.issueInvitation(employeeNo);
+	updateEnabled(targetEmployeeNo: string, enabled: boolean): Promise<boolean> {
+		return this.applyUpdate(
+			() =>
+				this.updateEnabledUseCase.execute(
+					{ targetEmployeeNo, enabled },
+					this.presenter.outputPort.updateEnabled,
+				),
+			"利用状態を変更できませんでした",
+		);
 	}
 
-	async setEnabled(employeeNo: string, enabled: boolean): Promise<boolean> {
-		const repo = await this.requireAccessAdmin();
-		const changed = await repo.setEnabled(employeeNo, enabled);
-		if (changed) {
-			await this.load();
+	/** 発行しても一覧の中身は変わらないので、読み込み直さない。コードは viewModel.invitation に載る。 */
+	async issueInvitation(targetEmployeeNo: string): Promise<void> {
+		try {
+			await this.issueInvitationUseCase.execute(
+				{ targetEmployeeNo },
+				this.presenter.outputPort.issueInvitation,
+			);
+		} catch (error) {
+			this.presenter.presentError(
+				error instanceof Error ? error.message : "招待コードを発行できませんでした",
+			);
 		}
-		return changed;
 	}
 
-	private async requireAccessAdmin(): Promise<EmployeeMasterRepository> {
-		const repo = this.accessRepository;
-		const current = await repo?.findCurrentEmployeeProfile();
-		if (!repo || !current?.role.isAdmin()) {
-			throw new Error("Admin のみ操作できます。");
-		}
-		return repo;
+	dismissInvitation(): void {
+		this.presenter.dismissInvitation();
 	}
 
 	private async applyUpdate(

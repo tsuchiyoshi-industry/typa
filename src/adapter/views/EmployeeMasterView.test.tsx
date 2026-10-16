@@ -39,6 +39,7 @@ function setup() {
 		loading: false,
 		errorMessage: null,
 		updateStatus: { message: null, success: null },
+		invitation: null,
 		mode: "admin",
 		canEditEvaluators: true,
 		canEditGrades: true,
@@ -79,10 +80,20 @@ function setup() {
 		updateRole: vi.fn().mockResolvedValue(true),
 		updateKeepSignedIn: vi.fn().mockResolvedValue(true),
 		resetRegistration: vi.fn(),
-		issueInvitation: vi
-			.fn()
-			.mockResolvedValue({ code: "PERSONAL-INVITATION", expiresAt: "2026-10-23T00:00:00Z" }),
-		setEnabled: vi.fn().mockResolvedValue(true),
+		// 発行したコードは presenter が viewModel に載せる
+		issueInvitation: vi.fn(async (employeeNo: string) => {
+			setViewModel((prev) => ({
+				...prev,
+				invitation: {
+					employeeNo,
+					name: "山田",
+					code: "PERSONAL-INVITATION",
+					expiresAt: "2026-10-23T00:00:00Z",
+				},
+			}));
+		}),
+		dismissInvitation: vi.fn(() => setViewModel((prev) => ({ ...prev, invitation: null }))),
+		updateEnabled: vi.fn().mockResolvedValue(true),
 	};
 	const screen = render(() => (
 		<EmployeeMasterView
@@ -267,7 +278,7 @@ it("shows the employee's invitation only after explicit issuance", async () => {
 it("confirms suspension separately from deleting a registration", async () => {
 	const view = setup();
 	fireEvent.click(view.getByRole("button", { name: "山田さんの利用を停止する" }));
-	await waitFor(() => expect(view.controller.setEnabled).toHaveBeenCalledWith("E001", false));
+	await waitFor(() => expect(view.controller.updateEnabled).toHaveBeenCalledWith("E001", false));
 	expect(view.controller.resetRegistration).not.toHaveBeenCalled();
 	expect(confirmAction).toHaveBeenCalledWith(
 		expect.objectContaining({ confirmLabel: "利用を停止" }),

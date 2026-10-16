@@ -14,8 +14,10 @@ import { CreateEvaluationSheetInteractor } from "./CreateEvaluationSheetInteract
 import { FetchCategorizedSheetsInteractor } from "./FetchCategorizedSheetsInteractor";
 import { FetchDistinctPeriodsInteractor } from "./FetchDistinctPeriodsInteractor";
 import { FetchEvaluationSheetInteractor } from "./FetchEvaluationSheetInteractor";
+import { IssueEmployeeInvitationInteractor } from "./IssueEmployeeInvitationInteractor";
 import { LoadEmployeeMasterInteractor } from "./LoadEmployeeMasterInteractor";
 import { ResetEmployeeRegistrationInteractor } from "./ResetEmployeeRegistrationInteractor";
+import { UpdateEmployeeEnabledInteractor } from "./UpdateEmployeeEnabledInteractor";
 import { UpdateEmployeeEvaluatorInteractor } from "./UpdateEmployeeEvaluatorInteractor";
 import { UpdateEmployeeGradeInteractor } from "./UpdateEmployeeGradeInteractor";
 
@@ -168,6 +170,107 @@ describe("employee master authorization", () => {
 				expect(repo.resetRegistrationByEmployeeNo).toHaveBeenCalledWith("TEST001");
 			}
 			expect(out.present).toHaveBeenCalledWith(expect.objectContaining({ success: kind === "ok" }));
+		},
+	);
+	it.each(["Reviewer", "Employee", "unknown", null])(
+		"denies invitation and suspension by %s",
+		async (role) => {
+			const repo = masterRepository();
+			repo.findCurrentEmployeeProfile.mockResolvedValue(role === null ? null : profile(role, 2));
+			const issued = output<never>();
+			const suspended = output<never>();
+			await new IssueEmployeeInvitationInteractor(repo).execute(
+				{ targetEmployeeNo: "TEST001" },
+				issued,
+			);
+			await new UpdateEmployeeEnabledInteractor(repo).execute(
+				{ targetEmployeeNo: "TEST001", enabled: false },
+				suspended,
+			);
+			expect(repo.issueInvitationByEmployeeNo).not.toHaveBeenCalled();
+			expect(repo.updateEnabledByEmployeeNo).not.toHaveBeenCalled();
+			expect(issued.present).toHaveBeenCalledWith(
+				expect.objectContaining({ success: false, invitation: null }),
+			);
+			expect(suspended.present).toHaveBeenCalledWith(expect.objectContaining({ success: false }));
+		},
+	);
+	it.each(["ok", "empty", "missingTarget", "disabled", "registered", "failed"])(
+		"admin invitation case %s",
+		async (kind) => {
+			const repo = masterRepository();
+			repo.findCurrentEmployeeProfile.mockResolvedValue(profile("Admin", 2));
+			const target = profile("Employee", 1, kind === "registered");
+			repo.findByEmployeeNo.mockResolvedValue(
+				kind === "missingTarget"
+					? null
+					: kind === "disabled"
+						? Object.assign(target, { enabled: false })
+						: target,
+			);
+			if (kind === "failed") {
+				repo.issueInvitationByEmployeeNo.mockResolvedValue(null);
+			}
+			const out = output<never>();
+			await new IssueEmployeeInvitationInteractor(repo).execute(
+				{ targetEmployeeNo: kind === "empty" ? " " : " TEST001 " },
+				out,
+			);
+			const reachesRepository = kind === "ok" || kind === "failed";
+			expect(repo.issueInvitationByEmployeeNo).toHaveBeenCalledTimes(reachesRepository ? 1 : 0);
+			expect(out.present).toHaveBeenCalledWith(
+				expect.objectContaining({
+					success: kind === "ok",
+					invitation:
+						kind === "ok"
+							? {
+									employeeNo: "TEST001",
+									name: "テスト1",
+									code: "invitation",
+									expiresAt: "2026-12-01T00:00:00Z",
+								}
+							: null,
+				}),
+			);
+		},
+	);
+	it.each(["suspend", "resume", "missingTarget", "self", "lastAdmin", "failed"])(
+		"admin suspension case %s",
+		async (kind) => {
+			const repo = masterRepository();
+			const me = profile("Admin", 2);
+			repo.findCurrentEmployeeProfile.mockResolvedValue(me);
+			repo.findAllEmployeeProfiles.mockResolvedValue([
+				me,
+				profile(kind === "lastAdmin" ? "Admin" : "Employee", 1),
+			]);
+			if (kind === "lastAdmin") {
+				// 自分(id 2)は登録が切れていて、使える Admin は対象の1名だけ
+				repo.findAllEmployeeProfiles.mockResolvedValue([
+					profile("Admin", 2, false),
+					profile("Admin", 1),
+				]);
+			}
+			if (kind === "failed") {
+				repo.updateEnabledByEmployeeNo.mockResolvedValue(false);
+			}
+			const out = output<never>();
+			await new UpdateEmployeeEnabledInteractor(repo).execute(
+				{
+					targetEmployeeNo:
+						kind === "missingTarget" ? "NOPE" : kind === "self" ? "TEST002" : " TEST001 ",
+					enabled: kind === "resume",
+				},
+				out,
+			);
+			const reachesRepository = kind === "suspend" || kind === "resume" || kind === "failed";
+			expect(repo.updateEnabledByEmployeeNo).toHaveBeenCalledTimes(reachesRepository ? 1 : 0);
+			if (reachesRepository) {
+				expect(repo.updateEnabledByEmployeeNo).toHaveBeenCalledWith("TEST001", kind === "resume");
+			}
+			expect(out.present).toHaveBeenCalledWith(
+				expect.objectContaining({ success: kind === "suspend" || kind === "resume" }),
+			);
 		},
 	);
 	it.each(["Reviewer", "Employee", "unknown", null])("denies grade update by %s", async (role) => {

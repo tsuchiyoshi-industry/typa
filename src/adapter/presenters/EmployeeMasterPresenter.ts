@@ -1,10 +1,15 @@
 import { createSignal } from "solid-js";
 import type { EmployeeMasterDto } from "../../application/dtos/EmployeeMasterDto";
 import type {
+	IssuedEmployeeInvitation,
+	IssueEmployeeInvitationOutputPort,
+} from "../../application/usecases/IssueEmployeeInvitationInteractor";
+import type {
 	LoadEmployeeMasterOutputPort,
 	LoadEmployeeMasterResponse,
 } from "../../application/usecases/LoadEmployeeMasterInteractor";
 import type { ResetEmployeeRegistrationOutputPort } from "../../application/usecases/ResetEmployeeRegistrationInteractor";
+import type { UpdateEmployeeEnabledOutputPort } from "../../application/usecases/UpdateEmployeeEnabledInteractor";
 import type { UpdateEmployeeEvaluatorOutputPort } from "../../application/usecases/UpdateEmployeeEvaluatorInteractor";
 import type { UpdateEmployeeGradeOutputPort } from "../../application/usecases/UpdateEmployeeGradeInteractor";
 import type { UpdateEmployeeKeepSignedInOutputPort } from "../../application/usecases/UpdateEmployeeKeepSignedInInteractor";
@@ -17,6 +22,8 @@ export interface EmployeeMasterViewModel extends EmployeeMasterDto {
 		message: string | null;
 		success: boolean | null;
 	};
+	/** 発行した直後の招待コード。閉じるか、利用状態を変えると消える */
+	invitation: IssuedEmployeeInvitation | null;
 }
 
 export function createEmployeeMasterPresenter(): {
@@ -28,8 +35,11 @@ export function createEmployeeMasterPresenter(): {
 		updateRole: UpdateEmployeeRoleOutputPort;
 		updateKeepSignedIn: UpdateEmployeeKeepSignedInOutputPort;
 		resetRegistration: ResetEmployeeRegistrationOutputPort;
+		updateEnabled: UpdateEmployeeEnabledOutputPort;
+		issueInvitation: IssueEmployeeInvitationOutputPort;
 	};
 	beginLoad: () => void;
+	dismissInvitation: () => void;
 	presentError: (message: string) => void;
 } {
 	const [viewModel, setViewModel] = createSignal<EmployeeMasterViewModel>({
@@ -47,6 +57,7 @@ export function createEmployeeMasterPresenter(): {
 			message: null,
 			success: null,
 		},
+		invitation: null,
 	});
 
 	const loadOutputPort: LoadEmployeeMasterOutputPort = {
@@ -60,7 +71,7 @@ export function createEmployeeMasterPresenter(): {
 		},
 	};
 
-	// 評価者・等級・権限・ログイン状態の保持・登録の取り消し、どの更新結果も同じ形で受け取る
+	// 評価者・等級・権限・ログイン状態の保持・登録の取り消し・利用状態、どの更新結果も同じ形で受け取る
 	const updateOutputPort: UpdateEmployeeGradeOutputPort = {
 		present(response) {
 			setViewModel((prev) => ({
@@ -71,6 +82,33 @@ export function createEmployeeMasterPresenter(): {
 				},
 			}));
 		},
+	};
+
+	// 止めた社員のコードは DB 側で消えるので、利用状態を変えたら出しているコードも下げる
+	const updateEnabledOutputPort: UpdateEmployeeEnabledOutputPort = {
+		present(response) {
+			updateOutputPort.present(response);
+			if (response.success) {
+				setViewModel((prev) => ({ ...prev, invitation: null }));
+			}
+		},
+	};
+
+	const issueInvitationOutputPort: IssueEmployeeInvitationOutputPort = {
+		present(response) {
+			setViewModel((prev) => ({
+				...prev,
+				invitation: response.invitation,
+				updateStatus: {
+					message: response.message,
+					success: response.success,
+				},
+			}));
+		},
+	};
+
+	const dismissInvitation = () => {
+		setViewModel((prev) => ({ ...prev, invitation: null }));
 	};
 
 	const beginLoad = () => {
@@ -90,8 +128,11 @@ export function createEmployeeMasterPresenter(): {
 			updateRole: updateOutputPort,
 			updateKeepSignedIn: updateOutputPort,
 			resetRegistration: updateOutputPort,
+			updateEnabled: updateEnabledOutputPort,
+			issueInvitation: issueInvitationOutputPort,
 		},
 		beginLoad,
+		dismissInvitation,
 		presentError,
 	};
 }

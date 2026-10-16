@@ -8,9 +8,12 @@ export interface EmployeeGrade {
 	name: string;
 }
 
+export interface EmployeeInvitation {
+	code: string;
+	expiresAt: string;
+}
+
 export interface EmployeeMasterRepository {
-	issueInvitation(employeeNo: string): Promise<{ code: string; expiresAt: string }>;
-	setEnabled(employeeNo: string, enabled: boolean): Promise<boolean>;
 	findCurrentEmployeeProfile(): Promise<EmployeeProfile | null>;
 	findAllEmployeeProfiles(): Promise<EmployeeProfile[]>;
 	findByEmployeeNo(employeeNo: string): Promise<EmployeeProfile | null>;
@@ -37,4 +40,14 @@ export interface EmployeeMasterRepository {
 	 * 取り消せたら true。
 	 */
 	resetRegistrationByEmployeeNo(targetEmployeeNo: string): Promise<boolean>;
+	/**
+	 * 未登録の社員に、本人だけが新規登録に使える招待コードを発行する。再発行すると前のコードは無効になる。
+	 * 発行できなければ null。DB には照合用のハッシュだけが残る。
+	 */
+	issueInvitationByEmployeeNo(targetEmployeeNo: string): Promise<EmployeeInvitation | null>;
+	/**
+	 * 利用を停止・再開する。停止するとログイン中のセッションも使えなくなり、発行済みの招待コードも消える。
+	 * 評価データとアカウントは残る。変更できたら true。
+	 */
+	updateEnabledByEmployeeNo(targetEmployeeNo: string, enabled: boolean): Promise<boolean>;
 }

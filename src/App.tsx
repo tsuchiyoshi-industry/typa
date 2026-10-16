@@ -40,11 +40,13 @@ import { FetchCategorizedSheetsInteractor } from "./application/usecases/FetchCa
 import { FetchDistinctPeriodsInteractor } from "./application/usecases/FetchDistinctPeriodsInteractor";
 import { FetchEvaluationSheetInteractor } from "./application/usecases/FetchEvaluationSheetInteractor";
 import { FetchSheetOverviewInteractor } from "./application/usecases/FetchSheetOverviewInteractor";
+import { IssueEmployeeInvitationInteractor } from "./application/usecases/IssueEmployeeInvitationInteractor";
 import { LoadEmployeeMasterInteractor } from "./application/usecases/LoadEmployeeMasterInteractor";
 import { RegisterEmployeeAccountInteractor } from "./application/usecases/RegisterEmployeeAccountInteractor";
 import { ResetEmployeeRegistrationInteractor } from "./application/usecases/ResetEmployeeRegistrationInteractor";
 import { SaveEvaluationPeriodInteractor } from "./application/usecases/SaveEvaluationPeriodInteractor";
 import { SignInEmployeeInteractor } from "./application/usecases/SignInEmployeeInteractor";
+import { UpdateEmployeeEnabledInteractor } from "./application/usecases/UpdateEmployeeEnabledInteractor";
 import { UpdateEmployeeEvaluatorInteractor } from "./application/usecases/UpdateEmployeeEvaluatorInteractor";
 import { UpdateEmployeeGradeInteractor } from "./application/usecases/UpdateEmployeeGradeInteractor";
 import { UpdateEmployeeKeepSignedInInteractor } from "./application/usecases/UpdateEmployeeKeepSignedInInteractor";
@@ -216,8 +218,9 @@ const employeeMasterController = new EmployeeMasterController(
 	updateEmployeeRoleUseCase,
 	resetEmployeeRegistrationUseCase,
 	new UpdateEmployeeKeepSignedInInteractor(employeeMasterRepository),
+	new UpdateEmployeeEnabledInteractor(employeeMasterRepository),
+	new IssueEmployeeInvitationInteractor(employeeMasterRepository),
 	employeeMasterPresenter,
-	employeeMasterRepository,
 );
 
 const AppLayout: Component<{ children?: JSX.Element | JSX.Element[] }> = (props) => (

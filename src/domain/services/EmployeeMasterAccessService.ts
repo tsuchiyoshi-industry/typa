@@ -51,3 +51,8 @@ export function canViewAllSheets(role: EmployeeRole): boolean {
 export function canResetRegistrations(role: EmployeeRole): boolean {
 	return resolveEmployeeMasterMode(role) === "admin";
 }
+
+/** 招待コードの発行と、利用の停止・再開(誰がアプリを使えるか)は Admin だけが行える。 */
+export function canManageEmployeeAccess(role: EmployeeRole): boolean {
+	return resolveEmployeeMasterMode(role) === "admin";
+}

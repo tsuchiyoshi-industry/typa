@@ -47,12 +47,6 @@ const ROLE_DESCRIPTIONS: Record<EmployeeRoleName, string> = {
 const NO_SECONDARY = "__none__";
 
 const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
-	const [invitation, setInvitation] = createSignal<{
-		employeeNo: string;
-		name: string;
-		code: string;
-		expiresAt: string;
-	} | null>(null);
 	const [keyword, setKeyword] = createSignal("");
 	const [scope, setScope] = createSignal<Scope>("all");
 	const [listView, setListView] = createSignal<ListView>("list");
@@ -374,18 +368,10 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 
 	const issueInvitation = async (relation: ApprovalRelationDto) => {
 		setSavingKey(`${relation.employeeNo}:invitation`);
-		try {
-			const result = await props.controller.issueInvitation(relation.employeeNo);
-			setInvitation({ ...result, employeeNo: relation.employeeNo, name: relation.name });
-		} catch (error) {
-			showToast(
-				"error",
-				error instanceof Error ? error.message : "招待コードを発行できませんでした。",
-			);
-		} finally {
-			setSavingKey(null);
-		}
+		await props.controller.issueInvitation(relation.employeeNo);
+		setSavingKey(null);
 	};
+
 	const changeEnabled = async (relation: ApprovalRelationDto) => {
 		const enabled = relation.enabled === false;
 		if (
@@ -401,21 +387,10 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 			return;
 		}
 		setSavingKey(`${relation.employeeNo}:enabled`);
-		try {
-			if (!(await props.controller.setEnabled(relation.employeeNo, enabled))) {
-				throw new Error("利用状態を変更できませんでした。");
-			}
-			setInvitation(null);
-			showToast("success", `${relation.name}さんの利用を${enabled ? "再開" : "停止"}しました。`);
-		} catch (error) {
-			showToast(
-				"error",
-				error instanceof Error ? error.message : "利用状態を変更できませんでした。",
-			);
-		} finally {
-			setSavingKey(null);
-		}
+		await props.controller.updateEnabled(relation.employeeNo, enabled);
+		setSavingKey(null);
 	};
+
 	const RegistrationCell: Component<{ relation: ApprovalRelationDto }> = (cell) => (
 		<div class="registration-actions">
 			<span class="cell-text" classList={{ unset: !cell.relation.registered }}>
@@ -490,7 +465,7 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 
 	const EmployeeList = () => (
 		<section class="master-list">
-			<Show when={invitation()}>
+			<Show when={props.viewModel().invitation}>
 				{(issued) => (
 					<aside class="master-invitation" role="status">
 						<strong>
@@ -506,7 +481,11 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 							有効期限：{new Date(issued().expiresAt).toLocaleString("ja-JP")}
 							。本人に個別に渡してください。再発行すると前のコードは無効になります。
 						</p>
-						<button type="button" class="secondary-action" onClick={() => setInvitation(null)}>
+						<button
+							type="button"
+							class="secondary-action"
+							onClick={() => props.controller.dismissInvitation()}
+						>
 							閉じる
 						</button>
 					</aside>

@@ -15,7 +15,7 @@ jobs:
       # setup-cli v2 installs its own Bun; restore the app's pinned version afterwards.
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.0
+          bun-version: latest
       - uses: denoland/setup-deno@v2
         with:
           deno-version: 2.9.5

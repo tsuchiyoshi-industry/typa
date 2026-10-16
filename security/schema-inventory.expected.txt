@@ -225,6 +225,7 @@ FUNCTION guard_evaluation_sheet_write() definer=false anon=false authenticated=t
 FUNCTION guard_milestone_write() definer=false anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=3c1cf8b8b92b844e3e0ce99697f152af
 FUNCTION hook_before_user_created(jsonb) definer=true anon=false authenticated=false service_role=true auth_admin=true config={"search_path=\"\""} md5=168993d16d5254dfefe8634a2eecf7e9
 FUNCTION issue_employee_invitation(text) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=7ab07b8aac4ac7ebcdbd9bf3cee6fc31
+FUNCTION issue_pending_employee_invitations() definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=587e00f4bd6ce2ab6354cb5b48c7db02
 FUNCTION lock_employee_administration() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=ca0590d5aedbe55640c261bb9f8cd068
 FUNCTION lock_evaluation_sheet(bigint) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=ee701b7ab71476d24a520441d88c9e5b
 FUNCTION lock_sheet_content_write() definer=false anon=true authenticated=true service_role=true auth_admin=true config={"search_path=\"\""} md5=fbd7044d6c3b970359c6602bbc047a4b

@@ -11,9 +11,7 @@
 	gap: 1rem;
 	padding: 0 1.25rem;
 	height: 3.5rem;
-	/* 下を送られていく内容と地の模様が、すりガラス越しにうっすら透ける */
-	background: color-mix(in srgb, var(--hr-surface) 84%, transparent);
-	backdrop-filter: blur(14px);
+	background: var(--hr-surface);
 	border-bottom: 1px solid var(--hr-border);
 	position: sticky;
 	top: 0;
@@ -84,7 +82,8 @@
 
 /* 現在地 */
 .topbar-nav .nav-link.active {
-	color: var(--hr-text);
+	color: var(--hr-link);
+	box-shadow: inset 0 -2px var(--hr-accent);
 	background: var(--hr-accent-muted);
 }
 
@@ -168,7 +167,7 @@
 	background: var(--hr-surface);
 	border: 1px solid var(--hr-border);
 	border-radius: var(--hr-radius-md);
-	box-shadow: var(--hr-shadow);
+	box-shadow: var(--hr-shadow-overlay);
 }
 
 .user-menu-item {
@@ -202,7 +201,7 @@
 
 .dashboard-main {
 	flex: 1;
-	padding: 1.5rem 1.25rem 2.5rem;
+	padding: 2rem clamp(1rem, 2.5vw, 2.5rem) 3rem;
 	max-width: 1440px;
 	margin: 0 auto;
 	width: 100%;
@@ -449,7 +448,7 @@
 
 .sheet-list-header h1 {
 	margin: 0;
-	font-size: 1.35rem;
+	font-size: 1.5rem;
 	font-weight: 600;
 	letter-spacing: var(--hr-tracking);
 	color: var(--hr-text);
@@ -473,8 +472,7 @@
 	margin-top: -1.25rem;
 	overflow-x: auto;
 	scrollbar-width: thin;
-	background: color-mix(in srgb, var(--hr-bg) 40%, transparent);
-	backdrop-filter: blur(14px);
+	background: var(--hr-bg);
 	border-bottom: 1px solid var(--hr-border);
 }
 
@@ -542,7 +540,7 @@
 	justify-content: space-between;
 	gap: 1rem;
 	padding: 1.1rem 1.25rem;
-	background: var(--hr-bg-elevated);
+	background: var(--hr-surface);
 	border-bottom: 1px solid var(--hr-border);
 }
 
@@ -807,13 +805,13 @@
 	display: inline-flex;
 	align-items: center;
 	gap: 0.35rem;
-	padding: 0.2rem 0.65rem 0.2rem 0.5rem;
+	padding: 0.2rem 0.55rem;
 	font-size: 0.8125rem;
 	font-weight: 600;
 	color: var(--hr-text-muted);
 	background: var(--hr-bg-elevated);
 	border: 1px solid var(--hr-border);
-	border-radius: 999px;
+	border-radius: var(--hr-radius-sm);
 	white-space: nowrap;
 }
 
@@ -1483,7 +1481,7 @@
 
 .challenge-card__title {
 	padding: 1.1rem 1.25rem;
-	background: var(--hr-bg-elevated);
+	background: var(--hr-surface);
 	border-bottom: 1px solid var(--hr-border);
 }
 
@@ -1898,7 +1896,7 @@
 	border-top: 1px solid var(--hr-border-strong);
 	border-radius: 0 0 var(--hr-radius-lg) var(--hr-radius-lg);
 	background: var(--hr-surface);
-	box-shadow: 0 -8px 20px rgba(0, 0, 0, 0.12);
+	box-shadow: 0 -2px 8px light-dark(rgba(27, 38, 45, 0.05), rgba(0, 0, 0, 0.2));
 }
 
 .edit-actions-footer p {
@@ -1934,7 +1932,7 @@
 	justify-content: space-between;
 	gap: 1rem;
 	padding: 1.1rem 1.25rem;
-	background: var(--hr-bg-elevated);
+	background: var(--hr-surface);
 	border-bottom: 1px solid var(--hr-border);
 	border-radius: var(--hr-radius-lg) var(--hr-radius-lg) 0 0;
 }
@@ -2077,7 +2075,7 @@
 
 .overall-comment-card__header {
 	padding: 1.1rem 1.25rem;
-	background: var(--hr-bg-elevated);
+	background: var(--hr-surface);
 	border-bottom: 1px solid var(--hr-border);
 }
 

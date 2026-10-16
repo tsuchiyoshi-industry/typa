@@ -10,7 +10,7 @@
 	overflow: hidden;
 }
 
-/* 地の模様(global.css の body と同じもの)。この画面は body を覆うので、自分でも持つ */
+/* ロゴの背後に薄い色のにじみと、ゆっくり流れる石目を添える。 */
 .loading-container::before,
 .loading-container::after {
 	content: "";
@@ -20,18 +20,20 @@
 
 .loading-container::before {
 	inset: 0;
-	background: var(--hr-wash);
+	background: radial-gradient(ellipse 55% 45% at 50% 45%, var(--hr-accent-muted), transparent 75%);
 }
 
 /* 流す分だけ外にはみ出させておく */
 .loading-container::after {
 	inset: -12%;
 	background: var(--hr-veins);
-	mask: var(--hr-marble) 0 0 / var(--hr-marble-size);
+	mask: var(--hr-marble) 70% 35% / 1200px 750px;
+	opacity: 0.65;
 }
 
 .loading-content {
 	position: relative;
+	z-index: 1;
 	display: flex;
 	flex-direction: column;
 	align-items: center;
@@ -43,8 +45,8 @@
 	position: absolute;
 	top: 50%;
 	left: 50%;
-	width: 22rem;
-	height: 22rem;
+	width: min(21rem, 80vw);
+	aspect-ratio: 1;
 	translate: -50% -50%;
 	pointer-events: none;
 }
@@ -54,7 +56,7 @@
 	inset: 0;
 	border: 1px solid var(--hr-accent);
 	border-radius: 49% 51% 52% 48% / 52% 48% 51% 49%;
-	opacity: 0.22;
+	opacity: 0.14;
 }
 
 /* 動きを止めている環境では、広がりきる途中の三つの輪として見せる */
@@ -76,8 +78,8 @@
 	display: flex;
 	align-items: baseline;
 	height: 2.5rem;
-	font-size: 1.4rem;
-	font-weight: 900;
+	font-size: clamp(1rem, 3.5vw, 1.4rem);
+	font-weight: 750;
 	letter-spacing: -0.02em;
 	color: var(--hr-text);
 }
@@ -85,15 +87,15 @@
 /* TYPA の 4 文字 */
 .main-char {
 	display: inline-block;
-	transform: scale(1.1);
+	flex-shrink: 0;
 }
 
 /* TYPA のあいだを埋める綴り。読ませてから畳む */
 .sub-text {
 	display: inline-block;
-	max-width: 500px;
+	max-width: 0;
 	font-weight: 400;
-	font-size: 1.2rem;
+	font-size: 0.8em;
 	color: var(--hr-text-muted);
 	white-space: nowrap;
 	overflow: hidden;
@@ -103,13 +105,13 @@
 	position: relative;
 	margin: 0;
 	font-size: 0.8125rem;
-	letter-spacing: 0.24em;
+	letter-spacing: 0.12em;
 	color: var(--hr-text-muted);
 }
 
 @media (prefers-reduced-motion: no-preference) {
 	.loading-container {
-		animation: loadingIn 0.7s ease 0.1s both;
+		animation: loadingIn 0.35s ease both;
 	}
 
 	.loading-container::after {
@@ -118,15 +120,15 @@
 
 	.loading-ripple span {
 		opacity: 0;
-		animation: loadingRipple 6s cubic-bezier(0.2, 0.6, 0.3, 1) infinite;
+		animation: loadingRipple 7.5s cubic-bezier(0.2, 0.6, 0.3, 1) infinite;
 	}
 
 	.loading-ripple span:nth-child(2) {
-		animation-delay: 2s;
+		animation-delay: 2.5s;
 	}
 
 	.loading-ripple span:nth-child(3) {
-		animation-delay: 4s;
+		animation-delay: 5s;
 	}
 
 	.sub-text {
@@ -152,7 +154,7 @@
 		scale: 0.18;
 	}
 	25% {
-		opacity: 0.42;
+		opacity: 0.26;
 	}
 	100% {
 		opacity: 0;
@@ -174,5 +176,14 @@
 	100% {
 		opacity: 0;
 		max-width: 0;
+	}
+}
+
+/* コントラスト優先の環境では地の模様を消し、ロゴと状態表示を残す。 */
+@media (forced-colors: active), (prefers-contrast: more) {
+	.loading-container::before,
+	.loading-container::after,
+	.loading-ripple {
+		display: none;
 	}
 }

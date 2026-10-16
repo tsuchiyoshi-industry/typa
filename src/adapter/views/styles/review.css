@@ -16,13 +16,13 @@
 	color: var(--hr-text-muted);
 	font-size: 0.8125rem;
 	font-weight: 650;
-	letter-spacing: 0.16em;
+	letter-spacing: 0.06em;
 }
 .review-heading h1 {
 	margin: 0.25rem 0;
-	font-size: 1.65rem;
+	font-size: 1.5rem;
 	font-weight: 650;
-	letter-spacing: -0.02em;
+	letter-spacing: var(--hr-tracking);
 }
 .review-heading p {
 	margin: 0;
@@ -284,8 +284,7 @@
 	display: grid;
 	place-items: center;
 	padding: 1.5rem;
-	background: color-mix(in srgb, var(--hr-bg-end) 68%, transparent);
-	backdrop-filter: blur(2px);
+	background: light-dark(rgba(23, 33, 47, 0.3), rgba(0, 0, 0, 0.5));
 }
 .sheet-window {
 	display: flex;
@@ -296,9 +295,7 @@
 	background: var(--hr-bg);
 	border: 1px solid var(--hr-border-strong);
 	border-radius: var(--hr-radius-lg);
-	box-shadow:
-		0 0 0 1px rgba(0, 0, 0, 0.08),
-		0 32px 80px -24px rgba(0, 0, 0, 0.6);
+	box-shadow: var(--hr-shadow-overlay);
 }
 /* 窓そのものへのフォーカスは、開いた直後の起点。枠は出さない */
 .sheet-window:focus {

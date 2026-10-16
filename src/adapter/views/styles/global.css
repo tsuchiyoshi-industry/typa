@@ -1,18 +1,14 @@
 /* TYPA 人事考課 — デザイントークン・リセット・ログイン・アプリ枠 */
 
-/* 配色は「紙と墨」。値は light-dark(ライト, ダーク) の順に並べる。
-   ライトは紙に墨: 青みのある白い紙に、墨色の文字と深い藍。
-   ダークは墨に紙: 藍墨の地に、生成りの文字と淡い藍。ライトを暗くしたものではなく、面は手前に重なるほど明るくなり、
-   塗りは淡い色の上に濃い文字を載せる。
-   文字は地に対して 4.5:1 以上、押せる部品の枠と塗りは 3:1 以上を保つ(WCAG AA)。tokens.test.ts で確かめている。 */
+/* 明確な面の境界で情報と操作を読み取りやすくし、マーブルは見出しの端に薄く添える。
+   light-dark(ライト, ダーク) の順。文字・操作部品のコントラストは tokens.test.ts で検証する。 */
 :root {
 	color-scheme: light dark;
 	/* 地。--hr-bg-elevated は一段沈んだ面(入力欄・表の見出し)、--hr-surface は手前に載るカード */
-	--hr-bg: light-dark(#edf0f0, #131b22);
-	--hr-bg-end: light-dark(#e2e7e8, #0e151b);
-	--hr-bg-elevated: light-dark(#e4e9ea, #18222b);
-	--hr-surface: light-dark(#fbfcfc, #1d2933);
-	--hr-surface-hover: light-dark(#f1f4f4, #253340);
+	--hr-bg: light-dark(#f3f5f7, #171b21);
+	--hr-bg-elevated: light-dark(#f1f3f5, #1d232b);
+	--hr-surface: light-dark(#ffffff, #232a33);
+	--hr-surface-hover: light-dark(#f5f7f9, #2b333e);
 	--hr-border: light-dark(rgba(27, 38, 45, 0.11), rgba(214, 228, 238, 0.1));
 	--hr-border-strong: light-dark(rgba(27, 38, 45, 0.22), rgba(214, 228, 238, 0.19));
 	/* 入力欄・押せる部品の枠 */
@@ -20,9 +16,9 @@
 	--hr-text: light-dark(#1b262d, #e6e3dc);
 	--hr-text-muted: light-dark(#4d5b64, #9eabb4);
 	--hr-link: light-dark(#1a5c80, #8fc3de);
-	--hr-accent: light-dark(#1a5c80, #86bcd9);
-	--hr-accent-hover: light-dark(#134a68, #a6d0e6);
-	--hr-accent-muted: light-dark(rgba(26, 92, 128, 0.12), rgba(134, 188, 217, 0.16));
+	--hr-accent: light-dark(#315c7a, #94b8d2);
+	--hr-accent-hover: light-dark(#264b65, #b1cde0);
+	--hr-accent-muted: light-dark(rgba(49, 92, 122, 0.08), rgba(148, 184, 210, 0.12));
 	/* 塗り(--hr-accent / success / warning / danger)の上に載せる文字 */
 	--hr-on-accent: light-dark(#ffffff, #0e1a22);
 	--hr-success: light-dark(#35733f, #86c796);
@@ -32,38 +28,25 @@
 	--hr-danger: light-dark(#b23f3a, #e79a90);
 	--hr-danger-text: light-dark(#96302c, #f0b0a7);
 	--hr-radius-sm: 6px;
-	--hr-radius-md: 10px;
-	--hr-radius-lg: 14px;
-	/* ライトは影で浮かせる。ダークは影が地に沈んで見えないので、上端の細い光と面の明るさで浮かせる */
-	--hr-shadow:
-		0 1px 0 light-dark(rgba(255, 255, 255, 0.85), rgba(214, 228, 238, 0.07)) inset,
-		0 1px 2px light-dark(rgba(27, 38, 45, 0.06), rgba(0, 0, 0, 0.3)),
-		0 14px 36px -14px light-dark(rgba(27, 38, 45, 0.2), rgba(0, 0, 0, 0.55));
+	--hr-radius-md: 8px;
+	--hr-radius-lg: 8px;
+	/* 通常の面は細い枠と小さな影、メニューやダイアログだけを一段浮かせる */
+	--hr-shadow: 0 1px 2px light-dark(rgba(27, 38, 45, 0.04), rgba(0, 0, 0, 0.16));
+	--hr-shadow-overlay: 0 8px 24px light-dark(rgba(27, 38, 45, 0.12), rgba(0, 0, 0, 0.32));
 	--hr-font:
 		"Segoe UI", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", system-ui, sans-serif;
-	--hr-tracking: 0.02em;
+	--hr-tracking: 0.01em;
 
-	/* 地の模様。墨流しのように、藍・藤・青磁の淡い筋が漂う。
-	   --hr-marble は筋の形(雑音の等高線を抜いたマスク)で、色は --hr-veins がテーマごとに決める */
-	--hr-wash:
-		radial-gradient(
-			ellipse 70% 55% at 8% -8%,
-			light-dark(rgba(26, 92, 128, 0.1), rgba(63, 126, 163, 0.14)),
-			transparent 70%
-		),
-		radial-gradient(
-			ellipse 60% 50% at 104% 108%,
-			light-dark(rgba(140, 120, 170, 0.1), rgba(96, 78, 140, 0.14)),
-			transparent 70%
-		);
+	/* マーブルは各面の右端に切り取って使う。同じ筋でも位置をずらし、繰り返し感を抑える。 */
 	--hr-veins: linear-gradient(
-		115deg,
-		light-dark(rgba(70, 110, 140, 0.2), rgba(92, 160, 200, 0.17)),
-		light-dark(rgba(128, 112, 160, 0.17), rgba(140, 120, 190, 0.15)) 45%,
-		light-dark(rgba(84, 140, 124, 0.19), rgba(84, 168, 146, 0.15)) 85%
+		110deg,
+		transparent,
+		light-dark(rgba(70, 110, 140, 0.18), rgba(112, 164, 195, 0.18)) 35%,
+		light-dark(rgba(128, 112, 160, 0.15), rgba(156, 138, 191, 0.16)) 70%,
+		light-dark(rgba(84, 140, 124, 0.16), rgba(112, 180, 160, 0.17))
 	);
 	--hr-marble: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1600' height='1000'%3E%3Cfilter id='m' filterUnits='userSpaceOnUse' x='-40' y='-40' width='1680' height='1080' color-interpolation-filters='sRGB'%3E%3CfeTurbulence x='0' y='0' width='1600' height='1000' type='fractalNoise' baseFrequency='.0009 .003' numOctaves='3' seed='4' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='table' tableValues='0 0 0 0 0 0 0 0 0 0 0 0 0 0 .45 0 0 0 1 .15 0 0 0 .6 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0'/%3E%3C/feComponentTransfer%3E%3CfeTile x='-40' y='-40' width='1680' height='1080'/%3E%3CfeGaussianBlur stdDeviation='3.5'/%3E%3C/filter%3E%3Crect x='-40' y='-40' width='1680' height='1080' filter='url(%23m)'/%3E%3C/svg%3E");
-	--hr-marble-size: 1600px 1000px;
+	--hr-marble-size: 720px 450px;
 }
 
 /* 明示指定(data-theme)があればそれに、なければ OS の設定に従う */
@@ -94,33 +77,6 @@ body {
 	color: var(--hr-text);
 	background: var(--hr-bg);
 	-webkit-font-smoothing: antialiased;
-}
-
-/* 地の模様は画面に固定する。送っても動かず、長いページでも引き伸ばされない */
-body::before,
-body::after {
-	content: "";
-	position: fixed;
-	inset: 0;
-	z-index: -1;
-	pointer-events: none;
-}
-
-body::before {
-	background: var(--hr-wash);
-}
-
-body::after {
-	background: var(--hr-veins);
-	mask: var(--hr-marble) 0 0 / var(--hr-marble-size);
-}
-
-/* 色を強制している、またはコントラストを上げている環境では、地を無地にする */
-@media (forced-colors: active), (prefers-contrast: more) {
-	body::before,
-	body::after {
-		display: none;
-	}
 }
 
 button,
@@ -179,6 +135,125 @@ a:hover {
 	max-width: 1440px;
 	margin: 0 auto;
 	min-height: 100vh;
+}
+
+/* 見出しや小さな面の端だけに、石目を控えめに混ぜる。
+   独立した積層で装飾を文字の後ろに置き、操作や表・入力欄には重ねない。 */
+:where(
+	.auth-card,
+	.dashboard-topbar,
+	.sheet-section-header,
+	.challenge-card__title,
+	.common-evaluation-card__header,
+	.overall-comment-card__header,
+	.master-profile,
+	.master-list-head,
+	.info-card,
+	.review-progress,
+	.sheet-window__bar
+) {
+	position: relative;
+	isolation: isolate;
+}
+
+:where(
+	.auth-card,
+	.dashboard-topbar,
+	.sheet-section-header,
+	.challenge-card__title,
+	.common-evaluation-card__header,
+	.overall-comment-card__header,
+	.master-profile,
+	.master-list-head,
+	.info-card,
+	.review-progress,
+	.sheet-window__bar
+)::before {
+	content: "";
+	position: absolute;
+	top: 0;
+	right: 0;
+	z-index: -1;
+	width: min(70%, 36rem);
+	height: 100%;
+	max-height: 6rem;
+	border-radius: inherit;
+	background: var(--hr-veins);
+	mask: var(--hr-marble) var(--hr-marble-position, -70px -120px) / var(--hr-marble-size) no-repeat;
+	transform: var(--hr-marble-transform, none);
+	pointer-events: none;
+}
+
+/* 面ごとに縮尺・切り取り位置・反転を変える。図柄自体は回転させず面の中に収める。 */
+:where(.dashboard-topbar) {
+	--hr-marble-size: 980px 610px;
+	--hr-marble-position: -180px -240px;
+}
+
+:where(.auth-card) {
+	--hr-marble-size: 640px 400px;
+	--hr-marble-position: -210px -95px;
+	--hr-marble-transform: scaleX(-1);
+}
+
+:where(.master-profile) {
+	--hr-marble-size: 850px 530px;
+	--hr-marble-position: -120px -330px;
+	--hr-marble-transform: scaleY(-1);
+}
+
+:where(.master-list-head, .common-evaluation-card__header) {
+	--hr-marble-size: 760px 475px;
+	--hr-marble-position: -160px -70px;
+	--hr-marble-transform: scaleX(-1);
+}
+
+:where(.challenge-card__title, .sheet-window__bar) {
+	--hr-marble-size: 920px 575px;
+	--hr-marble-position: -240px -200px;
+	--hr-marble-transform: scale(-1);
+}
+
+:where(.overall-comment-card__header, .review-progress) {
+	--hr-marble-size: 680px 425px;
+	--hr-marble-position: -85px -285px;
+	--hr-marble-transform: scaleY(-1);
+}
+
+:where(.info-card) {
+	--hr-marble-size: 800px 500px;
+	--hr-marble-position: -190px -160px;
+}
+
+/* 同じ種類のカードが続くところも、隣の面と同じ切り取りにならないようにする。 */
+:where(.sheet-section:nth-of-type(2n) .sheet-section-header, .info-card:nth-of-type(2n)) {
+	--hr-marble-size: 940px 590px;
+	--hr-marble-position: -310px -360px;
+	--hr-marble-transform: scaleX(-1);
+}
+
+:where(.sheet-section:nth-of-type(3n) .sheet-section-header, .info-card:nth-of-type(3n)) {
+	--hr-marble-size: 660px 410px;
+	--hr-marble-position: -40px -210px;
+	--hr-marble-transform: scaleY(-1);
+}
+
+@media (forced-colors: active), (prefers-contrast: more) {
+	:where(
+		.auth-card,
+		.dashboard-topbar,
+		.sheet-section-header,
+		.challenge-card__title,
+		.common-evaluation-card__header,
+		.overall-comment-card__header,
+		.master-profile,
+		.master-list-head,
+		.info-card,
+		.review-progress,
+		.sheet-window__bar
+	)::before {
+		display: none;
+	}
 }
 
 /* ----- ログイン ----- */
@@ -489,7 +564,7 @@ a:hover {
 	background: var(--hr-surface);
 	border: 1px solid var(--hr-border-strong);
 	border-radius: var(--hr-radius-lg);
-	box-shadow: var(--hr-shadow);
+	box-shadow: var(--hr-shadow-overlay);
 }
 
 .confirm-dialog::backdrop {

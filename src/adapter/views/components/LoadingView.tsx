@@ -13,7 +13,7 @@ const LoadingView: Component = () => {
 				</div>
 
 				{/* ロゴアニメ */}
-				<div class="logo-full-text">
+				<div class="logo-full-text" aria-hidden="true">
 					<span class="main-char">T</span>
 					<span class="main-char">Y&nbsp;</span>
 					<span class="main-char">P</span>

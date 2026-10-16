@@ -28,7 +28,7 @@
 .master-profile,
 .master-list {
 	border: 1px solid var(--hr-border);
-	border-radius: 12px;
+	border-radius: var(--hr-radius-lg);
 	background: var(--hr-surface);
 }
 .master-profile {
@@ -116,7 +116,7 @@
 	height: 40px;
 	padding: 8px 12px 8px 38px;
 	border: 1px solid var(--hr-border-input);
-	border-radius: 8px;
+	border-radius: var(--hr-radius-md);
 	color: var(--hr-text);
 	background: var(--hr-bg);
 	font-size: 0.85rem;
@@ -135,7 +135,7 @@
 	padding: 4px;
 	min-width: 0;
 	border: 1px solid var(--hr-border);
-	border-radius: 9px;
+	border-radius: var(--hr-radius-md);
 	background: var(--hr-bg);
 }
 .master-scope button {

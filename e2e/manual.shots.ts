@@ -3,10 +3,23 @@ import { expect, type Locator, type Page, test } from "@playwright/test";
 import { isolatedSql } from "../scripts/isolatedApi";
 import { ADMIN, signIn, signOut } from "./support";
 
-// 利用者ガイド(docs/user-guide.md)の画面写真を撮り、PDF にする。合否より、資料がそろうことが目的。
-const shot = (page: Page, name: string) =>
-	// 保存のたびに出るトーストは説明の邪魔なので写さない
-	page.screenshot({ path: `docs/user-guide/${name}.png`, style: ".toast-stack{display:none}" });
+// 利用者・評価者・管理者のマニュアル(docs/manual/*.md)の画面写真を撮り、PDF にする。
+// 写真はどれも、そのマニュアルを読む権限の人がログインした画面。合否より、資料がそろうことが目的。
+const MANUALS = [
+	["user", "TYPA 利用者マニュアル"],
+	["evaluator", "TYPA 評価者マニュアル"],
+	["admin", "TYPA 管理者マニュアル"],
+] as const;
+type Manual = (typeof MANUALS)[number][0];
+
+// 保存のたびに出るトーストは説明の邪魔なので写さない
+const HIDE = ".toast-stack{display:none}";
+const shot = (target: Page | Locator, manual: Manual, name: string) =>
+	target.screenshot({
+		path: `docs/manual/${manual}/${name}.png`,
+		style: HIDE,
+		animations: "disabled",
+	});
 
 // 合成データの英字名を、マニュアルで読みやすい名前に置き換える
 test.beforeAll(() => {
@@ -36,29 +49,6 @@ async function confirm(page: Page, title: string, label: string) {
 	await expect(dialog).toBeHidden();
 }
 
-async function score(
-	sheet: Locator,
-	stage: "一次評価" | "二次評価",
-	value: number,
-	beforeSave?: () => Promise<unknown>,
-) {
-	await sheet.getByRole("tabpanel").getByRole("button", { name: "評価を入力" }).click();
-	await sheet.getByRole("button", { name: `${stage} ${value}`, exact: true }).click();
-	await sheet.getByRole("tabpanel").getByRole("button", { name: "評価を保存" }).click();
-	await expect(
-		sheet.getByRole("tabpanel").getByRole("button", { name: "評価を入力" }),
-	).toBeVisible();
-
-	const common = sheet.getByRole("article").filter({ hasText: "共通評価" });
-	await common.getByRole("button", { name: "評価を入力" }).click();
-	for (const item of ["報告・連絡・相談", "業務改善"]) {
-		await common.getByRole("button", { name: `${item} ${stage} ${value}`, exact: true }).click();
-	}
-	await beforeSave?.();
-	await common.getByRole("button", { name: "評価を保存" }).first().click();
-	await expect(common.getByRole("button", { name: "評価を入力" })).toBeVisible();
-}
-
 const nav = (page: Page, name: string) =>
 	page
 		.getByRole("navigation", { name: "メインナビゲーション" })
@@ -70,42 +60,126 @@ async function menu(page: Page, name: string) {
 	await page.getByRole("link", { name }).click();
 }
 
-async function openSubordinate(page: Page) {
-	await nav(page, "部下の評価");
-	await page.getByRole("button", { name: "佐藤 三郎 RELEASE004" }).click();
-	return page.getByRole("dialog", { name: "佐藤 三郎 さんの評価シート" });
+/** 本人がシートを作り、目標を書いて提出する。 */
+async function writeSheet(
+	page: Page,
+	goal: { challenge: string; midterm: string; achievement: string },
+	beforeSave?: () => Promise<unknown>,
+) {
+	await page.getByRole("button", { name: "目標を編集" }).click();
+	await page.getByRole("textbox", { name: "チャレンジ目標" }).fill(goal.challenge);
+	await page.getByRole("textbox", { name: "中間目標" }).fill(goal.midterm);
+	await page.getByRole("textbox", { name: "達成状況" }).fill(goal.achievement);
+	await beforeSave?.();
+	await page.getByRole("button", { name: "目標を保存" }).click();
+	await expect(page.getByRole("button", { name: "目標を編集" })).toBeVisible();
 }
 
-test("user guide screenshots", async ({ page }) => {
-	await test.step("ログインと新規登録", async () => {
+async function scoreGoal(sheet: Locator, stage: "一次評価" | "二次評価", value: number) {
+	await sheet.getByRole("tabpanel").getByRole("button", { name: "評価を入力" }).click();
+	await sheet.getByRole("button", { name: `${stage} ${value}`, exact: true }).click();
+}
+
+async function saveGoalScore(sheet: Locator) {
+	await sheet.getByRole("tabpanel").getByRole("button", { name: "評価を保存" }).click();
+	await expect(
+		sheet.getByRole("tabpanel").getByRole("button", { name: "評価を入力" }),
+	).toBeVisible();
+}
+
+const commonCard = (sheet: Locator) => sheet.getByRole("article").filter({ hasText: "共通評価" });
+
+async function scoreCommon(
+	sheet: Locator,
+	stage: "一次評価" | "二次評価",
+	values: [number, number],
+	comments?: [string, string],
+) {
+	const common = commonCard(sheet);
+	await common.getByRole("button", { name: "評価を入力" }).click();
+	for (const [index, item] of ["報告・連絡・相談", "業務改善"].entries()) {
+		await common
+			.getByRole("button", { name: `${item} ${stage} ${values[index]}`, exact: true })
+			.click();
+		if (comments) {
+			await common
+				.getByRole("textbox", { name: `${item} 一次評価者コメント` })
+				.fill(comments[index]);
+		}
+	}
+}
+
+async function saveCommon(sheet: Locator) {
+	const common = commonCard(sheet);
+	await common.getByRole("button", { name: "評価を保存" }).first().click();
+	await expect(common.getByRole("button", { name: "評価を入力" })).toBeVisible();
+}
+
+async function overall(sheet: Locator, label: string, text: string) {
+	await sheet.getByRole("textbox", { name: label }).fill(text);
+	await sheet.getByRole("button", { name: "総評を保存" }).click();
+	await expect(sheet.getByText("保存済み")).toBeVisible();
+}
+
+async function openReview(page: Page, name: string, employeeNo: string) {
+	await page.getByRole("button", { name: `${name} ${employeeNo}` }).click();
+	return page.getByRole("dialog", { name: `${name} さんの評価シート` });
+}
+
+test("manual screenshots", async ({ page }) => {
+	test.setTimeout(240_000);
+	await test.step("利用者: ログインと新規登録", async () => {
 		await page.goto("/login");
 		await expect(page.getByRole("heading", { name: "ログイン" })).toBeVisible();
-		await shot(page, "01-login");
+		await shot(page, "user", "01-login");
 		await page.getByRole("button", { name: "新規登録" }).click();
 		await page.getByLabel("メールアドレス").fill("watanabe@release.example");
+		await shot(page, "user", "02-register-email");
 		await page.getByRole("button", { name: "認証コードを受け取る" }).click();
 		await expect(page.getByLabel("認証コード")).toBeVisible();
-		await shot(page, "02-register");
+		await shot(page, "user", "03-register-code");
 	});
 
-	await test.step("本人: 作成・記入・提出", async () => {
-		await signIn(page, "RELEASE004");
-		await expect(page.getByRole("heading", { name: "評価シート一覧" })).toBeVisible();
-		await shot(page, "03-sheet-list");
+	await test.step("利用者(二次評価者なし): 作成・提出", async () => {
+		await signIn(page, "RELEASE006");
 		await page.getByRole("link", { name: "新規作成" }).click();
 		await page.getByRole("button", { name: "評価シートを作成" }).click();
-		await page.getByRole("button", { name: "目標を編集" }).click();
-		await page
-			.getByRole("textbox", { name: "チャレンジ目標" })
-			.fill("受注処理の手戻りを半年で半減する");
-		await shot(page, "04-goal");
-		await page.getByRole("button", { name: "目標を保存" }).click();
+		await writeSheet(page, {
+			challenge: "問い合わせ対応の手順書を作り、平均対応時間を15分から10分にする",
+			midterm: "12月末までによくある問い合わせを整理し、手順書の案を作る",
+			achievement: "手順書を作成してチームに共有した。平均対応時間は11分になった",
+		});
+		await page.getByRole("button", { name: "提出する" }).click();
+		await confirm(page, "評価シートを提出しますか？", "提出する");
+		await signOut(page);
+	});
+
+	await test.step("利用者: 作成・記入・提出", async () => {
+		await signIn(page, "RELEASE004");
+		await expect(page.getByRole("heading", { name: "評価シート一覧" })).toBeVisible();
+		await expect(page.getByText("自分の評価シートはまだありません")).toBeVisible();
+		await shot(page, "user", "04-sheet-list-empty");
+		await page.getByRole("link", { name: "新規作成" }).click();
+		await expect(page.getByRole("button", { name: "評価シートを作成" })).toBeVisible();
+		await shot(page, "user", "05-new-sheet");
+		await page.getByRole("button", { name: "評価シートを作成" }).click();
+		await expect(page.getByRole("button", { name: "目標を編集" })).toBeVisible();
+		await shot(page, "user", "06-sheet");
+		await writeSheet(
+			page,
+			{
+				challenge: "受注処理の手戻りを、半年で月20件から10件に減らす",
+				midterm: "12月末までに手戻りの原因を分類し、上位3つの対策を決める",
+				achievement: "入力チェック表を作って運用した。3月の手戻りは月9件になった",
+			},
+			() => shot(page.locator(".challenge-card"), "user", "07-goal"),
+		);
 		await page.getByRole("button", { name: "提出する" }).click();
 		await expect(page.getByRole("dialog", { name: "評価シートを提出しますか？" })).toBeVisible();
-		await shot(page, "05-submit");
+		await shot(page, "user", "08-submit");
 		await confirm(page, "評価シートを提出しますか？", "提出する");
 		await expect(page.getByText("一次評価者の評価を待っています。")).toBeVisible();
-		await shot(page, "06-submitted");
+		await shot(page, "user", "09-submitted");
 		await signOut(page);
 	});
 
@@ -113,40 +187,152 @@ test("user guide screenshots", async ({ page }) => {
 		await signIn(page, "RELEASE002");
 		await nav(page, "部下の評価");
 		await expect(page.getByRole("button", { name: "佐藤 三郎 RELEASE004" })).toBeVisible();
-		await shot(page, "07-reviewer");
-		const sheet = await openSubordinate(page);
-		await score(sheet, "一次評価", 4, () => shot(page, "08-scoring"));
+		await shot(page, "evaluator", "01-workspace");
+
+		const sheet = await openReview(page, "佐藤 三郎", "RELEASE004");
+		await expect(sheet.getByText("受注処理の手戻り").first()).toBeVisible();
+		await shot(page, "evaluator", "02-sheet");
+		await scoreGoal(sheet, "一次評価", 4);
+		await shot(page, "evaluator", "03-goal-score");
+		await saveGoalScore(sheet);
+		await scoreCommon(
+			sheet,
+			"一次評価",
+			[4, 3],
+			["遅れが出そうなときに、早めに相談してくれた", "入力チェック表で、チームの手戻りも減った"],
+		);
+		await commonCard(sheet).scrollIntoViewIfNeeded();
+		await shot(page, "evaluator", "04-common-score");
+		await saveCommon(sheet);
+		await overall(
+			sheet,
+			"一次評価者の総評",
+			"原因の分類から対策まで自分で進め、目標を達成した。次は他部署との手順統一に挑戦してほしい。",
+		);
+		await sheet.getByRole("button", { name: "一次評価を確定する" }).scrollIntoViewIfNeeded();
+		await shot(page, "evaluator", "05-overall");
 		await sheet.getByRole("button", { name: "一次評価を確定する" }).click();
 		await expect(page.getByRole("dialog", { name: "一次評価を確定しますか？" })).toBeVisible();
-		await shot(page, "09-confirm");
+		await shot(page, "evaluator", "06-confirm-first");
 		await confirm(page, "一次評価を確定しますか？", "一次評価を確定する");
-		await sheet.getByRole("button", { name: "閉じる" }).click();
+
+		// 確定すると、次の自分の番(二次評価者なしの伊藤さん)へ進む
+		const next = page.getByRole("dialog", { name: "伊藤 さくら さんの評価シート" });
+		await expect(next.getByText("問い合わせ対応の手順書").first()).toBeVisible();
+		await scoreGoal(next, "一次評価", 3);
+		await saveGoalScore(next);
+		await scoreCommon(next, "一次評価", [3, 3]);
+		await saveCommon(next);
+		await overall(next, "一次評価者の総評", "手順書は好評。対応時間はあと一歩だった。");
+		await next.getByRole("button", { name: "評価を確定する" }).click();
+		await expect(page.getByRole("dialog", { name: "評価を確定しますか？" })).toBeVisible();
+		await shot(page, "evaluator", "07-confirm-no-secondary");
+		await confirm(page, "評価を確定しますか？", "評価を確定する");
+		await page.getByRole("dialog").getByRole("button", { name: "閉じる" }).click();
 		await signOut(page);
 	});
 
 	await test.step("二次評価者", async () => {
 		await signIn(page, "RELEASE003");
-		const sheet = await openSubordinate(page);
-		await score(sheet, "二次評価", 3);
-		await sheet.getByRole("button", { name: "評価を確定する" }).click();
+		await nav(page, "部下の評価");
+		await expect(page.getByRole("button", { name: "佐藤 三郎 RELEASE004" })).toBeVisible();
+		await shot(page, "evaluator", "08-workspace-second");
+		const sheet = await openReview(page, "佐藤 三郎", "RELEASE004");
+		await scoreGoal(sheet, "二次評価", 3);
+		await saveGoalScore(sheet);
+		await scoreCommon(sheet, "二次評価", [3, 3]);
+		await commonCard(sheet).scrollIntoViewIfNeeded();
+		await shot(page, "evaluator", "09-second-score");
+		await saveCommon(sheet);
+		await overall(
+			sheet,
+			"二次評価者の総評",
+			"成果は十分。周囲への展開まで含めて B+ 相当と判断した。",
+		);
+		await sheet.getByRole("button", { name: "二次評価を確定する" }).click();
+		await expect(page.getByRole("dialog", { name: "評価を確定しますか？" })).toBeVisible();
+		await shot(page, "evaluator", "10-finalize");
 		await confirm(page, "評価を確定しますか？", "評価を確定する");
-		await sheet.getByRole("button", { name: "閉じる" }).click();
-		await expect(page.getByRole("row", { name: /RELEASE004/ })).toContainText("75");
-		await shot(page, "10-final");
+		await page.getByRole("dialog").getByRole("button", { name: "閉じる" }).click();
+		await expect(page.getByRole("row", { name: /RELEASE004/ })).toContainText("最終評価済み");
+		await shot(page, "evaluator", "11-final");
+		await signOut(page);
+	});
+
+	await test.step("一次評価者: 比較・一覧・社員マスタ", async () => {
+		await signIn(page, "RELEASE002");
+		await expect(page.getByRole("heading", { name: "部下の評価シート" })).toBeVisible();
+		await shot(page, "evaluator", "12-sheet-list");
+		await nav(page, "部下の評価");
+		await page.getByRole("checkbox", { name: "佐藤 三郎を比較に選択" }).check();
+		await page.getByRole("checkbox", { name: "伊藤 さくらを比較に選択" }).check();
+		await page.getByRole("button", { name: /選択して比較/ }).click();
+		await expect(page.getByRole("dialog", { name: "選択した対象者の比較" })).toBeVisible();
+		await shot(page, "evaluator", "13-compare");
+		await page.getByRole("dialog").getByRole("button", { name: "閉じる" }).click();
+		await nav(page, "社員マスタ");
+		await expect(page.getByRole("heading", { name: "社員一覧" })).toBeVisible();
+		await shot(page, "evaluator", "14-master");
+		await signOut(page);
+	});
+
+	await test.step("利用者: 結果・メニュー・ヘルプ", async () => {
+		await signIn(page, "RELEASE004");
+		await expect(page.getByRole("button", { name: "PDF出力" })).toBeVisible();
+		await shot(page, "user", "10-sheet-list-final");
+		await page.getByRole("link", { name: /一般職/ }).click();
+		await expect(page.getByText("最終評価済みです。内容は変更できません。")).toBeVisible();
+		await shot(page, "user", "11-result");
+		await page.getByRole("button", { name: "ユーザーメニュー" }).click();
+		await shot(page, "user", "12-user-menu");
+		await page.getByRole("button", { name: "ユーザーメニュー" }).click();
+		await nav(page, "社員マスタ");
+		await expect(page.getByRole("region", { name: "あなたのプロフィール" })).toBeVisible();
+		await shot(page, "user", "13-profile");
+		await menu(page, "ヘルプ");
+		await expect(page.getByRole("heading", { name: "ヘルプ", level: 1 })).toBeVisible();
+		await shot(page, "user", "14-help");
 		await signOut(page);
 	});
 
 	await test.step("管理者", async () => {
 		await signIn(page, ADMIN);
+		await expect(page.getByRole("heading", { name: /全社の評価シート/ })).toBeVisible();
+		await shot(page, "admin", "01-overview");
+
 		await nav(page, "社員マスタ");
 		await expect(page.getByRole("heading", { name: "社員一覧" })).toBeVisible();
-		await shot(page, "11-employees");
+		await shot(page, "admin", "02-employees");
+		await page.getByRole("button", { name: "評価構造" }).click();
+		await shot(page, "admin", "03-structure");
+		await page.getByRole("button", { name: "リスト" }).click();
+		await page.getByRole("button", { name: "招待コードを一括発行" }).click();
+		await confirm(page, "未登録の社員に招待コードをまとめて発行しますか？", "まとめて発行");
+		await expect(page.getByRole("textbox", { name: "招待コードの一覧" })).toBeVisible();
+		await shot(page, "admin", "04-bulk-invitations");
+		await page.locator(".master-invitation").getByRole("button", { name: "閉じる" }).click();
+		await confirm(page, "招待コードの一覧を閉じますか？", "閉じる");
+		await page.getByRole("button", { name: "山本 大輔さんの招待コードを発行する" }).click();
+		await expect(page.getByRole("textbox", { name: "招待コード" })).toBeVisible();
+		await shot(page, "admin", "05-invitation");
+
 		await menu(page, "設定");
-		await expect(page.getByRole("heading", { name: "評価期間", exact: true })).toBeVisible();
-		await shot(page, "12-settings");
-		await menu(page, "ヘルプ");
-		await expect(page.getByRole("heading", { name: "ヘルプ", level: 1 })).toBeVisible();
-		await shot(page, "13-help");
+		const periods = page.getByRole("region", { name: "評価期間", exact: true });
+		await expect(periods).toBeVisible();
+		await periods.getByLabel("期間名").fill("2027年度 上期");
+		await periods.getByLabel("開始日").fill("2027-04-01");
+		await periods.getByLabel("終了日").fill("2027-09-30");
+		await periods.getByRole("button", { name: "追加する" }).click();
+		await expect(periods.getByRole("button", { name: "2027年度 上期を開始する" })).toBeVisible();
+		await shot(periods, "admin", "06-periods");
+		await periods.getByRole("button", { name: "2027年度 上期を開始する" }).click();
+		const switching = page.getByRole("dialog", { name: /を締めて/ });
+		await expect(switching).toBeVisible();
+		await shot(page, "admin", "07-period-switch");
+		await switching.getByRole("button", { name: "キャンセル" }).click();
+		await shot(page.getByRole("region", { name: "評価点の配点" }), "admin", "08-allocation");
+		await shot(page.getByRole("region", { name: "チャレンジ目標の数" }), "admin", "09-max-goals");
+		await shot(page.getByRole("region", { name: "通知メール" }), "admin", "10-smtp");
 	});
 });
 
@@ -156,13 +342,19 @@ const inline = (text: string) =>
 		.replace(
 			/!\[(.*?)\]\((.*?)\)/g,
 			(_, alt, src) =>
-				`<img alt="${alt}" src="data:image/png;base64,${readFileSync(`docs/${src}`).toString("base64")}">`,
+				`<img alt="${alt}" src="data:image/png;base64,${readFileSync(`docs/manual/${src}`).toString("base64")}">`,
 		)
 		.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
 		.replace(/`(.+?)`/g, "<code>$1</code>")
 		.replace(/\[(.+?)\]\(.+?\)/g, "$1");
 
-// ponytail: user-guide.md で使っている書式だけを変換する。表現を増やしたら、ここも足す
+const list = (block: string, tag: "ol" | "ul", marker: RegExp) =>
+	`<${tag}>${block
+		.split("\n")
+		.map((line) => `<li>${inline(line.replace(marker, ""))}</li>`)
+		.join("")}</${tag}>`;
+
+// ponytail: docs/manual/*.md で使っている書式だけを変換する。表現を増やしたら、ここも足す
 function toHtml(markdown: string) {
 	return markdown
 		.replace(/\r\n/g, "\n")
@@ -176,6 +368,9 @@ function toHtml(markdown: string) {
 			if (heading) {
 				const level = heading[1].length;
 				return `<h${level}>${inline(heading[2])}</h${level}>`;
+			}
+			if (block.startsWith("> ")) {
+				return `<aside>${inline(block.replace(/^> /gm, "").replace(/\n/g, ""))}</aside>`;
 			}
 			if (block.startsWith("|")) {
 				const rows = block
@@ -193,10 +388,10 @@ function toHtml(markdown: string) {
 					.join("")}</table>`;
 			}
 			if (/^\d+\. /.test(block)) {
-				const items = block
-					.split("\n")
-					.map((line) => `<li>${inline(line.replace(/^\d+\. /, ""))}</li>`);
-				return `<ol>${items.join("")}</ol>`;
+				return list(block, "ol", /^\d+\. /);
+			}
+			if (block.startsWith("- ")) {
+				return list(block, "ul", /^- /);
 			}
 			// 日本語の文は改行で区切っても、つなげて読める
 			return `<p>${inline(block.replace(/\n/g, ""))}</p>`;
@@ -210,8 +405,9 @@ body { font-family: "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif; col
 h1 { font-size: 20pt; margin: 0 0 8pt; }
 h2 { font-size: 14pt; border-bottom: 1px solid #c9d1d9; padding-bottom: 4pt; margin-top: 24pt; break-after: avoid; }
 h3 { font-size: 11.5pt; margin-top: 16pt; break-after: avoid; }
-p { orphans: 2; widows: 2; }
-img { display: block; width: 80%; margin: 4pt auto 12pt; border: 1px solid #d6dbe0; border-radius: 4px; break-inside: avoid; }
+p, li { orphans: 2; widows: 2; }
+img { display: block; max-width: 80%; max-height: 120mm; margin: 4pt auto 12pt; border: 1px solid #d6dbe0; border-radius: 4px; break-inside: avoid; }
+aside { border-left: 3px solid #9aa5b1; background: #f6f7f8; padding: 6pt 10pt; margin: 8pt 0 12pt; break-inside: avoid; }
 pre { background: #f3f4f6; padding: 8pt 12pt; font-size: 9.5pt; white-space: pre-wrap; }
 code { background: #f3f4f6; padding: 0 3pt; border-radius: 3px; }
 table { border-collapse: collapse; width: 100%; margin: 6pt 0 14pt; break-inside: avoid; }
@@ -219,16 +415,19 @@ th, td { border: 1px solid #d6dbe0; padding: 4pt 8pt; text-align: left; vertical
 th { background: #f3f4f6; }
 `;
 
-test("user guide PDF", async ({ page }) => {
-	const body = toHtml(readFileSync("docs/user-guide.md", "utf8"));
-	await page.setContent(`<!doctype html><meta charset="utf-8"><style>${PRINT_CSS}</style>${body}`);
-	await page.pdf({
-		path: "docs/user-guide.pdf",
-		format: "A4",
-		margin: { top: "18mm", bottom: "18mm", left: "16mm", right: "16mm" },
-		displayHeaderFooter: true,
-		headerTemplate: "<span></span>",
-		footerTemplate:
-			'<div style="width:100%;text-align:center;font-size:8pt;color:#6b7280"><span class="pageNumber"></span> / <span class="totalPages"></span></div>',
+for (const [manual, title] of MANUALS) {
+	test(`${manual} manual PDF`, async ({ page }) => {
+		const body = toHtml(readFileSync(`docs/manual/${manual}.md`, "utf8"));
+		await page.setContent(
+			`<!doctype html><meta charset="utf-8"><title>${title}</title><style>${PRINT_CSS}</style>${body}`,
+		);
+		await page.pdf({
+			path: `docs/manual/${manual}.pdf`,
+			format: "A4",
+			margin: { top: "18mm", bottom: "18mm", left: "16mm", right: "16mm" },
+			displayHeaderFooter: true,
+			headerTemplate: "<span></span>",
+			footerTemplate: `<div style="width:100%;text-align:center;font-size:8pt;color:#6b7280">${title}　<span class="pageNumber"></span> / <span class="totalPages"></span></div>`,
+		});
 	});
-});
+}

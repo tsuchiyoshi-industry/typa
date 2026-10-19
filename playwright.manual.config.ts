@@ -1,7 +1,7 @@
 import { defineConfig } from "@playwright/test";
 import base from "./playwright.config";
 
-// docs/user-guide.md の画面写真を撮り直し、PDF にする。E2E と同じ隔離 DB を使う。
+// docs/manual/*.md の画面写真を撮り直し、PDF にする。E2E と同じ隔離 DB を使う。
 export default defineConfig({
 	...base,
 	testMatch: "manual.shots.ts",

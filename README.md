@@ -43,6 +43,7 @@
 
 ## 導入・保守の資料
 
+- [利用者ガイド（画面つき）](docs/user-guide.md)
 - [環境の初期構築と運用手順](docs/supabase-setup.md)
 - [リリース・更新手順と検証結果](docs/release-readiness.md)
 - [開発・ビルド・PDFの変更](docs/development.md)

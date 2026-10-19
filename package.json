@@ -15,6 +15,7 @@
 		"test:coverage": "vitest run --coverage",
 		"typecheck": "tsc --noEmit && tsc --project tsconfig.node.json --noEmit",
 		"test:e2e": "playwright test",
+		"docs:user-manual": "playwright test -c playwright.manual.config.ts",
 		"test:rust": "cargo test --manifest-path src-tauri/Cargo.toml --locked"
 	},
 	"license": "MIT",

@@ -33,6 +33,15 @@ export class EvaluationRank {
 		return new EvaluationRank(letter, level);
 	}
 
+	/** 利用者向けの閾値の説明。例: 「95%以上 S / 90% A / … / それ未満 D」 */
+	static describeThresholds(): string {
+		const steps = SCORE_RATE_THRESHOLDS.map(
+			([minimum, letter, level], index) =>
+				`${minimum}%${index === 0 ? "以上" : ""} ${new EvaluationRank(letter, level).toDisplayText()}`,
+		);
+		return [...steps, "それ未満 D"].join(" / ");
+	}
+
 	static fromScore(score: number, fullScore: number): EvaluationRank {
 		return EvaluationRank.fromScoreRate(fullScore > 0 ? (score / fullScore) * 100 : 0);
 	}

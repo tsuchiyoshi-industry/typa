@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { reviewScore } from "../../adapter/viewmodels/reviewerWorkspace";
 import { toSheetExportDataDto } from "../../application/dtos/ExportSheetMapper";
 import {
 	commonRepository,
@@ -15,6 +14,7 @@ import { CommonEvaluationItem } from "../entities/CommonEvaluationItem";
 import { CommonEvaluationResult } from "../entities/CommonEvaluationResult";
 import { EvaluationSheet } from "../entities/EvaluationSheet";
 import { Milestone } from "../entities/Milestone";
+import { reviewScore } from "../entities/ReviewerWorkspace";
 import { EvaluationScoreUpdateService } from "../services/EvaluationScoreUpdateService";
 import { EvaluationAllocatedScores } from "./EvaluationAllocatedScores";
 import { EvaluationAllocation } from "./EvaluationAllocation";

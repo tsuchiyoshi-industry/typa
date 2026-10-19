@@ -23,6 +23,24 @@ export class EmployeeProfile {
 		public readonly enabled = true,
 	) {}
 
+	/** 役員は評価される側ではない。等級・評価者は管理せず、権限とログインだけを扱う。 */
+	isExecutive(): boolean {
+		return this.careerCourse?.trim() === "役員";
+	}
+
+	/**
+	 * 評価に必要な割り当て(一次・二次評価者、includeGrade なら等級)に未設定があるか。
+	 * 二次評価者は「なし」と明示されていれば設定済み。役員には割り当てがない。
+	 */
+	hasUnsetAssignment(includeGrade: boolean): boolean {
+		return (
+			!this.isExecutive() &&
+			(this.primaryEvaluatorId == null ||
+				(this.secondaryEvaluatorId == null && !this.noSecondaryEvaluator) ||
+				(includeGrade && this.gradeId == null))
+		);
+	}
+
 	equals(other: EmployeeProfile): boolean {
 		return this.id === other.id;
 	}

@@ -66,6 +66,7 @@ export class FetchEvaluationSheetInteractor
 				},
 				status: EvaluationStatus.DRAFT.toString(),
 				isEditable: true,
+				pendingObjectiveFields: [],
 				permissions: NO_SHEET_PERMISSIONS,
 			});
 			return;

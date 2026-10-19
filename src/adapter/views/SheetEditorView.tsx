@@ -21,6 +21,7 @@ import type {
 } from "../../application/dtos/EvaluationSheetDto";
 import type { SheetSummaryDto } from "../../application/dtos/SheetListDto";
 import { messageOf } from "../../application/errorMessage";
+import { EvaluationRank } from "../../domain/valueObjects/EvaluationRank";
 import { EvaluationStatus } from "../../domain/valueObjects/EvaluationStatus";
 import type { ChallengeEvaluationController } from "../controllers/ChallengeEvaluationController";
 import type { CommonEvaluationController } from "../controllers/CommonEvaluationController";
@@ -264,15 +265,11 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 	};
 
 	const ensureObjectiveFieldsComplete = () => {
-		const objectives = sheet()?.objectives ?? [];
-		// 必須なのはチャレンジ目標の欄だけ。中間目標と達成状況は空欄でもよい
-		const missing = objectives
-			.filter((objective) => !objective.challengeGoal.trim())
-			.map((objective) => `目標 ${objective.goalNumber}：チャレンジ目標`);
-		const max = sheet()?.maxObjectives ?? 0;
-		if (objectives.length >= 1 && objectives.length <= max && missing.length === 0) {
+		const missing = sheet()?.pendingObjectiveFields ?? [];
+		if (missing.length === 0) {
 			return true;
 		}
+		const max = sheet()?.maxObjectives ?? 0;
 		void confirmAction({
 			title: "チャレンジ目標が空欄の目標は提出・確定できません",
 			message: `目標は1〜${max}件必要です。チャレンジ目標を入力して保存するか、不要なタブを削除してください。`,
@@ -531,10 +528,7 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 					<Award class="section-icon" />
 					<div>
 						<h2>評価ランク</h2>
-						<p>
-							得点率で自動的に決まります（95%以上 S / 90% A / 80% B+ / 60% B / 50% B- / 40% C /
-							それ未満 D）。
-						</p>
+						<p>得点率で自動的に決まります（{EvaluationRank.describeThresholds()}）。</p>
 					</div>
 				</div>
 				<dl class="rank-summary">

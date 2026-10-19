@@ -77,31 +77,28 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 	const relations = createMemo(() => props.viewModel().relations);
 	const grades = createMemo(() => props.viewModel().grades);
 	// 役員の等級・評価者は管理しない。権限だけは変えられるので、Admin の一覧には役員も出す
-	const isExecutive = (relation: ApprovalRelationDto) => relation.careerCourse?.trim() === "役員";
 	const managedRelations = createMemo(() =>
-		relations().filter((relation) => props.viewModel().canEditRoles || !isExecutive(relation)),
+		relations().filter((relation) => props.viewModel().canEditRoles || !relation.isExecutive),
 	);
 
 	const isMine = (relation: ApprovalRelationDto) =>
 		relation.primaryEvaluatorId === me()?.id || relation.secondaryEvaluatorId === me()?.id;
-	// 二次評価者は「なし」と明示されていれば設定済み。自分で埋められない項目(Reviewer にとっての等級)は数えない
-	const hasUnset = (relation: ApprovalRelationDto) =>
-		!isExecutive(relation) &&
-		(relation.primaryEvaluatorId == null ||
-			(relation.secondaryEvaluatorId == null && !relation.noSecondaryEvaluator) ||
-			(props.viewModel().canEditGrades && relation.gradeId == null));
-
 	const scopes = createMemo<{ value: Scope; label: string; count: number }[]>(() => [
 		{ value: "all", label: "全員", count: managedRelations().length },
 		{ value: "mine", label: "自分の担当", count: managedRelations().filter(isMine).length },
-		{ value: "unset", label: "未設定あり", count: managedRelations().filter(hasUnset).length },
+		{
+			value: "unset",
+			label: "未設定あり",
+			count: managedRelations().filter((relation) => relation.hasUnsetAssignment).length,
+		},
 	]);
 
 	const visibleRelations = createMemo(() => {
 		const text = keyword().trim().toLowerCase();
 		return managedRelations().filter(
 			(relation) =>
-				(scope() === "all" || (scope() === "mine" ? isMine(relation) : hasUnset(relation))) &&
+				(scope() === "all" ||
+					(scope() === "mine" ? isMine(relation) : relation.hasUnsetAssignment)) &&
 				(!text ||
 					relation.employeeNo.toLowerCase().includes(text) ||
 					relation.name.toLowerCase().includes(text)),
@@ -110,7 +107,7 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 
 	// 評価の流れに出すのは評価される社員。役員は評価する側としてだけ現れる
 	const structureRelations = createMemo(() =>
-		visibleRelations().filter((relation) => !isExecutive(relation)),
+		visibleRelations().filter((relation) => !relation.isExecutive),
 	);
 
 	const employeeNoById = createMemo(
@@ -718,7 +715,7 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 											</td>
 										</Show>
 										<Show
-											when={!isExecutive(relation())}
+											when={!relation().isExecutive}
 											fallback={
 												// 役員は権限だけを管理する
 												<td

@@ -17,27 +17,29 @@ import {
 	Show,
 } from "solid-js";
 import type { ReviewerRowDto, ReviewPeriodDto } from "../../application/dtos/ReviewerWorkspaceDto";
-import type { ReviewerWorkspaceController } from "../controllers/ReviewerWorkspaceController";
 import {
 	canOpen,
-	filterReviewRows,
 	finalScore,
+	isMyTurn,
+	reviewProgress,
+	reviewRank,
+	reviewScore,
+	reviewTask,
+	sheetStatus,
+} from "../../domain/entities/ReviewerWorkspace";
+import type { ReviewerWorkspaceController } from "../controllers/ReviewerWorkspaceController";
+import {
+	filterReviewRows,
 	gradeKey,
 	gradeOptions,
 	groupByGrade,
-	isMyTurn,
 	nextMyTurn,
 	primaryEvaluatorKey,
 	primaryEvaluatorOptions,
 	type ReviewFilter,
 	type ReviewSort,
 	reviewLabel,
-	reviewProgress,
-	reviewRank,
-	reviewScore,
 	reviewStats,
-	reviewTask,
-	sheetStatus,
 } from "../viewmodels/reviewerWorkspace";
 import SheetWindow from "./components/SheetWindow";
 import { clearUnsavedChanges, confirmDiscard, showToast } from "./feedback";

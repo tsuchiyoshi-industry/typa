@@ -1,6 +1,7 @@
 import type { EvaluationSheet } from "../../domain/entities/EvaluationSheet";
 import type { EvaluationSheetAccessPolicy } from "../../domain/services/EvaluationSheetAccessPolicy";
 import { EvaluationScoreTotals } from "../../domain/valueObjects/EvaluationScoreTotals";
+import { EvaluationStatus } from "../../domain/valueObjects/EvaluationStatus";
 import type { EvaluationSheetDto } from "./EvaluationSheetDto";
 
 export function toEvaluationSheetDto(
@@ -121,6 +122,7 @@ export function toEvaluationSheetDto(
 		},
 		status: sheet.status.toString(),
 		isEditable: sheet.isEditable(),
+		pendingObjectiveFields: sheet.pendingObjectiveFields(),
 		permissions: {
 			isSubject: policy.isSubject(),
 			canEditFirst: policy.canEditCommonEvaluationFirst(),
@@ -137,9 +139,11 @@ export function toEvaluationSheetDto(
 		...(policy.canConfirmFirstEvaluation() || policy.canFinalizeEvaluation()
 			? {
 					pendingEvaluationItems: sheet.pendingEvaluationTargets(
-						policy.canConfirmFirstEvaluation() || sheet.primaryIsFinalEvaluator()
-							? "first"
-							: "second",
+						sheet.confirmingStage(
+							policy.canConfirmFirstEvaluation()
+								? EvaluationStatus.FIRST_EVALUATED
+								: EvaluationStatus.FINALIZED,
+						),
 					),
 				}
 			: {}),

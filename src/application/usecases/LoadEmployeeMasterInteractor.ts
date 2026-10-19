@@ -34,8 +34,15 @@ function toEmployeeProfileDto(profile: EmployeeProfile): EmployeeProfileDto {
 	};
 }
 
-/** showRole: 見ているのが Admin か。権限とログイン状態の保持は、Admin にだけ渡す。 */
-function toApprovalRelationDto(profile: EmployeeProfile, showRole: boolean): ApprovalRelationDto {
+/**
+ * showRole: 見ているのが Admin か。権限とログイン状態の保持は、Admin にだけ渡す。
+ * includeGrade: 見ている人が等級を変えられるか。変えられない項目は未設定として数えない。
+ */
+function toApprovalRelationDto(
+	profile: EmployeeProfile,
+	showRole: boolean,
+	includeGrade: boolean,
+): ApprovalRelationDto {
 	return {
 		employeeId: profile.id,
 		name: profile.name,
@@ -50,6 +57,8 @@ function toApprovalRelationDto(profile: EmployeeProfile, showRole: boolean): App
 		secondaryEvaluatorId: profile.secondaryEvaluatorId,
 		secondaryEvaluatorName: profile.secondaryEvaluatorName,
 		noSecondaryEvaluator: profile.noSecondaryEvaluator,
+		isExecutive: profile.isExecutive(),
+		hasUnsetAssignment: profile.hasUnsetAssignment(includeGrade),
 		registered: profile.registered,
 		enabled: profile.enabled,
 		keepSignedIn: showRole ? profile.keepSignedIn : null,
@@ -96,7 +105,9 @@ export class LoadEmployeeMasterInteractor
 			canEditGrades: editableGrades,
 			canEditRoles: editableRoles,
 			canResetRegistrations: canResetRegistrations(currentEmployee.role),
-			relations: relations.map((profile) => toApprovalRelationDto(profile, editableRoles)),
+			relations: relations.map((profile) =>
+				toApprovalRelationDto(profile, editableRoles, editableGrades),
+			),
 			grades,
 		});
 	}

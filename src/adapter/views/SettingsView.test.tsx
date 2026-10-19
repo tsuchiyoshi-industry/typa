@@ -3,6 +3,7 @@ import { A, MemoryRouter, Route } from "@solidjs/router";
 import { cleanup, fireEvent, render, waitFor } from "@solidjs/testing-library";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { UpdateEvaluationAllocationInteractor } from "../../application/usecases/UpdateEvaluationAllocationInteractor";
+import { UpdateMaxChallengeGoalsInteractor } from "../../application/usecases/UpdateMaxChallengeGoalsInteractor";
 import { UpdateSmtpSettingsInteractor } from "../../application/usecases/UpdateSmtpSettingsInteractor";
 import type { WorkspaceSettingsRepository } from "../../domain/repositories/WorkspaceSettingsRepository";
 import { EvaluationAllocation } from "../../domain/valueObjects/EvaluationAllocation";
@@ -37,6 +38,7 @@ function setup(role = "Admin") {
 		settings,
 		employees,
 		new UpdateEvaluationAllocationInteractor(settings, employees),
+		new UpdateMaxChallengeGoalsInteractor(settings, employees),
 	);
 	return { settings, controller };
 }

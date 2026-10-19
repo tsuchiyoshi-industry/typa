@@ -69,8 +69,7 @@ export class UpdateEvaluationStatusInteractor
 			}
 		}
 		if (newStatus.isFirstEvaluationConfirmed()) {
-			const stage =
-				newStatus.isFinalized() && !sheet.primaryIsFinalEvaluator() ? "second" : "first";
+			const stage = sheet.confirmingStage(newStatus);
 			const pending = sheet.pendingEvaluationItems(stage);
 			if (pending.length > 0) {
 				throw new Error(

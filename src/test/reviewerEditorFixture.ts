@@ -4,15 +4,15 @@ import type { SheetEditorController } from "../adapter/controllers/SheetEditorCo
 import { createChallengeEvaluationPresenter } from "../adapter/presenters/ChallengeEvaluationPresenter";
 import { createCommonEvaluationPresenter } from "../adapter/presenters/CommonEvaluationPresenter";
 import { createSheetEditorPresenter } from "../adapter/presenters/SheetEditorPresenter";
+import type { SheetEditorViewProps } from "../adapter/views/SheetEditorView";
+import type { EvaluationSheetDto } from "../application/dtos/EvaluationSheetDto";
+import type { ReviewerRowDto } from "../application/dtos/ReviewerWorkspaceDto";
 import {
 	finalScore,
 	reviewRank,
 	reviewScore,
 	sheetStatus,
-} from "../adapter/viewmodels/reviewerWorkspace";
-import type { SheetEditorViewProps } from "../adapter/views/SheetEditorView";
-import type { EvaluationSheetDto } from "../application/dtos/EvaluationSheetDto";
-import type { ReviewerRowDto } from "../application/dtos/ReviewerWorkspaceDto";
+} from "../domain/entities/ReviewerWorkspace";
 import { EvaluationStatus } from "../domain/valueObjects/EvaluationStatus";
 
 /** Real editor/presenters, a deterministic in-memory transport for UI verification. */
@@ -115,6 +115,9 @@ export function reviewerEditorFixture(
 		},
 		status: EvaluationStatus.from(row.status).toString(),
 		isEditable: false,
+		pendingObjectiveFields: row.objectives
+			.filter((objective) => !objective.challengeGoal.trim())
+			.map((objective) => `目標 ${objective.goalNumber}：チャレンジ目標`),
 		permissions: {
 			isSubject: false,
 			canEditFirst: row.isPrimary && !!sheetStatus(row)?.isAwaitingFirstEvaluation(),

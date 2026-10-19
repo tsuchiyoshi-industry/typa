@@ -2,11 +2,9 @@ import { useBeforeLeave } from "@solidjs/router";
 import Settings from "lucide-solid/icons/settings";
 import { type Component, createSignal, onCleanup, onMount, Show } from "solid-js";
 import { EvaluationAllocation } from "../../domain/valueObjects/EvaluationAllocation";
+import { MAX_CHALLENGE_GOALS_RANGE } from "../../domain/valueObjects/MaxChallengeGoals";
 import type { EvaluationPeriodController } from "../controllers/EvaluationPeriodController";
-import {
-	MAX_CHALLENGE_GOALS_RANGE,
-	type SettingsController,
-} from "../controllers/SettingsController";
+import type { SettingsController } from "../controllers/SettingsController";
 import type { SmtpSettingsController } from "../controllers/SmtpSettingsController";
 import EvaluationPeriodSettings from "./components/EvaluationPeriodSettings";
 import SmtpSettings from "./components/SmtpSettings";

@@ -84,6 +84,8 @@ export interface EvaluationSheetDto {
 	allocatedScores: EvaluationAllocatedScoresDto;
 	status: EvaluationStatusValue;
 	isEditable: boolean;
+	/** 提出・一次評価の確定を止める、目標の不足(件数や空のチャレンジ目標)。 */
+	pendingObjectiveFields: string[];
 	/** シートと同じ読み込みで決める。シートと権限が食い違う間を作らない。 */
 	permissions: SheetPermissionsDto;
 	/** 今このシートを確定できる評価者にだけ渡す、自分の評価の未設定項目。 */

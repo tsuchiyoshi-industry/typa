@@ -56,6 +56,7 @@ import { UpdateEmployeeKeepSignedInInteractor } from "./application/usecases/Upd
 import { UpdateEmployeeRoleInteractor } from "./application/usecases/UpdateEmployeeRoleInteractor";
 import { UpdateEvaluationAllocationInteractor } from "./application/usecases/UpdateEvaluationAllocationInteractor";
 import { UpdateEvaluationStatusInteractor } from "./application/usecases/UpdateEvaluationStatusInteractor";
+import { UpdateMaxChallengeGoalsInteractor } from "./application/usecases/UpdateMaxChallengeGoalsInteractor";
 import { UpdateMilestoneInteractor } from "./application/usecases/UpdateMilestoneInteractor";
 import { UpdateOverallCommentInteractor } from "./application/usecases/UpdateOverallCommentInteractor";
 import { UpdateSmtpSettingsInteractor } from "./application/usecases/UpdateSmtpSettingsInteractor";
@@ -100,6 +101,7 @@ const settingsController = new SettingsController(
 	evaluationSettingsRepository,
 	employeeMasterRepository,
 	new UpdateEvaluationAllocationInteractor(evaluationSettingsRepository, employeeMasterRepository),
+	new UpdateMaxChallengeGoalsInteractor(evaluationSettingsRepository, employeeMasterRepository),
 );
 const evaluationPeriodController = new EvaluationPeriodController(
 	evaluationPeriodRepository,

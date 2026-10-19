@@ -31,6 +31,8 @@ const employee = (
 	secondaryEvaluatorId: 3,
 	secondaryEvaluatorName: "田中",
 	noSecondaryEvaluator: false,
+	isExecutive: careerCourse === "役員",
+	hasUnsetAssignment: false,
 	registered: true,
 	keepSignedIn: false,
 });

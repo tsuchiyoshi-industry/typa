@@ -217,6 +217,11 @@ export class EvaluationSheet {
 			.map((objective) => `目標 ${objective.goalNumber}：チャレンジ目標`);
 	}
 
+	/** その状態への変更で評価を確定するのはどちらの評価者か。二次評価者「なし」なら一次が最終を兼ねる。 */
+	confirmingStage(status: EvaluationStatus): "first" | "second" {
+		return status.isFinalized() && !this.primaryIsFinalEvaluator() ? "second" : "first";
+	}
+
 	/** 確定する評価者自身の、まだ評価されていない項目。0 は未評価。 */
 	pendingEvaluationItems(stage: "first" | "second"): string[] {
 		return this.pendingEvaluationTargets(stage).map((target) => target.label);

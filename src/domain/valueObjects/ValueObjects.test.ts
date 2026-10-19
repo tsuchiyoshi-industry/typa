@@ -264,3 +264,9 @@ describe("value objects and immutable entities", () => {
 		expect(EmployeeRole.REVIEWER.equals(EmployeeRole.EMPLOYEE)).toBe(false);
 	});
 });
+
+it("describes the rank thresholds from the same table that decides the rank", () => {
+	expect(EvaluationRank.describeThresholds()).toBe(
+		"95%以上 S / 90% A / 80% B+ / 60% B / 50% B- / 40% C / それ未満 D",
+	);
+});

@@ -30,6 +30,10 @@ export interface ApprovalRelationDto {
 	secondaryEvaluatorName: string;
 	/** 二次評価者を「なし」と明示しているか。false で secondaryEvaluatorId が null なら未設定(指定待ち)。 */
 	noSecondaryEvaluator: boolean;
+	/** 役員。等級・評価者の管理対象外で、評価の流れには評価する側としてだけ現れる。 */
+	isExecutive: boolean;
+	/** 見ている人が埋められる割り当て(評価者、等級を変えられる人には等級も)に未設定があるか。 */
+	hasUnsetAssignment: boolean;
 	/** 新規登録を済ませているか。登録の取り消しは登録済みの社員にだけ行える。 */
 	registered: boolean;
 	enabled?: boolean;

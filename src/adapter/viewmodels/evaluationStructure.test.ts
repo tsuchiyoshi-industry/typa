@@ -21,6 +21,8 @@ const person = (
 	secondaryEvaluatorId: secondary,
 	secondaryEvaluatorName: secondary == null ? (noSecondary ? "なし" : "未設定") : names[secondary],
 	noSecondaryEvaluator: noSecondary,
+	isExecutive: false,
+	hasUnsetAssignment: primary == null || (secondary == null && !noSecondary),
 	registered: true,
 	keepSignedIn: null,
 });

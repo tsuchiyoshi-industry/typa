@@ -215,7 +215,7 @@ FUNCTION get_current_employee_access_state() definer=true anon=false authenticat
 FUNCTION get_evaluation_period_sheet_counts(bigint) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=58ad9645d5215d906eb02d10a301a06d
 FUNCTION get_required_domain() definer=true anon=true authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=5d4aafd868388c771a38d185f7a004df
 FUNCTION get_reviewer_workspace(bigint) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=cf1503b20b33024938ec9eaff9101a20
-FUNCTION get_sheet(bigint) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=1c7600b1a79d959146cf6a4a508e2696
+FUNCTION get_sheet(bigint) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=5992442bd727cc146651d4616544cfc6
 FUNCTION get_sheet_notification(bigint,uuid) definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=f58d6ae95d8cd214d90b42f5195e258d
 FUNCTION get_sheet_overview() definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=d57bad6251bb84bedb2d8c3ceb1dec33
 FUNCTION guard_common_evaluation_result_write() definer=false anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=f53fead580ae9b10a90c0f53eb7ec721
@@ -224,6 +224,7 @@ FUNCTION guard_evaluation_period_delete() definer=true anon=false authenticated=
 FUNCTION guard_evaluation_sheet_write() definer=false anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=119d8fa7f2c9500c012e6fafc12e687e
 FUNCTION guard_milestone_write() definer=false anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=3c1cf8b8b92b844e3e0ce99697f152af
 FUNCTION hook_before_user_created(jsonb) definer=true anon=false authenticated=false service_role=true auth_admin=true config={"search_path=\"\""} md5=168993d16d5254dfefe8634a2eecf7e9
+FUNCTION is_current_evaluator_of(integer) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=ec3da46d3c72021039e51b463f8163e0
 FUNCTION issue_employee_invitation(text) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=5a0a8587d455f8934e6013a5add1c487
 FUNCTION issue_pending_employee_invitations() definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=587e00f4bd6ce2ab6354cb5b48c7db02
 FUNCTION lock_employee_administration() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=ca0590d5aedbe55640c261bb9f8cd068
@@ -240,9 +241,9 @@ FUNCTION set_employee_enabled(text,boolean) definer=true anon=false authenticate
 FUNCTION set_employee_role(text,text) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=923cbceb73c7f62bbd02e1f62c62e359
 FUNCTION set_evaluation_sheet_evaluators() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=7aeaa81e137f9ba93289665c24d9fb31
 FUNCTION set_evaluation_sheet_grade() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=38b20da30b14521cdc7b27f2dd6d133a
-FUNCTION sheet_access(bigint) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=c2d43de628f9fbe7b100c68962b2ee69
+FUNCTION sheet_access(bigint) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=ea3203fa761219b006fdeaac98b5f0fd
 FUNCTION sheet_evaluation_score(bigint,boolean,integer,integer) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=7a7a86c9acb9982156aa271df91f60d7
-FUNCTION sync_evaluation_sheet_evaluators() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=6dd3291e8a90e0dc17399dc4c2ae26b4
+FUNCTION sync_evaluation_sheet_evaluators() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=a3e359c8fb1d7fbcf01244ae388f3de6
 FUNCTION transition_evaluation_sheet(bigint,text) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=2b8287702b29be0c13add5badc63a949
 FUNCTION visible_employee_ids() definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=e436ff827b21ab080975cc93e6860fd9
 GRANT common_evaluation_item_sets service_role DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
@@ -323,7 +324,7 @@ POLICY evaluation_settings | only Admin changes evaluation settings | {authentic
 POLICY evaluation_sheets | an employee creates their own sheet | {authenticated} | INSERT | using - | check (employee_id = ( SELECT current_employee_id() AS current_employee_id))
 POLICY evaluation_sheets | enabled employee required | {authenticated} | ALL | using (current_employee_id() IS NOT NULL) | check (current_employee_id() IS NOT NULL)
 POLICY evaluation_sheets | subject and evaluators change a sheet | {authenticated} | UPDATE | using (((( SELECT current_employee_id() AS current_employee_id) = employee_id) OR (( SELECT current_employee_id() AS current_employee_id) = primary_evaluator_id)) OR (( SELECT current_employee_id() AS current_employee_id) = secondary_evaluator_id)) | check (((( SELECT current_employee_id() AS current_employee_id) = employee_id) OR (( SELECT current_employee_id() AS current_employee_id) = primary_evaluator_id)) OR (( SELECT current_employee_id() AS current_employee_id) = secondary_evaluator_id))
-POLICY evaluation_sheets | subject and evaluators read a sheet | {authenticated} | SELECT | using (((( SELECT current_employee_id() AS current_employee_id) = employee_id) OR (( SELECT current_employee_id() AS current_employee_id) = primary_evaluator_id)) OR (( SELECT current_employee_id() AS current_employee_id) = secondary_evaluator_id)) | check -
+POLICY evaluation_sheets | subject and evaluators read a sheet | {authenticated} | SELECT | using ((((( SELECT current_employee_id() AS current_employee_id) = employee_id) OR (( SELECT current_employee_id() AS current_employee_id) = primary_evaluator_id)) OR (( SELECT current_employee_id() AS current_employee_id) = secondary_evaluator_id)) OR ((status = 'finalized'::text) AND is_current_evaluator_of((employee_id)::integer))) | check -
 POLICY milestones | enabled employee required | {authenticated} | ALL | using (current_employee_id() IS NOT NULL) | check (current_employee_id() IS NOT NULL)
 POLICY milestones | subject adds goals to a draft | {authenticated} | INSERT | using - | check (sheet_access(sheet_id) = 'subject:draft'::text)
 POLICY milestones | subject and evaluators change goals in their stage | {authenticated} | UPDATE | using (sheet_access(sheet_id) = ANY (ARRAY['subject:draft'::text, 'first'::text, 'second'::text])) | check (sheet_access(sheet_id) = ANY (ARRAY['subject:draft'::text, 'first'::text, 'second'::text]))

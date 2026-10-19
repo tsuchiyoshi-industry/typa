@@ -26,6 +26,11 @@ export class EvaluationSheetAccessPolicy {
 		private readonly viewerIsSubject: boolean,
 		private readonly viewerIsPrimaryEvaluator: boolean,
 		private readonly viewerIsSecondaryEvaluator: boolean,
+		/**
+		 * 被評価者の今の評価者(異動で新しく評価者になった人など)として、確定したシートを評価の記録として読む。
+		 * 読むだけで、帳票と同じ全体が見える。
+		 */
+		private readonly viewerReadsRecord = false,
 	) {
 		this.viewerIsFinalEvaluator =
 			viewerIsSecondaryEvaluator || (viewerIsPrimaryEvaluator && sheet.primaryIsFinalEvaluator());
@@ -43,11 +48,15 @@ export class EvaluationSheetAccessPolicy {
 		if (currentEmployeeId === null) {
 			return new EvaluationSheetAccessPolicy(sheet, false, false, false);
 		}
+		const subject = isSubject(currentEmployeeId, sheet.subject);
 		return new EvaluationSheetAccessPolicy(
 			sheet,
-			isSubject(currentEmployeeId, sheet.subject),
+			subject,
 			isPrimaryEvaluator(currentEmployeeId, sheet.subject),
 			isSecondaryEvaluator(currentEmployeeId, sheet.subject),
+			!subject &&
+				sheet.status.isFinalized() &&
+				sheet.currentEvaluatorIds.includes(currentEmployeeId),
 		);
 	}
 
@@ -66,7 +75,7 @@ export class EvaluationSheetAccessPolicy {
 	}
 
 	canViewSheet(): boolean {
-		return this.viewerIsSubject || this.viewerIsEvaluatorOfSubmittedSheet;
+		return this.viewerIsSubject || this.viewerIsEvaluatorOfSubmittedSheet || this.viewerReadsRecord;
 	}
 
 	/** 締めた評価期間のシートを変更しようとしたら、役割より先にその理由で止める。 */
@@ -107,14 +116,14 @@ export class EvaluationSheetAccessPolicy {
 
 	/** 一次評価者は二次評価者の評価を見ることができない。 */
 	canViewMilestoneSecondScore(): boolean {
-		return this.viewerIsSubject || this.viewerIsSecondaryEvaluator;
+		return this.viewerIsSubject || this.viewerIsSecondaryEvaluator || this.viewerReadsRecord;
 	}
 
 	// --- 共通評価(CommonEvaluation) ---
 
 	/** 共通評価は評価者のみ閲覧可能。本人(被評価者・入力者)は閲覧不可。 */
 	canViewCommonEvaluation(): boolean {
-		return this.viewerIsEvaluatorOfSubmittedSheet;
+		return this.viewerIsEvaluatorOfSubmittedSheet || this.viewerReadsRecord;
 	}
 
 	canEditCommonEvaluationFirst(): boolean {
@@ -127,7 +136,7 @@ export class EvaluationSheetAccessPolicy {
 
 	/** 一次評価者は二次評価の内容を見ることができない(自分の一次評価の出力は可能)。 */
 	canViewCommonEvaluationSecond(): boolean {
-		return !this.viewerIsSubject && this.viewerIsSecondaryEvaluator;
+		return (!this.viewerIsSubject && this.viewerIsSecondaryEvaluator) || this.viewerReadsRecord;
 	}
 
 	// --- 総評・最終評価 ---
@@ -140,7 +149,7 @@ export class EvaluationSheetAccessPolicy {
 
 	/** 評価点・最終評価ランクなど、最終評価の結果を見られるのは最終評価者のみ。 */
 	canViewFinalEvaluation(): boolean {
-		return !this.viewerIsSubject && this.viewerIsFinalEvaluator;
+		return (!this.viewerIsSubject && this.viewerIsFinalEvaluator) || this.viewerReadsRecord;
 	}
 
 	// --- シートロック(提出・確定) ---

@@ -32,6 +32,8 @@ interface SheetRpcRow {
 		roleId: number;
 		careerCourse: string | null;
 	} | null;
+	/** 被評価者の社員マスタ上の今の評価者。確定したシートを読める(シートの評価者とは別)。 */
+	currentEvaluatorIds?: number[];
 	/** シートの評価者。未確定の間は DB のトリガーが社員マスタに合わせ、確定後は変わらない。 */
 	primaryEvaluatorId: number | null;
 	secondaryEvaluatorId: number | null;
@@ -210,6 +212,7 @@ function toSheet(row: SheetRpcRow): EvaluationSheet | null {
 		status,
 		gradeId: row.gradeId,
 		maxObjectives: row.maxChallengeGoals as number,
+		currentEvaluatorIds: row.currentEvaluatorIds ?? [],
 		finalEvaluationRank: EvaluationRank.fromOptional(row.finalRankLetter, row.finalRankLevel),
 		firstEvaluationRank: EvaluationRank.fromText(row.firstRank),
 	});
@@ -350,10 +353,10 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 	}
 
 	async findByEvaluator(employeeId: number): Promise<EvaluationSheetSummary[]> {
+		// 自分のもの以外で DB が読ませるシート: シートの評価者が自分のものと、今の部下の確定済みのもの
 		const { data, error } = await supabase
 			.from("evaluation_sheets")
 			.select(SHEET_LIST_SELECT)
-			.or(`primary_evaluator_id.eq.${employeeId},secondary_evaluator_id.eq.${employeeId}`)
 			.neq("employee_id", employeeId);
 
 		// 読めなかったことを「シートが無い」として扱わない

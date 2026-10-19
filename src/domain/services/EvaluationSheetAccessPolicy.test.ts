@@ -289,4 +289,45 @@ describe("EvaluationSheetAccessPolicy", () => {
 			expect(onSubordinateSheet.canEditMilestoneFirstScore()).toBe(true);
 		});
 	});
+
+	describe("異動で新しく評価者になった人(社員マスタの今の評価者)", () => {
+		const NEW_EVALUATOR_ID = 5;
+		const policyFor = (status: EvaluationStatus, viewer = NEW_EVALUATOR_ID) => {
+			const sheet = buildSheet(status);
+			return EvaluationSheetAccessPolicy.for(
+				viewer,
+				EvaluationSheet.create({ ...sheet, currentEvaluatorIds: [NEW_EVALUATOR_ID, SUBJECT_ID] }),
+			);
+		};
+
+		it("確定したシートは、帳票と同じ全体を読んで出力できるが、何も変えられない", () => {
+			const policy = policyFor(EvaluationStatus.FINALIZED);
+			expect(policy.canViewSheet()).toBe(true);
+			expect(policy.canViewMilestoneSecondScore()).toBe(true);
+			expect(policy.canViewCommonEvaluation()).toBe(true);
+			expect(policy.canViewCommonEvaluationSecond()).toBe(true);
+			expect(policy.canViewFinalEvaluation()).toBe(true);
+			expect(policy.canExportSheet()).toBe(true);
+			expect(policy.canEditMilestoneFirstScore()).toBe(false);
+			expect(policy.canEditMilestoneSecondScore()).toBe(false);
+			expect(policy.canFinalizeEvaluation()).toBe(false);
+			expect(policy.canResendNotification()).toBe(false);
+		});
+
+		it("確定前のシートは、シートの評価者でなければ読めない", () => {
+			for (const status of [
+				EvaluationStatus.DRAFT,
+				EvaluationStatus.SUBMITTED,
+				EvaluationStatus.FIRST_EVALUATED,
+			]) {
+				expect(policyFor(status).canViewSheet()).toBe(false);
+			}
+		});
+
+		it("本人が自分の評価者として残っていても、本人として扱う", () => {
+			const policy = policyFor(EvaluationStatus.FINALIZED, SUBJECT_ID);
+			expect(policy.canViewCommonEvaluation()).toBe(false);
+			expect(policy.canViewFinalEvaluation()).toBe(false);
+		});
+	});
 });

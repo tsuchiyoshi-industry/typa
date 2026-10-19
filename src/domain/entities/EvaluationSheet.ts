@@ -61,6 +61,11 @@ export class EvaluationSheet {
 		public readonly gradeId: number | null = null,
 		/** 1枚のシートに置けるチャレンジ目標の数の上限(設定値)。 */
 		public readonly maxObjectives: number = EvaluationSheet.DEFAULT_MAX_OBJECTIVES,
+		/**
+		 * 被評価者の社員マスタ上の今の評価者。シートの評価者とは別で、異動で新しく評価者になった人も含む。
+		 * この人たちは、確定したシートを評価の記録として読める。
+		 */
+		public readonly currentEvaluatorIds: readonly number[] = [],
 	) {}
 
 	/** 設定を読まずにシートを作るとき(テストなど)の上限。DB の初期値と同じ。 */
@@ -86,6 +91,7 @@ export class EvaluationSheet {
 		/** 省略すると、社員の今の等級(新しく作るシートと同じ)。 */
 		gradeId?: number | null;
 		maxObjectives?: number;
+		currentEvaluatorIds?: readonly number[];
 	}): EvaluationSheet {
 		const commonEvaluationResults = params.commonEvaluationResults ?? [];
 		const objectiveScoreTotals =
@@ -118,6 +124,7 @@ export class EvaluationSheet {
 			params.allocation,
 			params.gradeId === undefined ? params.subject.gradeId : params.gradeId,
 			params.maxObjectives,
+			params.currentEvaluatorIds,
 		);
 	}
 

@@ -29,7 +29,9 @@ tauri-plugin-dialog = "^2.8.3"
 tauri-plugin-process = "2.4.0"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
-tauri-plugin-updater = "2.14.0"
+# Updates ship as the raw NSIS -setup.exe (createUpdaterArtifacts v2), never as a zip,
+# so leave out the "zip" feature: its extraction code is unreachable and its zip 4.x is vulnerable.
+tauri-plugin-updater = { version = "2.14.0", default-features = false, features = ["rustls-tls", "system-proxy"] }
 
 [dev-dependencies]
 tauri = { version = "~2.12.1", features = ["test"] }

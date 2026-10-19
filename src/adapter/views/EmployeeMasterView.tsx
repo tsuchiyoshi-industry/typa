@@ -137,13 +137,14 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 		let select!: HTMLSelectElement;
 		const [pending, setPending] = createSignal<string | null>(null);
 		// Apply the authoritative value after Solid has replaced the option nodes.
+		// Read props here, not in the microtask: a props getter outside the effect creates
+		// computations with no owner.
 		createEffect(() => {
-			cell.value;
+			const value = pending() ?? cell.value;
 			grades();
-			pending();
 			queueMicrotask(() => {
 				if (select.isConnected) {
-					select.value = pending() ?? cell.value;
+					select.value = value;
 				}
 			});
 		});

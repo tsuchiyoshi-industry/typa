@@ -38,6 +38,8 @@ it("requires a per-employee invitation even for a verified company mailbox; code
 	await actAs(db, 1);
 	const first = await value<{ code: string }>("public.issue_employee_invitation('E7')");
 	const second = await value<{ code: string }>("public.issue_employee_invitation('E7')");
+	// 紙から打ち込むので、読み間違えやすい 0/O・1/I を含まない12文字
+	expect(second.code).toMatch(/^[2-9A-HJ-NP-Z]{4}-[2-9A-HJ-NP-Z]{4}-[2-9A-HJ-NP-Z]{4}$/);
 	await actAs(db, 98, "otp");
 	const begin = (code: string, employee = "E7") =>
 		value<{ status: string; token?: string }>("public.begin_registration($1,$2)", [employee, code]);
@@ -45,7 +47,7 @@ it("requires a per-employee invitation even for a verified company mailbox; code
 		expect((await begin(code)).status).toBe("invalid_invitation");
 	}
 	expect((await begin(second.code, "E1")).status).toBe("invalid_invitation");
-	const started = await begin(second.code.toLowerCase());
+	const started = await begin(` ${second.code.replace(/-/g, "").toLowerCase()} `);
 	expect(started.status).toBe("available");
 	await db.exec("reset role");
 	await query("insert into auth.users(id,email) values($1,'typa-e7@example.jp')", [uid(97)]);

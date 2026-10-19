@@ -5,7 +5,7 @@ import { resolve } from "node:path";
 
 const target = process.argv[2];
 assert.ok(
-	["typa_release_verify", "typa_release_fresh"].includes(target),
+	["typa_release_verify", "typa_release_fresh", "typa_e2e"].includes(target),
 	"Only isolated release databases may be prepared.",
 );
 const docker = (args: string[], input?: string) => {

@@ -633,6 +633,7 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 						canConfirmFirst={!props.embedded && viewModel().canConfirmFirstEvaluation}
 						canFinalize={!props.embedded && viewModel().canFinalizeEvaluation}
 						updating={viewModel().updatingStatus}
+						busy={saving()}
 						notice={viewModel().statusUpdateError}
 						onSubmit={() => void handleSubmitSheet()}
 						onRevert={() => void handleRevertSheet()}

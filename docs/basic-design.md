@@ -869,6 +869,7 @@ Admin が、評価シート一覧の「全社の評価シート」から出力�
 | `bun run dev` / `bun run tauri dev` | 画面のみ / Tauri アプリとして起動 |
 | `bun run typecheck` | 型検査（アプリと設定ファイル） |
 | `bun run test` / `bun run test:coverage` | テスト / カバレッジ付き |
+| `bun run test:e2e` | 画面の E2E（Playwright、ローカル Supabase が必要） |
 | `bun run test:rust` | Rust のテスト |
 | `bun run fix` | Biome による整形と検査 |
 | `bun run tauri build` | 配布物の作成 |

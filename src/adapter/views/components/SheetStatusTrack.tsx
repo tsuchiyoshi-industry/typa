@@ -18,6 +18,8 @@ interface SheetStatusTrackProps {
 	canConfirmFirst: boolean;
 	canFinalize: boolean;
 	updating: boolean;
+	/** 目標・評価・総評の保存中。保存後の読み直しが済むまで、古い内容で判定させない */
+	busy?: boolean;
 	notice: string | null;
 	onSubmit: () => void;
 	onRevert: () => void;
@@ -65,7 +67,7 @@ const SheetStatusTrack: Component<SheetStatusTrackProps> = (props) => {
 						type="button"
 						class="primary-action"
 						onClick={props.onSubmit}
-						disabled={props.updating}
+						disabled={props.updating || props.busy}
 					>
 						<FileCheck class="action-icon" />
 						{props.updating ? "提出中..." : "提出する"}
@@ -76,7 +78,7 @@ const SheetStatusTrack: Component<SheetStatusTrackProps> = (props) => {
 						type="button"
 						class="secondary-action"
 						onClick={props.onRevert}
-						disabled={props.updating}
+						disabled={props.updating || props.busy}
 					>
 						<Undo2 class="action-icon" />
 						{props.updating ? "処理中..." : "下書きに戻す"}
@@ -87,7 +89,7 @@ const SheetStatusTrack: Component<SheetStatusTrackProps> = (props) => {
 						type="button"
 						class="primary-action finalize"
 						onClick={props.onConfirmFirst}
-						disabled={props.updating}
+						disabled={props.updating || props.busy}
 					>
 						<ShieldCheck class="action-icon" />
 						{props.updating ? "確定中..." : "一次評価を確定する"}
@@ -98,7 +100,7 @@ const SheetStatusTrack: Component<SheetStatusTrackProps> = (props) => {
 						type="button"
 						class="primary-action finalize"
 						onClick={props.onFinalize}
-						disabled={props.updating}
+						disabled={props.updating || props.busy}
 					>
 						<ShieldCheck class="action-icon" />
 						{props.updating

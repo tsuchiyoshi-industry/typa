@@ -38,6 +38,7 @@ VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 | `bun run tauri build` | デスクトップ配布物のビルド |
 | `bun run typecheck` | 型検査 |
 | `bun run test:coverage` | TypeScript・画面・SQLのテストとカバレッジ |
+| `bun run test:e2e` | 画面のE2E（Playwright）。ローカル Supabase を起動しておく。検証用DB `typa_e2e` を作り直して使い、開発用DBには触れない |
 | `bun run test:rust --release` | PDF生成などのRustテスト |
 | `bun run fix` | Biomeによる整形と検査 |
 

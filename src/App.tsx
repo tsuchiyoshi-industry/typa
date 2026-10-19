@@ -280,16 +280,20 @@ const App: Component = () => {
 	onCleanup(() => unsubscribeAuth?.());
 
 	// ログイン済みの画面はトップバーを共有する。ページ移動のたびに作り直さない。
+	// 確認中(isLinked が null)に待たせるのはログイン後の画面だけ。ログイン画面まで作り直すと、
+	// 利用停止などで直後にサインアウトしたときのエラー表示と入力が消えてしまう。
 	const ProtectedLayout: Component<{ children?: JSX.Element }> = (props) => (
-		<Show when={session() && isLinked()} fallback={<Navigate href="/login" />}>
-			<DashboardLayout controller={accountController}>
-				<Suspense fallback={<LoadingView />}>{props.children}</Suspense>
-			</DashboardLayout>
+		<Show when={isLinked() !== null} fallback={<LoadingView />}>
+			<Show when={session() && isLinked()} fallback={<Navigate href="/login" />}>
+				<DashboardLayout controller={accountController}>
+					<Suspense fallback={<LoadingView />}>{props.children}</Suspense>
+				</DashboardLayout>
+			</Show>
 		</Show>
 	);
 
 	return (
-		<Show when={initialized() && isLinked() !== null} fallback={<LoadingView />}>
+		<Show when={initialized()} fallback={<LoadingView />}>
 			<Router root={AppLayout}>
 				<Route
 					path="/login"

@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { chromium } from "@playwright/test";
 import { createServer } from "vite";
 import { startIsolatedApi } from "../scripts/isolatedApi";
 import { E2E_PORT, PASSWORD } from "./support";
@@ -35,6 +36,17 @@ export default async function globalSetup() {
 	process.env.E2E_SERVICE_KEY = api.jwt("service_role");
 	const vite = await createServer({ server: { port: E2E_PORT, strictPort: true } });
 	await vite.listen();
+
+	// 冷えた Vite は初回に依存の最適化で数十秒かかり、CI では最初のテストが時間切れになる。
+	// テストの前に一度ログイン画面まで開いて、最適化と再読み込みを済ませておく
+	const browser = await chromium.launch();
+	try {
+		const page = await browser.newPage();
+		await page.goto(`http://localhost:${E2E_PORT}/login`, { timeout: 120_000 });
+		await page.getByLabel("社員番号").waitFor({ timeout: 120_000 });
+	} finally {
+		await browser.close();
+	}
 
 	return async () => {
 		await vite.close();

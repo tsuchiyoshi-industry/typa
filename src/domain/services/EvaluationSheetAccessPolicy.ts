@@ -114,9 +114,18 @@ export class EvaluationSheetAccessPolicy {
 		);
 	}
 
-	/** 一次評価者は二次評価者の評価を見ることができない。 */
+	/** 本人は評価が確定するまで点数を見られない(評価者が保存しただけの途中の点数を見せない)。 */
+	canViewMilestoneFirstScore(): boolean {
+		return !this.viewerIsSubject || this.sheet.status.isFinalized();
+	}
+
+	/** 一次評価者は二次評価者の評価を見ることができない。本人は評価が確定してから見られる。 */
 	canViewMilestoneSecondScore(): boolean {
-		return this.viewerIsSubject || this.viewerIsSecondaryEvaluator || this.viewerReadsRecord;
+		return (
+			(this.viewerIsSubject && this.sheet.status.isFinalized()) ||
+			this.viewerIsSecondaryEvaluator ||
+			this.viewerReadsRecord
+		);
 	}
 
 	// --- 共通評価(CommonEvaluation) ---

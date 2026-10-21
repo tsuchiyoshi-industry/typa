@@ -181,7 +181,7 @@ export class UpdateMilestoneInteractor
 				challengeGoal: updated.challengeGoal,
 				midtermGoal: updated.midtermGoal,
 				achievement: updated.achievement,
-				firstScore: updated.firstScore.toNumber(),
+				firstScore: policy.canViewMilestoneFirstScore() ? updated.firstScore.toNumber() : null,
 				secondScore: canViewSecondScore ? updated.secondScore.toNumber() : null,
 			},
 		});

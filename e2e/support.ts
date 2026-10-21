@@ -19,6 +19,32 @@ export async function signOut(page: Page) {
 }
 
 /**
+ * release-fixture.sql の社員 n としてログインし、画面を通さずに REST を直接たたく。
+ * 画面で伏せているだけでなく、サーバーが返さないことを確かめるのに使う。
+ */
+export async function restAs(n: number) {
+	const base = process.env.E2E_API_URL as string;
+	const apikey = process.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
+	const login = await fetch(`${base}/auth/v1/token?grant_type=password`, {
+		method: "POST",
+		headers: { apikey, "Content-Type": "application/json" },
+		body: JSON.stringify({ email: `typa-release00${n}@release.example`, password: PASSWORD }),
+	});
+	const { access_token } = (await login.json()) as { access_token: string };
+	expect(access_token).toBeTruthy();
+	return (path: string, body?: unknown) =>
+		fetch(`${base}/rest/v1/${path}`, {
+			method: body === undefined ? "GET" : "POST",
+			headers: {
+				apikey,
+				Authorization: `Bearer ${access_token}`,
+				"Content-Type": "application/json",
+			},
+			body: body === undefined ? undefined : JSON.stringify(body),
+		});
+}
+
+/**
  * 宛先あての有効な認証コード。ローカルのメール本文はリンク形式でコードを含まないため、
  * リリース検証と同じく管理 API で発行し直したコードを、利用者が打ち込む値として使う。
  */

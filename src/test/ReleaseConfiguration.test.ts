@@ -10,7 +10,11 @@ describe("release security configuration", () => {
 			"core:default",
 			"core:window:allow-destroy",
 			"dialog:allow-save",
+			// 保存したPDFをエクスプローラーで示すだけ。URL やファイルを開く権限は渡さない
+			"opener:allow-reveal-item-in-dir",
 		]);
+		// 共有PCで、前の人の入力が WebView2 の入力候補に出ないようにする
+		expect(tauriConfig.app.windows[0].generalAutofillEnabled).toBe(false);
 		expect(tauriConfig.app.security.csp).toContain("object-src 'none'");
 		expect(tauriConfig.app.security.csp).not.toContain("'unsafe-eval'");
 		expect(tauriConfig.app.security.csp).not.toContain("script-src 'self' 'unsafe-inline'");

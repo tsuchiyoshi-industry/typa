@@ -110,6 +110,20 @@ const ToastStack: Component = () => (
 						<Show when={toast.detail}>
 							<span>{toast.detail}</span>
 						</Show>
+						<Show when={toast.action}>
+							{(action) => (
+								<button
+									type="button"
+									class="toast__action"
+									onClick={() => {
+										action().run();
+										dismissToast(toast.id);
+									}}
+								>
+									{action().label}
+								</button>
+							)}
+						</Show>
 					</div>
 					<button
 						type="button"

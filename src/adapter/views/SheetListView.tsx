@@ -1,4 +1,5 @@
 import { A, useNavigate } from "@solidjs/router";
+import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import ArrowDown from "lucide-solid/icons/arrow-down";
 import ArrowUp from "lucide-solid/icons/arrow-up";
 import ChevronRight from "lucide-solid/icons/chevron-right";
@@ -287,7 +288,21 @@ const SheetListView: Component<SheetListViewProps> = (props) => {
 					return;
 				}
 				if (status.success) {
-					showToast("success", "PDFを保存しました", status.fileName ?? undefined);
+					const fileName = status.fileName;
+					showToast(
+						"success",
+						"PDFを保存しました",
+						fileName ?? undefined,
+						fileName
+							? {
+									label: "フォルダを開く",
+									run: () =>
+										void revealItemInDir(fileName).catch(() =>
+											showToast("error", "フォルダを開けませんでした", fileName),
+										),
+								}
+							: undefined,
+					);
 				} else {
 					showToast("error", "PDFを出力できませんでした", status.message);
 				}

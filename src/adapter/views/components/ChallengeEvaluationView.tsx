@@ -382,7 +382,10 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 								when={isScoreEditing()}
 								fallback={
 									<>
-										<ScoreReadout label="一次評価" value={activeObjective()?.firstScore} />
+										{/* null は伏せられた点数(確定前の本人)。0 の「未評価」とは分けて、何も出さない */}
+										<Show when={activeObjective()?.firstScore !== null}>
+											<ScoreReadout label="一次評価" value={activeObjective()?.firstScore} />
+										</Show>
 										<Show when={props.canViewSecondEvaluation}>
 											<ScoreReadout label="二次評価" value={activeObjective()?.secondScore} />
 										</Show>

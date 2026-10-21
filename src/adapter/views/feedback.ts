@@ -9,6 +9,13 @@ export interface Toast {
 	kind: ToastKind;
 	message: string;
 	detail?: string;
+	/** 通知から続けてできること(保存したファイルの場所を開く など)。押すと通知は閉じる。 */
+	action?: ToastAction;
+}
+
+export interface ToastAction {
+	label: string;
+	run: () => void;
 }
 
 const [toasts, setToasts] = createSignal<Toast[]>([]);
@@ -29,12 +36,17 @@ export function dismissToast(id: number): void {
 	}, 160);
 }
 
-/** エラーは読み落とさないよう、閉じるまで残す。それ以外は数秒で消える。 */
-export function showToast(kind: ToastKind, message: string, detail?: string): void {
+/** エラーは読み落とさないよう、閉じるまで残す。それ以外は数秒で消える(ボタン付きは押す間を長めにとる)。 */
+export function showToast(
+	kind: ToastKind,
+	message: string,
+	detail?: string,
+	action?: ToastAction,
+): void {
 	const id = nextToastId++;
-	setToasts((list) => [...list, { id, kind, message, detail }]);
+	setToasts((list) => [...list, { id, kind, message, detail, action }]);
 	if (kind !== "error") {
-		setTimeout(() => dismissToast(id), 4500);
+		setTimeout(() => dismissToast(id), action ? 8000 : 4500);
 	}
 }
 

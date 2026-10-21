@@ -99,19 +99,41 @@ describe("EvaluationSheetAccessPolicy", () => {
 			);
 		});
 
-		it("一次評価者は二次評価者のスコアを見られないが、本人と二次評価者は見られる", () => {
+		it("一次評価者は二次評価者のスコアを見られないが、二次評価者は見られる", () => {
 			const sheet = buildSheet(EvaluationStatus.DRAFT);
 			expect(
 				EvaluationSheetAccessPolicy.for(PRIMARY_EVALUATOR_ID, sheet).canViewMilestoneSecondScore(),
 			).toBe(false);
-			expect(EvaluationSheetAccessPolicy.for(SUBJECT_ID, sheet).canViewMilestoneSecondScore()).toBe(
-				true,
-			);
 			expect(
 				EvaluationSheetAccessPolicy.for(
 					SECONDARY_EVALUATOR_ID,
 					sheet,
 				).canViewMilestoneSecondScore(),
+			).toBe(true);
+		});
+
+		it("本人は評価が確定するまで、保存されただけの一次・二次評価のスコアを見られない", () => {
+			for (const status of [
+				EvaluationStatus.DRAFT,
+				EvaluationStatus.SUBMITTED,
+				EvaluationStatus.FIRST_EVALUATED,
+			]) {
+				const subject = EvaluationSheetAccessPolicy.for(SUBJECT_ID, buildSheet(status));
+				expect(subject.canViewMilestoneFirstScore(), status.toString()).toBe(false);
+				expect(subject.canViewMilestoneSecondScore(), status.toString()).toBe(false);
+			}
+			const finalized = EvaluationSheetAccessPolicy.for(
+				SUBJECT_ID,
+				buildSheet(EvaluationStatus.FINALIZED),
+			);
+			expect(finalized.canViewMilestoneFirstScore()).toBe(true);
+			expect(finalized.canViewMilestoneSecondScore()).toBe(true);
+			// 評価者は自分の段階で一次評価を見られる
+			expect(
+				EvaluationSheetAccessPolicy.for(
+					PRIMARY_EVALUATOR_ID,
+					buildSheet(EvaluationStatus.SUBMITTED),
+				).canViewMilestoneFirstScore(),
 			).toBe(true);
 		});
 	});

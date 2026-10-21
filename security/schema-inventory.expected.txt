@@ -12,7 +12,7 @@ COLUMN GRANT evaluation_sheets authenticated INSERT employee_id,period_id
 COLUMN GRANT evaluation_sheets authenticated SELECT created_at,employee_id,grade_id,id,no_secondary_evaluator,period_id,primary_evaluator_id,secondary_evaluator_id,status,total_score,updated_at
 COLUMN GRANT evaluation_sheets authenticated UPDATE common_allocation,common_evaluation_first_total_rate,common_evaluation_first_total_score,common_evaluation_second_evaluation_score,common_evaluation_second_total_rate,common_evaluation_second_total_score,employee_id,final_rank_letter,final_rank_level,first_overall_comment,first_rank,objective_allocation,objectives_first_total_rate,objectives_first_total_score,objectives_second_evaluation_score,objectives_second_total_rate,objectives_second_total_score,period_id,second_overall_comment,status,total_evaluation_score
 COLUMN GRANT milestones authenticated INSERT achievement,challenge_goal,goal_number,midterm_goal,sheet_id
-COLUMN GRANT milestones authenticated SELECT achievement,challenge_goal,first_score,goal_number,id,midterm_goal,sheet_id
+COLUMN GRANT milestones authenticated SELECT achievement,challenge_goal,goal_number,id,midterm_goal,sheet_id
 COLUMN GRANT milestones authenticated UPDATE achievement,challenge_goal,first_score,goal_number,midterm_goal,second_score,sheet_id
 COLUMN GRANT roles authenticated SELECT id,role_name
 COLUMN GRANT security_audit_log authenticated SELECT action,actor_user_id,details,entity_id,id,occurred_at
@@ -215,7 +215,7 @@ FUNCTION get_current_employee_access_state() definer=true anon=false authenticat
 FUNCTION get_evaluation_period_sheet_counts(bigint) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=58ad9645d5215d906eb02d10a301a06d
 FUNCTION get_required_domain() definer=true anon=true authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=5d4aafd868388c771a38d185f7a004df
 FUNCTION get_reviewer_workspace(bigint) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=cf1503b20b33024938ec9eaff9101a20
-FUNCTION get_sheet(bigint) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=5992442bd727cc146651d4616544cfc6
+FUNCTION get_sheet(bigint) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=907546636cba9773af7f6412fb1b3f67
 FUNCTION get_sheet_notification(bigint,uuid) definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=f58d6ae95d8cd214d90b42f5195e258d
 FUNCTION get_sheet_overview() definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=d57bad6251bb84bedb2d8c3ceb1dec33
 FUNCTION guard_common_evaluation_result_write() definer=false anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=f53fead580ae9b10a90c0f53eb7ec721

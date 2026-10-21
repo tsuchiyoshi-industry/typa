@@ -69,8 +69,11 @@ describe("sheet reading and confidentiality", () => {
 			out,
 		);
 		const dto = out.present.mock.calls[0][0];
-		expect(dto.objectives[0].secondScore).toBe(id === 2 ? null : 4);
-		expect(dto.objectiveScoreTotals.secondTotalScore).toBe(id === 2 ? null : 4);
+		// 本人(1)には、確定前の目標の点数を伏せる
+		expect(dto.objectives[0].firstScore === null).toBe(id === 1);
+		expect(dto.objectiveScoreTotals.firstTotalScore === null).toBe(id === 1);
+		expect(dto.objectives[0].secondScore).toBe(id === 3 ? 4 : null);
+		expect(dto.objectiveScoreTotals.secondTotalScore).toBe(id === 3 ? 4 : null);
 		expect(dto.firstOverallComment).toBe(id === 1 ? "" : "一次総評");
 		expect(dto.secondOverallComment).toBe(id === 3 ? "二次総評" : "");
 		expect(dto.commonEvaluationScoreTotals.firstTotalScore).toBe(id === 1 ? null : 15);

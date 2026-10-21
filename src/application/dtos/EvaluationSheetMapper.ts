@@ -9,6 +9,7 @@ export function toEvaluationSheetDto(
 	gradeName: string,
 	policy: EvaluationSheetAccessPolicy,
 ): EvaluationSheetDto {
+	const canViewFirstMilestoneScore = policy.canViewMilestoneFirstScore();
 	const canViewSecondMilestoneScore = policy.canViewMilestoneSecondScore();
 	if (!policy.canViewSheet()) {
 		throw new Error("評価シートを閲覧する権限がありません。");
@@ -53,7 +54,7 @@ export function toEvaluationSheetDto(
 			challengeGoal: objective.challengeGoal,
 			midtermGoal: objective.midtermGoal,
 			achievement: objective.achievement,
-			firstScore: objective.firstScore.toNumber(),
+			firstScore: canViewFirstMilestoneScore ? objective.firstScore.toNumber() : null,
 			secondScore: canViewSecondMilestoneScore ? objective.secondScore.toNumber() : null,
 		})),
 		maxObjectives: sheet.maxObjectives,
@@ -86,8 +87,10 @@ export function toEvaluationSheetDto(
 				}
 			: null,
 		objectiveScoreTotals: {
-			firstTotalScore: sheet.objectiveScoreTotals.firstTotalScore,
-			firstTotalRate: sheet.objectiveScoreTotals.firstTotalRate,
+			firstTotalScore: canViewFirstMilestoneScore
+				? sheet.objectiveScoreTotals.firstTotalScore
+				: null,
+			firstTotalRate: canViewFirstMilestoneScore ? sheet.objectiveScoreTotals.firstTotalRate : null,
 			secondTotalScore: canViewSecondMilestoneScore
 				? sheet.objectiveScoreTotals.secondTotalScore
 				: null,

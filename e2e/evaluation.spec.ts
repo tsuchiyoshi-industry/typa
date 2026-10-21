@@ -1,5 +1,5 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
-import { signIn, signOut } from "./support";
+import { restAs, signIn, signOut } from "./support";
 
 // 内部の人が入力欄に仕込んだ HTML は、評価者の画面で文字として出るだけで実行されない
 const GOAL = '受注処理の手戻りを半減する<img src=x onerror="window.__xss=1">';
@@ -33,6 +33,28 @@ async function score(sheet: Locator, stage: "一次評価" | "二次評価", val
 	await expect(common.getByRole("button", { name: "評価を入力" })).toBeVisible();
 }
 
+async function openOwnSheet(page: Page) {
+	await page
+		.getByRole("link", { name: /Release verification/ })
+		.first()
+		.click();
+	const goal = page.getByRole("tabpanel");
+	await expect(goal.getByText(GOAL)).toBeVisible();
+	return goal;
+}
+
+/** 本人(社員 4)が、自分のシートの目標の点数をサーバーからどう受け取るか。 */
+async function goalScoresSeenBySubject() {
+	const rest = await restAs(4);
+	// 点数の列はテーブルから直接は読めない
+	expect((await rest("milestones?select=first_score")).status).toBe(403);
+	const [{ id }] = (await (await rest("evaluation_sheets?select=id")).json()) as { id: number }[];
+	const sheet = (await (await rest("rpc/get_sheet", { p_sheet_id: id })).json()) as {
+		objectives: { firstScore: number; secondScore: number }[];
+	};
+	return sheet.objectives[0];
+}
+
 async function openSubordinate(page: Page) {
 	await page
 		.getByRole("navigation", { name: "メインナビゲーション" })
@@ -59,18 +81,41 @@ test("a sheet goes from the employee through both evaluators to a final rank", a
 		await signOut(page);
 	});
 
-	await test.step("一次評価者が採点して確定する", async () => {
+	await test.step("一次評価者が採点して保存する(まだ確定しない)", async () => {
 		await signIn(page, "RELEASE002");
 		const sheet = await openSubordinate(page);
 		await expect(sheet.getByText(GOAL)).toBeVisible();
 		await expect(sheet.locator("img[src=x]")).toHaveCount(0);
 		expect(await page.evaluate(() => "__xss" in window)).toBe(false);
 		await score(sheet, "一次評価", 4);
+		await sheet.getByRole("button", { name: "閉じる" }).click();
+		await signOut(page);
+	});
+
+	await test.step("保存されただけの一次評価は、本人には画面でも API でも見えない", async () => {
+		expect(await goalScoresSeenBySubject()).toEqual(
+			expect.objectContaining({ firstScore: 0, secondScore: 0 }),
+		);
+		await signIn(page, "RELEASE004");
+		const goal = await openOwnSheet(page);
+		await expect(goal.getByText("一次評価", { exact: true })).toHaveCount(0);
+		await signOut(page);
+	});
+
+	await test.step("一次評価者が確定する", async () => {
+		await signIn(page, "RELEASE002");
+		const sheet = await openSubordinate(page);
 		await sheet.getByRole("button", { name: "一次評価を確定する" }).click();
 		await confirm(page, "一次評価を確定しますか？", "一次評価を確定する");
 		await expect(sheet.getByText("一次評価者の評価を待っています。")).toHaveCount(0);
 		await sheet.getByRole("button", { name: "閉じる" }).click();
 		await signOut(page);
+	});
+
+	await test.step("一次評価が確定しても、最終確定までは本人に点数を返さない", async () => {
+		expect(await goalScoresSeenBySubject()).toEqual(
+			expect.objectContaining({ firstScore: 0, secondScore: 0 }),
+		);
 	});
 
 	await test.step("二次評価者が採点して最終評価を確定する", async () => {
@@ -85,13 +130,14 @@ test("a sheet goes from the employee through both evaluators to a final rank", a
 		await signOut(page);
 	});
 
-	await test.step("本人には確定したことだけが見え、点数は見えない", async () => {
+	await test.step("最終確定後、本人には目標の点数が見え、評価点は見えない", async () => {
+		expect(await goalScoresSeenBySubject()).toEqual(
+			expect.objectContaining({ firstScore: 4, secondScore: 3 }),
+		);
 		await signIn(page, "RELEASE004");
-		await page
-			.getByRole("link", { name: /Release verification/ })
-			.first()
-			.click();
+		const goal = await openOwnSheet(page);
 		await expect(page.getByText("最終評価済みです。内容は変更できません。")).toBeVisible();
+		await expect(goal).toContainText(/一次評価\s*4\s*\/\s*4/);
 		await expect(page.getByText("75")).toHaveCount(0);
 	});
 });

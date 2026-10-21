@@ -521,6 +521,25 @@ a:hover {
 	overflow-wrap: anywhere;
 }
 
+.toast__action {
+	align-self: flex-start;
+	margin-top: 0.3rem;
+	padding: 0.2rem 0.55rem;
+	font-size: 0.75rem;
+	font-weight: 550;
+	color: var(--toast-ink);
+	border: 1px solid color-mix(in srgb, var(--toast-ink) 35%, transparent);
+	border-radius: var(--hr-radius-sm);
+}
+
+.toast__action:hover {
+	background: color-mix(in srgb, var(--toast-ink) 14%, transparent);
+}
+
+.toast__action:focus-visible {
+	outline-color: var(--toast-ink);
+}
+
 .toast__close {
 	display: inline-flex;
 	padding: 0.2rem;

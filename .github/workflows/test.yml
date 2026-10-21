@@ -18,6 +18,7 @@ jobs:
           bun-version: latest
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
+      - run: bunx playwright install chromium
       - run: bun run test:coverage
       - uses: denoland/setup-deno@v2
         with:

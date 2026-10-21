@@ -1,16 +1,41 @@
+import { playwright } from "@vitest/browser-playwright";
 import solid from "vite-plugin-solid";
 import { defineConfig } from "vitest/config";
 
+// 画面のテストは既定で happy-dom。<dialog> やフォーカス移動など本物のブラウザでないと
+// 確かめられないものは *.browser.test.tsx に分け、Chromium で動かす。
 export default defineConfig({
 	plugins: [solid({ hot: false })],
 	resolve: { conditions: ["development", "browser"] },
 	test: {
 		pool: "threads",
 		maxWorkers: 2,
-		environment: "node",
-		include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
 		clearMocks: true,
 		restoreMocks: true,
+		projects: [
+			{
+				extends: true,
+				test: {
+					name: "unit",
+					environment: "node",
+					include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
+					exclude: ["src/**/*.browser.test.tsx"],
+				},
+			},
+			{
+				extends: true,
+				test: {
+					name: "browser",
+					include: ["src/**/*.browser.test.tsx"],
+					browser: {
+						enabled: true,
+						headless: true,
+						provider: playwright(),
+						instances: [{ browser: "chromium" }],
+					},
+				},
+			},
+		],
 		coverage: {
 			provider: "v8",
 			include: ["src/domain/**/*.ts", "src/application/**/*.ts"],

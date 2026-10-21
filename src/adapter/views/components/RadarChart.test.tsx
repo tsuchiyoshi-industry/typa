@@ -1,4 +1,4 @@
-// @vitest-environment jsdom
+// @vitest-environment happy-dom
 import { cleanup, fireEvent, render } from "@solidjs/testing-library";
 import { afterEach, describe, expect, it } from "vitest";
 import type { CommonEvaluationResultDto } from "../../../application/dtos/CommonEvaluationDto";

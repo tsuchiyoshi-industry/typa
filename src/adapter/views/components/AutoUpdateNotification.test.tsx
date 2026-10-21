@@ -1,4 +1,4 @@
-// @vitest-environment jsdom
+// @vitest-environment happy-dom
 import { cleanup, fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 

@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 import { createMemoryHistory, MemoryRouter, Route } from "@solidjs/router";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@solidjs/testing-library";
 import { afterEach, expect, it, vi } from "vitest";
@@ -10,14 +9,6 @@ import type { ReviewerWorkspaceController } from "../controllers/ReviewerWorkspa
 import FeedbackHost from "./components/FeedbackHost";
 import { clearUnsavedChanges, settleConfirm } from "./feedback";
 import ReviewerWorkspaceView from "./ReviewerWorkspaceView";
-
-// jsdom は <dialog> の showModal / close を実装していない
-HTMLDialogElement.prototype.showModal ??= function (this: HTMLDialogElement) {
-	this.setAttribute("open", "");
-};
-HTMLDialogElement.prototype.close ??= function (this: HTMLDialogElement) {
-	this.removeAttribute("open");
-};
 
 afterEach(() => {
 	cleanup();

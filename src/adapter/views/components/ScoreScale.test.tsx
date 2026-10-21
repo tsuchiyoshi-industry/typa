@@ -1,4 +1,4 @@
-// @vitest-environment jsdom
+// @vitest-environment happy-dom
 import { fireEvent, render } from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
 import { expect, it, vi } from "vitest";

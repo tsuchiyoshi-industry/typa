@@ -859,7 +859,7 @@ Admin が、評価シート一覧の「全社の評価シート」から出力�
 | DB | `src/test/*Sql.test.ts` | PGlite（インメモリの PostgreSQL）で実際のマイグレーションを実行 | DB 関数の権限（Admin・評価者・無関係・匿名）、出し分け、トリガー、制約 |
 | DB（アクセス制御） | `src/test/AccessControlSql.test.ts`、`RegistrationSql.test.ts`、`SheetApiSql.test.ts` | 本番相当のスキーマ（[prodLikeDb.ts](../src/test/prodLikeDb.ts)。当初の緩いポリシーと権限から始める）に全マイグレーションを当て、アプリが送るのと同じ文を役割ごとに実行 | ログイン前・紐付かないアカウント・無関係の社員が何もできないこと、下書きから確定までの各段階で書ける人と列、遷移、確定時の検算（アプリの計算と乱数で突き合わせ）、登録の条件、`get_sheet` の出し分け、アプリ更新後の締め付けの後も書き込みが通ること |
 | 通知メール | `src/test/NotifySheetMail.test.ts` | Edge Function の文面・宛先の組み立て（[mail.ts](../supabase/functions/notify-sheet/mail.ts)）を直接呼ぶ | 状態ごとの文面、宛先の重複排除、アドレスのない宛先の報告 |
-| 画面 | `src/adapter/**/*.test.ts(x)` | jsdom と @solidjs/testing-library | 絞り込みと並べ替え、確認ダイアログ、未保存の保護、遅れて届いた応答の破棄 |
+| 画面 | `src/adapter/**/*.test.ts(x)` | happy-dom と @solidjs/testing-library。`<dialog>`・フォーカス・キー操作を確かめる `*.browser.test.tsx` は Vitest Browser Mode（Playwright の Chromium） | 絞り込みと並べ替え、確認ダイアログ、未保存の保護、遅れて届いた応答の破棄 |
 | 配布設定 | `src/test/ReleaseConfiguration.test.ts` | 設定ファイルを読む | CSP、Tauri の権限、公開環境変数の検査、リリース前の検査の順序 |
 | Rust | `src-tauri/src/lib.rs` | `tauri::test` の MockRuntime | 保存先の検証、IPC の拒否、Typst の入力がデータとして扱われること、PDF の生成 |
 

@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 import { cleanup, fireEvent, render, waitFor, within } from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
 import { afterEach, expect, it, vi } from "vitest";

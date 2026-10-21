@@ -1,4 +1,4 @@
-// @vitest-environment jsdom
+// @vitest-environment happy-dom
 import { MemoryRouter, Route } from "@solidjs/router";
 import { cleanup, fireEvent, render, within } from "@solidjs/testing-library";
 import { afterEach, expect, it, vi } from "vitest";

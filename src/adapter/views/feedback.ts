@@ -26,7 +26,7 @@ let nextToastId = 1;
 export { leavingToasts, toasts };
 
 // トーストは画面と無関係な信号だけで持つので、window ではなく globalThis のタイマーを使う。
-// テストでは画面(jsdom)を片付けた後にタイマーが発火しても落ちない
+// テストでは画面(happy-dom)を片付けた後にタイマーが発火しても落ちない
 export function dismissToast(id: number): void {
 	setLeavingToasts((leaving) => new Set(leaving).add(id));
 	// global.css の toastOut と同じ長さ

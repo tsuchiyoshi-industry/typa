@@ -25,7 +25,8 @@ jobs:
           mkdir -p supabase/.temp/release-check
           sed -i '/\[db.migrations\]/,/^\[/s/enabled = false/enabled = true/' supabase/config.toml
           sed -i '/\[db.seed\]/,/^\[/s/enabled = true/enabled = false/' supabase/config.toml
-          supabase start -x studio,storage-api,imgproxy,realtime,edge-runtime,logflare,vector,supavisor > supabase/.temp/release-check/platform.log 2>&1
+          supabase start -x studio,storage-api,imgproxy,realtime,edge-runtime,logflare,vector,supavisor > supabase/.temp/release-check/platform.log 2>&1 \
+            || { cat supabase/.temp/release-check/platform.log; exit 1; }
       - name: Replay, upgrade and exercise real Auth and PostgreSQL
         run: |
           bun scripts/prepareReleaseDb.ts typa_release_fresh

@@ -142,20 +142,6 @@ jobs:
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
         run: bun run tauri build
 
-      - name: Create tag (workflow_dispatch only)
-        if: github.event_name == 'workflow_dispatch'
-        shell: bash
-        run: |
-          set -euo pipefail
-          TAG="${{ steps.release_meta.outputs.tag }}"
-
-          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
-            echo "Tag $TAG already exists on origin"
-          else
-            git tag "$TAG"
-            git push origin "$TAG"
-          fi
-
       - name: Ensure release assets exist
         shell: bash
         run: |
@@ -265,6 +251,9 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.release_meta.outputs.tag }}
+          # workflow_dispatch ではタグがまだない。git push で打つと、前回のリリースから
+          # ワークフローが変わったコミットを GITHUB_TOKEN では拒否されるので、リリース作成時に作らせる
+          target_commitish: ${{ github.sha }}
           name: ${{ steps.release_meta.outputs.tag }}
           prerelease: ${{ contains(steps.release_meta.outputs.version, '-') }}
           make_latest: ${{ !contains(steps.release_meta.outputs.version, '-') }}

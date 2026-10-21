@@ -76,13 +76,22 @@ import { SupabaseReviewerWorkspaceRepository } from "./infrastructure/repositori
 import { SupabaseWorkspaceSettingsRepository } from "./infrastructure/repositories/SupabaseWorkspaceSettingsRepository";
 import { TauriSheetPdfGateway } from "./infrastructure/repositories/TauriSheetPdfGateway";
 
-// Load protected page code when the corresponding route is opened.
+// ログイン後の画面のコードは、ログイン画面では読み込まない。
+// 紐付けを確かめた時点でまとめて読み込み、開いたあとで読み込み画面を挟まない。
 const EmployeeMasterView = lazy(() => import("./adapter/views/EmployeeMasterView"));
 const HelpView = lazy(() => import("./adapter/views/HelpView"));
 const ReviewerWorkspaceView = lazy(() => import("./adapter/views/ReviewerWorkspaceView"));
 const SettingsView = lazy(() => import("./adapter/views/SettingsView"));
 const SheetEditorView = lazy(() => import("./adapter/views/SheetEditorView"));
 const SheetListView = lazy(() => import("./adapter/views/SheetListView"));
+const protectedViews = [
+	EmployeeMasterView,
+	HelpView,
+	ReviewerWorkspaceView,
+	SettingsView,
+	SheetEditorView,
+	SheetListView,
+];
 
 const workspaceSettingsRepository = new SupabaseWorkspaceSettingsRepository();
 const authRepository = new SupabaseAuthRepository(workspaceSettingsRepository);
@@ -241,7 +250,9 @@ const AppLayout: Component<{ children?: JSX.Element | JSX.Element[] }> = (props)
 const App: Component = () => {
 	const [session, setSession] = createSignal<AuthSession | null>(null);
 	const [isLinked, setIsLinked] = createSignal<boolean | null>(null);
-	const [initialized, setInitialized] = createSignal(false);
+	// 初期セットアップ: 保存済みのセッションを読み、社員との紐付けを確かめ、
+	// ログイン済みならログイン後の画面のコードを読み込む。終わるまで読み込み画面を一度だけ出す
+	const [setUp, setSetUp] = createSignal(false);
 
 	// A late response from the previous account must never restore its protected view.
 	let userStatusGeneration = 0;
@@ -258,25 +269,27 @@ const App: Component = () => {
 			linked && currentSession
 				? await employeeRepository.findKeepSignedIn(currentSession.userId)
 				: false;
+		if (linked) {
+			await Promise.all(protectedViews.map((view) => view.preload()));
+		}
 		if (generation !== userStatusGeneration) {
 			return;
 		}
 		authRepository.keepSignedIn(keep);
 		setIsLinked(linked);
+		// 確認が追い越されたときは、最後に始めた確認がセットアップを終える
+		setSetUp(true);
 	};
 
 	let unsubscribeAuth: (() => void) | undefined;
 	onMount(async () => {
 		// Subscribe first so an account switch during initialization is not missed.
-		unsubscribeAuth = authRepository.onAuthStateChange((next) => {
-			void checkUserStatus(next).then(() => setInitialized(true));
-		});
+		unsubscribeAuth = authRepository.onAuthStateChange((next) => void checkUserStatus(next));
 		const generation = userStatusGeneration;
 		const initial = await authRepository.getSession();
 		if (generation === userStatusGeneration) {
 			await checkUserStatus(initial);
 		}
-		setInitialized(true);
 	});
 
 	onCleanup(() => unsubscribeAuth?.());
@@ -284,18 +297,20 @@ const App: Component = () => {
 	// ログイン済みの画面はトップバーを共有する。ページ移動のたびに作り直さない。
 	// 確認中(isLinked が null)に待たせるのはログイン後の画面だけ。ログイン画面まで作り直すと、
 	// 利用停止などで直後にサインアウトしたときのエラー表示と入力が消えてしまう。
+	// 読み込み画面は初期セットアップの一度きり。ここで確認中になるのはセットアップ後に
+	// 別のアカウントへ切り替わったときだけなので、何も出さずに待つ。
 	const ProtectedLayout: Component<{ children?: JSX.Element }> = (props) => (
-		<Show when={isLinked() !== null} fallback={<LoadingView />}>
+		<Show when={isLinked() !== null}>
 			<Show when={session() && isLinked()} fallback={<Navigate href="/login" />}>
 				<DashboardLayout controller={accountController}>
-					<Suspense fallback={<LoadingView />}>{props.children}</Suspense>
+					<Suspense>{props.children}</Suspense>
 				</DashboardLayout>
 			</Show>
 		</Show>
 	);
 
 	return (
-		<Show when={initialized()} fallback={<LoadingView />}>
+		<Show when={setUp()} fallback={<LoadingView />}>
 			<Router root={AppLayout}>
 				<Route
 					path="/login"

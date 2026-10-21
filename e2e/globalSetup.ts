@@ -37,13 +37,38 @@ export default async function globalSetup() {
 	const vite = await createServer({ server: { port: E2E_PORT, strictPort: true } });
 	await vite.listen();
 
-	// 冷えた Vite は初回に依存の最適化で数十秒かかり、CI では最初のテストが時間切れになる。
-	// テストの前に一度ログイン画面まで開いて、最適化と再読み込みを済ませておく
+	// CI では、起動直後の Vite で最初に開いたページだけがログイン画面を出さないまま戻らない
+	// (2 枚目以降は開く)。テストの前に、開けるまでページを作り直しておく。
+	// 開けなかったときはブラウザ側のエラーを残し、原因を追えるようにする
 	const browser = await chromium.launch();
 	try {
-		const page = await browser.newPage();
-		await page.goto(`http://localhost:${E2E_PORT}/login`, { timeout: 120_000 });
-		await page.getByLabel("社員番号").waitFor({ timeout: 120_000 });
+		for (let attempt = 1; ; attempt++) {
+			const page = await browser.newPage();
+			const problems: string[] = [];
+			page.on("pageerror", (error) => problems.push(`pageerror: ${error.message}`));
+			page.on("console", (m) => m.type() === "error" && problems.push(`console: ${m.text()}`));
+			page.on("requestfailed", (r) =>
+				problems.push(`failed: ${r.url()} ${r.failure()?.errorText}`),
+			);
+			page.on("response", (r) => r.status() >= 400 && problems.push(`${r.status()}: ${r.url()}`));
+			try {
+				await page.goto(`http://localhost:${E2E_PORT}/login`);
+				await page.getByLabel("社員番号").waitFor({ timeout: 30_000 });
+				break;
+			} catch (error) {
+				const body = await page.content().catch(() => "");
+				console.warn(
+					`Warm-up ${attempt} could not open the login page`,
+					problems,
+					body.slice(0, 2000),
+				);
+				if (attempt === 4) {
+					throw error;
+				}
+			} finally {
+				await page.close();
+			}
+		}
 	} finally {
 		await browser.close();
 	}

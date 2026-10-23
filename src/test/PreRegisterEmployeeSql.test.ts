@@ -4,10 +4,11 @@ import { actAs, createProdLikeDb } from "./prodLikeDb";
 
 let db: PGlite;
 const preRegister = async (
-	employeeNo: string,
+	employeeNo: string | null,
 	options: {
-		name?: string;
-		grade?: number;
+		name?: string | null;
+		grade?: number | null;
+		course?: string | null;
 		primary?: string;
 		secondary?: string;
 		none?: boolean;
@@ -15,11 +16,12 @@ const preRegister = async (
 ) =>
 	(
 		await db.query<{ v: boolean }>(
-			"select public.pre_register_employee($1, $2, $3::smallint, '総合職', $4, $5, $6) as v",
+			"select public.pre_register_employee($1, $2, $3::smallint, $4, $5, $6, $7) as v",
 			[
 				employeeNo,
-				options.name ?? "新入社員",
-				options.grade ?? 1,
+				options.name === undefined ? "新入社員" : options.name,
+				options.grade === undefined ? 1 : options.grade,
+				options.course === undefined ? "総合職" : options.course,
 				options.primary ?? null,
 				options.secondary ?? null,
 				options.none ?? false,
@@ -40,7 +42,7 @@ beforeAll(async () => {
 }, 60_000);
 beforeEach(async () => {
 	await db.exec(
-		"reset role; delete from public.employee_invitations where employee_id > 7; delete from public.employees where id > 7; select setval('public.employees_id_seq', 7);",
+		"reset role; delete from public.employee_invitations where employee_id > 7; delete from public.employees where id > 7; delete from public.security_audit_log where action = 'employee.pre_registered'; update public.employees set is_enabled = true where id = 1; select setval('public.employees_id_seq', 7);",
 	);
 	await actAs(db, 1);
 });
@@ -97,6 +99,40 @@ it("refuses input that would leave a broken row", async () => {
 		await expect(preRegister(no, options)).rejects.toMatchObject({ code: "22023" });
 	}
 	expect(await added()).toEqual([]);
+});
+
+it.each([
+	["null employee number", null, {}],
+	["blank employee number", "   ", {}],
+	["null name", "N1", { name: null }],
+	["empty name", "N1", { name: "" }],
+	["null grade", "N1", { grade: null }],
+	["null career course", "N1", { course: null }],
+	["empty career course", "N1", { course: "" }],
+	["blank career course", "N1", { course: "   " }],
+] as const)(
+	"refuses a %s without adding an employee or a success audit",
+	async (_case, no, options) => {
+		await expect(preRegister(no, options)).rejects.toMatchObject({ code: "22023" });
+		expect(await added()).toEqual([]);
+		await db.exec("reset role");
+		const audit = await db.query(
+			"select 1 from public.security_audit_log where action = 'employee.pre_registered'",
+		);
+		expect(audit.rows).toEqual([]);
+	},
+);
+
+it("denies a suspended Admin without adding an employee or a success audit", async () => {
+	await db.exec("reset role; update public.employees set is_enabled = false where id = 1;");
+	await actAs(db, 1);
+	await expect(preRegister("N9")).rejects.toMatchObject({ code: "42501" });
+	await db.exec("reset role");
+	expect(await added()).toEqual([]);
+	const audit = await db.query(
+		"select 1 from public.security_audit_log where action = 'employee.pre_registered'",
+	);
+	expect(audit.rows).toEqual([]);
 });
 
 it("denies everyone but an enabled Admin, and clients cannot insert rows directly", async () => {

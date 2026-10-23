@@ -5,6 +5,24 @@ export const PASSWORD = "E2ePassw0rd!";
 /** release-fixture.sql の社員。001 が Admin、002・003 が評価者、004 の一次は 002・二次は 003。 */
 export const ADMIN = "RELEASE001";
 
+export async function openPreRegistration(page: Page) {
+	await page.getByRole("button", { name: "ユーザーメニュー" }).click();
+	await page.getByRole("link", { name: "導入処理", exact: true }).click();
+	await page.getByRole("link", { name: /初期ユーザ/ }).click();
+	await expect(page).toHaveURL(/\/setup\/employees$/);
+	await expect(page.getByRole("heading", { name: "初期ユーザ", exact: true })).toBeVisible();
+	await expect(page.getByRole("button", { name: "仮登録する", exact: true })).toBeEnabled();
+}
+
+export async function fillPreRegistration(page: Page, employeeNo: string, name: string) {
+	await page.getByLabel("社員番号", { exact: true }).fill(employeeNo);
+	await page.getByLabel("氏名", { exact: true }).fill(name);
+	await page.getByRole("combobox", { name: "キャリアコース", exact: true }).selectOption("総合職");
+	await page
+		.getByRole("combobox", { name: "等級", exact: true })
+		.selectOption({ label: "Release verification" });
+}
+
 export async function signIn(page: Page, employeeNo: string, password = PASSWORD) {
 	await page.goto("/login");
 	await page.getByLabel("社員番号").fill(employeeNo);

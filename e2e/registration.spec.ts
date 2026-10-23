@@ -1,7 +1,17 @@
 import { expect, type Page, test } from "@playwright/test";
-import { ADMIN, issueOtp, PASSWORD, signIn, signOut } from "./support";
+import {
+	ADMIN,
+	fillPreRegistration,
+	issueOtp,
+	openPreRegistration,
+	PASSWORD,
+	restAs,
+	signIn,
+	signOut,
+} from "./support";
 
-const NEWCOMER = "RELEASE007";
+const NEWCOMER = "RELEASE010";
+const NEWCOMER_NAME = "E2E 新入社員";
 const SHARED_MAILBOX = "shared-pc@release.example";
 
 async function openEmployeeMaster(page: Page) {
@@ -16,9 +26,47 @@ test("an invited employee registers with a shared mailbox and can be suspended",
 	page,
 }) => {
 	let invitation = "";
-	await test.step("Admin が未登録者の招待コードを一括発行する", async () => {
+	await test.step("Admin が初期ユーザのタイルから、評価者未設定の社員を仮登録する", async () => {
 		await signIn(page, ADMIN);
+		await openPreRegistration(page);
+		await fillPreRegistration(page, " ＲＥＬＥＡＳＥ０１０ ", ` ${NEWCOMER_NAME} `);
+		await page.getByRole("button", { name: "仮登録する", exact: true }).click();
+		const dialog = page.getByRole("dialog", { name: `${NEWCOMER_NAME}さんを仮登録しますか？` });
+		await expect(dialog).toContainText("一次評価者 未設定");
+		await expect(dialog).toContainText("二次評価者 未設定");
+		await dialog.getByRole("button", { name: "仮登録する", exact: true }).click();
+		await expect(page.getByRole("status")).toContainText(
+			`${NEWCOMER_NAME}さん(${NEWCOMER})を仮登録しました`,
+		);
+		for (const label of ["社員番号", "氏名", "キャリアコース", "等級"]) {
+			await expect(
+				page.getByRole(label === "社員番号" || label === "氏名" ? "textbox" : "combobox", {
+					name: label,
+					exact: true,
+				}),
+			).toHaveValue("");
+		}
+		const admin = await restAs(1);
+		const response = await admin(
+			`employees?employee_no=eq.${NEWCOMER}&select=employee_no,name,user_id,grade_id,career_course,primary_evaluator_id,secondary_evaluator_id,no_secondary_evaluator`,
+		);
+		expect(response.ok).toBe(true);
+		expect(await response.json()).toEqual([
+			{
+				employee_no: NEWCOMER,
+				name: NEWCOMER_NAME,
+				user_id: null,
+				grade_id: 9001,
+				career_course: "総合職",
+				primary_evaluator_id: null,
+				secondary_evaluator_id: null,
+				no_secondary_evaluator: false,
+			},
+		]);
+	});
+	await test.step("Admin が仮登録した社員の招待コードを一括発行する", async () => {
 		await openEmployeeMaster(page);
+		await expect(page.getByLabel(`${NEWCOMER_NAME}さんの権限`)).toHaveValue("Employee");
 		await page.getByRole("button", { name: "招待コードを一括発行" }).click();
 		await page.getByRole("dialog").getByRole("button", { name: "まとめて発行" }).click();
 		const issued = await page.getByRole("textbox", { name: "招待コードの一覧" }).inputValue();
@@ -63,10 +111,10 @@ test("an invited employee registers with a shared mailbox and can be suspended",
 	await test.step("Admin が利用停止すると、ログインが断られる", async () => {
 		await signIn(page, ADMIN);
 		await openEmployeeMaster(page);
-		await page.getByRole("button", { name: "Release unregisteredさんの利用を停止する" }).click();
+		await page.getByRole("button", { name: `${NEWCOMER_NAME}さんの利用を停止する` }).click();
 		await page.getByRole("dialog").getByRole("button", { name: "利用を停止" }).click();
 		await expect(
-			page.getByRole("button", { name: "Release unregisteredさんの利用を再開する" }),
+			page.getByRole("button", { name: `${NEWCOMER_NAME}さんの利用を再開する` }),
 		).toBeVisible();
 		await signOut(page);
 

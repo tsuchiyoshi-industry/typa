@@ -1,4 +1,4 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 
 export const E2E_PORT = 1430;
 export const PASSWORD = "E2ePassw0rd!";
@@ -64,4 +64,17 @@ export async function issueOtp(email: string): Promise<string> {
 		throw new Error(`Could not issue a code: ${JSON.stringify(body)}`);
 	}
 	return body.email_otp as string;
+}
+
+/**
+ * 評価シートの窓を閉じる。確定の直後は保存が済むまで閉じず「保存が完了するまでお待ちください」と出るので、
+ * 閉じたことを確かめ、閉じていなければ押し直す。
+ */
+export async function closeSheetWindow(window: Locator) {
+	await expect(async () => {
+		if (await window.isVisible()) {
+			await window.getByRole("button", { name: "閉じる" }).click({ timeout: 2_000 });
+		}
+		await expect(window).toBeHidden({ timeout: 2_000 });
+	}).toPass({ timeout: 20_000 });
 }

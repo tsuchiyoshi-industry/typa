@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { isolatedSql } from "../scripts/isolatedApi";
-import { ADMIN, signIn, signOut } from "./support";
+import { ADMIN, closeSheetWindow, signIn, signOut } from "./support";
 
 // 利用者・評価者・管理者のマニュアル(docs/manual/*.md)の画面写真を撮り、PDF にする。
 // 写真はどれも、そのマニュアルを読む権限の人がログインした画面。合否より、資料がそろうことが目的。
@@ -12,8 +12,9 @@ const MANUALS = [
 ] as const;
 type Manual = (typeof MANUALS)[number][0];
 
-// 保存のたびに出るトーストは説明の邪魔なので写さない
-const HIDE = ".toast-stack{display:none}";
+// 保存のたびに出るトーストは説明の邪魔なので写さない。縦に長い部分を撮るとき、
+// 上部に固定したバーが途中に写り込まないよう、撮る間だけ固定を外す
+const HIDE = ".toast-stack{display:none}.dashboard-topbar{position:static!important}";
 const shot = (target: Page | Locator, manual: Manual, name: string) =>
 	target.screenshot({
 		path: `docs/manual/${manual}/${name}.png`,
@@ -228,7 +229,7 @@ test("manual screenshots", async ({ page }) => {
 		await expect(page.getByRole("dialog", { name: "評価を確定しますか？" })).toBeVisible();
 		await shot(page, "evaluator", "07-confirm-no-secondary");
 		await confirm(page, "評価を確定しますか？", "評価を確定する");
-		await page.getByRole("dialog").getByRole("button", { name: "閉じる" }).click();
+		await closeSheetWindow(page.getByRole("dialog", { name: /さんの評価シート/ }));
 		await signOut(page);
 	});
 
@@ -253,7 +254,7 @@ test("manual screenshots", async ({ page }) => {
 		await expect(page.getByRole("dialog", { name: "評価を確定しますか？" })).toBeVisible();
 		await shot(page, "evaluator", "10-finalize");
 		await confirm(page, "評価を確定しますか？", "評価を確定する");
-		await page.getByRole("dialog").getByRole("button", { name: "閉じる" }).click();
+		await closeSheetWindow(page.getByRole("dialog", { name: /さんの評価シート/ }));
 		await expect(page.getByRole("row", { name: /RELEASE004/ })).toContainText("最終評価済み");
 		await shot(page, "evaluator", "11-final");
 		await signOut(page);
@@ -269,7 +270,7 @@ test("manual screenshots", async ({ page }) => {
 		await page.getByRole("button", { name: /選択して比較/ }).click();
 		await expect(page.getByRole("dialog", { name: "選択した対象者の比較" })).toBeVisible();
 		await shot(page, "evaluator", "13-compare");
-		await page.getByRole("dialog").getByRole("button", { name: "閉じる" }).click();
+		await closeSheetWindow(page.getByRole("dialog", { name: "選択した対象者の比較" }));
 		await nav(page, "社員マスタ");
 		await expect(page.getByRole("heading", { name: "社員一覧" })).toBeVisible();
 		await shot(page, "evaluator", "14-master");
@@ -317,36 +318,104 @@ test("manual screenshots", async ({ page }) => {
 		await shot(page, "admin", "05-invitation");
 
 		await menu(page, "設定");
+		await shot(page.getByRole("region", { name: "評価点の配点" }), "admin", "08-allocation");
+		await shot(page.getByRole("region", { name: "チャレンジ目標の数" }), "admin", "09-max-goals");
+		await shot(page.getByRole("region", { name: "通知メール" }), "admin", "10-smtp");
+
+		// 期を上期・下期に分けて追加し、上期を始める(2026年度 下期は同時に締められる)
 		const periods = page.getByRole("region", { name: "評価期間", exact: true });
 		await expect(periods).toBeVisible();
-		await periods.getByLabel("期間名").fill("2027年度 上期");
+		await periods.getByLabel("期の名前").fill("2027年度");
 		await periods.getByLabel("開始日").fill("2027-04-01");
-		await periods.getByLabel("終了日").fill("2027-09-30");
-		await periods.getByRole("button", { name: "追加する" }).click();
-		await expect(periods.getByRole("button", { name: "2027年度 上期を開始する" })).toBeVisible();
+		await periods.getByLabel("終了日").fill("2028-03-31");
+		await periods.getByLabel("半期(上期・下期)").check();
+		await expect(periods.getByRole("list", { name: "追加される評価期間" })).toBeVisible();
 		await shot(periods, "admin", "06-periods");
+		await periods.getByRole("button", { name: "追加する" }).click();
 		await periods.getByRole("button", { name: "2027年度 上期を開始する" }).click();
 		const switching = page.getByRole("dialog", { name: /を締めて/ });
 		await expect(switching).toBeVisible();
 		await shot(page, "admin", "07-period-switch");
-		await switching.getByRole("button", { name: "キャンセル" }).click();
-		await shot(page.getByRole("region", { name: "評価点の配点" }), "admin", "08-allocation");
-		await shot(page.getByRole("region", { name: "チャレンジ目標の数" }), "admin", "09-max-goals");
-		await shot(page.getByRole("region", { name: "通知メール" }), "admin", "10-smtp");
+		await switching.getByRole("button", { name: "締めて、次の期間を開始する" }).click();
+		await expect(periods.getByRole("row", { name: /2027年度 上期/ })).toContainText("実施中");
+
+		// 導入処理: 実施中の評価期間(2027年度 上期)へのデータ取込。確かめるところまで
+		await menu(page, "導入処理");
+		await expect(page.getByRole("link", { name: /データ取込/ })).toBeVisible();
+		await shot(page, "admin", "11-setup");
+		await page.getByRole("link", { name: /データ取込/ }).click();
+		const goals = page.getByLabel("目標", { exact: true });
+		await goals.setInputFiles("e2e/fixtures/manual-goals-with-error.csv");
+		await page.getByRole("button", { name: "内容を確認" }).click();
+		const importErrors = page.getByRole("alert").filter({ hasText: "取り込めません" });
+		await expect(importErrors).toBeVisible();
+		await shot(importErrors, "admin", "12-import-errors");
+		await goals.setInputFiles("e2e/fixtures/manual-goals.csv");
+		await page.getByRole("button", { name: "内容を確認" }).click();
+		const ready = page.getByRole("region", { name: "3. 取り込む" });
+		await expect(ready).toBeVisible();
+		await shot(ready, "admin", "13-import-ready");
+
+		// 遡及処理: 締めた 2026年度 下期の、佐藤さんのシートを直す
+		await menu(page, "遡及処理");
+		await page
+			.getByRole("navigation", { name: "締め済みの評価期間" })
+			.getByRole("button", { name: "2026年度 下期" })
+			.click();
+		await page.getByRole("button", { name: "佐藤 三郎さんのシートを直す" }).click();
+		const goal = page.getByRole("group", { name: "チャレンジ目標 1" });
+		await goal
+			.getByLabel("達成状況")
+			.fill("入力チェック表を作って運用した。3月の手戻りは月8件になった");
+		await goal.getByLabel("二次評価").selectOption("4");
+		await page.getByLabel(/修正の理由/).fill("3月の集計の誤りが見つかり、評価会議で見直した");
+		await shot(page.locator(".correction-editor"), "admin", "14-retroactive");
+		await page.getByRole("button", { name: /修正内容を確認/ }).click();
+		const correcting = page.getByRole("dialog", { name: "締めたシートを修正しますか？" });
+		await expect(correcting).toBeVisible();
+		await shot(page, "admin", "15-retroactive-confirm");
+		await correcting.getByRole("button", { name: "修正を記録する" }).click();
+		await expect(page.getByRole("region", { name: /このシートの修正の記録\(2件\)/ })).toBeVisible();
+		await signOut(page);
+	});
+
+	await test.step("利用者: 前の評価期間の目標と締め後修正", async () => {
+		await signIn(page, "RELEASE004");
+		await page.getByRole("link", { name: "新規作成" }).click();
+		await page.getByRole("button", { name: "評価シートを作成" }).click();
+		const previous = page.locator("details.previous-goals");
+		await expect(previous).toContainText("受注処理の手戻り");
+		await shot(previous, "user", "15-previous-goals");
+		await page.getByRole("link", { name: "TYPA 評価シート一覧へ" }).click();
+		await page
+			.getByRole("navigation", { name: "評価期間" })
+			.getByRole("button", { name: "2026年度 下期" })
+			.click();
+		await page
+			.getByRole("link", { name: /一般職/ })
+			.first()
+			.click();
+		const notice = page.locator(".correction-notice");
+		await expect(notice).toContainText("締め後修正があります");
+		await shot(notice, "user", "16-corrections");
 	});
 });
 
 const escapeHtml = (text: string) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;");
-const inline = (text: string) =>
-	escapeHtml(text)
+const inline = (text: string) => {
+	// コード表記の中身(「***」など)を、太字の記法と取り違えないよう先に退避する
+	const codes: string[] = [];
+	return escapeHtml(text)
+		.replace(/`(.+?)`/g, (_, code) => `${codes.push(code) - 1}`)
 		.replace(
 			/!\[(.*?)\]\((.*?)\)/g,
 			(_, alt, src) =>
 				`<img alt="${alt}" src="data:image/png;base64,${readFileSync(`docs/manual/${src}`).toString("base64")}">`,
 		)
 		.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-		.replace(/`(.+?)`/g, "<code>$1</code>")
-		.replace(/\[(.+?)\]\(.+?\)/g, "$1");
+		.replace(/\[(.+?)\]\(.+?\)/g, "$1")
+		.replace(/(\d+)/g, (_, index) => `<code>${codes[Number(index)]}</code>`);
+};
 
 const list = (block: string, tag: "ol" | "ul", marker: RegExp) =>
 	`<${tag}>${block

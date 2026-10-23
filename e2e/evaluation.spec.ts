@@ -1,5 +1,5 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
-import { restAs, signIn, signOut } from "./support";
+import { closeSheetWindow, restAs, signIn, signOut } from "./support";
 
 // 内部の人が入力欄に仕込んだ HTML は、評価者の画面で文字として出るだけで実行されない
 const GOAL = '受注処理の手戻りを半減する<img src=x onerror="window.__xss=1">';
@@ -88,7 +88,7 @@ test("a sheet goes from the employee through both evaluators to a final rank", a
 		await expect(sheet.locator("img[src=x]")).toHaveCount(0);
 		expect(await page.evaluate(() => "__xss" in window)).toBe(false);
 		await score(sheet, "一次評価", 4);
-		await sheet.getByRole("button", { name: "閉じる" }).click();
+		await closeSheetWindow(sheet);
 		await signOut(page);
 	});
 
@@ -108,7 +108,7 @@ test("a sheet goes from the employee through both evaluators to a final rank", a
 		await sheet.getByRole("button", { name: "一次評価を確定する" }).click();
 		await confirm(page, "一次評価を確定しますか？", "一次評価を確定する");
 		await expect(sheet.getByText("一次評価者の評価を待っています。")).toHaveCount(0);
-		await sheet.getByRole("button", { name: "閉じる" }).click();
+		await closeSheetWindow(sheet);
 		await signOut(page);
 	});
 
@@ -124,7 +124,7 @@ test("a sheet goes from the employee through both evaluators to a final rank", a
 		await score(sheet, "二次評価", 3);
 		await sheet.getByRole("button", { name: "評価を確定する" }).click();
 		await confirm(page, "評価を確定しますか？", "評価を確定する");
-		await sheet.getByRole("button", { name: "閉じる" }).click();
+		await closeSheetWindow(sheet);
 		// 最終評価は二次評価の点数で決まる。目標・共通評価ともに 3/4 → 75 点
 		await expect(page.getByRole("row", { name: /RELEASE004/ })).toContainText("75");
 		await signOut(page);

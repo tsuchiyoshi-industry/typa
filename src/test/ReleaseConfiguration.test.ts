@@ -81,14 +81,38 @@ describe("release security configuration", () => {
 		);
 	});
 
-	it("keeps tests and type checks ahead of release packaging", () => {
-		const workflow = readFileSync(
+	it("requires every shared check to pass before release packaging", () => {
+		const release = readFileSync(
 			new URL("../../.github/workflows/release.yml", import.meta.url),
 			"utf8",
 		);
-		for (const command of ["bun run typecheck", "bun run test:coverage", "bun run test:rust"]) {
-			expect(workflow.indexOf(command)).toBeGreaterThan(-1);
-			expect(workflow.indexOf(command)).toBeLessThan(workflow.indexOf("bun run tauri build"));
+		const checks = readFileSync(
+			new URL("../../.github/workflows/test.yml", import.meta.url),
+			"utf8",
+		);
+		expect(release).toMatch(/checks:\s+needs: metadata\s+uses: \.\/\.github\/workflows\/test.yml/);
+		const build = release.split(/^ {2}build-and-release:\r?$/m)[1];
+		expect(build).toContain("needs: [metadata, checks]");
+		expect(build).not.toMatch(/^ {4}(?:if|continue-on-error):/m);
+		expect(build).toContain("bun run tauri build");
+		expect(checks).toMatch(/on:\s+workflow_call:/);
+		// The aggregate must fail even when a prerequisite fails or is skipped;
+		// an automatically skipped status alone would not block branch protection.
+		const gate = checks.split(/^ {2}test:\r?$/m)[1];
+		expect(gate).toMatch(/if: \$\{\{ always\(\) \}\}/);
+		expect(gate).toContain("needs: [frontend, notification, rust, database]");
+		for (const job of ["frontend", "notification", "rust", "database"]) {
+			expect(gate).toContain(`test '\${{ needs.${job}.result }}' = success`);
+		}
+		for (const command of [
+			"bun run typecheck",
+			"bun run test:coverage",
+			"cargo test --manifest-path src-tauri/Cargo.toml --locked --release",
+			"cargo audit --file src-tauri/Cargo.lock",
+			"deno test",
+		]) {
+			expect(checks).toContain(command);
+			expect(release).not.toContain(command);
 		}
 	});
 });

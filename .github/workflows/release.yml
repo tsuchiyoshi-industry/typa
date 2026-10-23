@@ -13,19 +13,20 @@ on:
         type: string
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: release-${{ inputs.version || github.ref_name }}
+  # Manual version 1.2.3 and pushed tag v1.2.3 publish the same release.
+  group: release-${{ inputs.version && format('v{0}', inputs.version) || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
-  database:
-    uses: ./.github/workflows/database.yml
-  build-and-release:
-    needs: database
-    runs-on: windows-latest
-    timeout-minutes: 50
+  metadata:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.release_meta.outputs.version }}
+      tag: ${{ steps.release_meta.outputs.tag }}
     env:
       VERSION_INPUT: ${{ inputs.version }}
       REF_NAME: ${{ github.ref_name }}
@@ -63,12 +64,34 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
-      - name: Validate version input
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Validate packaged versions and existing tag
         shell: bash
         run: |
-          set -euo pipefail
-          echo "Version: ${{ steps.release_meta.outputs.version }}"
-          echo "Tag: ${{ steps.release_meta.outputs.tag }}"
+          bun scripts/releaseVersion.ts "${{ steps.release_meta.outputs.version }}"
+          TAG="${{ steps.release_meta.outputs.tag }}"
+          if git rev-parse --verify "refs/tags/$TAG" >/dev/null 2>&1; then
+            test "$(git rev-list -n 1 "$TAG")" = "$(git rev-parse HEAD)" || { echo "Tag points to a different commit"; exit 1; }
+          fi
+
+  # Run the same checks as CI once; their independent jobs run in parallel.
+  checks:
+    needs: metadata
+    uses: ./.github/workflows/test.yml
+
+  build-and-release:
+    needs: [metadata, checks]
+    runs-on: windows-latest
+    timeout-minutes: 50
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -79,59 +102,16 @@ jobs:
         shell: bash
         run: bun install --frozen-lockfile
 
-      - name: Frontend release checks
-        shell: bash
-        run: |
-          bun scripts/releaseVersion.ts "${{ steps.release_meta.outputs.version }}"
-          TAG="${{ steps.release_meta.outputs.tag }}"
-          if git rev-parse --verify "refs/tags/$TAG" >/dev/null 2>&1; then
-            test "$(git rev-list -n 1 "$TAG")" = "$(git rev-parse HEAD)" || { echo "Tag points to a different commit"; exit 1; }
-          fi
-          bun run typecheck
-          bunx playwright install chromium
-          bun run test:coverage
-          bun audit
-          cd supabase/functions/notify-sheet
-          bun install --frozen-lockfile --ignore-scripts
-          bun audit
-
-      - uses: denoland/setup-deno@v2
-        with:
-          deno-version: 2.9.5
-      - name: Notification function checks
-        shell: bash
-        env:
-          OPENSSL_BIN: C:/Program Files/Git/usr/bin/openssl.exe
-        run: |
-          bun install --cwd supabase/functions/notify-sheet --frozen-lockfile --ignore-scripts
-          deno check --config supabase/functions/notify-sheet/deno.json --frozen supabase/functions/notify-sheet/index.ts
-          deno test --allow-all --config supabase/functions/notify-sheet/deno.json --frozen supabase/functions/notify-sheet/smtp.test.ts
-
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
-      # キャッシュは main で保存したものをタグのビルドでも使う。
-      # (タグの実行で保存したキャッシュは他のタグから読めないため、保存は main だけにする)
-      # test.yml と同じ shared-key・同じ release プロファイルにして、依存クレートを使い回す。
+      # Restore the release-profile dependencies saved by checks / rust in this run.
       - name: Cargo cache
         uses: Swatinem/rust-cache@v2
         with:
           shared-key: windows-tauri
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          save-if: false
           workspaces: src-tauri -> target
-
-      # ソースからのビルド(数分)を避け、ビルド済みバイナリを入れる
-      - name: Install cargo-audit
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-audit@0.22.2
-
-      # --release: この後の tauri build と同じプロファイルで依存クレートを1回だけコンパイルする
-      - name: Rust release checks
-        shell: bash
-        run: |
-          cargo audit --file src-tauri/Cargo.lock
-          bun run test:rust --release
 
       - name: Build bundle
         shell: bash
@@ -171,7 +151,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          TAG="${{ steps.release_meta.outputs.tag }}"
+          TAG="${{ needs.metadata.outputs.tag }}"
 
           gh api \
             --method POST \
@@ -192,8 +172,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          VERSION="${{ steps.release_meta.outputs.version }}"
-          TAG="${{ steps.release_meta.outputs.tag }}"
+          VERSION="${{ needs.metadata.outputs.version }}"
+          TAG="${{ needs.metadata.outputs.tag }}"
           BASE_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/download/${TAG}"
           PUB_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
@@ -250,13 +230,13 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: ${{ steps.release_meta.outputs.tag }}
+          tag_name: ${{ needs.metadata.outputs.tag }}
           # workflow_dispatch ではタグがまだない。git push で打つと、前回のリリースから
           # ワークフローが変わったコミットを GITHUB_TOKEN では拒否されるので、リリース作成時に作らせる
           target_commitish: ${{ github.sha }}
-          name: ${{ steps.release_meta.outputs.tag }}
-          prerelease: ${{ contains(steps.release_meta.outputs.version, '-') }}
-          make_latest: ${{ !contains(steps.release_meta.outputs.version, '-') }}
+          name: ${{ needs.metadata.outputs.tag }}
+          prerelease: ${{ contains(needs.metadata.outputs.version, '-') }}
+          make_latest: ${{ !contains(needs.metadata.outputs.version, '-') }}
           body_path: release-notes.md
           files: |
             src-tauri/target/release/bundle/**/*.msi

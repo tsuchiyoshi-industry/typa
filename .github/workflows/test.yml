@@ -1,16 +1,24 @@
 name: Release readiness tests
 on:
+  workflow_call:
   pull_request:
   push:
     branches: [main, master]
 permissions:
   contents: read
+
+concurrency:
+  # Reusable calls use the caller's workflow name, keeping CI and Release separate.
+  group: readiness-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')) }}
+
 jobs:
+  # These checks use independent runners and do not consume each other's output.
   database:
     uses: ./.github/workflows/database.yml
-  test:
+  frontend:
     runs-on: windows-latest
-    timeout-minutes: 40
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
       - uses: oven-sh/setup-bun@v2
@@ -20,6 +28,21 @@ jobs:
       - run: bun run typecheck
       - run: bunx playwright install chromium
       - run: bun run test:coverage
+      - run: bun audit
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: coverage
+          path: coverage
+
+  notification:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
       - uses: denoland/setup-deno@v2
         with:
           deno-version: 2.9.5
@@ -29,19 +52,38 @@ jobs:
           OPENSSL_BIN: C:/Program Files/Git/usr/bin/openssl.exe
         run: |
           bun install --cwd supabase/functions/notify-sheet --frozen-lockfile --ignore-scripts
+          bun audit --cwd supabase/functions/notify-sheet
           deno check --config supabase/functions/notify-sheet/deno.json --frozen supabase/functions/notify-sheet/index.ts
           deno test --allow-all --config supabase/functions/notify-sheet/deno.json --frozen supabase/functions/notify-sheet/smtp.test.ts
 
+  rust:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
-      # release.yml と同じ shared-key・release プロファイルにして、main で温めたキャッシュをリリース時に使う
+      # The release build restores these dependencies after all checks have passed.
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: windows-tauri
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          save-if: ${{ github.event_name != 'pull_request' }}
           workspaces: src-tauri -> target
-      - run: bun run test:rust --release
-      - uses: actions/upload-artifact@v7
-        if: always()
+      - uses: taiki-e/install-action@v2
         with:
-          name: coverage
-          path: coverage
+          tool: cargo-audit@0.22.2
+      - run: cargo audit --file src-tauri/Cargo.lock
+      - run: cargo test --manifest-path src-tauri/Cargo.toml --locked --release
+
+  # Keep the existing "test" status as the gate for every check, including failures/skips.
+  test:
+    if: ${{ always() }}
+    needs: [frontend, notification, rust, database]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require all checks to pass
+        run: |
+          test '${{ needs.frontend.result }}' = success
+          test '${{ needs.notification.result }}' = success
+          test '${{ needs.rust.result }}' = success
+          test '${{ needs.database.result }}' = success

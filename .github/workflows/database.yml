@@ -12,7 +12,7 @@ jobs:
       - uses: supabase/setup-cli@v2
         with:
           version: 2.121.0
-      # setup-cli v2 installs its own Bun; restore the app's pinned version afterwards.
+      # setup-cli v2 installs its own Bun; restore the app's selected version afterwards.
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest

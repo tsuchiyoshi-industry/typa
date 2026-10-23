@@ -880,8 +880,11 @@ Admin が、評価シート一覧の「全社の評価シート」から出力�
 
 | ワークフロー | きっかけ | 内容 |
 | --- | --- | --- |
-| [test.yml](../.github/workflows/test.yml) | プルリクエスト、main への push | 型検査、カバレッジ付きテスト、Rust のテスト（Windows） |
-| [release.yml](../.github/workflows/release.yml) | `v*.*.*` タグの push、手動実行 | 型検査・テスト・依存の監査の後にビルドし、署名付きの更新物と `latest.json` を GitHub Releases に公開する |
+| [test.yml](../.github/workflows/test.yml) | プルリクエスト、main・master への push、release.yml からの呼び出し | フロント（型検査・カバレッジ・依存監査）、通知機能、Rust、実 DB を独立したジョブで並列検証し、最後の `test` ジョブで全件の成功を確認する |
+| [database.yml](../.github/workflows/database.yml) | test.yml からの呼び出し | 同じ Supabase 環境を使い、新規構築 → 旧スキーマ更新 → E2E の順に実行する |
+| [release.yml](../.github/workflows/release.yml) | `v*.*.*` タグの push、手動実行 | バージョンと既存タグを確認 → test.yml の全検証 → ビルド・署名・GitHub Releases 公開の順に実行する |
+
+通常 CI とリリースの検証定義は test.yml に集約する。リリースのビルドではテストを再実行せず、検証側が保存した同じ release プロファイルの Rust 依存キャッシュを使う。新しい push・PR 更新が来たら、同じブランチ・PR の古い CI を停止する。リリースは途中停止せず、手動入力 `1.2.3` とタグ `v1.2.3` を同じ同時実行グループで扱う。ブランチの push とリリース起動は別イベントであり、リリース時には対象コミットを改めて検証する。
 
 配布済みのアプリは GitHub Releases の `latest.json` を見て自動更新します。DB のマイグレーションは自動では適用されないため、アプリの配布前に Supabase へ適用しておく必要があります。
 

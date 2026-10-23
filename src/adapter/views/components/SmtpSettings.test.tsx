@@ -196,3 +196,15 @@ it("says where in-app notices arrive", async () => {
 	const inApp = await view.findByRole("radio", { name: /アプリ内通知/ });
 	expect(inApp.closest("label")?.textContent).toContain("画面上部のベル");
 });
+
+it("starts the port at 465 until mail settings exist, because 587 cannot be used", async () => {
+	const fresh = setup({ ...stored, host: "", user: "", port: 587, passwordSet: false });
+	expect(
+		((await fresh.findByRole("spinbutton", { name: "ポート" })) as HTMLInputElement).value,
+	).toBe("465");
+	cleanup();
+	const saved = setup({ ...stored, port: 2465 });
+	expect(
+		((await saved.findByRole("spinbutton", { name: "ポート" })) as HTMLInputElement).value,
+	).toBe("2465");
+});

@@ -208,6 +208,17 @@ describe("help", () => {
 		expect(view.getByRole("button", { name: "目標の入力と保存を拡大" })).toBeTruthy();
 		expect(view.queryByText("社員マスタと権限")).toBeNull();
 	});
+	it("explains where requests arrive, for either way the administrator chose", () => {
+		const view = renderHelp();
+		const how = view.getByText("評価の依頼の知らせ方");
+		fireEvent.click(how);
+		const answer = how.closest("details")?.textContent ?? "";
+		expect(answer).toContain("画面上部のベル");
+		expect(answer).toContain("管理者");
+		expect(view.getByText("ベルの未読")).toBeTruthy();
+		// 提出の手順は、通知メールを選べるのはメールのときだけと案内する
+		expect(view.queryByText(/確認画面で通知メールの有無を選び、/)).toBeNull();
+	});
 	it("switches the steps, examples, questions and destination for reviewers", () => {
 		const view = renderHelp();
 		fireEvent.click(view.getByRole("button", { name: /評価方法/ }));

@@ -36,7 +36,8 @@ const SmtpSettings: Component<SmtpSettingsProps> = (props) => {
 				setVerifiedAt(settings.verifiedAt);
 				setForm({
 					host: settings.host,
-					port: String(settings.port),
+					// まだ設定がなければ、使える 465 から始める(DB の初期値 587 は Edge Function から使えない)
+					port: settings.host ? String(settings.port) : "465",
 					user: settings.user,
 					password: "",
 				});

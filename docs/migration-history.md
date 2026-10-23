@@ -42,6 +42,13 @@
 
 `202610230001_pre_register_employee.sql` は、Admin が導入処理の「初期ユーザ」から社員を仮登録する DB 関数 `pre_register_employee` を追加します（これまでは `employees` に手作業で行を足していました）。権限は Employee で始まり、ログイン用アカウントは本人が招待コードで新規登録するときに作られます。社員番号はログインIDになるため、半角英数字・ハイフン・アンダースコア以外と、既存の番号と大文字・小文字だけが違う番号を拒否します（一意インデックス `employees_employee_no_lower_key`。既に重なっている番号があると適用に失敗するので、先に解消してください）。仮登録は `security_audit_log` に `employee.pre_registered` として残ります。`202610220001` の後、初期ユーザの画面を含むアプリの配布前に適用します。
 
+`202610230002_notification_channel.sql` と `202610230003_in_app_notifications.sql` は、評価の依頼の知らせ方を、アプリ内通知（既定）とメールから選べるようにします。この順で、`202610230001` の後に適用してください。
+
+- 通知の方法（`workspace_settings.notification_channel`）: `in_app` か `email`。`email` は、保存されている SMTP 設定で送信テストに成功した日時（`smtp_verified_at`）があるときだけ選べます（CHECK 制約）。それまでに保存されていた SMTP 設定は、送信テストに成功していないものとして扱うので、適用後はアプリ内通知で動きます。
+- SMTP の列（`smtp_host` など）は、クライアントからは書けなくなります。設定画面の「テストメールを送って保存する」で、Edge Function `notify-sheet` が送信テストに成功したときだけ保存します。**この SQL と同時に Edge Function を配置してください。** 古い設定画面（1.0.9 以前）からは、SMTP 設定を保存できなくなります。
+- `get_sheet` が通知の方法（`notificationChannel`）を返します。シートの画面は、メールのときだけ「通知メールを送る」と「通知を再送」を出します。
+- アプリ内通知（`notifications`）: 状態の変更のトリガー `evaluation_sheets_notify_next_evaluator` が、次に評価する人への依頼を作ります。読めるのも既読にできるのも宛先の本人だけです。
+
 `202610040000_baseline.sql` は、2026-10-07 時点の本番スキーマのダンプです。新しい環境をこのリポジトリだけから作るためのもので、既存の環境には適用しません。
 
 `202610080003_employee_roles.sql` は、Admin が社員マスタから TYPA の権限（Admin / Reviewer / Employee）を変えるための DB 関数 `set_employee_role` を追加します。最後の Admin は外せません。あわせて、クライアントから `employees.role_id` を直接更新する権限を外します（`employees` に列を追加したら、クライアントから更新させる列はこのマイグレーションと同じ形で `grant update` が必要です）。誰がどの権限かは Admin の画面にだけ表示しますが、`role_id` の読み取り自体は、行を読める相手には DB 側で制限していません。

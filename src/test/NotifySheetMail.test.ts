@@ -1,5 +1,13 @@
 import { expect, it } from "vitest";
-import { composeMails, type SheetNotification } from "../../supabase/functions/notify-sheet/mail";
+import {
+	NOTIFICATION_TEMPLATES,
+	renderNotificationTemplate,
+} from "../../supabase/functions/_shared/notificationTemplates";
+import {
+	composeMails,
+	composeTestMail,
+	type SheetNotification,
+} from "../../supabase/functions/notify-sheet/mail";
 
 const notification = (
 	status: SheetNotification["status"],
@@ -37,6 +45,38 @@ it.each([
 		expect(mails[0].text).toContain("評価期間: テスト期間\nシートID: 100");
 	},
 );
+
+it.each(NOTIFICATION_TEMPLATES)(
+	"uses the same template for the $id test notification",
+	({ id }) => {
+		const data = {
+			employeeName: "テスト社員",
+			employeeNo: "TEST001",
+			periodName: "送信テスト",
+			sheetId: "サンプル",
+		};
+		const content = renderNotificationTemplate(id, data);
+		const mail = composeTestMail(id, "test@example.jp");
+		expect(mail.to).toBe("test@example.jp");
+		expect(mail.subject).toBe(`【送信テスト】${content.subject}`);
+		expect(mail.text).toBe(
+			`これは通知メールの送信テストです。実際の評価シートではありません。\n\n${content.text}`,
+		);
+		expect(mail.text).not.toMatch(/\{\{\w+\}\}/);
+	},
+);
+
+it("does not reinterpret replacement values or allow subject line breaks", () => {
+	const content = renderNotificationTemplate("submitted", {
+		employeeName: "{{periodName}}\r\n社員",
+		employeeNo: "TEST001",
+		periodName: "テスト期間",
+		sheetId: 1,
+	});
+	expect(content.subject).not.toMatch(/[\r\n]/);
+	expect(content.subject).toContain("{{periodName}}");
+	expect(content.text).toContain("{{periodName}}\r\n社員");
+});
 
 it("sends each evaluator their own mail, so neither learns the other's address", () => {
 	const { mails } = composeMails(notification("first_evaluated", [primary, secondary]));

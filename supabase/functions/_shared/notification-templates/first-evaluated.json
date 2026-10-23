@@ -1,0 +1,11 @@
+{
+	"label": "一次評価確定通知（二次評価の依頼）",
+	"subject": "【TYPA】二次評価のお願い（{{employeeName}} / {{periodName}}）",
+	"body": [
+		"{{employeeName}}（{{employeeNo}}）の一次評価が確定しました。",
+		"二次評価を入力し、評価を確定してください。",
+		"",
+		"評価期間: {{periodName}}",
+		"シートID: {{sheetId}}"
+	]
+}

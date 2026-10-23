@@ -131,6 +131,37 @@ Deno.serve({hostname:"127.0.0.1",port:56423},createNotificationHandler(createNot
 		}),
 	);
 	console.log("API: management password login passed.");
+	const testNotice = (token: string, templateId = "submitted") =>
+		fetch("http://127.0.0.1:56423", {
+			method: "POST",
+			headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+			body: JSON.stringify({ mode: "test", to: "test@release.example", templateId }),
+		});
+	const adminSession = required(await supabase.auth.getSession()).session;
+	assert.ok(adminSession);
+	const beforeTest = sql(
+		"select jsonb_build_object('smtp', (select to_jsonb(s) from public.workspace_settings s), 'deliveries', (select count(*) from public.sheet_notification_deliveries))",
+	);
+	assert.equal((await testNotice("invalid-token")).status, 401);
+	assert.equal((await testNotice(adminSession.access_token, "__proto__")).status, 400);
+	for (const templateId of ["submitted", "first_evaluated"]) {
+		assert.equal((await testNotice(adminSession.access_token, templateId)).status, 409); // Saved SMTP is empty; never send externally.
+	}
+	sql("update public.employees set is_enabled=false where id=900001");
+	try {
+		assert.equal((await testNotice(adminSession.access_token)).status, 403);
+	} finally {
+		sql("update public.employees set is_enabled=true where id=900001");
+	}
+	assert.equal(
+		sql(
+			"select jsonb_build_object('smtp', (select to_jsonb(s) from public.workspace_settings s), 'deliveries', (select count(*) from public.sheet_notification_deliveries))",
+		),
+		beforeTest,
+	);
+	console.log(
+		"API: test notification authentication, enabled Admin checks, template validation and no database writes passed.",
+	);
 	const master = new SupabaseEmployeeMasterRepository(),
 		employees = new SupabaseEmployeeRepository();
 	const invitation = await master.issueInvitationByEmployeeNo("RELEASE008");
@@ -196,6 +227,7 @@ Deno.serve({hostname:"127.0.0.1",port:56423},createNotificationHandler(createNot
 	};
 	const session = required(await supabase.auth.getSession()).session;
 	assert.ok(session);
+	assert.equal((await testNotice(session.access_token)).status, 403);
 	const notice = (token: string) =>
 		fetch("http://127.0.0.1:56423", {
 			method: "POST",
@@ -206,7 +238,9 @@ Deno.serve({hostname:"127.0.0.1",port:56423},createNotificationHandler(createNot
 	assert.equal((await notice(session.access_token)).status, 409); // Missing SMTP: tracked failure, no external send.
 	assert.equal((await notice(session.access_token)).status, 429); // A second request is rate limited.
 	console.log("API: subject submission and real notification HTTP authorization/cooldown passed.");
-	await evaluatorSession(2);
+	const reviewerSession = (await evaluatorSession(2)).session;
+	assert.ok(reviewerSession);
+	assert.equal((await testNotice(reviewerSession.access_token)).status, 403);
 	let current = await sheets.findById(id);
 	assert.ok(current);
 	await goals.updateScore(current.objectives[0].id, 4);

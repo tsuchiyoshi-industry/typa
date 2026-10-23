@@ -17,6 +17,19 @@ export function createNotificationBackend(): NotificationBackend {
 			} = await admin.auth.getUser(token);
 			return user?.id ?? null;
 		},
+		async canSendTest(actor) {
+			const { data, error } = await admin
+				.from("employees")
+				.select("id,roles!inner(role_name)")
+				.eq("user_id", actor)
+				.eq("is_enabled", true)
+				.eq("roles.role_name", "Admin")
+				.maybeSingle();
+			if (error) {
+				throw error;
+			}
+			return !!data;
+		},
 		async claim(sheetId, actor) {
 			const { data, error } = await admin.rpc("claim_sheet_notification", {
 				p_sheet_id: sheetId,

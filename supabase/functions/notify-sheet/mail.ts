@@ -1,5 +1,10 @@
 // Who gets which mail for a sheet's current status. No runtime dependencies, so the app's
 // test suite covers it (src/test/NotifySheetMail.test.ts).
+import { normalizeEmailAddress } from "../_shared/emailAddress.ts";
+import {
+	type NotificationTemplateId,
+	renderNotificationTemplate,
+} from "../_shared/notificationTemplates.ts";
 
 /** What the database function get_sheet_notification returns. */
 export interface SheetNotification {
@@ -28,25 +33,20 @@ export interface Mail {
 const ROLE_LABELS = { primary: "一次評価者", secondary: "二次評価者" };
 const NO_ADDRESS = "認証済みの登録メールがありません。";
 
-const validAddress = (email: string | null): string | null => {
-	const trimmed = email?.trim();
-	return trimmed && /^[^\s@<>,;]+@[^\s@<>,;]+$/.test(trimmed) ? trimmed : null;
-};
-
-function content(notification: SheetNotification): { title: string; lines: string[] } {
-	const who = `${notification.employeeName}（${notification.employeeNo}）`;
-	switch (notification.status) {
-		case "submitted":
-			return {
-				title: "一次評価のお願い",
-				lines: [`${who}が評価シートを提出しました。`, "一次評価を入力し、確定してください。"],
-			};
-		default:
-			return {
-				title: "二次評価のお願い",
-				lines: [`${who}の一次評価が確定しました。`, "二次評価を入力し、評価を確定してください。"],
-			};
-	}
+/** 実データを参照せず、通常通知と同じテンプレートでテスト用メールを作る。 */
+export function composeTestMail(templateId: NotificationTemplateId, to: string): Mail {
+	const content = renderNotificationTemplate(templateId, {
+		employeeName: "テスト社員",
+		employeeNo: "TEST001",
+		periodName: "送信テスト",
+		sheetId: "サンプル",
+	});
+	return {
+		recipient: "送信テスト",
+		to,
+		subject: `【送信テスト】${content.subject}`,
+		text: `これは通知メールの送信テストです。実際の評価シートではありません。\n\n${content.text}`,
+	};
 }
 
 /**
@@ -58,20 +58,13 @@ export function composeMails(notification: SheetNotification): {
 	mails: Mail[];
 	undeliverable: Delivery[];
 } {
-	const { title, lines } = content(notification);
-	const subject = `【TYPA】${title}（${notification.employeeName} / ${notification.periodName}）`;
-	const text = [
-		...lines,
-		"",
-		`評価期間: ${notification.periodName}`,
-		`シートID: ${notification.sheetId}`,
-	].join("\n");
+	const { subject, text } = renderNotificationTemplate(notification.status, notification);
 
 	const targets = new Map<string, { to: string; labels: string[] }>();
 	const undeliverable: Delivery[] = [];
 	for (const recipient of notification.recipients) {
 		const label = `${recipient.name}（${ROLE_LABELS[recipient.role]}）`;
-		const to = validAddress(recipient.email);
+		const to = normalizeEmailAddress(recipient.email);
 		if (!to) {
 			undeliverable.push({ recipient: label, error: NO_ADDRESS });
 			continue;

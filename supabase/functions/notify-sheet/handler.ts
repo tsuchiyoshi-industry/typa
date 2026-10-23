@@ -1,4 +1,12 @@
-import { composeMails, type Delivery, type Mail, type SheetNotification } from "./mail.ts";
+import { normalizeEmailAddress } from "../_shared/emailAddress.ts";
+import { isNotificationTemplateId } from "../_shared/notificationTemplates.ts";
+import {
+	composeMails,
+	composeTestMail,
+	type Delivery,
+	type Mail,
+	type SheetNotification,
+} from "./mail.ts";
 
 export interface SmtpSettings {
 	smtp_host: string;
@@ -13,10 +21,45 @@ export interface NotificationClaim {
 }
 export interface NotificationBackend {
 	authenticate(token: string): Promise<string | null>;
+	canSendTest(actor: string): Promise<boolean>;
 	claim(sheetId: number, actor: string): Promise<NotificationClaim>;
 	smtp(): Promise<SmtpSettings | null>;
 	complete(claimId: string, success: boolean): Promise<void>;
 	send(settings: SmtpSettings, mail: Mail): Promise<void>;
+}
+
+async function sendTestNotification(
+	backend: NotificationBackend,
+	actor: string,
+	body: Record<string, unknown>,
+): Promise<Response> {
+	try {
+		if (!(await backend.canSendTest(actor))) {
+			return respond({ error: "送信テストは Admin のみ利用できます。" }, 403);
+		}
+	} catch {
+		return respond({ error: "送信テストの権限を確認できませんでした。" }, 503);
+	}
+	const to = normalizeEmailAddress(body.to);
+	if (!to) {
+		return respond({ error: "宛先メールアドレスを1件入力してください。" }, 400);
+	}
+	if (!isNotificationTemplateId(body.templateId)) {
+		return respond({ error: "送信する通知パターンを選んでください。" }, 400);
+	}
+	try {
+		const smtp = await backend.smtp();
+		if (!smtp?.smtp_host || !smtp.smtp_user) {
+			return respond({ error: "通知メールの設定を保存してから送信テストを行ってください。" }, 409);
+		}
+		await backend.send(smtp, composeTestMail(body.templateId, to));
+		return respond({ success: true });
+	} catch {
+		return respond(
+			{ error: "テストメールを送信できませんでした。SMTP設定と接続先を確認してください。" },
+			503,
+		);
+	}
 }
 const CORS = {
 	"Access-Control-Allow-Origin": "*",
@@ -73,12 +116,23 @@ export function createNotificationHandler(backend: NotificationBackend) {
 		if (!actor) {
 			return respond({ error: "ログインが必要です。" }, 401);
 		}
-		let sheetId: unknown;
+		let body: unknown;
 		try {
-			sheetId = ((await bodyJson(request)) as { sheetId?: unknown } | null)?.sheetId;
+			body = await bodyJson(request);
 		} catch {
 			return respond({ error: "評価シートを指定してください。" }, 400);
 		}
+		if (!body || typeof body !== "object" || Array.isArray(body)) {
+			return respond({ error: "送信内容を確認してください。" }, 400);
+		}
+		const input = body as Record<string, unknown>;
+		if (input.mode === "test") {
+			return sendTestNotification(backend, actor, input);
+		}
+		if (input.mode !== undefined) {
+			return respond({ error: "送信内容を確認してください。" }, 400);
+		}
+		const sheetId = input.sheetId;
 		if (!Number.isSafeInteger(sheetId) || (sheetId as number) <= 0) {
 			return respond({ error: "評価シートを指定してください。" }, 400);
 		}

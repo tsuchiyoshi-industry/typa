@@ -2,6 +2,7 @@
 import { A, MemoryRouter, Route } from "@solidjs/router";
 import { cleanup, fireEvent, render, waitFor } from "@solidjs/testing-library";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { SendTestNotificationInteractor } from "../../application/usecases/SendTestNotificationInteractor";
 import { UpdateEvaluationAllocationInteractor } from "../../application/usecases/UpdateEvaluationAllocationInteractor";
 import { UpdateMaxChallengeGoalsInteractor } from "../../application/usecases/UpdateMaxChallengeGoalsInteractor";
 import { UpdateSmtpSettingsInteractor } from "../../application/usecases/UpdateSmtpSettingsInteractor";
@@ -55,6 +56,10 @@ function smtpSetup(role = "Admin") {
 	const controller = new SmtpSettingsController(
 		repository,
 		new UpdateSmtpSettingsInteractor(repository, employees),
+		new SendTestNotificationInteractor(
+			{ sendTest: vi.fn().mockResolvedValue(undefined) },
+			employees,
+		),
 	);
 	return { repository, controller };
 }
@@ -62,9 +67,10 @@ const number = (view: ReturnType<typeof render>, name: string) =>
 	view.getByRole("spinbutton", { name }) as HTMLInputElement;
 const renderSettings = (
 	controller: SettingsController,
-	smtpController: Pick<SmtpSettingsController, "load" | "save"> = {
+	smtpController: Pick<SmtpSettingsController, "load" | "save" | "sendTest"> = {
 		load: vi.fn().mockResolvedValue(null),
 		save: vi.fn(),
+		sendTest: vi.fn(),
 	},
 ) =>
 	render(() => (
@@ -286,11 +292,13 @@ describe("help", () => {
 			"true",
 		);
 		expect(view.getByRole("link", { name: "評価シート一覧へ" }).getAttribute("href")).toBe("/");
-		expect(view.getByRole("heading", { name: "記入方法について" })).toBeTruthy();
+		expect(view.getByRole("heading", { name: "記入・提出の手順" })).toBeTruthy();
 		expect(
-			view.getByText("保存だけでは提出されません。提出するまでは、評価者に内容は表示されません。"),
+			view.getByText(
+				"保存は目標ごとに行います。提出には、すべてのタブのチャレンジ目標が必要です。中間目標と達成状況は任意です。",
+			),
 		).toBeTruthy();
-		expect(view.getByText("期間内に目指すこと")).toBeTruthy();
+		expect(view.getByRole("button", { name: "目標の入力と保存を拡大" })).toBeTruthy();
 		expect(view.queryByText("社員マスタと権限")).toBeNull();
 	});
 	it("switches the steps, examples, questions and destination for reviewers", () => {
@@ -299,14 +307,14 @@ describe("help", () => {
 		expect(view.getByRole("button", { name: /評価方法/ }).getAttribute("aria-pressed")).toBe(
 			"true",
 		);
-		expect(view.getByRole("heading", { name: "評価方法について" })).toBeTruthy();
+		expect(view.getByRole("heading", { name: "評価・確定の手順" })).toBeTruthy();
 		expect(view.getByRole("link", { name: "部下の評価へ" }).getAttribute("href")).toBe("/review");
-		const question = view.getByText("確定ボタンを押せない");
+		const question = view.getByText("確定に必要な入力");
 		fireEvent.click(question);
 		expect(question.closest("details")?.open).toBe(true);
-		expect(view.queryByText("期間内に目指すこと")).toBeNull();
+		expect(view.queryByRole("button", { name: "目標の入力と保存を拡大" })).toBeNull();
 		fireEvent.click(view.getByRole("button", { name: /記入方法/ }));
-		expect(view.getByText("期間内に目指すこと")).toBeTruthy();
-		expect(view.queryByText("確定ボタンを押せない")).toBeNull();
+		expect(view.getByRole("button", { name: "目標の入力と保存を拡大" })).toBeTruthy();
+		expect(view.queryByText("確定に必要な入力")).toBeNull();
 	});
 });

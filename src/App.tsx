@@ -53,6 +53,7 @@ import { PreRegisterEmployeeInteractor } from "./application/usecases/PreRegiste
 import { RegisterEmployeeAccountInteractor } from "./application/usecases/RegisterEmployeeAccountInteractor";
 import { ResetEmployeeRegistrationInteractor } from "./application/usecases/ResetEmployeeRegistrationInteractor";
 import { SaveEvaluationPeriodInteractor } from "./application/usecases/SaveEvaluationPeriodInteractor";
+import { SendTestNotificationInteractor } from "./application/usecases/SendTestNotificationInteractor";
 import { SignInEmployeeInteractor } from "./application/usecases/SignInEmployeeInteractor";
 import { UpdateEmployeeEnabledInteractor } from "./application/usecases/UpdateEmployeeEnabledInteractor";
 import { UpdateEmployeeEvaluatorInteractor } from "./application/usecases/UpdateEmployeeEvaluatorInteractor";
@@ -149,11 +150,12 @@ const evaluationPeriodController = new EvaluationPeriodController(
 	new DeleteEvaluationPeriodInteractor(evaluationPeriodRepository, employeeMasterRepository),
 	new CloseEvaluationPeriodInteractor(evaluationPeriodRepository, employeeMasterRepository),
 );
+const emailNotificationRepository = new SupabaseEmailNotificationRepository();
 const smtpSettingsController = new SmtpSettingsController(
 	workspaceSettingsRepository,
 	new UpdateSmtpSettingsInteractor(workspaceSettingsRepository, employeeMasterRepository),
+	new SendTestNotificationInteractor(emailNotificationRepository, employeeMasterRepository),
 );
-const emailNotificationRepository = new SupabaseEmailNotificationRepository();
 const evaluationScoreUpdateService = new EvaluationScoreUpdateService(
 	evaluationSheetRepository,
 	milestoneRepository,

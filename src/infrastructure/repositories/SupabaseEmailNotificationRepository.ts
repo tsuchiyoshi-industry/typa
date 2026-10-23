@@ -1,3 +1,4 @@
+import type { NotificationTestGateway } from "../../application/ports/NotificationTestGateway";
 import type {
 	EmailNotificationRepository,
 	NotificationDelivery,
@@ -7,14 +8,14 @@ import type {
 import { supabase } from "../db/supabase";
 
 /**
- * 通知メールは Edge Function(notify-sheet)が送る。誰に何を送るかは、関数がシートのいまの状態から
- * 決める。宛先のメールアドレスも SMTP のパスワードも、アプリには渡らない。
+ * 通知メールは Edge Function(notify-sheet)が送る。通常通知の宛先・文面はシートの状態から決め、
+ * 評価者のメールアドレスと SMTP のパスワードはアプリに渡さない。送信テストは入力した宛先を使う。
  */
-export class SupabaseEmailNotificationRepository implements EmailNotificationRepository {
-	private async notify(notification: SheetNotification, report: ReportDelivery): Promise<void> {
-		const { data, error } = await supabase.functions.invoke<{
-			deliveries?: NotificationDelivery[];
-		}>("notify-sheet", { body: { sheetId: notification.sheetId } });
+export class SupabaseEmailNotificationRepository
+	implements EmailNotificationRepository, NotificationTestGateway
+{
+	private async invoke<T>(body: Record<string, unknown>): Promise<T | null> {
+		const { data, error } = await supabase.functions.invoke<T>("notify-sheet", { body });
 
 		if (error) {
 			// 関数が返した理由(JSON の error)があれば、それを伝える
@@ -24,6 +25,20 @@ export class SupabaseEmailNotificationRepository implements EmailNotificationRep
 				.catch(() => undefined);
 			throw new Error(typeof reason === "string" ? reason : "通知メールを送信できませんでした。");
 		}
+		return data;
+	}
+
+	async sendTest(to: string, templateId: string): Promise<void> {
+		const data = await this.invoke<{ success?: boolean }>({ mode: "test", to, templateId });
+		if (data?.success !== true) {
+			throw new Error("テストメールを送信できませんでした。");
+		}
+	}
+
+	private async notify(notification: SheetNotification, report: ReportDelivery): Promise<void> {
+		const data = await this.invoke<{ deliveries?: NotificationDelivery[] }>({
+			sheetId: notification.sheetId,
+		});
 		for (const delivery of data?.deliveries ?? []) {
 			report(delivery);
 		}

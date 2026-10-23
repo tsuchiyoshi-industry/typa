@@ -1,0 +1,11 @@
+{
+	"label": "提出通知（一次評価の依頼）",
+	"subject": "【TYPA】一次評価のお願い（{{employeeName}} / {{periodName}}）",
+	"body": [
+		"{{employeeName}}（{{employeeNo}}）が評価シートを提出しました。",
+		"一次評価を入力し、確定してください。",
+		"",
+		"評価期間: {{periodName}}",
+		"シートID: {{sheetId}}"
+	]
+}

@@ -16,7 +16,7 @@ interface SettingsViewProps {
 		EvaluationPeriodController,
 		"load" | "save" | "remove" | "close" | "preview" | "divisions"
 	>;
-	smtpController: Pick<SmtpSettingsController, "load" | "save">;
+	smtpController: Pick<SmtpSettingsController, "load" | "save" | "sendTest">;
 }
 
 const TOTAL = EvaluationAllocation.TOTAL;

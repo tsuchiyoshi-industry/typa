@@ -4,143 +4,231 @@ import Check from "lucide-solid/icons/check";
 import ChevronDown from "lucide-solid/icons/chevron-down";
 import ClipboardCheck from "lucide-solid/icons/clipboard-check";
 import PencilLine from "lucide-solid/icons/pencil-line";
+import X from "lucide-solid/icons/x";
+import ZoomIn from "lucide-solid/icons/zoom-in";
 import { type Component, createSignal, For, Show } from "solid-js";
+import reviewerListImage from "../../../docs/manual/evaluator/01-workspace.png";
+import scoreImage from "../../../docs/manual/evaluator/03-goal-score.png";
+import confirmImage from "../../../docs/manual/evaluator/06-confirm-first.png";
+import registrationImage from "../../../docs/manual/user/03-register-code.png";
+import createSheetImage from "../../../docs/manual/user/05-new-sheet.png";
+import goalImage from "../../../docs/manual/user/07-goal.png";
+import submitImage from "../../../docs/manual/user/08-submit.png";
+import resultImage from "../../../docs/manual/user/10-sheet-list-final.png";
+import previousGoalsImage from "../../../docs/manual/user/15-previous-goals.png";
+import correctionsImage from "../../../docs/manual/user/16-corrections.png";
 import "./styles/help.css";
+
+interface HelpImage {
+	src: string;
+	caption: string;
+	width: number;
+	height: number;
+	preview?: { x: number; y: number; width: number; height: number };
+}
+
+const IMAGES = {
+	create: {
+		src: createSheetImage,
+		caption: "評価期間の選択・シート作成",
+		width: 1280,
+		height: 800,
+		preview: { x: 24, y: 156, width: 536, height: 278 },
+	},
+	goal: { src: goalImage, caption: "目標の入力と保存", width: 1216, height: 733 },
+	submit: {
+		src: submitImage,
+		caption: "提出の確認",
+		width: 1280,
+		height: 800,
+		preview: { x: 404, y: 251, width: 472, height: 298 },
+	},
+	review: { src: reviewerListImage, caption: "評価対象の一覧", width: 1280, height: 800 },
+	score: { src: scoreImage, caption: "目標の採点", width: 1280, height: 800 },
+	confirm: { src: confirmImage, caption: "一次評価の確定", width: 1280, height: 800 },
+	registration: { src: registrationImage, caption: "新規登録の入力項目", width: 1280, height: 800 },
+	result: { src: resultImage, caption: "評価結果のPDF出力", width: 1280, height: 800 },
+	previous: {
+		src: previousGoalsImage,
+		caption: "前の評価期間の目標の引き継ぎ",
+		width: 1216,
+		height: 249,
+	},
+	corrections: { src: correctionsImage, caption: "締め後修正の記録", width: 1216, height: 198 },
+} satisfies Record<string, HelpImage>;
+
+const TOPIC_IMAGES: Record<string, HelpImage | undefined> = {
+	新規登録: IMAGES.registration,
+	前の評価期間の目標: IMAGES.previous,
+	評価結果とPDF出力: IMAGES.result,
+	締め後修正の確認: IMAGES.corrections,
+};
+
+// 手順内は操作欄を中心に表示し、拡大時は元の画面全体を表示する。
+const previewStyle = (image: HelpImage) => {
+	const crop = image.preview;
+	return crop
+		? {
+				"aspect-ratio": `${crop.width} / ${crop.height}`,
+				"--help-image-width": `${(image.width / crop.width) * 100}%`,
+				"--help-image-left": `${(-crop.x / crop.width) * 100}%`,
+				"--help-image-top": `${(-crop.y / crop.height) * 100}%`,
+			}
+		: undefined;
+};
+
+const HelpScreenshot: Component<{ image: HelpImage; onOpen: (image: HelpImage) => void }> = (
+	props,
+) => (
+	<figure class="help-guide__screenshot">
+		<button
+			type="button"
+			class="help-guide__image-button"
+			aria-label={`${props.image.caption}を拡大`}
+			aria-haspopup="dialog"
+			aria-controls="help-image-viewer"
+			onClick={() => props.onOpen(props.image)}
+		>
+			<div
+				class="help-guide__preview"
+				classList={{ "help-guide__preview--cropped": !!props.image.preview }}
+				style={previewStyle(props.image)}
+			>
+				<img
+					src={props.image.src}
+					alt={props.image.caption}
+					width={props.image.width}
+					height={props.image.height}
+					loading="lazy"
+					decoding="async"
+				/>
+			</div>
+			<span>
+				<ZoomIn size={16} aria-hidden="true" />
+				拡大
+			</span>
+		</button>
+		<figcaption>{props.image.caption}</figcaption>
+	</figure>
+);
 
 const GUIDES = {
 	self: [
 		{
 			title: "評価シートを開く",
 			description:
-				"「評価シート一覧」から、今回の評価期間のシートを開きます。シートがない場合は「新規作成」で評価期間を選んで作成します。",
-			labels: ["評価シート一覧", "新規作成"],
-			tip: "評価期間が今回のものになっているか確認してください。",
+				"「評価シート一覧」で評価期間を選び、自分のシートを開きます。未作成の場合は「新規作成」から評価期間を選び、「評価シートを作成」を押します。",
+			image: IMAGES.create,
+			tip: "評価シートは、実施中の評価期間に1人1枚作成できます。",
 		},
 		{
-			title: "目標と達成状況を記入する",
+			title: "目標を記入・保存する",
 			description:
-				"「目標を編集」から入力します。期初はチャレンジ目標と中間目標を、期末は達成状況を記入します。",
-			labels: ["目標を編集", "目標を保存"],
-			tip: "目標ごとに「目標を保存」を押します。保存した内容は、あとから続けて編集できます。",
+				"「目標を編集」を押し、チャレンジ目標・中間目標・達成状況を入力して「目標を保存」を押します。",
+			image: IMAGES.goal,
+			tip: "保存は目標ごとに行います。提出には、すべてのタブのチャレンジ目標が必要です。中間目標と達成状況は任意です。",
 		},
 		{
 			title: "提出する",
 			description:
-				"記入した内容を保存したあと、シート上部の「提出する」を押します。状態が「一次評価待ち」になると、評価者が評価を始められます。",
-			labels: ["提出する", "一次評価待ち"],
-			tip: "保存だけでは提出されません。提出するまでは、評価者に内容は表示されません。",
+				"目標を保存し、シート上部の「提出する」を押します。確認画面で通知メールの有無を選び、再度「提出する」を押します。",
+			image: IMAGES.submit,
+			tip: "提出すると評価者に内容が表示されます。目標の編集は、一次評価の確定前に「下書きに戻す」で行います。",
 		},
 	],
 	reviewer: [
 		{
 			title: "評価するシートを開く",
 			description:
-				"「部下の評価」を開き、「一次評価する」または「二次評価する」の件数を押すと、評価する社員が表示されます。",
-			labels: ["部下の評価", "一次評価する", "二次評価する"],
-			tip: "「提出・相手の評価待ち」は、本人の提出または一次評価の確定を待っている状態です。",
+				"「部下の評価」を開き、評価期間を選びます。「一次評価する」または「二次評価する」で一覧を絞り込み、対象の社員を押します。",
+			image: IMAGES.review,
+			tip: "「自分の番を評価する」から、対象のシートを順に開くこともできます。",
 		},
 		{
-			title: "点数と総評を入力する",
+			title: "点数・コメントを保存する",
 			description:
-				"チャレンジ目標と共通評価を、それぞれ1〜4の4段階で評価します。二次評価者には一次評価の内容も表示されます。",
-			labels: ["評価を入力", "評価を保存", "総評を保存"],
-			tip: "点数はすべての項目に入力し、欄ごとに保存します。総評は「総評を保存」で保存されます。",
+				"チャレンジ目標と共通評価の「評価を入力」を押し、各項目を1〜4で採点して「評価を保存」を押します。総評は「総評を保存」で保存します。",
+			image: IMAGES.score,
+			tip: "保存は目標・共通評価・総評ごとに行います。二次評価者は、一次評価の確定後に採点できます。",
 		},
 		{
-			title: "確定する",
+			title: "評価を確定する",
 			description:
-				"シート下部のボタンで確定します。一次評価を確定すると二次評価者に引き継がれ、二次評価を確定すると評価が完了します。",
-			labels: ["一次評価を確定する", "二次評価を確定する"],
-			tip: "確定した評価は変更できません。二次評価者が「なし」の場合は「評価を確定する」で完了します。",
+				"すべての採点を保存し、右下の「一次評価を確定する」または「二次評価を確定する」を押します。確認画面で内容を確認して確定します。",
+			image: IMAGES.confirm,
+			tip: "二次評価者が「なし」の場合は、一次評価者が「評価を確定する」を押すと最終評価済みになります。",
 		},
 	],
 };
 const QUESTIONS = {
 	self: [
 		[
-			"提出後に内容を修正したい",
-			"一次評価が確定する前であれば、シートの「下書きに戻す」から修正できます。修正後に保存し、再度「提出する」を押してください。一次評価の確定後は変更できないため、評価者に相談してください。",
+			"提出内容の修正",
+			"実施中の評価期間で、一次評価が確定する前に「下書きに戻す」を押します。修正した目標を保存し、再提出してください。一次評価の確定後は、管理者に相談してください。",
 		],
 		[
-			"記入を途中で中断したい",
-			"目標ごとに「目標を保存」を押してから画面を閉じてください。同じ評価期間のシートを開くと、保存した内容から再開できます。",
+			"前の評価期間の目標",
+			"「前の評価期間の目標」の「続ける」を押すと、チャレンジ目標を現在の下書きに追加できます。中間目標と達成状況は引き継がれません。引き継がない目標は「済み」と表示されます。",
 		],
 		[
-			"自分の評価結果を確認したい",
-			"自分のシートでは、目標ごとの一次評価の点数を確認できます。評価が確定すると、「評価シート一覧」の「PDF出力」から自分のシートを出力でき、共通評価・総評・評価点・評価ランクを含む評価結果を確認できます。",
+			"評価結果とPDF出力",
+			"最終評価済みになると、シートに目標ごとの一次評価の点数が表示されます。共通評価・総評・評価点・評価ランクは、「評価シート一覧」の「PDF出力」で確認します。",
 		],
 		[
-			"以前の評価期間のシートに書き込めない",
-			"締めた評価期間のシートは、閲覧とPDF出力のみ利用できます。今回の評価は、実施中の評価期間のシートに記入してください。期間の設定が違う場合は管理担当者に相談してください。",
+			"締め済みの評価期間",
+			"締め済みのシートは閲覧用です。最終評価済みのシートはPDF出力できます。未確定のまま締める設定の期間では、未確定のシートも出力でき、点数・ランク・評価コメントは「***」で表示されます。",
+		],
+		[
+			"締め後修正の確認",
+			"シート上部の「締め後修正があります」に、管理者が修正した項目・変更前後の内容・日時・理由が表示されます。PDFにも修正の記録が載ります。表示される項目は閲覧権限によって異なります。",
 		],
 	],
 	reviewer: [
 		[
-			"シートを開けない、または評価を入力できない",
-			"本人が提出していないシートは開けません。二次評価は、一次評価が確定すると入力できます。「部下の評価」で進み具合を確認してください。",
+			"評価を入力できる時期",
+			"一次評価は本人の提出後から、二次評価は一次評価の確定後から入力できます。実施中の期間の下書きは評価者に表示されません。締め済みの期間は閲覧のみです。",
 		],
 		[
-			"確定ボタンを押せない",
-			"チャレンジ目標と共通評価に、点数が入っていない項目がないか確認してください。0は未評価です。点数と総評を保存してから確定します。不足している項目は画面に表示されます。",
+			"確定に必要な入力",
+			"チャレンジ目標と共通評価の全項目に1〜4の点数が必要です。「自分の評価: あと〇件」から未評価の項目を確認できます。入力中の点数・コメント・総評は、確定前に保存してください。",
 		],
 		[
-			"評価点と評価ランクの計算方法",
-			"チャレンジ目標と共通評価の点数から、100点満点の評価点と評価ランクが自動で計算されます。確定前に表示されるランクは見込みです。",
+			"評価点とランク",
+			"チャレンジ目標と共通評価の点数・配点から、100点満点の評価点とランクを自動計算します。確定前のランクは見込みです。",
 		],
 		[
-			"評価が確定したシートをPDFで出力したい",
-			"「評価シート一覧」の「部下の評価シート」で、最終評価済みのシートの「PDF出力」を押します。出力できるのは本人・一次評価者・二次評価者で、誰が出力しても同じ内容です。",
+			"評価結果のPDF出力",
+			"「評価シート一覧」の「部下の評価シート」で「PDF出力」を押します。最終評価済みのPDFで、点数・総評・評価点・ランクを確認できます。一次評価者が二次評価の点数を確認できるのは、最終評価の確定後です。",
 		],
 		[
-			"一次評価者も二次評価の点数を確認できる？",
-			"評価が確定するまでは、一次評価者に二次評価の点数・総評は表示されません。最終評価済みになると、確定した評価結果を確認できます。",
-		],
-		[
-			"確定した点数やランクを訂正したい",
-			"確定した段階の点数は変更できません。ランクも点数から自動で決まるため、手動では変更できません。入力に誤りがあった場合は管理担当者に相談してください。管理者の画面にも、確定後の訂正ボタンはありません。",
-		],
-		[
-			"二次評価者が「なし」のときはどう進める？",
-			"一次評価者が点数と総評を保存し、「評価を確定する」を押すと完了します。一次評価がそのまま最終評価になります。二次評価者が単に未設定の場合とは違うため、管理担当者が社員マスタで「なし」を選んでおく必要があります。",
+			"確定後の訂正",
+			"確定した段階の評価は、本人・評価者からは変更できません。訂正は管理者に依頼してください。締め済みの期間は、管理者が「遡及処理」で理由を記録して修正します。",
 		],
 	],
 };
-
 const COMMON_QUESTIONS = [
 	{
 		title: "登録・ログイン",
 		items: [
 			[
-				"招待コードとは？",
-				"その社員として初回登録するための、社員ごとの使い捨てコードです。管理担当者が発行します。共有メールを受信できる人でも、他の社員番号で勝手に登録できないようにしています。",
+				"新規登録",
+				"管理者から社員番号と招待コードを受け取ります。「新規登録」で会社の指定ドメインのメールアドレスに認証コードを送り、認証コード・社員番号・招待コード・パスワードを入力します。パスワードは6文字以上で、大文字・小文字・数字を含めます。共有メールも使用できます。",
 			],
 			[
-				"メールの認証コードと招待コードは同じ？",
-				"別のコードです。メールの認証コードは会社メールを受信できること、招待コードはその社員として登録してよいことを確認します。新規登録には両方が必要です。",
+				"認証コードと招待コード",
+				"認証コードはメールで受信します。招待コードは管理者が社員ごとに発行し、有効期限は7日間、使用は1回限りです。紛失・期限切れの場合は再発行を依頼してください。",
 			],
 			[
-				"招待コードはどこで入力する？",
-				"「新規登録」で会社メールに認証コードを送り、次の画面で認証コード・社員番号・招待コード・パスワードを入力します。招待コードは管理担当者から個別に受け取ってください。",
+				"ログイン・ログアウト",
+				"ログインには社員番号とパスワードを使います。終了時は、右上のユーザーメニューから「ログアウト」を押します。共有PCでは必ずログアウトしてください。",
 			],
 			[
-				"招待コードをなくした、期限が切れた、使えない",
-				"招待コードは発行から7日間有効で、登録が完了すると使えなくなります。社員番号とコードの組み合わせを確認し、使えない場合は管理担当者に再発行を依頼してください。再発行すると古いコードは使えません。",
+				"パスワードを忘れた場合",
+				"管理者に登録の取り消しと招待コードの発行を依頼し、新規登録をやり直します。評価シートは引き継がれます。",
 			],
 			[
-				"登録済みでも招待コードが必要？",
-				"必要ありません。いつもどおり社員番号とパスワードでログインしてください。登録を取り消して新規登録をやり直す場合は、新しい招待コードが必要です。",
-			],
-			[
-				"複数の社員で同じ会社メールを使ってもよい？",
-				"共有メールも使えます。社員番号・招待コード・パスワードは社員ごとに用意してください。普段のログインにはメールアドレスを使いません。評価の通知メールは、評価者が新規登録で確認したメールアドレスに届きます。",
-			],
-			[
-				"パスワードを忘れた",
-				"管理担当者に登録の取り消しと新しい招待コードの発行を依頼してから、新規登録をやり直してください。評価シートのデータは残ります。",
-			],
-			[
-				"「利用停止中」と表示されてログインできない",
-				"管理担当者がアカウントの利用を止めています。パスワードの変更や新規登録では解除できません。利用を再開したい場合は管理担当者に連絡してください。評価データは残っています。",
+				"利用停止の表示",
+				"利用の再開を管理者に依頼してください。パスワードの変更や新規登録では解除できません。",
 			],
 		],
 	},
@@ -148,24 +236,16 @@ const COMMON_QUESTIONS = [
 		title: "通知メール",
 		items: [
 			[
-				"通知メールはいつ、誰に届く？",
-				"本人の提出時は一次評価者へ、一次評価の確定時は二次評価者へ届きます。確認画面で「通知メールを送る」を選んでください。最終評価の確定時や、二次評価者が「なし」の場合の確定時は通知しません。",
+				"送信先と送信のタイミング",
+				"提出時は一次評価者へ、一次評価の確定時は二次評価者へ送ります。確認画面で「通知メールを送る」を選んだ場合に送信します。最終評価の確定時には送信しません。",
 			],
 			[
-				"メールの送信に失敗したら、提出や確定も取り消される？",
-				"提出・確定は保存されています。メールのために下書きに戻したり、評価をやり直したりする必要はありません。宛先の登録や通知メールの設定を管理担当者に確認し、「通知を再送」を使ってください。",
+				"送信失敗と再送",
+				"送信に失敗しても提出・確定は完了しています。一次評価待ちでは本人、二次評価待ちでは一次評価者が、シート上部の「通知を再送」を使えます。待機時間や回数制限が表示された場合は、画面の案内に従ってください。",
 			],
 			[
-				"「通知を再送」は誰が使える？",
-				"一次評価待ちのシートでは提出した本人、二次評価待ちのシートでは一次評価を確定した一次評価者が使えます。シート上部の「通知を再送」を押してください。最終評価済みのシートでは使えません。",
-			],
-			[
-				"再送の待機時間や上限が表示された",
-				"重複送信を防ぐため、失敗後は1分以上、送信処理中や結果が確認できない場合は5分以上あけてください。短時間の送信集中は10分以上待ってから試します。回数の上限が表示された場合は管理担当者に相談し、再送のためだけに差し戻し・再提出はしないでください。",
-			],
-			[
-				"送信済みと出るのにメールが見当たらない",
-				"迷惑メールフォルダーや共有メールの受信箱を確認してください。到着が遅れる場合もあります。成功を記録した同じ通知は、再送ボタンを押しても重複して送りません。見つからない場合は管理担当者に配送状況の確認を依頼してください。",
+				"送信済みのメールが届かない場合",
+				"迷惑メールフォルダーと共有メールの受信箱を確認してください。送信済みの通知は再送されません。見つからない場合は、管理者に宛先と配送状況の確認を依頼してください。",
 			],
 		],
 	},
@@ -173,40 +253,28 @@ const COMMON_QUESTIONS = [
 		title: "管理者の操作",
 		items: [
 			[
-				"管理者は招待コードをどう発行する？自分で考えるの？",
-				"Adminが社員マスタで未登録の社員の「招待コード」を押すと、自動で発行されます。自分でコードを作る必要はありません。表示されたコードをコピーして本人に個別に渡し、渡し終わったら表示を閉じてください。",
+				"社員の仮登録",
+				"ユーザーメニューの「導入処理」→「初期ユーザ」を開きます。社員番号・氏名・キャリアコース・等級を入力して仮登録します。一次・二次評価者は任意です。登録後に社員マスタで招待コードを発行します。",
 			],
 			[
-				"発行した招待コードをもう一度確認したい",
-				"閉じたコードは再表示できません。社員マスタの「招待コード」から再発行し、新しいコードを本人に渡してください。以前のコードや、そのコードで進めていた途中の登録は無効になります。",
+				"招待コードの発行",
+				"社員マスタで未登録の社員の「招待コード」を押し、表示されたコードを本人に渡します。「招待コードを一括発行」も使えます。閉じたコードは再表示できません。再発行すると以前のコードは無効になります。",
 			],
 			[
-				"「取消」と「利用停止」はどう使い分ける？",
-				"パスワード忘れなどで登録をやり直すときは「取消」を使い、新しい招待コードを発行します。退職・休職などで使わせないときは「利用停止」を使います。どちらも評価データは残ります。利用停止では、ログイン済みでも新しい閲覧・保存ができず、新規登録もできません。",
+				"登録取消・利用停止・利用再開",
+				"登録をやり直す場合は「取消」、利用を止める場合は「利用停止」を使います。評価シートは削除されません。「利用再開」後、登録済みの社員は同じ社員番号・パスワードでログインできます。未登録の社員には招待コードが必要です。",
 			],
 			[
-				"利用を再開するときは再登録が必要？",
-				"登録済みの社員なら、Adminが社員マスタで「利用再開」を押すと以前の社員番号とパスワードでログインできます。未登録、または登録を取り消した社員には、利用再開後に招待コードを発行してください。",
+				"等級・評価者・権限・ログイン保持",
+				"Adminが社員マスタで設定します。等級の変更は新しく作るシートに適用され、評価者の変更は実施中の未確定シートに反映されます。共有PCを使う社員の「ログイン」は「閉じたらログアウト」に設定してください。利用可能な登録済みAdminを1名以上残す必要があります。",
 			],
 			[
-				"Reviewerなのに評価者を変更できない",
-				"評価者・等級・権限の変更はAdminが行います。Reviewerは社員一覧と評価構造の確認、担当する評価を行えます。評価者の変更は管理担当者に依頼してください。",
+				"評価期間の開始",
+				"「設定」で次の評価期間の「この期間を開始する」を押します。実施中の期間は同時に締められます。未確定のシートが残っている場合は、全件を確定するか、その期間の「評価が確定していなくても締められる」を有効にします。",
 			],
 			[
-				"Adminの権限変更や利用停止を拒否された",
-				"管理できる人がいなくならないよう、利用できる登録済みAdminを最低1名残す必要があります。引き継ぐ社員をAdminにし、その社員が登録してログインできることを確認してから変更してください。",
-			],
-			[
-				"等級や評価者の変更は、作成済みのシートにも反映される？",
-				"等級の変更は、これから作るシートに使われます。作成済みシートの等級・評価項目は変わりません。評価者の変更は、実施中の期間の未確定シートに反映されます。最終評価済みのシートは、以前の評価者のまま残ります。",
-			],
-			[
-				"共有PCでログインを残さないようにしたい",
-				"社員マスタの「ログイン」を「閉じたらログアウト」にしてください。「保持する」にすると、その社員が使ったPCにログインが残るため、共有PCを使う社員には設定しないでください。利用停止を解除しても、ログイン保持の設定は自動では元に戻りません。",
-			],
-			[
-				"次の評価期間を始められない",
-				"現在の期間に未確定のシートが残っていないか確認してください。確定が済んだら、設定で次の評価期間の「この期間を開始する」を押します。前の期間は締められ、閲覧とPDF出力だけができる状態になります。",
+				"締め済みシートの訂正",
+				"ユーザーメニューの「遡及処理」で、締め済みの評価期間とシートを選びます。修正内容と理由を入力して記録します。期間は締め済みのままです。",
 			],
 		],
 	},
@@ -214,20 +282,26 @@ const COMMON_QUESTIONS = [
 		title: "アプリの更新",
 		items: [
 			[
-				"入力中にアプリの更新が来たらどうする？",
-				"先に入力を保存してください。ダウンロード後、インストールの直前にも未保存の入力を確認します。作業を続けたいときは確認を取り消し、更新通知の「あとで」を選べます。更新後はアプリが再起動します。",
+				"更新と再起動",
+				"入力を保存して「更新して再起動」を押します。作業を続ける場合は「あとで」を選びます。未保存の入力がある場合は、インストール前に確認画面が表示されます。",
 			],
 		],
 	},
 ];
 const HelpView: Component = () => {
 	const [audience, setAudience] = createSignal<"self" | "reviewer">("self");
+	const [selectedImage, setSelectedImage] = createSignal<HelpImage | null>(null);
+	let imageDialog: HTMLDialogElement | undefined;
+	const openImage = (image: HelpImage) => {
+		setSelectedImage(image);
+		imageDialog?.showModal();
+	};
 	const isSelf = () => audience() === "self";
 	return (
 		<div class="help-guide">
 			<header class="help-guide__hero">
 				<h1>ヘルプ</h1>
-				<p>評価シートの記入・評価と、登録や管理の疑問に答えます。</p>
+				<p>評価シートの記入・提出、評価、登録・管理の操作手順です。</p>
 			</header>
 			<fieldset class="help-guide__choices">
 				<legend class="visually-hidden">説明の対象</legend>
@@ -268,7 +342,7 @@ const HelpView: Component = () => {
 			</fieldset>
 			<section id="help-guide-content" aria-labelledby="help-guide-title">
 				<div class="help-guide__heading">
-					<h2 id="help-guide-title">{isSelf() ? "記入方法について" : "評価方法について"}</h2>
+					<h2 id="help-guide-title">{isSelf() ? "記入・提出の手順" : "評価・確定の手順"}</h2>
 					<A href={isSelf() ? "/" : "/review"} class="help-guide__start">
 						{isSelf() ? "評価シート一覧へ" : "部下の評価へ"}
 						<ArrowRight size={18} aria-hidden="true" />
@@ -283,42 +357,15 @@ const HelpView: Component = () => {
 								</span>
 								<h3>{step.title}</h3>
 								<p>{step.description}</p>
-								<div class="help-guide__labels">
-									<For each={step.labels}>{(label) => <span>{label}</span>}</For>
-								</div>
 								<p class="help-guide__tip">{step.tip}</p>
+								<HelpScreenshot image={step.image} onOpen={openImage} />
 							</li>
 						)}
 					</For>
 				</ol>
-				<Show when={isSelf()}>
-					<aside class="help-guide__example">
-						<h3>記入例</h3>
-						<dl class="help-guide__sample">
-							<div>
-								<dt>
-									チャレンジ目標<span>期間内に目指すこと</span>
-								</dt>
-								<dd>9月末までに問い合わせ対応の手順をまとめ、対応時間を短縮する。</dd>
-							</div>
-							<div>
-								<dt>
-									中間目標<span>期間の途中での目安</span>
-								</dt>
-								<dd>6月末までによくある問い合わせを整理し、手順書の案を作成する。</dd>
-							</div>
-							<div>
-								<dt>
-									達成状況<span>期末の結果</span>
-								</dt>
-								<dd>手順書を作成してチームに共有した。平均対応時間が15分から10分になった。</dd>
-							</div>
-						</dl>
-					</aside>
-				</Show>
 			</section>
 			<section class="help-guide__faq" aria-labelledby="help-faq-title">
-				<h2 id="help-faq-title">よくある質問</h2>
+				<h2 id="help-faq-title">操作の確認</h2>
 				<h3>{isSelf() ? "シートの記入・提出" : "評価・確定"}</h3>
 				<For each={QUESTIONS[audience()]}>
 					{([question, answer]) => (
@@ -328,6 +375,9 @@ const HelpView: Component = () => {
 								<ChevronDown size={18} aria-hidden="true" />
 							</summary>
 							<p>{answer}</p>
+							<Show when={TOPIC_IMAGES[question]}>
+								{(image) => <HelpScreenshot image={image()} onOpen={openImage} />}
+							</Show>
 						</details>
 					)}
 				</For>
@@ -343,6 +393,9 @@ const HelpView: Component = () => {
 											<ChevronDown size={18} aria-hidden="true" />
 										</summary>
 										<p>{answer}</p>
+										<Show when={TOPIC_IMAGES[question]}>
+											{(image) => <HelpScreenshot image={image()} onOpen={openImage} />}
+										</Show>
 									</details>
 								)}
 							</For>
@@ -350,6 +403,35 @@ const HelpView: Component = () => {
 					)}
 				</For>
 			</section>
+			<dialog
+				id="help-image-viewer"
+				ref={imageDialog}
+				class="help-image-viewer"
+				aria-labelledby="help-image-title"
+				onClose={() => setSelectedImage(null)}
+			>
+				<Show when={selectedImage()}>
+					{(image) => (
+						<>
+							<header>
+								<h2 id="help-image-title">{image().caption}</h2>
+								<button type="button" autofocus onClick={() => imageDialog?.close()}>
+									<X size={18} aria-hidden="true" />
+									閉じる
+								</button>
+							</header>
+							<div class="help-image-viewer__body">
+								<img
+									src={image().src}
+									alt={image().caption}
+									width={image().width}
+									height={image().height}
+								/>
+							</div>
+						</>
+					)}
+				</Show>
+			</dialog>
 		</div>
 	);
 };

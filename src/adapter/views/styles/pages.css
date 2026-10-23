@@ -7,6 +7,9 @@
 	width: 100%;
 	min-width: 0;
 }
+.settings-page {
+	grid-template-columns: minmax(0, 1fr);
+}
 
 .allocation-saved {
 	color: var(--hr-text-muted);
@@ -170,7 +173,8 @@
 	justify-content: flex-end;
 	gap: 0.4rem;
 }
-.period-form input:not([type="radio"], [type="checkbox"]) {
+.period-form input:not([type="radio"], [type="checkbox"]),
+.smtp-test-form select {
 	min-height: 2.5rem;
 	padding: 0.4rem 0.6rem;
 	border: 1px solid var(--hr-border-input);
@@ -179,10 +183,30 @@
 	color: var(--hr-text);
 	font-size: 0.9rem;
 }
-.period-form input:not([type="radio"], [type="checkbox"]):focus {
+.period-form input:not([type="radio"], [type="checkbox"]):focus,
+.smtp-test-form select:focus {
 	outline: none;
 	border-color: var(--hr-accent);
 	box-shadow: 0 0 0 3px var(--hr-accent-muted);
+}
+
+.smtp-test-form {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+}
+.smtp-test-form label,
+.smtp-test-form input,
+.smtp-test-form select {
+	min-width: 0;
+	width: 100%;
+}
+@media (max-width: 800px) {
+	.smtp-test-form {
+		grid-template-columns: 1fr;
+	}
+	.smtp-test-form button {
+		justify-self: start;
+	}
 }
 .period-form input[type="radio"],
 .period-form input[type="checkbox"] {

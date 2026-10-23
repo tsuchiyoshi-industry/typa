@@ -219,6 +219,21 @@ describe("help", () => {
 		// 提出の手順は、通知メールを選べるのはメールのときだけと案内する
 		expect(view.queryByText(/確認画面で通知メールの有無を選び、/)).toBeNull();
 	});
+	it("explains plainly why a mail server may be refused, and why mail is never sent unencrypted", () => {
+		const view = renderHelp();
+		const answerOf = (question: string) => {
+			const summary = view.getByText(question);
+			fireEvent.click(summary);
+			return summary.closest("details")?.textContent ?? "";
+		};
+		const refused = answerOf("テストメールが送れない（HandshakeFailure と出る）");
+		expect(refused).toContain("暗号化");
+		expect(refused).toContain("アプリ内通知");
+		expect(answerOf("Outlook では同じ設定で送れるのに")).toContain("設定の誤りではありません");
+		const plain = answerOf("暗号化しないで送れないのか");
+		expect(plain).toContain("パスワード");
+		expect(plain).toContain("送りません");
+	});
 	it("switches the steps, examples, questions and destination for reviewers", () => {
 		const view = renderHelp();
 		fireEvent.click(view.getByRole("button", { name: /評価方法/ }));

@@ -141,17 +141,41 @@ it.each([
 	expect(backend.complete).not.toHaveBeenCalled();
 });
 
-it("reports missing configuration and SMTP failures without exposing credentials", async () => {
+it("reports missing configuration and shows the SMTP error without the password", async () => {
 	const { backend, request } = setup();
 	backend.smtp.mockResolvedValueOnce(null);
 	expect((await request(testRequest())).status).toBe(409);
 	expect(backend.send).not.toHaveBeenCalled();
-	backend.send.mockRejectedValueOnce(new Error("AUTH private-password internal-address"));
+	backend.send.mockRejectedValueOnce(
+		Object.assign(new Error("Invalid login: 535 bad credentials private-password"), {
+			code: "EAUTH",
+		}),
+	);
 	const response = await request(testRequest());
 	expect(response.status).toBe(503);
-	const body = await response.text();
-	expect(body).toContain("テストメールを送信できませんでした");
-	expect(body).not.toContain("private-password");
-	expect(body).not.toContain("internal-address");
+	const { error } = await response.json();
+	expect(error).toContain("テストメールを送信できませんでした");
+	expect(error).toContain("EAUTH: Invalid login: 535 bad credentials ********");
+	expect(error).not.toContain("private-password");
 	expect(backend.complete).not.toHaveBeenCalled();
+});
+
+it.each([
+	["a non-Error value", "socket closed", "socket closed"],
+	["an error without a message", new Error(""), "Error"],
+	["a very long message", new Error("x".repeat(1000)), "x".repeat(300)],
+])("keeps the test failure readable for %s", async (_, thrown, expected) => {
+	const { backend, request } = setup();
+	backend.send.mockRejectedValueOnce(thrown);
+	const { error } = await (await request(testRequest())).json();
+	expect(error).toContain(`（詳細: ${expected}）`);
+});
+
+it("shows why the SMTP settings could not be read", async () => {
+	const { backend, request } = setup();
+	backend.smtp.mockRejectedValueOnce(new Error("connection refused"));
+	const response = await request(testRequest());
+	expect(response.status).toBe(503);
+	expect((await response.json()).error).toContain("（詳細: connection refused）");
+	expect(backend.send).not.toHaveBeenCalled();
 });

@@ -512,6 +512,8 @@ a:hover {
 	font-size: 0.8125rem;
 	font-weight: 550;
 	line-height: 1.45;
+	/* SMTP の応答には URL など切れ目のない長い文字列が入る */
+	overflow-wrap: anywhere;
 }
 
 .toast__copy span {

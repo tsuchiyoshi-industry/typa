@@ -47,19 +47,35 @@ async function sendTestNotification(
 	if (!isNotificationTemplateId(body.templateId)) {
 		return respond({ error: "送信する通知パターンを選んでください。" }, 400);
 	}
+	let smtp: SmtpSettings | null = null;
 	try {
-		const smtp = await backend.smtp();
+		smtp = await backend.smtp();
 		if (!smtp?.smtp_host || !smtp.smtp_user) {
 			return respond({ error: "通知メールの設定を保存してから送信テストを行ってください。" }, 409);
 		}
 		await backend.send(smtp, composeTestMail(body.templateId, to));
 		return respond({ success: true });
-	} catch {
+	} catch (error) {
+		// 送信テストは Admin だけが使う。原因を直せるよう SMTP の応答を見せ、パスワードだけは伏せる
 		return respond(
-			{ error: "テストメールを送信できませんでした。SMTP設定と接続先を確認してください。" },
+			{
+				error: `テストメールを送信できませんでした。SMTP設定と接続先を確認してください。（詳細: ${errorDetail(error, smtp?.smtp_password)}）`,
+			},
 			503,
 		);
 	}
+}
+
+function errorDetail(error: unknown, secret?: string): string {
+	const { code, message } = (error ?? {}) as { code?: unknown; message?: unknown };
+	let detail = typeof message === "string" && message ? message : String(error);
+	if (typeof code === "string" && !detail.includes(code)) {
+		detail = `${code}: ${detail}`;
+	}
+	if (secret) {
+		detail = detail.split(secret).join("********");
+	}
+	return detail.slice(0, 300);
 }
 const CORS = {
 	"Access-Control-Allow-Origin": "*",

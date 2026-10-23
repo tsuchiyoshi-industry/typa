@@ -41,7 +41,10 @@ test("Admin selects either notification, retries failures, and does not persist 
 				contentType: "application/json",
 				body: JSON.stringify(
 					failNext
-						? { error: "テストメールを送信できませんでした。SMTP設定と接続先を確認してください。" }
+						? {
+								error:
+									"テストメールを送信できませんでした。SMTP設定と接続先を確認してください。（詳細: EAUTH: Invalid login: 535-5.7.8 Username and Password not accepted. https://support.google.com/mail/?p=BadCredentials_synthetic_long_token_without_breaks）",
+							}
 						: { success: true },
 				),
 			});
@@ -82,7 +85,7 @@ test("Admin selects either notification, retries failures, and does not persist 
 		failNext = true;
 		await send.click();
 		await expect(
-			page.getByRole("alert").filter({ hasText: "SMTP設定と接続先を確認してください" }),
+			page.getByRole("alert").filter({ hasText: "詳細: EAUTH: Invalid login: 535" }),
 		).toBeVisible();
 		await expect(send).toBeEnabled();
 		await expect(to).toHaveValue("test-recipient@example.jp");

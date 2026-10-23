@@ -50,6 +50,16 @@ export function createNotificationBackend(): NotificationBackend {
 			}
 			return data as SmtpSettings | null;
 		},
+		async channel() {
+			const { data, error } = await admin
+				.from("workspace_settings")
+				.select("notification_channel")
+				.single();
+			if (error) {
+				throw error;
+			}
+			return data.notification_channel as string;
+		},
 		async saveSmtp(smtp) {
 			const now = new Date().toISOString();
 			const { data, error } = await admin

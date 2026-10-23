@@ -357,6 +357,28 @@ describe("comments, final rank, status and notifications", () => {
 		);
 	});
 	it.each([
+		[EvaluationStatus.DRAFT, 1, "submitted"],
+		[EvaluationStatus.SUBMITTED, 2, "first_evaluated"],
+	] as const)(
+		"asks for no mail after %s by %s to %s while the workspace notifies in the app",
+		async (initial, id, status) => {
+			const { sheets, employees, out } = setup(initial);
+			const inApp = (next: EvaluationStatus) => sheet(next, undefined, false, false, false);
+			sheets.findById.mockResolvedValue(inApp(initial));
+			sheets.updateStatus.mockImplementation(async (_id, next) => inApp(next));
+			const notifications = notificationRepository();
+			const useCase = new UpdateEvaluationStatusInteractor(sheets, employees, notifications);
+			await useCase.execute(
+				{ sheetId: 100, currentEmployeeId: id, status: EvaluationStatus.from(status) },
+				out,
+			);
+			expect(sheets.updateStatus).toHaveBeenCalled();
+			await expect(useCase.resendNotification(100, id, vi.fn())).rejects.toThrow();
+			expect(notifications.notifySheetSubmitted).not.toHaveBeenCalled();
+			expect(notifications.notifyFirstEvaluationConfirmed).not.toHaveBeenCalled();
+		},
+	);
+	it.each([
 		[EvaluationStatus.DRAFT, 2, "submitted"],
 		[EvaluationStatus.DRAFT, 2, "first_evaluated"],
 		[EvaluationStatus.DRAFT, 3, "finalized"],

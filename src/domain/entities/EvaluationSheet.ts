@@ -69,6 +69,11 @@ export class EvaluationSheet {
 		public readonly currentEvaluatorIds: readonly number[] = [],
 		/** 締め後修正(遡及処理)の記録。古い順。 */
 		public readonly corrections: readonly SheetCorrection[] = [],
+		/**
+		 * 次に評価する人へメールで知らせるか(通知の方法がメール)。false ならアプリ内通知で、
+		 * 状態の変更と同時に DB が知らせる。設定を読まずに作るシート(テストなど)は、メールで知らせる。
+		 */
+		public readonly notifiesByMail: boolean = true,
 	) {}
 
 	/** 設定を読まずにシートを作るとき(テストなど)の上限。DB の初期値と同じ。 */
@@ -96,6 +101,7 @@ export class EvaluationSheet {
 		maxObjectives?: number;
 		currentEvaluatorIds?: readonly number[];
 		corrections?: readonly SheetCorrection[];
+		notifiesByMail?: boolean;
 	}): EvaluationSheet {
 		const commonEvaluationResults = params.commonEvaluationResults ?? [];
 		const objectiveScoreTotals =
@@ -130,6 +136,7 @@ export class EvaluationSheet {
 			params.maxObjectives,
 			params.currentEvaluatorIds,
 			params.corrections,
+			params.notifiesByMail,
 		);
 	}
 

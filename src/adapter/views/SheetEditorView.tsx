@@ -295,12 +295,15 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 			title: "評価シートを提出しますか？",
 			message:
 				"提出すると目標は編集できなくなり、評価者に表示されて一次評価が始まります。一次評価が確定するまでは、下書きに戻して編集し直せます。",
-			checkbox: {
-				label: `一次評価者（${sheet()?.primaryEvaluator ?? "未設定"}）に通知メールを送る`,
-				onChange: (checked) => {
-					notify = checked;
-				},
-			},
+			// アプリ内通知は、確定と同時に必ず届く。選べるのはメールのときだけ
+			checkbox: sheet()?.notifiesByMail
+				? {
+						label: `一次評価者（${sheet()?.primaryEvaluator ?? "未設定"}）に通知メールを送る`,
+						onChange: (checked) => {
+							notify = checked;
+						},
+					}
+				: undefined,
 			confirmLabel: "提出する",
 		});
 		if (confirmed) {
@@ -335,12 +338,15 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 			title: "一次評価を確定しますか？",
 			message: `一次評価ランクは ${rankText(sheet()?.firstEvaluationRank)} です。確定すると一次評価は変更できなくなります。この操作は取り消せません。`,
 			note: nextNote(),
-			checkbox: {
-				label: `二次評価者（${sheet()?.secondaryEvaluator ?? "未設定"}）に通知メールを送る`,
-				onChange: (checked) => {
-					notify = checked;
-				},
-			},
+			// アプリ内通知は、確定と同時に必ず届く。選べるのはメールのときだけ
+			checkbox: sheet()?.notifiesByMail
+				? {
+						label: `二次評価者（${sheet()?.secondaryEvaluator ?? "未設定"}）に通知メールを送る`,
+						onChange: (checked) => {
+							notify = checked;
+						},
+					}
+				: undefined,
 			confirmLabel: "一次評価を確定する",
 			tone: "danger",
 		});

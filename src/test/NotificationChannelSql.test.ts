@@ -109,3 +109,23 @@ it("shows an Admin when the SMTP settings passed the test send", async () => {
 		[],
 	);
 });
+
+it("tells everyone who reads a sheet how the next evaluator will be told", async () => {
+	await db.exec(`reset role;
+		insert into public.evaluation_sheets (id, period_id, employee_id) values (300, 1, 4)
+		on conflict (id) do nothing;`);
+	const told = async (id: number) => {
+		await actAs(db, id);
+		return (
+			await db.query<{ channel: string }>(
+				"select public.get_sheet(300)->>'notificationChannel' as channel",
+			)
+		).rows[0].channel;
+	};
+	expect(await told(4)).toBe("in_app");
+	expect(await told(2)).toBe("in_app");
+	await db.exec(`reset role; update public.workspace_settings
+		set smtp_verified_at = now(), notification_channel = 'email'`);
+	expect(await told(4)).toBe("email");
+	expect(await told(3)).toBe("email");
+});

@@ -31,7 +31,7 @@ const periods = [
 		isActive: false,
 	},
 ];
-function setup(people: ReviewerRowDto[], url = "/review") {
+function setup(people: ReviewerRowDto[], url = "/review", notifiesByMail = true) {
 	const rows = people;
 	const history = createMemoryHistory();
 	history.set({ value: url, replace: true, scroll: false });
@@ -39,7 +39,7 @@ function setup(people: ReviewerRowDto[], url = "/review") {
 		loadPeriods: vi.fn().mockResolvedValue(periods),
 		load: vi.fn().mockImplementation(async () => structuredClone(rows)),
 	};
-	const editor = reviewerEditorFixture(() => rows);
+	const editor = reviewerEditorFixture(() => rows, undefined, notifiesByMail);
 
 	const view = render(() => (
 		<MemoryRouter
@@ -325,6 +325,15 @@ it("confirms the primary evaluation and notifies the secondary evaluator unless 
 	expect(
 		(view.getByRole("textbox", { name: "一次評価者の総評" }) as HTMLTextAreaElement).readOnly,
 	).toBe(true);
+});
+it("offers no mail checkbox while the workspace notifies in the app", async () => {
+	const view = setup([reviewerRow(1, submittedToPrimary)], "/review?period=10&sheet=101", false);
+	const updateStatus = vi.spyOn(view.editor.controller, "updateStatus");
+	fireEvent.click(await view.findByRole("button", { name: "一次評価を確定する" }));
+	const dialog = await view.findByRole("dialog", { name: "一次評価を確定しますか？" });
+	expect(within(dialog).queryByRole("checkbox")).toBeNull();
+	fireEvent.click(within(dialog).getByRole("button", { name: "一次評価を確定する" }));
+	await waitFor(() => expect(updateStatus).toHaveBeenCalled());
 });
 it("lets a secondary evaluator read but not evaluate before the primary evaluation is confirmed", async () => {
 	const view = setup(

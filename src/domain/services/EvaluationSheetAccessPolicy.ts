@@ -67,8 +67,10 @@ export class EvaluationSheetAccessPolicy {
 		return this.viewerIsSubject;
 	}
 
+	/** アプリ内通知は状態の変更と同時に届くので、再送するのはメールのときだけ。 */
 	canResendNotification(): boolean {
 		return (
+			this.sheet.notifiesByMail &&
 			this.periodIsOpen &&
 			((this.viewerIsSubject && this.sheet.status.isAwaitingFirstEvaluation()) ||
 				(!this.viewerIsSubject &&

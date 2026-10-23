@@ -38,6 +38,7 @@ export class FetchEvaluationSheetInteractor
 				primaryEvaluator: "未設定",
 				secondaryEvaluator: "未設定",
 				primaryIsFinalEvaluator: false,
+				notifiesByMail: false,
 				corrections: [],
 				maxObjectives: 0,
 				firstOverallComment: "",

@@ -47,6 +47,14 @@ describe("authorization matrix", () => {
 			},
 		);
 	}
+	it("offers no resend while the workspace notifies in the app", () => {
+		for (const status of statuses) {
+			for (const id of [1, 2, 3, 4]) {
+				const inApp = sheet(status, undefined, false, false, false);
+				expect(EvaluationSheetAccessPolicy.for(id, inApp).canResendNotification()).toBe(false);
+			}
+		}
+	});
 	it("freezes every change once the period is closed, and lets the evaluators read a closed draft", () => {
 		for (const status of statuses) {
 			for (const id of [1, 2, 3]) {

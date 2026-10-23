@@ -120,6 +120,7 @@ export function toEvaluationSheetDto(
 			totalEvaluationScore: canViewFinal ? sheet.allocatedScores.totalEvaluationScore : null,
 		},
 		status: sheet.status.toString(),
+		notifiesByMail: sheet.notifiesByMail,
 		corrections: sheet.corrections
 			.filter((correction) => policy.canViewCorrection(correction))
 			.map(toSheetCorrectionDto),

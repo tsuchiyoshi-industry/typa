@@ -251,6 +251,12 @@ describe("reading a sheet", () => {
 		expect(sheet?.commonEvaluationResults[0]).toMatchObject({ id: -31, itemId: 31 });
 		expect(sheet?.pendingEvaluationItems("first")).toContain("共通評価「共通項目」");
 	});
+	it("knows whether the next evaluator is told by mail, assuming not when unsure", async () => {
+		expect((await find({ notificationChannel: "email" }))?.notifiesByMail).toBe(true);
+		expect((await find({ notificationChannel: "in_app" }))?.notifiesByMail).toBe(false);
+		expect((await find({ notificationChannel: undefined }))?.notifiesByMail).toBe(false);
+		expect((await find({ notificationChannel: "EMAIL" }))?.notifiesByMail).toBe(false);
+	});
 	it("fails if the settings are missing instead of silently using 20/80 or 4 goals", async () => {
 		await expect(find({ allocation: null })).rejects.toThrow("配点設定");
 		await expect(find({ maxChallengeGoals: null })).rejects.toThrow("上限");

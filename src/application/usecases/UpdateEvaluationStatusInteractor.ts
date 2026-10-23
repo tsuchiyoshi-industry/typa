@@ -126,7 +126,8 @@ export class UpdateEvaluationStatusInteractor
 		const repository = this.emailNotificationRepository;
 		const submitted = sheet.status.isAwaitingFirstEvaluation();
 		const firstConfirmed = sheet.status.isAwaitingSecondEvaluation();
-		if (!repository || !(submitted || firstConfirmed)) {
+		// アプリ内通知は、状態の変更と同時に DB が作っている
+		if (!repository || !sheet.notifiesByMail || !(submitted || firstConfirmed)) {
 			return;
 		}
 

@@ -94,6 +94,8 @@ export interface SheetRpcRow {
 		correctedAt: string;
 	}>;
 	maxChallengeGoals: number | null;
+	/** 通知の方法。"email" のときだけ、アプリが通知メールを頼む。 */
+	notificationChannel?: string;
 }
 
 interface PeriodJoinRow {
@@ -248,6 +250,8 @@ export function toSheet(row: SheetRpcRow): EvaluationSheet | null {
 		finalEvaluationRank: EvaluationRank.fromOptional(row.finalRankLetter, row.finalRankLevel),
 		firstEvaluationRank: EvaluationRank.fromText(row.firstRank),
 		corrections: (row.corrections ?? []).map(SheetCorrection.restore),
+		// 分からないときはメールと見なさない(頼んでいないメールを送らない)
+		notifiesByMail: row.notificationChannel === "email",
 	});
 }
 

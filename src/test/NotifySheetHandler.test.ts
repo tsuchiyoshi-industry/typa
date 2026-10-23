@@ -30,6 +30,7 @@ function setup() {
 		complete: vi.fn().mockResolvedValue(undefined),
 		send: vi.fn().mockResolvedValue(undefined),
 		saveSmtp: vi.fn().mockResolvedValue(undefined),
+		channel: vi.fn().mockResolvedValue("email"),
 	} satisfies NotificationBackend;
 	const handle = createNotificationHandler(backend);
 	const request = (body: string = '{"sheetId":1}') =>
@@ -286,5 +287,25 @@ it("no longer accepts a test with the saved settings that skips saving", async (
 	);
 	expect(response.status).toBe(400);
 	expect(backend.smtp).not.toHaveBeenCalled();
+	expect(backend.send).not.toHaveBeenCalled();
+});
+
+it("sends no mail and records nothing while the workspace notifies in the app", async () => {
+	const { backend, request } = setup();
+	backend.channel.mockResolvedValueOnce("in_app");
+	const response = await request();
+	expect(response.status).toBe(200);
+	expect(await response.json()).toEqual({ deliveries: [] });
+	expect(backend.claim).not.toHaveBeenCalled();
+	expect(backend.send).not.toHaveBeenCalled();
+});
+
+it("sends nothing when it cannot tell how the workspace notifies", async () => {
+	const { backend, request } = setup();
+	backend.channel.mockRejectedValueOnce(new Error("database unavailable"));
+	const response = await request();
+	expect(response.status).toBe(503);
+	expect((await response.json()).error).toContain("通知の設定を読み込めませんでした");
+	expect(backend.claim).not.toHaveBeenCalled();
 	expect(backend.send).not.toHaveBeenCalled();
 });

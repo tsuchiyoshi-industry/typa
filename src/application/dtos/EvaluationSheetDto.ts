@@ -108,4 +108,6 @@ export interface EvaluationSheetDto {
 	finalEvaluationRank?: EvaluationRankDto;
 	/** 締め後修正のうち、直した項目をこの人が見られるもの。古い順。 */
 	corrections: SheetCorrectionDto[];
+	/** 次に評価する人へメールで知らせるか。false ならアプリ内通知(画面に通知メールの選択肢を出さない)。 */
+	notifiesByMail: boolean;
 }

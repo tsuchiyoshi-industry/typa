@@ -29,6 +29,8 @@ export interface NotificationBackend {
 	send(settings: SmtpSettings, mail: Mail): Promise<void>;
 	/** 送信テストに成功した設定を保存し、確認済みにする。 */
 	saveSmtp(settings: SmtpSettings): Promise<void>;
+	/** 評価の依頼を知らせる方法。"email" のときだけメールを送る。 */
+	channel(): Promise<string>;
 }
 
 /** 入力された SMTP 設定。正しくなければ、直してほしいことを返す。 */
@@ -236,6 +238,19 @@ export function createNotificationHandler(backend: NotificationBackend) {
 		const sheetId = input.sheetId;
 		if (!Number.isSafeInteger(sheetId) || (sheetId as number) <= 0) {
 			return respond({ error: "評価シートを指定してください。" }, 400);
+		}
+		// アプリ内通知のときは、状態の変更と同時に DB が通知を作る。メールは送らない
+		let channel: string;
+		try {
+			channel = await backend.channel();
+		} catch {
+			return respond(
+				{ error: "通知の設定を読み込めませんでした。時間をおいて再送してください。" },
+				503,
+			);
+		}
+		if (channel !== "email") {
+			return respond({ deliveries: [] });
 		}
 		let claim: NotificationClaim;
 		try {

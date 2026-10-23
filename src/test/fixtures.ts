@@ -77,6 +77,7 @@ export const sheet = (
 	gradeId?: number | null,
 	periodClosed = false,
 	allowUnfinalizedClose = false,
+	notifiesByMail = true,
 ) =>
 	EvaluationSheet.create({
 		sheetId: 100,
@@ -91,6 +92,7 @@ export const sheet = (
 		status,
 		finalEvaluationRank: EvaluationRank.from("A", "plus"),
 		gradeId,
+		notifiesByMail,
 	});
 export const output = <T>() => ({ present: vi.fn<(response: T) => void>() });
 

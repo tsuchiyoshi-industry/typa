@@ -255,12 +255,50 @@ Deno.serve({hostname:"127.0.0.1",port:56423},createNotificationHandler(createNot
 			body: JSON.stringify({ sheetId: id }),
 		});
 	assert.equal((await notice("invalid-token")).status, 401);
-	assert.equal((await notice(session.access_token)).status, 409); // Missing SMTP: tracked failure, no external send.
-	assert.equal((await notice(session.access_token)).status, 429); // A second request is rate limited.
-	console.log("API: subject submission and real notification HTTP authorization/cooldown passed.");
+	const deliveries = () => sql("select count(*) from public.sheet_notification_deliveries");
+	// 既定はアプリ内通知: メールは送らず、送信の記録も残さない
+	const recorded = deliveries();
+	const inApp = await notice(session.access_token);
+	assert.equal(inApp.status, 200);
+	assert.deepEqual(await inApp.json(), { deliveries: [] });
+	assert.equal(deliveries(), recorded);
+	// 本人にはアプリ内通知は見えない
+	assert.deepEqual(required(await supabase.from("notifications").select("id")), []);
+	// メールのとき: 未設定の SMTP は記録して失敗し、続けての依頼は待たせる
+	sql("update public.workspace_settings set smtp_verified_at=now(), notification_channel='email'");
+	try {
+		assert.equal((await notice(session.access_token)).status, 409); // Missing SMTP: tracked failure, no external send.
+		assert.equal((await notice(session.access_token)).status, 429); // A second request is rate limited.
+	} finally {
+		sql(
+			"update public.workspace_settings set notification_channel='in_app', smtp_verified_at=null",
+		);
+	}
+	console.log(
+		"API: subject submission, in-app default without mail, and real notification HTTP authorization/cooldown passed.",
+	);
 	const reviewerSession = (await evaluatorSession(2)).session;
 	assert.ok(reviewerSession);
 	assert.equal((await testNotice(reviewerSession.access_token)).status, 403);
+	// 一次評価者には、提出と同時にアプリ内通知が届いている。既読にできる
+	const waiting = required(
+		await supabase.from("notifications").select("id,sheet_id,kind,read_at").eq("sheet_id", id),
+	) as { id: number; sheet_id: number; kind: string; read_at: string | null }[];
+	assert.deepEqual(
+		waiting.map(({ sheet_id, kind, read_at }) => ({ sheet_id, kind, read_at })),
+		[{ sheet_id: id, kind: "submitted", read_at: null }],
+	);
+	assert.equal(
+		required(
+			await supabase
+				.from("notifications")
+				.update({ read_at: new Date().toISOString() })
+				.eq("id", waiting[0].id)
+				.select("id"),
+		)?.length,
+		1,
+	);
+	console.log("API: in-app notice reached the primary evaluator only and could be marked read.");
 	let current = await sheets.findById(id);
 	assert.ok(current);
 	await goals.updateScore(current.objectives[0].id, 4);

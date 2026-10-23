@@ -19,6 +19,7 @@ import { EvaluationStatus } from "../domain/valueObjects/EvaluationStatus";
 export function reviewerEditorFixture(
 	getRows: () => ReviewerRowDto[],
 	changed?: () => void,
+	notifiesByMail = true,
 ): SheetEditorViewProps {
 	const presenter = createSheetEditorPresenter();
 	const common = createCommonEvaluationPresenter();
@@ -61,6 +62,7 @@ export function reviewerEditorFixture(
 		};
 	};
 	const dto = (row: ReviewerRowDto): EvaluationSheetDto => ({
+		notifiesByMail,
 		commonEvaluation: commonEvaluation(row),
 		corrections: [],
 		sheetId: row.sheetId as number,

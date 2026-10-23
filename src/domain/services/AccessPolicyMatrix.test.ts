@@ -47,7 +47,7 @@ describe("authorization matrix", () => {
 			},
 		);
 	}
-	it("freezes every change once the period is closed, and keeps viewing and export", () => {
+	it("freezes every change once the period is closed, and lets the evaluators read a closed draft", () => {
 		for (const status of statuses) {
 			for (const id of [1, 2, 3]) {
 				const open = EvaluationSheetAccessPolicy.for(id, sheet(status));
@@ -65,11 +65,29 @@ describe("authorization matrix", () => {
 				expect(closed.canFinalizeEvaluation()).toBe(false);
 				expect(() => closed.assertPeriodOpen()).toThrow("この評価期間は締められているため");
 				expect(() => open.assertPeriodOpen()).not.toThrow();
-				// 見られる範囲と、確定済みシートの出力は変わらない
-				expect(closed.canViewSheet()).toBe(open.canViewSheet());
-				expect(closed.canViewCommonEvaluation()).toBe(open.canViewCommonEvaluation());
+				// 締めた下書きはもう変わらないので、評価者も読める。ほかの見られる範囲は変わらない
+				const closedDraftForEvaluator = status === EvaluationStatus.DRAFT && id !== 1;
+				expect(closed.canViewSheet()).toBe(open.canViewSheet() || closedDraftForEvaluator);
+				expect(closed.canViewCommonEvaluation()).toBe(
+					open.canViewCommonEvaluation() || closedDraftForEvaluator,
+				);
 				expect(closed.canViewFinalEvaluation()).toBe(open.canViewFinalEvaluation());
+				// 出力できるのは確定済みシートだけのまま
 				expect(closed.canExportSheet()).toBe(open.canExportSheet());
+			}
+		}
+	});
+	it("exports unfinalized sheets only once a period that allows it has been closed", () => {
+		for (const status of statuses) {
+			for (const id of [1, 2, 3, 4]) {
+				const loose = (closed: boolean) =>
+					EvaluationSheetAccessPolicy.for(id, sheet(status, undefined, closed, true));
+				// 関係者は全員出力できる。実施中の間は、これまでどおり確定したシートだけ
+				expect(loose(true).canExportSheet()).toBe(id !== 4);
+				expect(loose(false).canExportSheet()).toBe(
+					status === EvaluationStatus.FINALIZED &&
+						(id === 1 || (id !== 4 && status !== EvaluationStatus.DRAFT)),
+				);
 			}
 		}
 	});

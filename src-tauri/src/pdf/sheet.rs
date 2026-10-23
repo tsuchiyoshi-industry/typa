@@ -62,6 +62,12 @@ pub(crate) struct SheetExportData {
     total_evaluation_score: String,
     first_overall_comment: String,
     second_overall_comment: String,
+    // 評価を確定せずに締めた期間のシート。テンプレートが点数・ランク・評価者のコメントを「***」で伏せる。
+    #[serde(default)]
+    unconfirmed: bool,
+    // 締め後修正(遡及処理)。テンプレートが赤字で1件1行に載せる。
+    #[serde(default)]
+    corrections: Vec<String>,
     objectives: Vec<ObjectiveData>,
     common_evaluations: Vec<CommonEvaluationData>,
 }
@@ -113,6 +119,16 @@ pub(super) fn to_dict(data: &SheetExportData) -> Dict {
     dict.insert(
         "primary_is_final_evaluator".into(),
         Value::Bool(data.primary_is_final_evaluator),
+    );
+    dict.insert("unconfirmed".into(), Value::Bool(data.unconfirmed));
+    dict.insert(
+        "corrections".into(),
+        Value::Array(
+            data.corrections
+                .iter()
+                .map(|line| Value::Str(line.as_str().into()))
+                .collect(),
+        ),
     );
 
     let score = |s: Option<i32>| s.map_or(Value::Str("未評価".into()), |s| Value::Int(s.into()));
@@ -204,15 +220,18 @@ pub(crate) mod tests {
         let directory = std::env::temp_dir().join(format!("typa-pdf-test-{}", std::process::id()));
         fs::create_dir_all(&directory).unwrap();
         let path = directory.join("sheet.pdf");
-        // 最終評価者が二次評価者の場合・一次評価者の場合の両方でテンプレートがコンパイルできること
-        let results: Vec<_> = [false, true]
+        // 最終評価者が二次評価者の場合・一次評価者の場合、評価を確定せずに締めた場合でテンプレートがコンパイルできること
+        let results: Vec<_> = [(false, false), (true, false), (false, true)]
             .into_iter()
-            .map(|primary_is_final_evaluator| {
-                let result = compile_template(
-                    TEMPLATE,
-                    to_dict(&test_data(primary_is_final_evaluator)),
-                    &path,
-                );
+            .map(|(primary_is_final_evaluator, unconfirmed)| {
+                let mut data = test_data(primary_is_final_evaluator);
+                data.unconfirmed = unconfirmed;
+                // 締め後修正の欄も、マークアップに見える文字ごと文字として載ること
+                data.corrections = vec![
+                    "2026-10-23 チャレンジ目標 1・二次評価: 4 → 3(理由: *転記ミス* #eval(\"1\"))"
+                        .into(),
+                ];
+                let result = compile_template(TEMPLATE, to_dict(&data), &path);
                 let header = result.as_ref().ok().map(|_| fs::read(&path).unwrap());
                 if path.exists() {
                     fs::remove_file(&path).unwrap();

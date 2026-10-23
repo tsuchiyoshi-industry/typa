@@ -1,8 +1,11 @@
 import { A, useLocation } from "@solidjs/router";
 import ChevronDown from "lucide-solid/icons/chevron-down";
 import CircleQuestionMark from "lucide-solid/icons/circle-question-mark";
+import FilePenLine from "lucide-solid/icons/file-pen-line";
 import LogOut from "lucide-solid/icons/log-out";
 import Menu from "lucide-solid/icons/menu";
+import PackageOpen from "lucide-solid/icons/package-open";
+// "lucide-solid/icons/menu";
 import Settings from "lucide-solid/icons/settings";
 import User from "lucide-solid/icons/user";
 import X from "lucide-solid/icons/x";
@@ -124,6 +127,22 @@ const DashboardLayout: Component<{
 								<A href="/settings" class="user-menu-item" onClick={() => setUserMenuOpen(false)}>
 									<Settings size={18} />
 									<span>設定</span>
+								</A>
+							</Show>
+							<Show when={user()?.canRunSetup}>
+								<A href="/setup" class="user-menu-item" onClick={() => setUserMenuOpen(false)}>
+									<PackageOpen size={18} />
+									<span>導入処理</span>
+								</A>
+							</Show>
+							<Show when={user()?.canCorrectClosedSheets}>
+								<A
+									href="/retroactive"
+									class="user-menu-item"
+									onClick={() => setUserMenuOpen(false)}
+								>
+									<FilePenLine size={18} />
+									<span>遡及処理</span>
 								</A>
 							</Show>
 							<A href="/help" class="user-menu-item" onClick={() => setUserMenuOpen(false)}>

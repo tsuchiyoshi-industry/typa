@@ -35,8 +35,10 @@ import CommonEvaluationView from "./components/CommonEvaluationView";
 import OverallCommentSection, {
 	type OverallCommentTarget,
 } from "./components/OverallCommentSectionView";
+import PreviousGoalsView from "./components/PreviousGoalsView";
 import RadarChart from "./components/RadarChart";
 import SearchableEvaluatorSelect from "./components/SearchableEvaluatorSelect";
+import SheetCorrectionsNotice from "./components/SheetCorrectionsNotice";
 import SheetStatusTrack from "./components/SheetStatusTrack";
 import {
 	clearUnsavedChanges,
@@ -710,6 +712,18 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 											</ul>
 										</details>
 									</div>
+								</Show>
+								<SheetCorrectionsNotice corrections={sheet()?.corrections ?? []} />
+								<Show when={sheetId()}>
+									{(id) => (
+										<PreviousGoalsView
+											sheetId={id()}
+											revision={(sheet()?.objectives ?? []).map((goal) => goal.id).join(",")}
+											canCarry={viewModel().canEditMilestoneGoal}
+											controller={props.challengeEvaluationController}
+											onCarried={reloadCurrentSheetFromRoute}
+										/>
+									)}
 								</Show>
 								<ChallengeEvaluationView
 									sheetId={sheetId()}

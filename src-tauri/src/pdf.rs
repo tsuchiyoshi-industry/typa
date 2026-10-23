@@ -35,7 +35,7 @@ pub(crate) async fn generate_pdf_with_typst<R: tauri::Runtime>(
     output_path: String,
 ) -> Result<String, String> {
     let path = PathBuf::from(&output_path);
-    validate_pdf_destination(&path, &app.fs_scope())?;
+    validate_destination(&path, &app.fs_scope(), "pdf")?;
     run_blocking(move || compile_template(sheet::TEMPLATE, sheet::to_dict(&data), &path)).await?;
     Ok(output_path)
 }
@@ -48,7 +48,7 @@ pub(crate) async fn generate_sheet_overview_pdf<R: tauri::Runtime>(
     output_path: String,
 ) -> Result<String, String> {
     let path = PathBuf::from(&output_path);
-    validate_pdf_destination(&path, &app.fs_scope())?;
+    validate_destination(&path, &app.fs_scope(), "pdf")?;
     run_blocking(move || compile_template(overview::TEMPLATE, overview::to_dict(&data), &path))
         .await?;
     Ok(output_path)
@@ -71,16 +71,24 @@ async fn run_blocking(
         .map_err(|e| format!("PDF generation task failed: {}", e))?
 }
 
-fn validate_pdf_destination(path: &Path, scope: &tauri::fs::Scope) -> Result<(), String> {
+/// 保存ダイアログで選ばれた、拡張子 extension の絶対パスだけを書き込み先として認める。
+pub(crate) fn validate_destination(
+    path: &Path,
+    scope: &tauri::fs::Scope,
+    extension: &str,
+) -> Result<(), String> {
     if !path.is_absolute()
         || !path
             .extension()
-            .is_some_and(|ext| ext.eq_ignore_ascii_case("pdf"))
+            .is_some_and(|ext| ext.eq_ignore_ascii_case(extension))
         || path
             .components()
             .any(|part| matches!(part, Component::ParentDir))
     {
-        return Err("保存先は絶対パスのPDFファイルを指定してください。".into());
+        return Err(format!(
+            "保存先は絶対パスの{}ファイルを指定してください。",
+            extension.to_uppercase()
+        ));
     }
     if !scope.is_allowed(path) {
         return Err("保存ダイアログで選択されていない保存先です。".into());
@@ -118,17 +126,22 @@ mod tests {
     fn pdf_destination_requires_absolute_pdf_and_dialog_scope() {
         let app = mock_app();
         let scope = app.fs_scope();
-        assert!(validate_pdf_destination(Path::new("sheet.pdf"), &scope).is_err());
+        assert!(validate_destination(Path::new("sheet.pdf"), &scope, "pdf").is_err());
         let path = std::env::temp_dir().join("typa-test-only.pdf");
-        assert!(validate_pdf_destination(&path, &scope).is_err());
+        assert!(validate_destination(&path, &scope, "pdf").is_err());
         scope.allow_file(&path).unwrap();
-        assert!(validate_pdf_destination(&path, &scope).is_ok());
+        assert!(validate_destination(&path, &scope, "pdf").is_ok());
+        assert!(validate_destination(&path, &scope, "csv").is_err());
         let other = path.with_extension("exe");
         scope.allow_file(&other).unwrap();
-        assert!(validate_pdf_destination(&other, &scope).is_err());
+        assert!(validate_destination(&other, &scope, "pdf").is_err());
         assert!(
-            validate_pdf_destination(&std::env::temp_dir().join("child/../sheet.pdf"), &scope)
-                .is_err()
+            validate_destination(
+                &std::env::temp_dir().join("child/../sheet.pdf"),
+                &scope,
+                "pdf"
+            )
+            .is_err()
         );
     }
 

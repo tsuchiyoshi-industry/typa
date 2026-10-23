@@ -399,7 +399,21 @@ describe("lists and permission queries", () => {
 		const out = output<never>();
 		const interactor = new FetchDistinctPeriodsInteractor(repo);
 		await interactor.execute({}, out);
-		expect(out.present).toHaveBeenCalledWith({ periods: [period()] });
+		expect(out.present).toHaveBeenCalledWith({
+			periods: [
+				{
+					id: 10,
+					periodName: "テスト期間",
+					termName: "テスト期間",
+					startDate: "2026-04-01",
+					endDate: "2026-09-30",
+					isActive: true,
+					state: "active",
+					stateLabel: "実施中",
+					allowUnfinalizedClose: false,
+				},
+			],
+		});
 		repo.findDistinctPeriods.mockRejectedValue(new Error("DB"));
 		await expect(interactor.execute({}, out)).rejects.toThrow("DB");
 	});

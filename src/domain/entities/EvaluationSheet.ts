@@ -7,6 +7,7 @@ import type { CommonEvaluationResult } from "./CommonEvaluationResult";
 import type { Employee } from "./Employee";
 import type { EvaluationPeriod } from "./EvaluationPeriod";
 import type { Milestone } from "./Milestone";
+import type { SheetCorrection } from "./SheetCorrection";
 
 /** DB に保存された集計値と配点。点数を保存したときの項目・満点・配点で計算したもの。 */
 export interface StoredSheetScores {
@@ -66,6 +67,8 @@ export class EvaluationSheet {
 		 * この人たちは、確定したシートを評価の記録として読める。
 		 */
 		public readonly currentEvaluatorIds: readonly number[] = [],
+		/** 締め後修正(遡及処理)の記録。古い順。 */
+		public readonly corrections: readonly SheetCorrection[] = [],
 	) {}
 
 	/** 設定を読まずにシートを作るとき(テストなど)の上限。DB の初期値と同じ。 */
@@ -92,6 +95,7 @@ export class EvaluationSheet {
 		gradeId?: number | null;
 		maxObjectives?: number;
 		currentEvaluatorIds?: readonly number[];
+		corrections?: readonly SheetCorrection[];
 	}): EvaluationSheet {
 		const commonEvaluationResults = params.commonEvaluationResults ?? [];
 		const objectiveScoreTotals =
@@ -125,6 +129,7 @@ export class EvaluationSheet {
 			params.gradeId === undefined ? params.subject.gradeId : params.gradeId,
 			params.maxObjectives,
 			params.currentEvaluatorIds,
+			params.corrections,
 		);
 	}
 

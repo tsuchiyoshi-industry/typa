@@ -4,6 +4,7 @@ import { Employee } from "../../domain/entities/Employee";
 import { EvaluationPeriod } from "../../domain/entities/EvaluationPeriod";
 import { EvaluationSheet, type StoredSheetScores } from "../../domain/entities/EvaluationSheet";
 import { Milestone } from "../../domain/entities/Milestone";
+import { SheetCorrection } from "../../domain/entities/SheetCorrection";
 import type {
 	EvaluationSheetOverviewRow,
 	EvaluationSheetRepository,
@@ -20,7 +21,7 @@ import { supabase } from "../db/supabase";
  * DB 関数 get_sheet が返す評価シート。呼び出した人がいまの段階で見てよい範囲だけが入っている
  * (見せない点数は 0、コメントは空文字)。
  */
-interface SheetRpcRow {
+export interface SheetRpcRow {
 	id: number;
 	status: string;
 	/** シート作成時の等級(DB のトリガーが作成時に固定する)。 */
@@ -42,10 +43,14 @@ interface SheetRpcRow {
 	secondaryEvaluatorName: string | null;
 	period: {
 		id: number;
-		periodName: string;
+		termName: string;
+		division: string;
+		part: number;
 		startDate: string;
 		endDate: string;
 		isActive: boolean;
+		isClosed: boolean;
+		allowUnfinalizedClose: boolean;
 	} | null;
 	firstOverallComment: string;
 	secondOverallComment: string;
@@ -76,13 +81,32 @@ interface SheetRpcRow {
 		firstComment: string;
 	}>;
 	allocation: { objective: number; common: number } | null;
+	/** 締め後修正。見せてよい範囲だけが来る(古い DB では無い)。 */
+	corrections?: Array<{
+		id: number;
+		target: string;
+		goalNumber: number | null;
+		itemTitle: string | null;
+		field: string;
+		before: string;
+		after: string;
+		reason: string;
+		correctedAt: string;
+	}>;
 	maxChallengeGoals: number | null;
 }
 
 interface PeriodJoinRow {
+	id: number;
 	period_name: string;
+	term_name: string;
+	division: string;
+	part: number;
 	start_date: string;
 	end_date: string;
+	is_active: boolean;
+	closed_at: string | null;
+	allow_unfinalized_close: boolean;
 }
 
 interface EmployeeJoinRow {
@@ -116,7 +140,7 @@ type OverviewRpcRow = Omit<
 
 // grade はシート作成時の等級(evaluation_sheets.grade_id)。社員の今の等級ではない
 const SHEET_LIST_SELECT =
-	"id, period_id, employee_id, status, total_score, created_at, updated_at, period:evaluation_periods!inner(period_name, start_date, end_date), employee:employees!inner(name, employee_no), grade:employee_grades(grade_name)";
+	"id, period_id, employee_id, status, total_score, created_at, updated_at, period:evaluation_periods!inner(id, period_name, term_name, division, part, start_date, end_date, is_active, closed_at, allow_unfinalized_close), employee:employees!inner(name, employee_no), grade:employee_grades(grade_name)";
 
 const first = <T>(joined: T | T[] | null): T | undefined =>
 	Array.isArray(joined) ? joined[0] : (joined ?? undefined);
@@ -135,14 +159,28 @@ function toSheetSummary(item: EvaluationSheetListRow): EvaluationSheetSummary {
 		periodName: period?.period_name ?? "",
 		periodStart: period?.start_date ?? "",
 		periodEnd: period?.end_date ?? "",
+		exportableBeforeFinalized:
+			period !== undefined &&
+			EvaluationPeriod.restore({
+				id: period.id,
+				termName: period.term_name,
+				division: period.division,
+				part: period.part,
+				startDate: period.start_date,
+				endDate: period.end_date,
+				isActive: period.is_active,
+				isClosed: period.closed_at !== null,
+				allowUnfinalizedClose: period.allow_unfinalized_close,
+			}).allowsExportBeforeFinalized(),
 		employeeName: employee?.name ?? "",
 		employeeNo: employee?.employee_no ?? "",
 		gradeName: first(item.grade)?.grade_name ?? "",
 	};
 }
 
-function toSheet(row: SheetRpcRow): EvaluationSheet | null {
-	if (!row.subject) {
+/** get_sheet / get_sheet_for_correction が返すシート。 */
+export function toSheet(row: SheetRpcRow): EvaluationSheet | null {
+	if (!row.subject || !row.period) {
 		return null;
 	}
 	if (!row.allocation) {
@@ -170,13 +208,7 @@ function toSheet(row: SheetRpcRow): EvaluationSheet | null {
 	return EvaluationSheet.restore({
 		sheetId: row.id,
 		subject,
-		evaluationPeriod: new EvaluationPeriod(
-			row.period?.id ?? 0,
-			row.period?.periodName ?? "",
-			row.period?.startDate ?? "",
-			row.period?.endDate ?? "",
-			row.period?.isActive ?? false,
-		),
+		evaluationPeriod: EvaluationPeriod.restore(row.period),
 		primaryEvaluatorName: row.primaryEvaluatorName ?? "未設定",
 		// 「なし」と明示されたシートと、未設定(指定待ち)のシートを区別して表示する
 		secondaryEvaluatorName:
@@ -215,6 +247,7 @@ function toSheet(row: SheetRpcRow): EvaluationSheet | null {
 		currentEvaluatorIds: row.currentEvaluatorIds ?? [],
 		finalEvaluationRank: EvaluationRank.fromOptional(row.finalRankLetter, row.finalRankLevel),
 		firstEvaluationRank: EvaluationRank.fromText(row.firstRank),
+		corrections: (row.corrections ?? []).map(SheetCorrection.restore),
 	});
 }
 

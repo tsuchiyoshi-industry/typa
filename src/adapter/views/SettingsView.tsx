@@ -12,7 +12,10 @@ import { confirmAction, confirmDiscard, showToast, trackUnsaved } from "./feedba
 
 interface SettingsViewProps {
 	controller: SettingsController;
-	periodController: Pick<EvaluationPeriodController, "load" | "save" | "remove" | "close">;
+	periodController: Pick<
+		EvaluationPeriodController,
+		"load" | "save" | "remove" | "close" | "preview" | "divisions"
+	>;
 	smtpController: Pick<SmtpSettingsController, "load" | "save">;
 }
 

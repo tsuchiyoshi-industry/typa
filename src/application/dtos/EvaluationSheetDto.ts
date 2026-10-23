@@ -64,6 +64,18 @@ export const NO_SHEET_PERMISSIONS: SheetPermissionsDto = {
 	canFinalizeEvaluation: false,
 };
 
+/** 締め後修正(遡及処理)の1件。シートを振り返る人に、直したことを隠さず見せる。 */
+export interface SheetCorrectionDto {
+	id: number;
+	/** 「チャレンジ目標 2・二次評価」など。 */
+	subject: string;
+	before: string;
+	after: string;
+	reason: string;
+	/** ISO 8601。 */
+	correctedAt: string;
+}
+
 export interface EvaluationSheetDto {
 	sheetId: number;
 	subject: EmployeeDto | null;
@@ -94,4 +106,6 @@ export interface EvaluationSheetDto {
 	firstEvaluationRank?: EvaluationRankDto;
 	/** 最終評価者にだけ見せる。 */
 	finalEvaluationRank?: EvaluationRankDto;
+	/** 締め後修正のうち、直した項目をこの人が見られるもの。古い順。 */
+	corrections: SheetCorrectionDto[];
 }

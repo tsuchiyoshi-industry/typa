@@ -2,10 +2,10 @@ COLUMN GRANT common_evaluation_items authenticated SELECT description,id,item_se
 COLUMN GRANT employee_grades authenticated SELECT grade_name,id,item_set_id
 COLUMN GRANT employees authenticated SELECT career_course,employee_no,grade_id,id,is_enabled,keep_signed_in,name,no_secondary_evaluator,primary_evaluator_id,role_id,secondary_evaluator_id,user_id
 COLUMN GRANT employees authenticated UPDATE grade_id,keep_signed_in,no_secondary_evaluator,primary_evaluator_id,secondary_evaluator_id
-COLUMN GRANT evaluation_periods authenticated INSERT end_date,period_name,start_date
-COLUMN GRANT evaluation_periods authenticated REFERENCES end_date,id,is_active,period_name,start_date
-COLUMN GRANT evaluation_periods authenticated SELECT end_date,id,is_active,period_name,start_date
-COLUMN GRANT evaluation_periods authenticated UPDATE end_date,period_name,start_date
+COLUMN GRANT evaluation_periods authenticated INSERT allow_unfinalized_close,division,end_date,part,period_name,start_date,term_name
+COLUMN GRANT evaluation_periods authenticated REFERENCES allow_unfinalized_close,closed_at,division,end_date,id,is_active,part,period_name,start_date,term_name
+COLUMN GRANT evaluation_periods authenticated SELECT allow_unfinalized_close,closed_at,division,end_date,id,is_active,part,period_name,start_date,term_name
+COLUMN GRANT evaluation_periods authenticated UPDATE allow_unfinalized_close,end_date,period_name,start_date,term_name
 COLUMN GRANT evaluation_settings authenticated SELECT common_allocation,id,max_challenge_goals,objective_allocation,updated_at
 COLUMN GRANT evaluation_settings authenticated UPDATE common_allocation,max_challenge_goals,objective_allocation,updated_at
 COLUMN GRANT evaluation_sheets authenticated INSERT employee_id,period_id
@@ -54,11 +54,16 @@ COLUMN employees.primary_evaluator_id integer null=YES default=-
 COLUMN employees.role_id integer null=YES default=-
 COLUMN employees.secondary_evaluator_id integer null=YES default=-
 COLUMN employees.user_id uuid null=YES default=-
+COLUMN evaluation_periods.allow_unfinalized_close boolean null=NO default=false
+COLUMN evaluation_periods.closed_at timestamp with time zone null=YES default=-
+COLUMN evaluation_periods.division text null=NO default='full'::text
 COLUMN evaluation_periods.end_date date null=NO default=-
 COLUMN evaluation_periods.id bigint null=NO default=-
 COLUMN evaluation_periods.is_active boolean null=NO default=false
+COLUMN evaluation_periods.part smallint null=NO default=1
 COLUMN evaluation_periods.period_name text null=NO default=-
 COLUMN evaluation_periods.start_date date null=NO default=-
+COLUMN evaluation_periods.term_name text null=NO default=-
 COLUMN evaluation_settings.common_allocation smallint null=NO default=80
 COLUMN evaluation_settings.id boolean null=NO default=true
 COLUMN evaluation_settings.max_challenge_goals smallint null=NO default=4
@@ -95,6 +100,7 @@ COLUMN evaluation_sheets.total_evaluation_score smallint null=YES default=-
 COLUMN evaluation_sheets.total_score numeric null=YES default=0
 COLUMN evaluation_sheets.updated_at timestamp with time zone null=YES default=now()
 COLUMN milestones.achievement text null=YES default=''::text
+COLUMN milestones.carried_from_id bigint null=YES default=-
 COLUMN milestones.challenge_goal text null=YES default=''::text
 COLUMN milestones.first_score integer null=YES default=0
 COLUMN milestones.goal_number integer null=NO default=-
@@ -115,6 +121,18 @@ COLUMN security_audit_log.details jsonb null=NO default='{}'::jsonb
 COLUMN security_audit_log.entity_id bigint null=YES default=-
 COLUMN security_audit_log.id bigint null=NO default=-
 COLUMN security_audit_log.occurred_at timestamp with time zone null=NO default=clock_timestamp()
+COLUMN sheet_corrections.after_value text null=NO default=-
+COLUMN sheet_corrections.before_value text null=NO default=''::text
+COLUMN sheet_corrections.corrected_at timestamp with time zone null=NO default=now()
+COLUMN sheet_corrections.corrected_by integer null=YES default=-
+COLUMN sheet_corrections.field text null=NO default=-
+COLUMN sheet_corrections.goal_number integer null=YES default=-
+COLUMN sheet_corrections.id bigint null=NO default=-
+COLUMN sheet_corrections.item_title text null=YES default=-
+COLUMN sheet_corrections.reason text null=NO default=-
+COLUMN sheet_corrections.sheet_id bigint null=NO default=-
+COLUMN sheet_corrections.target text null=NO default=-
+COLUMN sheet_corrections.target_id bigint null=YES default=-
 COLUMN sheet_notification_deliveries.attempted_at timestamp with time zone null=NO default=now()
 COLUMN sheet_notification_deliveries.attempts integer null=NO default=1
 COLUMN sheet_notification_deliveries.claim_id uuid null=NO default=gen_random_uuid()
@@ -155,9 +173,12 @@ CONSTRAINT employees employees_primary_evaluator_id_fkey FOREIGN KEY (primary_ev
 CONSTRAINT employees employees_role_id_fkey FOREIGN KEY (role_id) REFERENCES roles(id)
 CONSTRAINT employees employees_secondary_evaluator_id_fkey FOREIGN KEY (secondary_evaluator_id) REFERENCES employees(id)
 CONSTRAINT employees employees_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+CONSTRAINT evaluation_periods evaluation_periods_active_not_closed_check CHECK ((NOT (is_active AND (closed_at IS NOT NULL))))
 CONSTRAINT evaluation_periods evaluation_periods_dates_check CHECK ((start_date <= end_date))
+CONSTRAINT evaluation_periods evaluation_periods_division_part_check CHECK ((((division = 'full'::text) AND (part = 1)) OR ((division = 'half'::text) AND ((part >= 1) AND (part <= 2))) OR ((division = 'quarter'::text) AND ((part >= 1) AND (part <= 4)))))
 CONSTRAINT evaluation_periods evaluation_periods_period_name_key UNIQUE (period_name)
 CONSTRAINT evaluation_periods evaluation_periods_pkey PRIMARY KEY (id)
+CONSTRAINT evaluation_periods evaluation_periods_term_name_check CHECK (((char_length(btrim(term_name)) >= 1) AND (char_length(btrim(term_name)) <= 40)))
 CONSTRAINT evaluation_settings evaluation_settings_allocation_total CHECK (((objective_allocation + common_allocation) = 100))
 CONSTRAINT evaluation_settings evaluation_settings_common_allocation_check CHECK ((common_allocation >= 0))
 CONSTRAINT evaluation_settings evaluation_settings_id_check CHECK (id)
@@ -182,6 +203,12 @@ CONSTRAINT registration_tickets registration_tickets_pkey PRIMARY KEY (employee_
 CONSTRAINT roles roles_pkey PRIMARY KEY (id)
 CONSTRAINT roles roles_role_name_key UNIQUE (role_name)
 CONSTRAINT security_audit_log security_audit_log_pkey PRIMARY KEY (id)
+CONSTRAINT sheet_corrections sheet_corrections_corrected_by_fkey FOREIGN KEY (corrected_by) REFERENCES employees(id)
+CONSTRAINT sheet_corrections sheet_corrections_field_check CHECK ((field = ANY (ARRAY['challenge_goal'::text, 'midterm_goal'::text, 'achievement'::text, 'first_score'::text, 'second_score'::text, 'first_comment'::text, 'first_overall_comment'::text, 'second_overall_comment'::text])))
+CONSTRAINT sheet_corrections sheet_corrections_pkey PRIMARY KEY (id)
+CONSTRAINT sheet_corrections sheet_corrections_reason_check CHECK (((char_length(btrim(reason)) >= 1) AND (char_length(btrim(reason)) <= 500)))
+CONSTRAINT sheet_corrections sheet_corrections_sheet_id_fkey FOREIGN KEY (sheet_id) REFERENCES evaluation_sheets(id) ON DELETE RESTRICT
+CONSTRAINT sheet_corrections sheet_corrections_target_check CHECK ((target = ANY (ARRAY['goal'::text, 'common'::text, 'sheet'::text])))
 CONSTRAINT sheet_notification_deliveries sheet_notification_deliveries_pkey PRIMARY KEY (sheet_id, revision)
 CONSTRAINT sheet_notification_deliveries sheet_notification_deliveries_sheet_id_fkey FOREIGN KEY (sheet_id) REFERENCES evaluation_sheets(id) ON DELETE CASCADE
 CONSTRAINT sheet_notification_deliveries sheet_notification_deliveries_state_check CHECK ((state = ANY (ARRAY['sending'::text, 'sent'::text, 'failed'::text])))
@@ -194,10 +221,11 @@ CONSTRAINT workspace_settings workspace_settings_smtp_user_check CHECK ((smtp_us
 DEFAULT PRIVILEGES postgres S {postgres=rwU/postgres,service_role=rwU/postgres}
 DEFAULT PRIVILEGES postgres f {postgres=X/postgres,service_role=X/postgres}
 DEFAULT PRIVILEGES postgres r {postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres}
-FUNCTION activate_evaluation_period(bigint) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=ea88342cb92afac20dcccd7f57424f54
+FUNCTION activate_evaluation_period(bigint) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=30739f3cb7d03fcdd2bdf3364a71eac2
 FUNCTION audit_employee_change() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=1b92fc898e27a17498dba2d46c272781
 FUNCTION audit_sheet_transition() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=9836b834da7683a13eed239142597e4f
 FUNCTION begin_registration(text,text) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=7521c063d5d6060717f3e4d725b6ee26
+FUNCTION carry_over_goal(bigint,bigint) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=7d6e632ec15b3e784b8d819448696a20
 FUNCTION changed_columns(jsonb,jsonb) definer=false anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=5a3f7369be904b9ff458a6e5b80bc6f2
 FUNCTION check_challenge_goal_number() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=8508db91753240b9a1c1a9e5ce7d55af
 FUNCTION check_evaluation_completion() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=5c54ba661f5d97903cd3c84c0fb39d9d
@@ -205,17 +233,22 @@ FUNCTION check_user_limit() definer=true anon=false authenticated=false service_
 FUNCTION claim_sheet_notification(bigint,uuid) definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=c842799d2bdf95306f531fe83bdceafa
 FUNCTION complete_registration(uuid) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=51a558c15fdca9d3101bb7a8986d7997
 FUNCTION complete_sheet_notification(uuid,boolean) definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=9d51da334f904c5621f5a5509f12867f
+FUNCTION correct_closed_sheet(bigint,jsonb,text) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=3c800ca649e350c3a18a33080622d291
 FUNCTION current_employee_id() definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=f866dcd8deb02f126510b1fcd1a01399
 FUNCTION current_employee_is_admin() definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=793effd96290231797771133af3cd59a
 FUNCTION current_employee_role() definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=68b599a7cc77b870e99bac0726b006ae
 FUNCTION employee_auth_email(text) definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=4243f657a68a388892d58f4c34eb6059
 FUNCTION evaluation_rank(integer) definer=false anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=33a790c59b2d39acd83c4563ef84eee5
+FUNCTION fill_evaluation_period_term() definer=false anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=613cecd76687e07e592b88504db77dea
 FUNCTION freeze_evaluation_totals() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=0d9ce0b486ebe4241939d7f2c6b2258b
 FUNCTION get_current_employee_access_state() definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=f1be251c1b98f496256718cc7fc1c8ed
 FUNCTION get_evaluation_period_sheet_counts(bigint) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=58ad9645d5215d906eb02d10a301a06d
+FUNCTION get_previous_goals(bigint) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=e942c79497e319514926b6ec2730b0e4
 FUNCTION get_required_domain() definer=true anon=true authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=5d4aafd868388c771a38d185f7a004df
 FUNCTION get_reviewer_workspace(bigint) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=cf1503b20b33024938ec9eaff9101a20
-FUNCTION get_sheet(bigint) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=907546636cba9773af7f6412fb1b3f67
+FUNCTION get_sheet(bigint) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=5e2bf0affe878f1ea829beffd329a6d7
+FUNCTION get_sheet_for_correction(bigint) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=939fa085b3581b9232647a2ff6fb463d
+FUNCTION get_sheet_import_template() definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=e9aa505bb31536583fde2852728272ea
 FUNCTION get_sheet_notification(bigint,uuid) definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=f58d6ae95d8cd214d90b42f5195e258d
 FUNCTION get_sheet_overview() definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=d57bad6251bb84bedb2d8c3ceb1dec33
 FUNCTION guard_common_evaluation_result_write() definer=false anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=f53fead580ae9b10a90c0f53eb7ec721
@@ -224,14 +257,18 @@ FUNCTION guard_evaluation_period_delete() definer=true anon=false authenticated=
 FUNCTION guard_evaluation_sheet_write() definer=false anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=119d8fa7f2c9500c012e6fafc12e687e
 FUNCTION guard_milestone_write() definer=false anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=3c1cf8b8b92b844e3e0ce99697f152af
 FUNCTION hook_before_user_created(jsonb) definer=true anon=false authenticated=false service_role=true auth_admin=true config={"search_path=\"\""} md5=168993d16d5254dfefe8634a2eecf7e9
+FUNCTION import_sheet_data(jsonb,jsonb,boolean) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=153c6188796bb03cfbb8fd7d47a87363
 FUNCTION is_current_evaluator_of(integer) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=ec3da46d3c72021039e51b463f8163e0
 FUNCTION issue_employee_invitation(text) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=5a0a8587d455f8934e6013a5add1c487
 FUNCTION issue_pending_employee_invitations() definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=587e00f4bd6ce2ab6354cb5b48c7db02
 FUNCTION lock_employee_administration() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=ca0590d5aedbe55640c261bb9f8cd068
 FUNCTION lock_evaluation_sheet(bigint) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=ee701b7ab71476d24a520441d88c9e5b
 FUNCTION lock_sheet_content_write() definer=false anon=true authenticated=true service_role=true auth_admin=true config={"search_path=\"\""} md5=fbd7044d6c3b970359c6602bbc047a4b
+FUNCTION previous_evaluation_period(bigint) definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=7aeaaf43cfa45f1bd1ffefd3322e2af6
+FUNCTION previous_evaluation_sheet(bigint) definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=c2111e15a539aa409c4bbdc1caca02ee
+FUNCTION recalculate_corrected_sheet(bigint) definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=f01f3e51d5cfefac66ffb2378997fc9c
 FUNCTION refresh_notification_revision() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=0bd00eeda7c59397006c3b29195cb63c
-FUNCTION require_active_evaluation_period() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=b603969dab08e3f490df2d678efc8654
+FUNCTION require_active_evaluation_period() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=1334b74b37137af832397c07a940b17e
 FUNCTION require_another_usable_admin(integer) definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=42f190502c34f2fea973ddcbf49677a2
 FUNCTION reset_employee_registration(text) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=757797c046bd01bfd0d07f1c09873733
 FUNCTION reviewer_sheet_snapshot(bigint,text) definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=2f5e2f4fbe7bb7bfd98a62718c2bfed5
@@ -242,6 +279,7 @@ FUNCTION set_employee_role(text,text) definer=true anon=false authenticated=true
 FUNCTION set_evaluation_sheet_evaluators() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=7aeaa81e137f9ba93289665c24d9fb31
 FUNCTION set_evaluation_sheet_grade() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=38b20da30b14521cdc7b27f2dd6d133a
 FUNCTION sheet_access(bigint) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=ea3203fa761219b006fdeaac98b5f0fd
+FUNCTION sheet_document(bigint,boolean,boolean,boolean) definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=79c81ac5d491a11958d5c77b00d346d3
 FUNCTION sheet_evaluation_score(bigint,boolean,integer,integer) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=7a7a86c9acb9982156aa271df91f60d7
 FUNCTION sync_evaluation_sheet_evaluators() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=a3e359c8fb1d7fbcf01244ae388f3de6
 FUNCTION transition_evaluation_sheet(bigint,text) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=2b8287702b29be0c13add5badc63a949
@@ -268,6 +306,7 @@ GRANT roles authenticated SELECT
 GRANT roles service_role DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 GRANT security_audit_log authenticated SELECT
 GRANT security_audit_log service_role DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+GRANT sheet_corrections service_role DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 GRANT sheet_notification_deliveries service_role DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 GRANT workspace_settings service_role DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 INDEX CREATE INDEX common_evaluation_items_item_set_id_idx ON public.common_evaluation_items USING btree (item_set_id)
@@ -277,6 +316,7 @@ INDEX CREATE INDEX evaluation_sheets_review_period_idx ON public.evaluation_shee
 INDEX CREATE INDEX evaluation_sheets_secondary_evaluator_idx ON public.evaluation_sheets USING btree (secondary_evaluator_id)
 INDEX CREATE INDEX idx_employees_user_id ON public.employees USING btree (user_id)
 INDEX CREATE INDEX milestones_review_sheet_idx ON public.milestones USING btree (sheet_id)
+INDEX CREATE INDEX sheet_corrections_sheet_idx ON public.sheet_corrections USING btree (sheet_id)
 INDEX CREATE UNIQUE INDEX common_evaluation_item_sets_pkey ON public.common_evaluation_item_sets USING btree (id)
 INDEX CREATE UNIQUE INDEX common_evaluation_items_pkey ON public.common_evaluation_items USING btree (id)
 INDEX CREATE UNIQUE INDEX common_evaluation_results_pkey ON public.common_evaluation_results USING btree (id)
@@ -295,11 +335,13 @@ INDEX CREATE UNIQUE INDEX evaluation_settings_pkey ON public.evaluation_settings
 INDEX CREATE UNIQUE INDEX evaluation_sheets_period_id_employee_id_key ON public.evaluation_sheets USING btree (period_id, employee_id)
 INDEX CREATE UNIQUE INDEX evaluation_sheets_pkey ON public.evaluation_sheets USING btree (id)
 INDEX CREATE UNIQUE INDEX milestones_pkey ON public.milestones USING btree (id)
+INDEX CREATE UNIQUE INDEX milestones_sheet_carried_from_key ON public.milestones USING btree (sheet_id, carried_from_id) WHERE (carried_from_id IS NOT NULL)
 INDEX CREATE UNIQUE INDEX milestones_sheet_id_goal_number_key ON public.milestones USING btree (sheet_id, goal_number)
 INDEX CREATE UNIQUE INDEX registration_tickets_pkey ON public.registration_tickets USING btree (employee_id)
 INDEX CREATE UNIQUE INDEX roles_pkey ON public.roles USING btree (id)
 INDEX CREATE UNIQUE INDEX roles_role_name_key ON public.roles USING btree (role_name)
 INDEX CREATE UNIQUE INDEX security_audit_log_pkey ON public.security_audit_log USING btree (id)
+INDEX CREATE UNIQUE INDEX sheet_corrections_pkey ON public.sheet_corrections USING btree (id)
 INDEX CREATE UNIQUE INDEX sheet_notification_deliveries_pkey ON public.sheet_notification_deliveries USING btree (sheet_id, revision)
 INDEX CREATE UNIQUE INDEX workspace_settings_pkey ON public.workspace_settings USING btree (id)
 POLICY common_evaluation_items | enabled employee required | {authenticated} | ALL | using (current_employee_id() IS NOT NULL) | check (current_employee_id() IS NOT NULL)
@@ -354,6 +396,7 @@ TABLE milestones rls=true
 TABLE registration_tickets rls=true
 TABLE roles rls=true
 TABLE security_audit_log rls=true
+TABLE sheet_corrections rls=true
 TABLE sheet_notification_deliveries rls=true
 TABLE workspace_settings rls=true
 TRIGGER common_evaluation_results a_common_results_lock_sheet BEFORE DELETE,INSERT,UPDATE
@@ -362,6 +405,7 @@ TRIGGER common_evaluation_results common_evaluation_results_require_active_perio
 TRIGGER employees employees_audit AFTER UPDATE
 TRIGGER employees employees_guard_write BEFORE UPDATE
 TRIGGER employees employees_sync_sheet_evaluators AFTER UPDATE
+TRIGGER evaluation_periods evaluation_periods_fill_term BEFORE INSERT,UPDATE
 TRIGGER evaluation_periods evaluation_periods_guard_delete BEFORE DELETE
 TRIGGER evaluation_sheets a_evaluation_sheets_freeze_totals BEFORE UPDATE
 TRIGGER evaluation_sheets evaluation_sheets_access_guard BEFORE UPDATE

@@ -170,7 +170,7 @@
 	justify-content: flex-end;
 	gap: 0.4rem;
 }
-.period-form input {
+.period-form input:not([type="radio"], [type="checkbox"]) {
 	min-height: 2.5rem;
 	padding: 0.4rem 0.6rem;
 	border: 1px solid var(--hr-border-input);
@@ -179,10 +179,73 @@
 	color: var(--hr-text);
 	font-size: 0.9rem;
 }
-.period-form input:focus {
+.period-form input:not([type="radio"], [type="checkbox"]):focus {
 	outline: none;
 	border-color: var(--hr-accent);
 	box-shadow: 0 0 0 3px var(--hr-accent-muted);
+}
+.period-form input[type="radio"],
+.period-form input[type="checkbox"] {
+	accent-color: var(--hr-accent);
+}
+.period-division {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.25rem 1rem;
+	min-height: 2.5rem;
+	margin: 0;
+	padding: 0;
+	border: 0;
+}
+.period-division legend {
+	float: left;
+	margin-right: 0.25rem;
+	padding: 0;
+	font-size: 0.8125rem;
+	color: var(--hr-text-muted);
+}
+.allocation-form .period-division label,
+.allocation-form label.period-allow {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+	min-height: 2.5rem;
+	font-size: 0.875rem;
+	color: var(--hr-text);
+}
+/* 未開始・締め済み(実施中だけをバッジで目立たせる) */
+.period-state {
+	color: var(--hr-text-muted);
+	font-size: 0.8125rem;
+	white-space: nowrap;
+}
+.period-note {
+	display: block;
+	margin-top: 0.2rem;
+	color: var(--hr-text-muted);
+	font-size: 0.75rem;
+	white-space: nowrap;
+}
+.period-preview {
+	display: grid;
+	gap: 0.15rem;
+	margin: 0.75rem 0 0;
+	padding: 0.6rem 0.8rem;
+	border: 1px dashed var(--hr-border-strong);
+	border-radius: var(--hr-radius-sm);
+	list-style: none;
+	font-size: 0.875rem;
+}
+.period-preview > li {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: space-between;
+	gap: 0 1.5rem;
+}
+.period-preview li span:last-child {
+	color: var(--hr-text-muted);
+	font-variant-numeric: tabular-nums;
 }
 
 /* ヘルプ */
@@ -295,4 +358,243 @@
 	.help-rank-table {
 		min-width: 0;
 	}
+}
+
+/* 導入処理: 実行できる処理の一覧 */
+.setup-tasks {
+	display: grid;
+	gap: 12px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+.setup-tasks .info-card {
+	display: flex;
+	align-items: flex-start;
+	gap: 16px;
+}
+.setup-tasks .info-card > div {
+	flex: 1;
+	min-width: 0;
+}
+.setup-tasks h2,
+.setup-tasks p {
+	margin: 0;
+}
+.setup-tasks .header-icon {
+	flex-shrink: 0;
+	width: 1.35rem;
+	height: 1.35rem;
+	color: var(--hr-accent);
+}
+.setup-task--pending {
+	opacity: 0.6;
+}
+a.setup-task-link {
+	color: inherit;
+	text-decoration: none;
+}
+a.setup-task-link:hover {
+	border-color: var(--hr-border-strong);
+	background: var(--hr-surface-hover);
+}
+
+/* データ取込 */
+.back-link {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	margin-bottom: 6px;
+	color: var(--hr-text-muted);
+	font-size: 0.8125rem;
+	text-decoration: none;
+}
+.back-link:hover {
+	color: var(--hr-text);
+}
+.import-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin-top: 14px;
+}
+.import-files {
+	display: grid;
+	gap: 10px;
+	margin-top: 14px;
+}
+.import-file {
+	display: grid;
+	grid-template-columns: 6rem minmax(0, 1fr);
+	align-items: center;
+	gap: 12px;
+	font-size: 0.875rem;
+	font-weight: 600;
+}
+.import-file input {
+	min-width: 0;
+	font-weight: 400;
+}
+.import-errors {
+	border-color: color-mix(in srgb, var(--hr-danger) 40%, transparent);
+}
+.import-errors h2 {
+	color: var(--hr-danger-text);
+}
+.import-errors-scroll {
+	max-height: 26rem;
+	margin-top: 14px;
+	overflow: auto;
+	border: 1px solid var(--hr-border);
+	border-radius: var(--hr-radius-sm);
+}
+.import-errors table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 0.875rem;
+}
+.import-errors table th,
+.import-errors table td {
+	padding: 6px 10px;
+	border-bottom: 1px solid var(--hr-border);
+	text-align: left;
+	vertical-align: top;
+}
+.import-errors thead th {
+	position: sticky;
+	top: 0;
+	background: var(--hr-surface);
+	color: var(--hr-text-muted);
+	font-weight: 600;
+}
+.import-errors td:nth-child(-n + 2) {
+	white-space: nowrap;
+	font-variant-numeric: tabular-nums;
+}
+.import-summary {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px 28px;
+	margin: 0.5rem 0 0;
+}
+.import-summary dt {
+	color: var(--hr-text-muted);
+	font-size: 0.8125rem;
+}
+.import-summary dd {
+	margin: 2px 0 0;
+	font-size: 1.125rem;
+	font-weight: 650;
+	font-variant-numeric: tabular-nums;
+}
+@media (max-width: 560px) {
+	.import-file {
+		grid-template-columns: 1fr;
+		gap: 4px;
+	}
+}
+
+/* 締め後修正(遡及処理)。直したことを赤字で隠さず示す */
+.correction-notice {
+	padding: 14px 18px;
+	border: 1px solid color-mix(in srgb, var(--hr-danger) 45%, transparent);
+	border-left-width: 4px;
+	border-radius: var(--hr-radius-md);
+	background: color-mix(in srgb, var(--hr-danger) 6%, var(--hr-surface));
+	color: var(--hr-danger-text);
+}
+.correction-notice h2 {
+	margin: 0;
+	font-size: 0.95rem;
+	font-weight: 650;
+}
+.correction-notice > p {
+	margin: 0.3rem 0 0;
+	font-size: 0.8125rem;
+}
+.correction-notice ol {
+	display: grid;
+	gap: 0.55rem;
+	margin: 0.7rem 0 0;
+	padding-left: 1.2rem;
+}
+.correction-notice li p {
+	margin: 0;
+	font-size: 0.875rem;
+	line-height: 1.6;
+	overflow-wrap: anywhere;
+}
+.correction-notice__what {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0 0.75rem;
+}
+.correction-notice__what span {
+	white-space: pre-wrap;
+}
+.correction-notice .correction-notice__why {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0 0.75rem;
+	font-size: 0.8125rem;
+	opacity: 0.85;
+}
+.correction-editor h3 {
+	margin: 1.4rem 0 0.4rem;
+}
+.correction-group {
+	display: grid;
+	gap: 0.6rem;
+	margin: 0 0 0.75rem;
+	padding: 0.75rem 0.9rem;
+	border: 1px solid var(--hr-border);
+	border-radius: var(--hr-radius-sm);
+}
+.correction-group legend {
+	padding: 0 0.3rem;
+	font-size: 0.8125rem;
+	font-weight: 600;
+}
+.correction-scores {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.75rem 1.5rem;
+}
+.correction-field,
+.correction-reason {
+	display: grid;
+	gap: 0.3rem;
+	font-size: 0.8125rem;
+	color: var(--hr-text-muted);
+}
+.correction-field textarea,
+.correction-field select,
+.correction-reason textarea {
+	width: 100%;
+	min-height: 2.25rem;
+	padding: 0.4rem 0.6rem;
+	border: 1px solid var(--hr-border-input);
+	border-radius: var(--hr-radius-sm);
+	background: var(--hr-bg-elevated);
+	color: var(--hr-text);
+	font: inherit;
+	font-size: 0.875rem;
+}
+.correction-scores select {
+	width: 6rem;
+}
+.correction-field--changed span {
+	color: var(--hr-danger-text);
+	font-weight: 600;
+}
+.correction-field--changed textarea,
+.correction-field--changed select {
+	border-color: var(--hr-danger);
+	color: var(--hr-danger-text);
+}
+.correction-reason {
+	margin-top: 1.2rem;
+}
+.correction-editor .correction-notice {
+	margin-top: 1.4rem;
 }

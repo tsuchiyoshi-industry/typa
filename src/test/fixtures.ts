@@ -16,10 +16,20 @@ import type { MilestoneRepository } from "../domain/repositories/MilestoneReposi
 import { EmployeeRole } from "../domain/valueObjects/EmployeeRole";
 import { EvaluationRank } from "../domain/valueObjects/EvaluationRank";
 import { EvaluationStatus } from "../domain/valueObjects/EvaluationStatus";
+import { SheetCountsByStatus } from "../domain/valueObjects/SheetCountsByStatus";
 
 // Synthetic data only. Each factory returns fresh entities and mocks.
-export const period = (isActive = true) =>
-	new EvaluationPeriod(10, "テスト期間", "2026-04-01", "2026-09-30", isActive);
+/** isActive が false の評価期間は、締め済み(シートのある評価期間は、実施中か締め済みのどちらか)。 */
+export const period = (isActive = true, allowUnfinalizedClose = false) =>
+	EvaluationPeriod.restore({
+		id: 10,
+		termName: "テスト期間",
+		startDate: "2026-04-01",
+		endDate: "2026-09-30",
+		isActive,
+		isClosed: !isActive,
+		allowUnfinalizedClose,
+	});
 export const employee = () => new Employee(1, "テスト社員", "TEST001", 1, "技術", 5, 2, 3);
 export const profile = (role = "Employee", id = 1, registered = true) =>
 	new EmployeeProfile(
@@ -66,11 +76,12 @@ export const sheet = (
 	status = EvaluationStatus.SUBMITTED,
 	gradeId?: number | null,
 	periodClosed = false,
+	allowUnfinalizedClose = false,
 ) =>
 	EvaluationSheet.create({
 		sheetId: 100,
 		subject: employee(),
-		evaluationPeriod: period(!periodClosed),
+		evaluationPeriod: period(!periodClosed, allowUnfinalizedClose),
 		primaryEvaluatorName: "一次",
 		secondaryEvaluatorName: "二次",
 		firstOverallComment: "一次総評",
@@ -126,6 +137,8 @@ export function milestoneRepository() {
 		updateText: vi.fn<MilestoneRepository["updateText"]>().mockResolvedValue(undefined),
 		upsertText: vi.fn<MilestoneRepository["upsertText"]>().mockResolvedValue(undefined),
 		updateScore: vi.fn<MilestoneRepository["updateScore"]>().mockResolvedValue(undefined),
+		findPreviousGoals: vi.fn<MilestoneRepository["findPreviousGoals"]>().mockResolvedValue(null),
+		carryOver: vi.fn<MilestoneRepository["carryOver"]>().mockResolvedValue(undefined),
 	} satisfies MilestoneRepository;
 }
 export function commonRepository() {
@@ -197,9 +210,28 @@ export function authRepository() {
 /** 締めた「前期」(1)、実施中の「今期」(2)、まだ始めていない「来期」(3)。今期のシートはすべて確定済み。 */
 export function periodRepository() {
 	const periods = [
-		new EvaluationPeriod(1, "前期", "2025-04-01", "2026-03-31", false),
-		new EvaluationPeriod(2, "今期", "2026-04-01", "2027-03-31", true),
-		new EvaluationPeriod(3, "来期", "2027-04-01", "2028-03-31", false),
+		EvaluationPeriod.restore({
+			id: 1,
+			termName: "前期",
+			startDate: "2025-04-01",
+			endDate: "2026-03-31",
+			isActive: false,
+			isClosed: true,
+		}),
+		EvaluationPeriod.restore({
+			id: 2,
+			termName: "今期",
+			startDate: "2026-04-01",
+			endDate: "2027-03-31",
+			isActive: true,
+		}),
+		EvaluationPeriod.restore({
+			id: 3,
+			termName: "来期",
+			startDate: "2027-04-01",
+			endDate: "2028-03-31",
+			isActive: false,
+		}),
 	];
 	return {
 		findDistinctPeriods: vi
@@ -214,6 +246,6 @@ export function periodRepository() {
 		activate: vi.fn<EvaluationPeriodRepository["activate"]>().mockResolvedValue(true),
 		countSheetsByStatus: vi
 			.fn<EvaluationPeriodRepository["countSheetsByStatus"]>()
-			.mockImplementation(async (id) => (id === 3 ? {} : { finalized: 4 })),
+			.mockImplementation(async (id) => SheetCountsByStatus.from(id === 3 ? {} : { finalized: 4 })),
 	} satisfies EvaluationPeriodRepository;
 }

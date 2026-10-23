@@ -14,9 +14,11 @@ import { ChallengeEvaluationController } from "./adapter/controllers/ChallengeEv
 import { CommonEvaluationController } from "./adapter/controllers/CommonEvaluationController";
 import { EmployeeMasterController } from "./adapter/controllers/EmployeeMasterController";
 import { EvaluationPeriodController } from "./adapter/controllers/EvaluationPeriodController";
+import { RetroactiveCorrectionController } from "./adapter/controllers/RetroactiveCorrectionController";
 import { ReviewerWorkspaceController } from "./adapter/controllers/ReviewerWorkspaceController";
 import { SettingsController } from "./adapter/controllers/SettingsController";
 import { SheetEditorController } from "./adapter/controllers/SheetEditorController";
+import { SheetImportController } from "./adapter/controllers/SheetImportController";
 import { SheetListController } from "./adapter/controllers/SheetListController";
 import { SmtpSettingsController } from "./adapter/controllers/SmtpSettingsController";
 import { createChallengeEvaluationPresenter } from "./adapter/presenters/ChallengeEvaluationPresenter";
@@ -32,6 +34,7 @@ import { NotFound } from "./adapter/views/components/NotFound";
 import DashboardLayout from "./adapter/views/DashboardLayout";
 import LoginView from "./adapter/views/LoginView";
 import { CloseEvaluationPeriodInteractor } from "./application/usecases/CloseEvaluationPeriodInteractor";
+import { CorrectClosedSheetInteractor } from "./application/usecases/CorrectClosedSheetInteractor";
 import { CreateEvaluationSheetInteractor } from "./application/usecases/CreateEvaluationSheetInteractor";
 import { DeleteEvaluationPeriodInteractor } from "./application/usecases/DeleteEvaluationPeriodInteractor";
 import { ExportEvaluationSheetInteractor } from "./application/usecases/ExportEvaluationSheetInteractor";
@@ -40,6 +43,7 @@ import { FetchCategorizedSheetsInteractor } from "./application/usecases/FetchCa
 import { FetchDistinctPeriodsInteractor } from "./application/usecases/FetchDistinctPeriodsInteractor";
 import { FetchEvaluationSheetInteractor } from "./application/usecases/FetchEvaluationSheetInteractor";
 import { FetchSheetOverviewInteractor } from "./application/usecases/FetchSheetOverviewInteractor";
+import { ImportSheetDataInteractor } from "./application/usecases/ImportSheetDataInteractor";
 import {
 	IssueEmployeeInvitationInteractor,
 	IssuePendingEmployeeInvitationsInteractor,
@@ -73,7 +77,10 @@ import { SupabaseEvaluationSettingsRepository } from "./infrastructure/repositor
 import { SupabaseEvaluationSheetRepository } from "./infrastructure/repositories/SupabaseEvaluationSheetRepository";
 import { SupabaseMilestoneRepository } from "./infrastructure/repositories/SupabaseMilestoneRepository";
 import { SupabaseReviewerWorkspaceRepository } from "./infrastructure/repositories/SupabaseReviewerWorkspaceRepository";
+import { SupabaseSheetCorrectionRepository } from "./infrastructure/repositories/SupabaseSheetCorrectionRepository";
+import { SupabaseSheetImportRepository } from "./infrastructure/repositories/SupabaseSheetImportRepository";
 import { SupabaseWorkspaceSettingsRepository } from "./infrastructure/repositories/SupabaseWorkspaceSettingsRepository";
+import { TauriCsvFileGateway } from "./infrastructure/repositories/TauriCsvFileGateway";
 import { TauriSheetPdfGateway } from "./infrastructure/repositories/TauriSheetPdfGateway";
 
 // ログイン後の画面のコードは、ログイン画面では読み込まない。
@@ -82,6 +89,9 @@ const EmployeeMasterView = lazy(() => import("./adapter/views/EmployeeMasterView
 const HelpView = lazy(() => import("./adapter/views/HelpView"));
 const ReviewerWorkspaceView = lazy(() => import("./adapter/views/ReviewerWorkspaceView"));
 const SettingsView = lazy(() => import("./adapter/views/SettingsView"));
+const SheetImportView = lazy(() => import("./adapter/views/SheetImportView"));
+const RetroactiveCorrectionView = lazy(() => import("./adapter/views/RetroactiveCorrectionView"));
+const SetupView = lazy(() => import("./adapter/views/SetupView"));
 const SheetEditorView = lazy(() => import("./adapter/views/SheetEditorView"));
 const SheetListView = lazy(() => import("./adapter/views/SheetListView"));
 const protectedViews = [
@@ -89,11 +99,20 @@ const protectedViews = [
 	HelpView,
 	ReviewerWorkspaceView,
 	SettingsView,
+	SetupView,
+	SheetImportView,
+	RetroactiveCorrectionView,
 	SheetEditorView,
 	SheetListView,
 ];
 
 const workspaceSettingsRepository = new SupabaseWorkspaceSettingsRepository();
+const sheetImportRepository = new SupabaseSheetImportRepository();
+const sheetImportController = new SheetImportController(
+	sheetImportRepository,
+	new ImportSheetDataInteractor(sheetImportRepository),
+	new TauriCsvFileGateway(),
+);
 const authRepository = new SupabaseAuthRepository(workspaceSettingsRepository);
 const employeeRepository = new SupabaseEmployeeRepository();
 const commonEvaluationRepository = new SupabaseCommonEvaluationRepository();
@@ -106,6 +125,13 @@ const reviewerWorkspaceController = new ReviewerWorkspaceController(
 );
 const milestoneRepository = new SupabaseMilestoneRepository();
 const employeeMasterRepository = new SupabaseEmployeeMasterRepository();
+const sheetCorrectionRepository = new SupabaseSheetCorrectionRepository();
+const retroactiveCorrectionController = new RetroactiveCorrectionController(
+	evaluationPeriodRepository,
+	evaluationSheetRepository,
+	sheetCorrectionRepository,
+	new CorrectClosedSheetInteractor(sheetCorrectionRepository, employeeMasterRepository),
+);
 const settingsController = new SettingsController(
 	evaluationSettingsRepository,
 	employeeMasterRepository,
@@ -217,6 +243,7 @@ const challengeEvaluationController = new ChallengeEvaluationController(
 	challengeEvaluationPresenter.outputPort,
 	challengeEvaluationPresenter.presentUpdateError,
 	employeeRepository,
+	milestoneRepository,
 );
 const accountController = new AccountController(
 	new SignInEmployeeInteractor(authRepository, employeeRepository),
@@ -383,6 +410,17 @@ const App: Component = () => {
 								periodController={evaluationPeriodController}
 								smtpController={smtpSettingsController}
 							/>
+						)}
+					/>
+					<Route path="/setup" component={() => <SetupView controller={accountController} />} />
+					<Route
+						path="/setup/import"
+						component={() => <SheetImportView controller={sheetImportController} />}
+					/>
+					<Route
+						path="/retroactive"
+						component={() => (
+							<RetroactiveCorrectionView controller={retroactiveCorrectionController} />
 						)}
 					/>
 					<Route path="/help" component={HelpView} />

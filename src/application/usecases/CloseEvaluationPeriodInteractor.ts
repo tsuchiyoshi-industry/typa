@@ -1,8 +1,11 @@
-import type { EvaluationPeriod } from "../../domain/entities/EvaluationPeriod";
+import { DomainError } from "../../domain/DomainError";
+import { EvaluationCalendar } from "../../domain/entities/EvaluationCalendar";
 import type { EmployeeMasterRepository } from "../../domain/repositories/EmployeeMasterRepository";
 import type { EvaluationPeriodRepository } from "../../domain/repositories/EvaluationPeriodRepository";
 import { canEditSettings } from "../../domain/services/EmployeeMasterAccessService";
-import type { EvaluationPeriodDto } from "../dtos/EvaluationPeriodDto";
+import { EvaluationStatus } from "../../domain/valueObjects/EvaluationStatus";
+import { SheetCountsByStatus } from "../../domain/valueObjects/SheetCountsByStatus";
+import { type EvaluationPeriodDto, toEvaluationPeriodDto } from "../dtos/EvaluationPeriodDto";
 import type { OutputPort } from "../ports/OutputPort";
 import type { UseCase } from "../ports/UseCase";
 
@@ -22,22 +25,16 @@ export type CloseEvaluationPeriodResponse =
 			next: EvaluationPeriodDto;
 			/** 締める期間の、評価確定のシートの枚数。 */
 			finalizedSheets: number;
+			/** 評価が確定していないまま締めるシートの枚数(締める期間が認めているときだけ 0 より大きい)。 */
+			unfinishedSheets: number;
 	  }
 	| { status: "closed"; message: string };
 
-const toDto = (period: EvaluationPeriod): EvaluationPeriodDto => ({
-	id: period.id,
-	periodName: period.periodName,
-	startDate: period.startDate,
-	endDate: period.endDate,
-	isActive: period.isActive,
-});
-
 /**
  * 期間締め。次の期間を実施中にし、いま実施中の期間を同時に締める(実施中の期間は常に1つ)。
- * 締める期間に未確定の評価シートが1枚でも残っていると締められない。締めた期間のシートは
+ * 締める期間に未確定の評価シートが1枚でも残っていると締められない(Admin が認めた評価期間は締められる)。締めた期間のシートは
  * 誰も変更できなくなる。Admin だけが行える(DB側でも同じ条件で拒否する)。
- * 元の期間をもう一度この手順で実施中にすれば、同じ条件のもとで元に戻せる。
+ * 開始できるのは未開始の評価期間だけで、締めた評価期間をもう一度開始することはできない。
  */
 export class CloseEvaluationPeriodInteractor
 	implements UseCase<CloseEvaluationPeriodRequest, OutputPort<CloseEvaluationPeriodResponse>>
@@ -58,39 +55,32 @@ export class CloseEvaluationPeriodInteractor
 			return reject("評価期間を締められるのは Admin のみです。");
 		}
 
-		const periods = await this.periodRepository.findDistinctPeriods();
-		const next = periods.find((period) => period.id === request.nextPeriodId);
+		const calendar = new EvaluationCalendar(await this.periodRepository.findDistinctPeriods());
+		const next = calendar.find(request.nextPeriodId);
 		if (!next) {
 			return reject("評価期間が見つかりませんでした。");
 		}
-		if (next.isActive) {
-			return reject(`「${next.periodName}」は既に実施中です。`);
-		}
-
-		const closing = periods.find((period) => period.isActive) ?? null;
-		const counts = closing ? await this.periodRepository.countSheetsByStatus(closing.id) : {};
-		const unfinished = [
-			["下書き", counts.draft ?? 0],
-			["一次評価待ち", counts.submitted ?? 0],
-			["二次評価待ち", counts.first_evaluated ?? 0],
-		] as const;
-		const unfinishedTotal = unfinished.reduce((sum, [, count]) => sum + count, 0);
-		if (closing && unfinishedTotal > 0) {
-			const breakdown = unfinished
-				.filter(([, count]) => count > 0)
-				.map(([label, count]) => `${label} ${count} 件`)
-				.join("・");
-			return reject(
-				`「${closing.periodName}」に未確定の評価シートが ${unfinishedTotal} 件あります（${breakdown}）。すべての評価を確定してから締めてください。`,
-			);
+		const closing = calendar.active();
+		const sheets = closing
+			? await this.periodRepository.countSheetsByStatus(closing.id)
+			: SheetCountsByStatus.NONE;
+		try {
+			next.assertCanStart();
+			closing?.assertCanClose(sheets);
+		} catch (error) {
+			if (error instanceof DomainError) {
+				return reject(error.message);
+			}
+			throw error;
 		}
 
 		if (!request.confirmed) {
 			return outputPort.present({
 				status: "ready",
-				closing: closing && toDto(closing),
-				next: toDto(next),
-				finalizedSheets: counts.finalized ?? 0,
+				closing: closing && toEvaluationPeriodDto(closing),
+				next: toEvaluationPeriodDto(next),
+				finalizedSheets: sheets.of(EvaluationStatus.FINALIZED),
+				unfinishedSheets: sheets.unfinished(),
 			});
 		}
 

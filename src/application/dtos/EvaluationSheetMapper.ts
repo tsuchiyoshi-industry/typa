@@ -1,8 +1,10 @@
 import type { EvaluationSheet } from "../../domain/entities/EvaluationSheet";
+import type { SheetCorrection } from "../../domain/entities/SheetCorrection";
 import type { EvaluationSheetAccessPolicy } from "../../domain/services/EvaluationSheetAccessPolicy";
 import { EvaluationScoreTotals } from "../../domain/valueObjects/EvaluationScoreTotals";
 import { EvaluationStatus } from "../../domain/valueObjects/EvaluationStatus";
-import type { EvaluationSheetDto } from "./EvaluationSheetDto";
+import { toEvaluationPeriodDto } from "./EvaluationPeriodDto";
+import type { EvaluationSheetDto, SheetCorrectionDto } from "./EvaluationSheetDto";
 
 export function toEvaluationSheetDto(
 	sheet: EvaluationSheet,
@@ -35,13 +37,7 @@ export function toEvaluationSheetDto(
 			secondaryEvaluatorId: sheet.subject.secondaryEvaluatorId,
 			gradeName,
 		},
-		evaluationPeriod: {
-			id: sheet.evaluationPeriod.id,
-			periodName: sheet.evaluationPeriod.periodName,
-			startDate: sheet.evaluationPeriod.startDate,
-			endDate: sheet.evaluationPeriod.endDate,
-			isActive: sheet.evaluationPeriod.isActive,
-		},
+		evaluationPeriod: toEvaluationPeriodDto(sheet.evaluationPeriod),
 		primaryEvaluator: sheet.primaryEvaluatorName,
 		secondaryEvaluator: sheet.secondaryEvaluatorName,
 		primaryIsFinalEvaluator: sheet.primaryIsFinalEvaluator(),
@@ -124,6 +120,9 @@ export function toEvaluationSheetDto(
 			totalEvaluationScore: canViewFinal ? sheet.allocatedScores.totalEvaluationScore : null,
 		},
 		status: sheet.status.toString(),
+		corrections: sheet.corrections
+			.filter((correction) => policy.canViewCorrection(correction))
+			.map(toSheetCorrectionDto),
 		isEditable: sheet.isEditable(),
 		pendingObjectiveFields: sheet.pendingObjectiveFields(),
 		permissions: {
@@ -166,3 +165,12 @@ export function toEvaluationSheetDto(
 			: undefined,
 	};
 }
+
+export const toSheetCorrectionDto = (correction: SheetCorrection): SheetCorrectionDto => ({
+	id: correction.id,
+	subject: correction.subject,
+	before: correction.beforeText,
+	after: correction.afterText,
+	reason: correction.reason,
+	correctedAt: correction.correctedAt,
+});

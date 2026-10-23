@@ -39,6 +39,14 @@ export function toSheetExportDataDto(
 		totalEvaluationScore: String(scores.totalEvaluationScore),
 		firstOverallComment: sheet.firstOverallComment,
 		secondOverallComment: sheet.secondOverallComment,
+		// 確定前のシートを出力できるのは、評価を確定せずに締めた期間だけ(EvaluationSheetAccessPolicy)
+		unconfirmed: !sheet.status.isFinalized(),
+		corrections: sheet.corrections
+			.filter((correction) => sheet.status.isFinalized() || correction.stage === "content")
+			.map(
+				(correction) =>
+					`${correction.correctedAt.slice(0, 10)} ${correction.subject}: ${correction.beforeText} → ${correction.afterText}(理由: ${correction.reason})`,
+			),
 		objectives: sheet.objectives.map((objective) => ({
 			id: objective.id,
 			goalNumber: objective.goalNumber,

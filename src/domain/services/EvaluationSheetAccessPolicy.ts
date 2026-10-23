@@ -1,4 +1,5 @@
 import type { EvaluationSheet } from "../entities/EvaluationSheet";
+import type { SheetCorrection } from "../entities/SheetCorrection";
 import { isPrimaryEvaluator, isSecondaryEvaluator, isSubject } from "./EvaluatorRoleService";
 
 /**
@@ -9,14 +10,15 @@ import { isPrimaryEvaluator, isSecondaryEvaluator, isSubject } from "./Evaluator
  * 評価は「提出済み → 一次評価(一次評価者が確定) → 二次評価(最終評価者が確定)」の順に進み、
  * 下書き中のシートは評価者に見せない。一次評価は確定すると変更できない。
  * 記入・評価・状態の変更ができるのは、シートの評価期間が実施中の間だけ。締めた期間のシートは、
- * 閲覧と確定済みシートの出力だけになる。
+ * 閲覧と確定済みシートの出力だけになる。締めた期間のシートはもう変わらないので、下書きのままでも
+ * 評価者が読める。評価を確定せずに締めてよい期間(Admin が決める)では、確定していないシートも出力できる。
  * 本人・一次評価者・二次評価者の役割はシートごとに解決するため、
  * 「自分が誰かの評価者であり、かつ自分自身の被評価者でもある」場合でも
  * シート間で判定が混ざることはない。
  */
 export class EvaluationSheetAccessPolicy {
 	private readonly viewerIsFinalEvaluator: boolean;
-	/** 評価者として、提出済みのシートを見ている。下書き中は評価者に内容を見せない。 */
+	/** 評価者として、提出済み(または締めた期間)のシートを見ている。書きかけの下書きは評価者に見せない。 */
 	private readonly viewerIsEvaluatorOfSubmittedSheet: boolean;
 	/** シートの評価期間が実施中か。締めた期間のシートは誰も変更できない。 */
 	private readonly periodIsOpen: boolean;
@@ -27,18 +29,19 @@ export class EvaluationSheetAccessPolicy {
 		private readonly viewerIsPrimaryEvaluator: boolean,
 		private readonly viewerIsSecondaryEvaluator: boolean,
 		/**
-		 * 被評価者の今の評価者(異動で新しく評価者になった人など)として、確定したシートを評価の記録として読む。
+		 * 被評価者の今の評価者(異動で新しく評価者になった人など)として、確定した(または締めた期間の)シートを
+		 * 評価の記録として読む。
 		 * 読むだけで、帳票と同じ全体が見える。
 		 */
 		private readonly viewerReadsRecord = false,
 	) {
+		this.periodIsOpen = sheet.evaluationPeriod.isActive;
 		this.viewerIsFinalEvaluator =
 			viewerIsSecondaryEvaluator || (viewerIsPrimaryEvaluator && sheet.primaryIsFinalEvaluator());
 		this.viewerIsEvaluatorOfSubmittedSheet =
 			!viewerIsSubject &&
 			(viewerIsPrimaryEvaluator || viewerIsSecondaryEvaluator) &&
-			sheet.status.isSubmitted();
-		this.periodIsOpen = sheet.evaluationPeriod.isActive;
+			(sheet.status.isSubmitted() || !this.periodIsOpen);
 	}
 
 	static for(
@@ -55,7 +58,7 @@ export class EvaluationSheetAccessPolicy {
 			isPrimaryEvaluator(currentEmployeeId, sheet.subject),
 			isSecondaryEvaluator(currentEmployeeId, sheet.subject),
 			!subject &&
-				sheet.status.isFinalized() &&
+				(sheet.status.isFinalized() || !sheet.evaluationPeriod.isActive) &&
 				sheet.currentEvaluatorIds.includes(currentEmployeeId),
 		);
 	}
@@ -202,13 +205,41 @@ export class EvaluationSheetAccessPolicy {
 		);
 	}
 
+	// --- 締め後修正(遡及処理) ---
+
+	/**
+	 * 締め後修正を見せるか。直した項目そのものを見られる人にだけ見せる(一次評価者に二次評価の修正は見せない、
+	 * 本人に確定前の点数の修正は見せない、など)。直したことを隠さないため、見られる項目の修正は必ず見せる。
+	 */
+	canViewCorrection(correction: SheetCorrection): boolean {
+		if (!this.canViewSheet()) {
+			return false;
+		}
+		const { target, value } = correction.field;
+		if (correction.stage === "content") {
+			return true;
+		}
+		if (target === "goal") {
+			return value === "first_score"
+				? this.canViewMilestoneFirstScore()
+				: this.canViewMilestoneSecondScore();
+		}
+		return correction.stage === "first"
+			? this.canViewCommonEvaluation()
+			: this.canViewCommonEvaluationSecond();
+	}
+
 	// --- 出力(PDFエクスポート) ---
 
 	/**
 	 * 本人と評価者(一次・二次)が、評価が確定したシートを出力できる。評価関係のない人は出力できない。
 	 * 帳票は確定した評価の記録で、誰が出力しても同じ内容になる(画面のように役割で伏せない)。
+	 * 評価を確定せずに締めてよい期間では、締めた後なら確定していないシートも出力できる(点数とランクは伏せる)。
 	 */
 	canExportSheet(): boolean {
-		return this.canViewSheet() && this.sheet.status.isFinalized();
+		return (
+			this.canViewSheet() &&
+			(this.sheet.status.isFinalized() || this.sheet.evaluationPeriod.allowsExportBeforeFinalized())
+		);
 	}
 }

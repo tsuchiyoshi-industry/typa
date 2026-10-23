@@ -1,4 +1,7 @@
-import type { MilestoneRepository } from "../../domain/repositories/MilestoneRepository";
+import type {
+	MilestoneRepository,
+	PreviousGoals,
+} from "../../domain/repositories/MilestoneRepository";
 import { supabase } from "../db/supabase";
 
 /** 書き込めた行が無い(DB の権限で拒否された)ときは、エラーとして扱う。 */
@@ -73,5 +76,24 @@ export class SupabaseMilestoneRepository implements MilestoneRepository {
 			await supabase.from("milestones").update(payload).eq("id", milestoneId).select("id").single(),
 			"Failed to update milestone score.",
 		);
+	}
+
+	async findPreviousGoals(sheetId: number): Promise<PreviousGoals | null> {
+		const { data, error } = await supabase.rpc("get_previous_goals", { p_sheet_id: sheetId });
+		if (error) {
+			throw new Error(error.message);
+		}
+		return (data as PreviousGoals | null) ?? null;
+	}
+
+	async carryOver(sheetId: number, goalId: number): Promise<void> {
+		// 本人の下書きか、前の評価期間の目標か、上限を越えないかは DB 関数が確かめる
+		const { error } = await supabase.rpc("carry_over_goal", {
+			p_sheet_id: sheetId,
+			p_goal_id: goalId,
+		});
+		if (error) {
+			throw new Error(error.message);
+		}
 	}
 }

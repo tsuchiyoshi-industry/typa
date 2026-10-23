@@ -15,6 +15,8 @@ export interface EvaluationSheetSummary {
 	periodName: string;
 	periodStart: string;
 	periodEnd: string;
+	/** 評価を確定せずに締めた期間のシートで、確定前でも PDF に出力できる。 */
+	exportableBeforeFinalized?: boolean;
 	employeeName: string;
 	employeeNo: string;
 	/** シートを作成したときの等級。等級が未設定だった場合は空文字。 */

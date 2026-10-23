@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { EvaluationPeriodController } from "../../adapter/controllers/EvaluationPeriodController";
+import { EvaluationPeriod } from "../../domain/entities/EvaluationPeriod";
+import type { EvaluationPeriodPlan } from "../../domain/entities/EvaluationPeriodPlan";
 import { EvaluationScoreUpdateService } from "../../domain/services/EvaluationScoreUpdateService";
 import { EvaluationStatus } from "../../domain/valueObjects/EvaluationStatus";
+import { SheetCountsByStatus } from "../../domain/valueObjects/SheetCountsByStatus";
 import {
 	commonRepository,
 	employeeRepository,
@@ -33,7 +37,17 @@ function setup(role: string | null = "Admin") {
 	employees.findCurrentEmployeeProfile.mockResolvedValue(role ? profile(role, 9) : null);
 	return { periods, employees };
 }
-const nextTerm = { periodName: "次期", startDate: "2028-04-01", endDate: "2029-03-31" };
+const nextTerm = { termName: "次期", startDate: "2028-04-01", endDate: "2029-03-31" };
+/** 保存した計画を、比べやすい素の値にする。 */
+const plain = (plan: EvaluationPeriodPlan) => ({
+	periodName: plan.periodName,
+	termName: plan.term.toString(),
+	division: plan.part.division.toString(),
+	part: plan.part.number,
+	startDate: plan.range.start.toString(),
+	endDate: plan.range.end.toString(),
+	allowUnfinalizedClose: plan.allowUnfinalizedClose,
+});
 const writes = (periods: ReturnType<typeof periodRepository>) => [
 	periods.create,
 	periods.update,
@@ -62,6 +76,7 @@ describe("closing an evaluation period", () => {
 			closing: expect.objectContaining({ id: 2, periodName: "今期" }),
 			next: expect.objectContaining({ id: 3, periodName: "来期" }),
 			finalizedSheets: 4,
+			unfinishedSheets: 0,
 		});
 		expect(context.periods.activate).not.toHaveBeenCalled();
 
@@ -77,28 +92,75 @@ describe("closing an evaluation period", () => {
 		"refuses while the period still has unfinalized sheets (confirmed: %s)",
 		async (confirmed) => {
 			const context = setup();
-			context.periods.countSheetsByStatus.mockResolvedValue({
-				draft: 2,
-				first_evaluated: 1,
-				finalized: 7,
-			});
+			context.periods.countSheetsByStatus.mockResolvedValue(
+				SheetCountsByStatus.from({ draft: 2, first_evaluated: 1, finalized: 7 }),
+			);
 			expect(await close(context, 3, confirmed)).toEqual({
 				status: "rejected",
 				message:
-					"「今期」に未確定の評価シートが 3 件あります（下書き 2 件・二次評価待ち 1 件）。すべての評価を確定してから締めてください。",
+					"「今期」に未確定の評価シートが 3 件あります（下書き 2 件・二次評価待ち 1 件）。すべての評価を確定してから締めてください。評価を確定せずに締めるには、この期間を編集して「評価が確定していなくても締められる」をオンにしてください。",
 			});
 			expect(context.periods.countSheetsByStatus).toHaveBeenCalledWith(2);
 			expect(context.periods.activate).not.toHaveBeenCalled();
 		},
 	);
 
-	it("lets a mistaken closing be undone by starting the previous period again", async () => {
+	it("closes with unfinalized sheets left when the Admin allowed it for the period", async () => {
 		const context = setup();
-		expect(await close(context, 1, true)).toEqual({
-			status: "closed",
-			message: "「今期」を締め、「前期」を開始しました。",
+		const [previous, , next] = await context.periods.findDistinctPeriods();
+		context.periods.findDistinctPeriods.mockResolvedValue([
+			previous,
+			EvaluationPeriod.restore({
+				id: 2,
+				termName: "今期",
+				startDate: "2026-04-01",
+				endDate: "2027-03-31",
+				isActive: true,
+				allowUnfinalizedClose: true,
+			}),
+			next,
+		]);
+		context.periods.countSheetsByStatus.mockResolvedValue(
+			SheetCountsByStatus.from({ draft: 2, submitted: 1, finalized: 7 }),
+		);
+		expect(await close(context, 3, false)).toMatchObject({
+			status: "ready",
+			finalizedSheets: 7,
+			unfinishedSheets: 3,
 		});
-		expect(context.periods.activate).toHaveBeenCalledWith(1);
+		expect(await close(context, 3, true)).toMatchObject({ status: "closed" });
+		expect(context.periods.activate).toHaveBeenCalledExactlyOnceWith(3);
+	});
+
+	it("never starts a closed period again, so a closing cannot be undone by reopening", async () => {
+		const context = setup();
+		expect(await close(context, 1, false)).toEqual({
+			status: "rejected",
+			message: "「前期」は締め済みのため、もう一度開始することはできません。",
+		});
+		expect(await close(context, 1, true)).toMatchObject({ status: "rejected" });
+		expect(context.periods.activate).not.toHaveBeenCalled();
+	});
+
+	it("reports a failure to read the sheets or to switch, without switching", async () => {
+		const context = setup();
+		const controller = new EvaluationPeriodController(
+			context.periods,
+			new SaveEvaluationPeriodInteractor(context.periods, context.employees),
+			new DeleteEvaluationPeriodInteractor(context.periods, context.employees),
+			new CloseEvaluationPeriodInteractor(context.periods, context.employees),
+		);
+		context.periods.countSheetsByStatus.mockRejectedValueOnce(new Error("network"));
+		expect(await controller.close(3, true)).toEqual({
+			status: "rejected",
+			message: "評価期間を切り替えられませんでした。",
+		});
+		context.periods.activate.mockRejectedValueOnce(new Error("network"));
+		expect(await controller.close(3, true)).toMatchObject({ status: "rejected" });
+		// 読み込みに失敗した評価期間は、開始の対象にしない
+		context.periods.findDistinctPeriods.mockRejectedValueOnce(new Error("network"));
+		expect(await controller.close(3, true)).toMatchObject({ status: "rejected" });
+		expect(context.periods.activate).toHaveBeenCalledOnce();
 	});
 
 	it.each(["Reviewer", "Employee", null])("is for an Admin only (%s)", async (role) => {
@@ -142,22 +204,147 @@ describe("adding, editing and deleting evaluation periods", () => {
 		return out.present.mock.calls[0][0];
 	};
 
-	it("adds a period, and changes the name and dates of an existing one", async () => {
+	it("adds a period, and changes the term name and dates of an existing one", async () => {
 		const context = setup();
-		expect(await run(context, { ...nextTerm, periodName: " 次期 " })).toMatchObject({
+		expect(await run(context, { ...nextTerm, termName: " 次期 " })).toMatchObject({
 			success: true,
 		});
-		expect(context.periods.create).toHaveBeenCalledWith(nextTerm);
+		expect(context.periods.create.mock.calls[0][0].map(plain)).toEqual([
+			{
+				periodName: "次期",
+				termName: "次期",
+				division: "full",
+				part: 1,
+				startDate: "2028-04-01",
+				endDate: "2029-03-31",
+				allowUnfinalizedClose: false,
+			},
+		]);
 		// 自分自身の名前は重複として扱わない
-		expect(await run(context, { ...nextTerm, periodId: 3, periodName: "来期" })).toMatchObject({
+		expect(
+			await run(context, {
+				...nextTerm,
+				periodId: 3,
+				termName: "来期",
+				allowUnfinalizedClose: true,
+			}),
+		).toEqual({ success: true, message: "評価期間「来期」を保存しました。" });
+		expect(context.periods.update).toHaveBeenCalledOnce();
+		const [id, plan] = context.periods.update.mock.calls[0];
+		expect([id, plain(plan)]).toEqual([
+			3,
+			{
+				periodName: "来期",
+				termName: "来期",
+				division: "full",
+				part: 1,
+				startDate: "2028-04-01",
+				endDate: "2029-03-31",
+				allowUnfinalizedClose: true,
+			},
+		]);
+	});
+
+	it("divides a term into independent half-year periods, named and dated without a calendar", async () => {
+		const context = setup();
+		expect(
+			await run(context, {
+				termName: "26期",
+				startDate: "2026-03-23",
+				endDate: "2027-03-22",
+				division: "half",
+				allowUnfinalizedClose: true,
+			}),
+		).toEqual({
 			success: true,
+			message:
+				"評価期間「26期 上期」「26期 下期」を追加しました。開始するには、一覧の「この期間を開始する」を押してください。",
 		});
-		expect(context.periods.update).toHaveBeenCalledWith(3, { ...nextTerm, periodName: "来期" });
+		expect(context.periods.create.mock.calls[0][0].map(plain)).toEqual([
+			{
+				periodName: "26期 上期",
+				termName: "26期",
+				division: "half",
+				part: 1,
+				startDate: "2026-03-23",
+				endDate: "2026-09-22",
+				allowUnfinalizedClose: true,
+			},
+			{
+				periodName: "26期 下期",
+				termName: "26期",
+				division: "half",
+				part: 2,
+				startDate: "2026-09-23",
+				endDate: "2027-03-22",
+				allowUnfinalizedClose: true,
+			},
+		]);
+	});
+
+	it("keeps the division when renaming a divided period", async () => {
+		const context = setup();
+		context.periods.findDistinctPeriods.mockResolvedValue([
+			EvaluationPeriod.restore({
+				id: 7,
+				termName: "26期",
+				division: "half",
+				part: 2,
+				startDate: "2026-09-23",
+				endDate: "2027-03-22",
+				isActive: false,
+			}),
+		]);
+		expect(
+			await run(context, {
+				periodId: 7,
+				termName: "第26期",
+				startDate: "2026-10-01",
+				endDate: "2027-03-31",
+				// 変更では区切り方は変えられない
+				division: "quarter",
+			}),
+		).toEqual({ success: true, message: "評価期間「第26期 下期」を保存しました。" });
+		expect(plain(context.periods.update.mock.calls[0][1])).toMatchObject({
+			periodName: "第26期 下期",
+			division: "half",
+			part: 2,
+		});
+	});
+
+	it("rejects a division that leaves no room or reuses a name, without saving", async () => {
+		const context = setup();
+		const short = { termName: "短期", startDate: "2028-04-01", endDate: "2028-08-31" };
+		expect(await run(context, { ...short, division: "half" })).toEqual({
+			success: false,
+			message: "半期(上期・下期)に分けるには期間が短すぎます。開始日と終了日を確かめてください。",
+		});
+		context.periods.findDistinctPeriods.mockResolvedValue([
+			EvaluationPeriod.restore({
+				id: 5,
+				termName: "29期",
+				division: "half",
+				part: 2,
+				startDate: "2029-10-01",
+				endDate: "2030-03-31",
+				isActive: false,
+			}),
+		]);
+		expect(
+			await run(context, {
+				termName: "29期",
+				startDate: "2029-04-01",
+				endDate: "2030-03-31",
+				division: "half",
+			}),
+		).toEqual({ success: false, message: "「29期 下期」という評価期間は既にあります。" });
+		expect(context.periods.create).not.toHaveBeenCalled();
 	});
 
 	it.each([
-		["a blank name", { periodName: "  " }],
-		["a name already used", { periodName: "今期" }],
+		["a blank name", { termName: "  " }],
+		["a name already used", { termName: "今期" }],
+		["an unknown division", { division: "monthly" }],
 		["a missing date", { startDate: "" }],
 		["a date that does not exist", { endDate: "2029-02-30" }],
 		["an end before the start", { endDate: "2028-03-31" }],
@@ -197,6 +384,38 @@ describe("adding, editing and deleting evaluation periods", () => {
 		for (const write of writes(context.periods)) {
 			expect(write).not.toHaveBeenCalled();
 		}
+	});
+
+	it("reports a save or deletion that failed on the way, without crashing", async () => {
+		const context = setup();
+		const controller = new EvaluationPeriodController(
+			context.periods,
+			new SaveEvaluationPeriodInteractor(context.periods, context.employees),
+			new DeleteEvaluationPeriodInteractor(context.periods, context.employees),
+			new CloseEvaluationPeriodInteractor(context.periods, context.employees),
+		);
+		context.periods.create.mockRejectedValueOnce(new Error("network"));
+		expect(await controller.save(nextTerm)).toEqual({
+			success: false,
+			message: "評価期間を保存できませんでした。",
+		});
+		context.periods.delete.mockRejectedValueOnce(new Error("network"));
+		expect(await controller.remove(3)).toEqual({
+			success: false,
+			message: "評価期間を削除できませんでした。",
+		});
+		context.periods.findDistinctPeriods.mockRejectedValueOnce(new Error("network"));
+		await expect(controller.load()).rejects.toThrow("network");
+	});
+
+	it("refuses to delete a closed period that has sheets, but deletes an empty one", async () => {
+		const context = setup();
+		expect(await remove(context, 1)).toEqual({
+			success: false,
+			message: "「前期」には評価シートが 4 件あるため、削除できません。",
+		});
+		context.periods.countSheetsByStatus.mockResolvedValueOnce(SheetCountsByStatus.NONE);
+		expect(await remove(context, 1)).toMatchObject({ success: true });
 	});
 
 	it("reports a save or deletion the database refused", async () => {

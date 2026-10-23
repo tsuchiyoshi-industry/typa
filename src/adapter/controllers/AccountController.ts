@@ -10,7 +10,11 @@ import type {
 import type { AuthRepository } from "../../domain/repositories/AuthRepository";
 import type { EmployeeMasterRepository } from "../../domain/repositories/EmployeeMasterRepository";
 import type { WorkspaceSettingsRepository } from "../../domain/repositories/WorkspaceSettingsRepository";
-import { canEditSettings } from "../../domain/services/EmployeeMasterAccessService";
+import {
+	canCorrectClosedSheets,
+	canEditSettings,
+	canRunSetup,
+} from "../../domain/services/EmployeeMasterAccessService";
 
 /** トップバーに出す、ログイン中の社員。 */
 export interface CurrentUserDto {
@@ -18,6 +22,8 @@ export interface CurrentUserDto {
 	employeeNo: string;
 	role: string;
 	canViewSettings: boolean;
+	canRunSetup: boolean;
+	canCorrectClosedSheets: boolean;
 }
 
 /** ログイン画面の操作。ログインと登録の手順は use case が持ち、画面は結果に応じた表示だけをする。 */
@@ -47,6 +53,8 @@ export class AccountController {
 				employeeNo: person.employeeNo,
 				role: person.role.toString(),
 				canViewSettings: canEditSettings(person.role),
+				canRunSetup: canRunSetup(person.role),
+				canCorrectClosedSheets: canCorrectClosedSheets(person.role),
 			}
 		);
 	}

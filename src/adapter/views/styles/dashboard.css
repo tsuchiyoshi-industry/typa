@@ -2197,3 +2197,103 @@
 .status-track__notice {
 	white-space: pre-line;
 }
+
+/* 前の期の目標: 続ける目標を今期に引き継ぎ、続けない目標は「済み」 */
+.previous-goals > summary {
+	display: block;
+	cursor: pointer;
+	list-style: none;
+}
+.previous-goals > summary::-webkit-details-marker {
+	display: none;
+}
+.previous-goals > summary h2::after {
+	content: "▸";
+	display: inline-block;
+	margin-left: 0.4rem;
+	color: var(--hr-text-muted);
+	font-size: 0.75rem;
+	transition: transform 0.15s ease;
+}
+.previous-goals[open] > summary h2::after {
+	transform: rotate(90deg);
+}
+.previous-goals:not([open]) > summary {
+	border-bottom: 0;
+}
+.previous-goals__lead {
+	margin: 0;
+	padding: 0.85rem 1.25rem 0;
+	color: var(--hr-text-muted);
+	font-size: 0.8125rem;
+}
+.previous-goals__list {
+	display: grid;
+	margin: 0;
+	padding: 0.5rem 1.25rem 1rem;
+	list-style: none;
+}
+.previous-goals__list li {
+	display: grid;
+	grid-template-columns: 1.75rem minmax(0, 1fr) auto;
+	align-items: start;
+	gap: 0.75rem;
+	padding: 0.75rem 0;
+	border-bottom: 1px solid var(--hr-border);
+}
+.previous-goals__list li:last-child {
+	border-bottom: 0;
+}
+.previous-goals__number {
+	display: inline-grid;
+	place-items: center;
+	width: 1.6rem;
+	height: 1.6rem;
+	border: 1px solid var(--hr-border-strong);
+	border-radius: 999px;
+	color: var(--hr-text-muted);
+	font-size: 0.8125rem;
+	font-variant-numeric: tabular-nums;
+}
+.previous-goals__text {
+	margin: 0;
+	font-size: 0.875rem;
+	line-height: 1.7;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+.previous-goals__achievement {
+	margin-top: 0.3rem;
+	color: var(--hr-text-muted);
+	font-size: 0.8125rem;
+}
+.previous-goals__label {
+	margin-right: 0.5rem;
+	font-weight: 600;
+}
+.previous-goals__state {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 0.5rem;
+}
+.previous-goals__done {
+	color: var(--hr-text-muted);
+	font-size: 0.8125rem;
+	white-space: nowrap;
+}
+.previous-goals__state .secondary-action {
+	min-height: 2.25rem;
+	padding: 0.35rem 0.8rem;
+	font-size: 0.8125rem;
+}
+@media (max-width: 640px) {
+	.previous-goals__list li {
+		grid-template-columns: 1.75rem minmax(0, 1fr);
+	}
+	.previous-goals__state {
+		grid-column: 2;
+		justify-content: flex-start;
+	}
+}

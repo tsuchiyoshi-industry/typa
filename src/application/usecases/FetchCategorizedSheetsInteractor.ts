@@ -30,6 +30,7 @@ export function toSheetSummaryDto(summary: EvaluationSheetSummary): SheetSummary
 		periodName: summary.periodName,
 		startDate: summary.periodStart,
 		endDate: summary.periodEnd,
+		exportableBeforeFinalized: summary.exportableBeforeFinalized ?? false,
 		employeeName: summary.employeeName,
 		employeeNo: summary.employeeNo,
 		gradeName: summary.gradeName,

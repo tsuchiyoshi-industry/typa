@@ -1,3 +1,4 @@
+import { DomainError } from "../../domain/DomainError";
 import type { EmployeeMasterRepository } from "../../domain/repositories/EmployeeMasterRepository";
 import type { EvaluationPeriodRepository } from "../../domain/repositories/EvaluationPeriodRepository";
 import { canEditSettings } from "../../domain/services/EmployeeMasterAccessService";
@@ -36,15 +37,13 @@ export class DeleteEvaluationPeriodInteractor
 		if (!period) {
 			return reject("評価期間が見つかりませんでした。");
 		}
-		if (period.isActive) {
-			return reject("実施中の評価期間は削除できません。");
-		}
-		const counts = await this.periodRepository.countSheetsByStatus(period.id);
-		const sheets = Object.values(counts).reduce((sum, count) => sum + count, 0);
-		if (sheets > 0) {
-			return reject(
-				`「${period.periodName}」には評価シートが ${sheets} 件あるため、削除できません。`,
-			);
+		try {
+			period.assertCanDelete(await this.periodRepository.countSheetsByStatus(period.id));
+		} catch (error) {
+			if (error instanceof DomainError) {
+				return reject(error.message);
+			}
+			throw error;
 		}
 
 		if (!(await this.periodRepository.delete(period.id))) {

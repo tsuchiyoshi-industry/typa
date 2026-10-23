@@ -1,15 +1,27 @@
-import type { EvaluationPeriodDto } from "../../application/dtos/EvaluationPeriodDto";
+import {
+	type EvaluationPeriodDto,
+	toEvaluationPeriodDto,
+} from "../../application/dtos/EvaluationPeriodDto";
 import type {
 	CloseEvaluationPeriodInteractor,
 	CloseEvaluationPeriodResponse,
 } from "../../application/usecases/CloseEvaluationPeriodInteractor";
 import type { DeleteEvaluationPeriodInteractor } from "../../application/usecases/DeleteEvaluationPeriodInteractor";
-import type {
-	EvaluationPeriodChangeResponse,
-	SaveEvaluationPeriodInteractor,
-	SaveEvaluationPeriodRequest,
+import {
+	type EvaluationPeriodChangeResponse,
+	planNewPeriods,
+	type SaveEvaluationPeriodInteractor,
+	type SaveEvaluationPeriodRequest,
 } from "../../application/usecases/SaveEvaluationPeriodInteractor";
+import { DomainError } from "../../domain/DomainError";
+import { EvaluationCalendar } from "../../domain/entities/EvaluationCalendar";
 import type { EvaluationPeriodRepository } from "../../domain/repositories/EvaluationPeriodRepository";
+import { PeriodDivision } from "../../domain/valueObjects/PeriodDivision";
+
+/** 追加する前に見せる、分けた評価期間。 */
+export type EvaluationPeriodPreview =
+	| { periods: { periodName: string; startDate: string; endDate: string }[] }
+	| { error: string };
 
 /** 設定画面の「評価期間」。追加・変更・削除と、期間締め。 */
 export class EvaluationPeriodController {
@@ -20,17 +32,35 @@ export class EvaluationPeriodController {
 		private readonly closeUseCase: CloseEvaluationPeriodInteractor,
 	) {}
 
-	/** 新しい期間が上。 */
+	/** 区切り方の選択肢。 */
+	readonly divisions = PeriodDivision.ALL.map((division) => ({
+		value: division.toString(),
+		label: division.label,
+	}));
+
+	/** 新しい評価期間が上。 */
 	async load(): Promise<EvaluationPeriodDto[]> {
-		return (await this.periodRepository.findDistinctPeriods())
-			.map(({ id, periodName, startDate, endDate, isActive }) => ({
-				id,
-				periodName,
-				startDate,
-				endDate,
-				isActive,
-			}))
-			.sort((a, b) => b.startDate.localeCompare(a.startDate));
+		return new EvaluationCalendar(await this.periodRepository.findDistinctPeriods())
+			.all()
+			.map(toEvaluationPeriodDto);
+	}
+
+	/** 追加する評価期間を、保存せずに計算する。入力が足りない・誤っているときは、その理由。 */
+	preview(request: Omit<SaveEvaluationPeriodRequest, "periodId">): EvaluationPeriodPreview {
+		try {
+			return {
+				periods: planNewPeriods(request).map((plan) => ({
+					periodName: plan.periodName,
+					startDate: plan.range.start.toString(),
+					endDate: plan.range.end.toString(),
+				})),
+			};
+		} catch (error) {
+			if (error instanceof DomainError) {
+				return { error: error.message };
+			}
+			throw error;
+		}
 	}
 
 	async save(request: SaveEvaluationPeriodRequest): Promise<EvaluationPeriodChangeResponse> {

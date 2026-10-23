@@ -62,6 +62,7 @@ export function reviewerEditorFixture(
 	};
 	const dto = (row: ReviewerRowDto): EvaluationSheetDto => ({
 		commonEvaluation: commonEvaluation(row),
+		corrections: [],
 		sheetId: row.sheetId as number,
 		subject: {
 			id: row.employeeId,
@@ -77,9 +78,13 @@ export function reviewerEditorFixture(
 		evaluationPeriod: {
 			id: 10,
 			periodName: "2026年度 下期",
+			termName: "2026年度",
 			startDate: "2026-10-01",
 			endDate: "2027-03-31",
 			isActive: true,
+			state: "active",
+			stateLabel: "実施中",
+			allowUnfinalizedClose: false,
 		},
 		primaryEvaluator: row.primaryEvaluator,
 		secondaryEvaluator: "徳永 優",
@@ -231,6 +236,9 @@ export function reviewerEditorFixture(
 			touch(row);
 			return true;
 		},
+		// 前の評価期間のシートは無い
+		loadPreviousGoals: async () => null,
+		carryOver: async () => null,
 	} as unknown as ChallengeEvaluationController;
 	return {
 		controller,

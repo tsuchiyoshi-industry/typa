@@ -1,19 +1,36 @@
 import { type Component, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import type { EvaluationPeriodDto } from "../../../application/dtos/EvaluationPeriodDto";
+import { messageOf } from "../../../application/errorMessage";
 import type { EvaluationPeriodController } from "../../controllers/EvaluationPeriodController";
 import { confirmAction, showToast } from "../feedback";
 
 interface EvaluationPeriodSettingsProps {
-	controller: Pick<EvaluationPeriodController, "load" | "save" | "remove" | "close">;
+	controller: Pick<
+		EvaluationPeriodController,
+		"load" | "save" | "remove" | "close" | "preview" | "divisions"
+	>;
 }
 
-const EMPTY_FORM = { periodName: "", startDate: "", endDate: "" };
+const EMPTY_FORM = {
+	termName: "",
+	startDate: "",
+	endDate: "",
+	division: "full",
+	allowUnfinalizedClose: false,
+};
 
 /** 期間締めの前に、Admin に確かめてもらうこと。 */
-const closingNotes = (closing: string | null, next: string, finalizedSheets: number): string[] => [
+const closingNotes = (
+	closing: string | null,
+	next: string,
+	finalizedSheets: number,
+	unfinishedSheets: number,
+): string[] => [
 	...(closing
 		? [
-				`「${closing}」の評価シートは ${finalizedSheets} 件で、すべて最終評価済みです。未確定のシートはありません。`,
+				unfinishedSheets > 0
+					? `「${closing}」の評価シートのうち ${unfinishedSheets} 件は、評価が確定していません。この期間は確定せずに締められる設定なので、そのままの状態で締めます。PDF では、点数とランクを「***」で伏せます。`
+					: `「${closing}」の評価シートは ${finalizedSheets} 件で、すべて最終評価済みです。未確定のシートはありません。`,
 				`締めた後は、「${closing}」の評価シートを誰も変更できません。閲覧と PDF 出力は引き続きできます。`,
 				`「${closing}」のシートをまだ作成していない社員がいても、締めた後は作成できません。作成漏れがないか、先に確認してください。`,
 			]
@@ -25,7 +42,7 @@ const closingNotes = (closing: string | null, next: string, finalizedSheets: num
 	"利用中の社員の画面には、画面を開き直したときに反映されます。",
 	...(closing
 		? [
-				`間違えた場合は、「${closing}」をもう一度開始すれば元に戻せます。ただし、その時点で「${next}」に未確定のシートがあると戻せません。`,
+				`締めた「${closing}」は、もう一度開始することはできません。締める前に、上の内容を確かめてください。`,
 			]
 		: []),
 ];
@@ -50,9 +67,12 @@ const EvaluationPeriodSettings: Component<EvaluationPeriodSettingsProps> = (prop
 			if (mounted) {
 				setPeriods(loaded);
 			}
-		} catch {
+		} catch (reason) {
 			if (mounted) {
-				setError("評価期間を読み込めませんでした。");
+				// 理由も出す(管理担当者に伝えられるように)。読めない間は、どの操作も出さない
+				const detail = messageOf(reason, "");
+				setError(`評価期間を読み込めませんでした。${detail ? `(${detail})` : ""}`);
+				setPeriods([]);
 			}
 		} finally {
 			if (mounted) {
@@ -78,6 +98,22 @@ const EvaluationPeriodSettings: Component<EvaluationPeriodSettingsProps> = (prop
 		}
 	};
 
+	/** 追加する前に、分けた評価期間の名前と日付(または、分けられない理由)を見せる。 */
+	const preview = () => {
+		const { termName, startDate, endDate } = form();
+		return editingId() === null && termName.trim() && startDate && endDate
+			? props.controller.preview(form())
+			: null;
+	};
+	const previewPeriods = () => {
+		const result = preview();
+		return result && "periods" in result ? result.periods : null;
+	};
+	const previewError = () => {
+		const result = preview();
+		return result && "error" in result ? result.error : null;
+	};
+
 	const resetForm = () => {
 		setEditingId(null);
 		setForm(EMPTY_FORM);
@@ -85,19 +121,23 @@ const EvaluationPeriodSettings: Component<EvaluationPeriodSettingsProps> = (prop
 	const edit = (period: EvaluationPeriodDto) => {
 		setEditingId(period.id);
 		setForm({
-			periodName: period.periodName,
+			termName: period.termName,
 			startDate: period.startDate,
 			endDate: period.endDate,
+			division: "full",
+			allowUnfinalizedClose: period.allowUnfinalizedClose,
 		});
 	};
 
 	const save = (event: Event) => {
 		event.preventDefault();
 		void run(async () => {
-			const result = await props.controller.save({
-				...form(),
-				...(editingId() === null ? {} : { periodId: editingId() as number }),
-			});
+			const { division, ...fields } = form();
+			const result = await props.controller.save(
+				editingId() === null
+					? { ...fields, division }
+					: { ...fields, periodId: editingId() as number },
+			);
 			showToast(result.success ? "success" : "error", result.message);
 			if (result.success && mounted) {
 				resetForm();
@@ -134,7 +174,12 @@ const EvaluationPeriodSettings: Component<EvaluationPeriodSettingsProps> = (prop
 					? `「${closing}」を締めて、「${next.periodName}」を開始しますか？`
 					: `「${next.periodName}」を開始しますか？`,
 				message: "実施中の評価期間は常に1つです。次の点を確認してください。",
-				details: closingNotes(closing, next.periodName, preview.finalizedSheets),
+				details: closingNotes(
+					closing,
+					next.periodName,
+					preview.finalizedSheets,
+					preview.unfinishedSheets,
+				),
 				confirmLabel: closing ? "締めて、次の期間を開始する" : "この期間を開始する",
 				tone: "danger",
 			});
@@ -162,7 +207,7 @@ const EvaluationPeriodSettings: Component<EvaluationPeriodSettingsProps> = (prop
 				PDF 出力だけになります。
 			</p>
 			<p class="allocation-note">
-				次の期間を開始すると、実施中の期間は同時に締められます。未確定の評価シートが残っている間は締められません。
+				次の期間を開始すると、実施中の期間は同時に締められます。未確定の評価シートが残っている間は締められません(期間ごとに、確定せずに締めることを認められます)。
 			</p>
 
 			<Show when={error()}>
@@ -204,13 +249,19 @@ const EvaluationPeriodSettings: Component<EvaluationPeriodSettingsProps> = (prop
 											<td>{period.startDate}</td>
 											<td>{period.endDate}</td>
 											<td>
-												<Show when={period.isActive} fallback="—">
-													<span class="period-badge">実施中</span>
+												<Show
+													when={period.isActive}
+													fallback={<span class="period-state">{period.stateLabel}</span>}
+												>
+													<span class="period-badge">{period.stateLabel}</span>
+												</Show>
+												<Show when={period.allowUnfinalizedClose}>
+													<small class="period-note">未確定でも締める</small>
 												</Show>
 											</td>
 											<td>
 												<div class="period-actions">
-													<Show when={!period.isActive}>
+													<Show when={period.state === "not_started"}>
 														<button
 															type="button"
 															class="secondary-action"
@@ -255,13 +306,14 @@ const EvaluationPeriodSettings: Component<EvaluationPeriodSettingsProps> = (prop
 			<h3>{editingId() === null ? "評価期間を追加" : "評価期間を変更"}</h3>
 			<form class="allocation-form period-form" onSubmit={save}>
 				<label>
-					期間名
+					期の名前
 					<input
 						type="text"
 						required
-						value={form().periodName}
+						placeholder="例: 26期"
+						value={form().termName}
 						disabled={busy()}
-						onInput={(event) => setForm({ ...form(), periodName: event.currentTarget.value })}
+						onInput={(event) => setForm({ ...form(), termName: event.currentTarget.value })}
 					/>
 				</label>
 				<label>
@@ -285,6 +337,36 @@ const EvaluationPeriodSettings: Component<EvaluationPeriodSettingsProps> = (prop
 						onInput={(event) => setForm({ ...form(), endDate: event.currentTarget.value })}
 					/>
 				</label>
+				<Show when={editingId() === null}>
+					<fieldset class="period-division">
+						<legend>区切り</legend>
+						<For each={props.controller.divisions}>
+							{(division) => (
+								<label>
+									<input
+										type="radio"
+										name="period-division"
+										checked={form().division === division.value}
+										disabled={busy()}
+										onChange={() => setForm({ ...form(), division: division.value })}
+									/>
+									{division.label}
+								</label>
+							)}
+						</For>
+					</fieldset>
+				</Show>
+				<label class="period-allow">
+					<input
+						type="checkbox"
+						checked={form().allowUnfinalizedClose}
+						disabled={busy()}
+						onChange={(event) =>
+							setForm({ ...form(), allowUnfinalizedClose: event.currentTarget.checked })
+						}
+					/>
+					評価が確定していなくても締められる
+				</label>
 				<Show when={editingId() !== null}>
 					<button type="button" class="secondary-action" disabled={busy()} onClick={resetForm}>
 						キャンセル
@@ -294,6 +376,33 @@ const EvaluationPeriodSettings: Component<EvaluationPeriodSettingsProps> = (prop
 					{editingId() === null ? "追加する" : "変更を保存する"}
 				</button>
 			</form>
+			<Show when={previewPeriods()}>
+				{(planned) => (
+					<ul class="period-preview" aria-label="追加される評価期間">
+						<For each={planned()}>
+							{(part) => (
+								<li>
+									<span>{part.periodName}</span>
+									<span>
+										{part.startDate} 〜 {part.endDate}
+									</span>
+								</li>
+							)}
+						</For>
+					</ul>
+				)}
+			</Show>
+			<Show when={previewError()}>
+				{(message) => (
+					<p class="field-error" role="alert">
+						{message()}
+					</p>
+				)}
+			</Show>
+			<p class="allocation-note">
+				上期・下期などに分けた評価期間は、それぞれ独立した評価期間です(シートを作り、評価し、締める単位)。「評価が確定していなくても締められる」は、正式運用の前の期など、評価をしないまま締める評価期間に使います。その評価期間のシートの
+				PDF では、点数とランクを「***」で伏せます。
+			</p>
 		</section>
 	);
 };

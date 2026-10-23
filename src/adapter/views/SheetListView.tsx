@@ -197,7 +197,7 @@ const SheetTable: Component<{
 												<Show when={props.onExport}>
 													{/* 確定前は、押せないボタンではなく理由をそのまま書く(ツールチップには気づきにくい) */}
 													<Show
-														when={isFinalized(sheet)}
+														when={isFinalized(sheet) || sheet.exportableBeforeFinalized}
 														fallback={<span class="export-hint">確定後に PDF 出力</span>}
 													>
 														<button

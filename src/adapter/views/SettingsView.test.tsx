@@ -86,6 +86,8 @@ const renderSettings = (
 							save: vi.fn(),
 							remove: vi.fn(),
 							close: vi.fn(),
+							preview: vi.fn(),
+							divisions: [],
 						}}
 						smtpController={smtpController}
 					/>

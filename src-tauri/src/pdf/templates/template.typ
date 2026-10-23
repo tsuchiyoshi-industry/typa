@@ -8,13 +8,21 @@
 #let page-margin = 5mm
 
 #let blank = text(fill: muted)[]
+// 評価を確定せずに締めた期間のシート。点数・ランク・評価者のコメントを「***」で伏せる
+// (マークアップの * と取り違えないよう、文字列で書く)
+#let unconfirmed = inputs.at("unconfirmed", default: false)
+#let mark = text(fill: muted, "***")
+#let result(body) = if unconfirmed { mark } else { body }
+#let comment(value) = if unconfirmed { "***" } else { value }
 #let empty(value) = if value == "" {
   blank
 } else {
   value
 }
 
-#let score(value) = if value == "未評価" {
+#let score(value) = if unconfirmed {
+  mark
+} else if value == "未評価" {
   text(fill: muted)[-]
 } else {
   value
@@ -53,7 +61,9 @@
   #fixed-center(score(value), height, size: 5.4pt, fill: red)
 ]
 #let centered(body) = table.cell(align: center + horizon)[#body]
-#let final-rank(value) = if value == "" {
+#let final-rank(value) = if unconfirmed {
+  mark
+} else if value == "" {
   text(fill: muted)[未決定]
 } else {
   text(size: 10pt, weight: "bold")[#value]
@@ -78,14 +88,14 @@
     [#text(size: 5pt)[評価点] #linebreak() #text(size: 4.3pt)[配点×獲得率]],
     [チャレンジ目標評価],
     [#point(inputs.objective_allocation_score)],
-    [#rate(inputs.objective_second_rate)],
-    [#point(inputs.objective_evaluation_score)],
+    [#result(rate(inputs.objective_second_rate))],
+    [#result(point(inputs.objective_evaluation_score))],
     [共通評価],
     [#point(inputs.common_evaluation_allocation_score)],
-    [#rate(inputs.common_evaluation_second_rate)],
-    [#point(inputs.common_evaluation_evaluation_score)],
+    [#result(rate(inputs.common_evaluation_second_rate))],
+    [#result(point(inputs.common_evaluation_evaluation_score))],
     table.cell(colspan: 2)[評価点],
-    table.cell(colspan: 2)[#point(inputs.total_evaluation_score)],
+    table.cell(colspan: 2)[#result(point(inputs.total_evaluation_score))],
     table.cell(colspan: 2)[【#final-evaluator】最終評価ランク],
     table.cell(colspan: 2, fill: sheet-green)[#final-rank(inputs.final_evaluation_rank)],
   )
@@ -162,10 +172,10 @@
     align: center + horizon,
     table.cell(colspan: 1, stroke: none)[評価合計点],
     [#point(inputs.objective_allocation_score)],
-    [#point(inputs.objective_evaluation_score)],
+    [#result(point(inputs.objective_evaluation_score))],
     table.cell(colspan: 1, stroke: none)[獲得率（評価合計点÷満点）],
     [100%],
-    [#rate(inputs.objective_second_rate)],
+    [#result(rate(inputs.objective_second_rate))],
   )
 ]
 
@@ -190,7 +200,7 @@
       ],
       table.cell(fill: sheet-green)[
         #set par(leading: 0.34em)
-        #text(size: 5pt)[#empty(item.first_comment)]
+        #text(size: 5pt)[#result(empty(item.first_comment))]
       ],
       centered[#item.weight],
       table.cell(fill: sheet-green, align: center + horizon)[#red-score(item.first_score)],
@@ -207,10 +217,10 @@
     align: center + horizon,
     table.cell(colspan: 1, stroke: none)[評価合計点],
     [#point(inputs.common_evaluation_allocation_score)],
-    [#point(inputs.common_evaluation_evaluation_score)],
+    [#result(point(inputs.common_evaluation_evaluation_score))],
     table.cell(colspan: 1, stroke: none)[獲得率（評価合計点÷満点）],
     [100%],
-    [#rate(inputs.common_evaluation_second_rate)],
+    [#result(rate(inputs.common_evaluation_second_rate))],
   )
 ]
 
@@ -223,8 +233,8 @@
     inset: (x: 3pt, y: 2.5pt),
     title-cell[【一次評価者】コメント欄],
     title-cell[【二次評価者】コメント欄],
-    table.cell(fill: sheet-green)[#fixed(inputs.first_overall_comment, 18mm, size: 5pt)],
-    table.cell(fill: sheet-green)[#fixed(inputs.second_overall_comment, 18mm, size: 5pt)],
+    table.cell(fill: sheet-green)[#fixed(comment(inputs.first_overall_comment), 18mm, size: 5pt)],
+    table.cell(fill: sheet-green)[#fixed(comment(inputs.second_overall_comment), 18mm, size: 5pt)],
   ),
   align(bottom)[
     #table(
@@ -255,8 +265,27 @@
   columns: (1fr, 84mm),
   gutter: 8mm,
   profile-tables(),
-  align(top + right)[#score-summary-table()],
+  align(top + right)[
+    #score-summary-table()
+    #if unconfirmed [
+      #v(2pt)
+      #text(size: 5pt, fill: muted, "*** 評価を確定せずに締めた期間のため、評価の欄は記載していません。")
+    ]
+  ],
 )
+
+// 締め後修正(遡及処理)。評価期間を締めた後に直した項目を、赤字で隠さず載せる
+#let corrections = inputs.at("corrections", default: ())
+#if corrections.len() > 0 [
+  #v(3pt)
+  #block(width: 100%, stroke: 0.5pt + red, inset: 3pt)[
+    #text(fill: red, size: 5.6pt, weight: "bold", "締め後修正(評価期間を締めた後に修正された項目)")
+    #for line in corrections [
+      #linebreak()
+      #text(fill: red, size: 5.2pt, line)
+    ]
+  ]
+]
 
 #section-title[チャレンジ目標評価]
 #challenge-table()

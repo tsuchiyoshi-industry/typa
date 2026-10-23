@@ -1,0 +1,3 @@
+* text=auto eol=lf
+# Excel が保存する CSV と同じ形(BOM 付き UTF-8・CRLF)のまま取り込みを試す
+e2e/fixtures/*.csv -text

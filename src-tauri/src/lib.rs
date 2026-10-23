@@ -2,6 +2,21 @@ mod pdf;
 
 use tauri::Manager;
 use tauri::webview::PermissionResponse;
+use tauri_plugin_fs::FsExt;
+
+/// 導入処理の CSV テンプレートを、保存ダイアログで選ばれた場所に書く。
+#[tauri::command]
+fn save_csv<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    contents: String,
+    output_path: String,
+) -> Result<String, String> {
+    let path = std::path::PathBuf::from(&output_path);
+    pdf::validate_destination(&path, &app.fs_scope(), "csv")?;
+    std::fs::write(&path, contents)
+        .map_err(|e| format!("CSVファイルを保存できませんでした: {e}"))?;
+    Ok(output_path)
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -32,7 +47,8 @@ pub fn run() {
         // 通知メールはサーバー側(Edge Function)が送る。アプリは SMTP の認証情報を扱わない
         .invoke_handler(tauri::generate_handler![
             pdf::generate_pdf_with_typst,
-            pdf::generate_sheet_overview_pdf
+            pdf::generate_sheet_overview_pdf,
+            save_csv
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

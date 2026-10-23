@@ -31,6 +31,12 @@ export const canEditKeepSignedIn = adminOnly;
 /** 評価の基準(配点など)を決める「設定」は Admin だけが変更できる。 */
 export const canEditSettings = adminOnly;
 
+/** システム導入時の処理(社員データの取込など)は Admin だけが行える。 */
+export const canRunSetup = adminOnly;
+
+/** 遡及処理(締めた評価期間のシートを、開き直さずに直す)は Admin だけが行える。 */
+export const canCorrectClosedSheets = adminOnly;
+
 /**
  * 全社員の評価シートを一覧で見て、PDF に出せるのは Admin だけ。一覧には進み具合と評価者、
  * 確定した結果が、PDF にはさらに段ごとのランクと総評が載る。

@@ -21,7 +21,15 @@ function buildSheet(status: EvaluationStatus): EvaluationSheet {
 		PRIMARY_EVALUATOR_ID,
 		SECONDARY_EVALUATOR_ID,
 	);
-	const period = new EvaluationPeriod(1, "2026年度上期", "2026-04-01", "2026-09-30", true);
+	const period = EvaluationPeriod.restore({
+		id: 1,
+		termName: "2026年度",
+		division: "half",
+		part: 1,
+		startDate: "2026-04-01",
+		endDate: "2026-09-30",
+		isActive: true,
+	});
 	return EvaluationSheet.create({
 		sheetId: 100,
 		subject,
@@ -290,7 +298,15 @@ describe("EvaluationSheetAccessPolicy", () => {
 				SUBJECT_ID,
 				null,
 			);
-			const period = new EvaluationPeriod(1, "2026年度上期", "2026-04-01", "2026-09-30", true);
+			const period = EvaluationPeriod.restore({
+				id: 1,
+				termName: "2026年度",
+				division: "half",
+				part: 1,
+				startDate: "2026-04-01",
+				endDate: "2026-09-30",
+				isActive: true,
+			});
 			const subordinateSheet = EvaluationSheet.create({
 				sheetId: 200,
 				subject: subordinateSubject,

@@ -11,6 +11,8 @@ export interface SheetSummaryDto {
 	periodName: string;
 	startDate: string;
 	endDate: string;
+	/** 評価を確定せずに締めた期間のシートで、確定前でも PDF に出力できる(点数とランクは伏せる)。 */
+	exportableBeforeFinalized?: boolean;
 	employeeName: string;
 	employeeNo: string;
 	/** シートを作成したときの等級。社員の等級は変わっていくので、今の等級ではない。 */

@@ -64,6 +64,10 @@ export interface SheetExportDataDto {
 	totalEvaluationScore: string;
 	firstOverallComment: string;
 	secondOverallComment: string;
+	/** 評価を確定せずに締めた期間のシート。帳票は点数・ランク・評価者のコメントを「***」で伏せる。 */
+	unconfirmed: boolean;
+	/** 締め後修正(遡及処理)。帳票に赤字で載せる1件1行。点数を伏せる帳票には、文章の修正だけを載せる。 */
+	corrections: string[];
 	objectives: {
 		id: number;
 		goalNumber: number;

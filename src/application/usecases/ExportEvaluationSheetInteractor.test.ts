@@ -153,7 +153,13 @@ describe("PDF use case with an injected gateway", () => {
 			EvaluationSheet.create({
 				sheetId: 100,
 				subject: new Employee(1, "../../name", "TEST001", 1, "技術", 5, 2, 3),
-				evaluationPeriod: new EvaluationPeriod(10, "test:period", "2026-04-01", "2026-09-30", true),
+				evaluationPeriod: EvaluationPeriod.restore({
+					id: 10,
+					termName: "test:period",
+					startDate: "2026-04-01",
+					endDate: "2026-09-30",
+					isActive: true,
+				}),
 				primaryEvaluatorName: "一次",
 				secondaryEvaluatorName: "二次",
 				objectives: [milestone()],

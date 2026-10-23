@@ -14,6 +14,8 @@ COLUMN GRANT evaluation_sheets authenticated UPDATE common_allocation,common_eva
 COLUMN GRANT milestones authenticated INSERT achievement,challenge_goal,goal_number,midterm_goal,sheet_id
 COLUMN GRANT milestones authenticated SELECT achievement,challenge_goal,goal_number,id,midterm_goal,sheet_id
 COLUMN GRANT milestones authenticated UPDATE achievement,challenge_goal,first_score,goal_number,midterm_goal,second_score,sheet_id
+COLUMN GRANT notifications authenticated SELECT created_at,employee_name,id,kind,period_name,read_at,recipient_employee_id,sheet_id
+COLUMN GRANT notifications authenticated UPDATE read_at
 COLUMN GRANT roles authenticated SELECT id,role_name
 COLUMN GRANT security_audit_log authenticated SELECT action,actor_user_id,details,entity_id,id,occurred_at
 COLUMN GRANT workspace_settings authenticated SELECT id,notification_channel,smtp_host,smtp_password_set,smtp_port,smtp_user,smtp_verified_at
@@ -108,6 +110,14 @@ COLUMN milestones.id bigint null=NO default=-
 COLUMN milestones.midterm_goal text null=YES default=''::text
 COLUMN milestones.second_score integer null=YES default=0
 COLUMN milestones.sheet_id bigint null=YES default=-
+COLUMN notifications.created_at timestamp with time zone null=NO default=now()
+COLUMN notifications.employee_name text null=NO default=-
+COLUMN notifications.id bigint null=NO default=-
+COLUMN notifications.kind text null=NO default=-
+COLUMN notifications.period_name text null=NO default=-
+COLUMN notifications.read_at timestamp with time zone null=YES default=-
+COLUMN notifications.recipient_employee_id integer null=NO default=-
+COLUMN notifications.sheet_id bigint null=NO default=-
 COLUMN registration_tickets.contact_email text null=NO default=-
 COLUMN registration_tickets.employee_id integer null=NO default=-
 COLUMN registration_tickets.expires_at timestamp with time zone null=NO default=-
@@ -200,6 +210,10 @@ CONSTRAINT milestones milestones_pkey PRIMARY KEY (id)
 CONSTRAINT milestones milestones_second_score_check CHECK (((second_score >= 0) AND (second_score <= 4)))
 CONSTRAINT milestones milestones_sheet_id_fkey FOREIGN KEY (sheet_id) REFERENCES evaluation_sheets(id) ON DELETE CASCADE
 CONSTRAINT milestones milestones_sheet_id_goal_number_key UNIQUE (sheet_id, goal_number)
+CONSTRAINT notifications notifications_kind_check CHECK ((kind = ANY (ARRAY['submitted'::text, 'first_evaluated'::text])))
+CONSTRAINT notifications notifications_pkey PRIMARY KEY (id)
+CONSTRAINT notifications notifications_recipient_employee_id_fkey FOREIGN KEY (recipient_employee_id) REFERENCES employees(id) ON DELETE CASCADE
+CONSTRAINT notifications notifications_sheet_id_fkey FOREIGN KEY (sheet_id) REFERENCES evaluation_sheets(id) ON DELETE CASCADE
 CONSTRAINT registration_tickets registration_tickets_employee_id_fkey FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
 CONSTRAINT registration_tickets registration_tickets_pkey PRIMARY KEY (employee_id)
 CONSTRAINT roles roles_pkey PRIMARY KEY (id)
@@ -267,6 +281,8 @@ FUNCTION issue_pending_employee_invitations() definer=true anon=false authentica
 FUNCTION lock_employee_administration() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=ca0590d5aedbe55640c261bb9f8cd068
 FUNCTION lock_evaluation_sheet(bigint) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=ee701b7ab71476d24a520441d88c9e5b
 FUNCTION lock_sheet_content_write() definer=false anon=true authenticated=true service_role=true auth_admin=true config={"search_path=\"\""} md5=fbd7044d6c3b970359c6602bbc047a4b
+FUNCTION next_evaluator_of(evaluation_sheets) definer=false anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=30020403c4188f0255859e38dcc68750
+FUNCTION notify_next_evaluator() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=e6cf092842ca2304e9da2ea1436ddad1
 FUNCTION pre_register_employee(text,text,smallint,text,text,text,boolean) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=a0740d9a885fbba877b743feb5bca6b5
 FUNCTION previous_evaluation_period(bigint) definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=7aeaaf43cfa45f1bd1ffefd3322e2af6
 FUNCTION previous_evaluation_sheet(bigint) definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=c2111e15a539aa409c4bbdc1caca02ee
@@ -305,6 +321,8 @@ GRANT evaluation_settings service_role DELETE,INSERT,REFERENCES,SELECT,TRIGGER,T
 GRANT evaluation_sheets service_role DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 GRANT milestones authenticated DELETE
 GRANT milestones service_role DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+GRANT notifications authenticated SELECT
+GRANT notifications service_role DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 GRANT registration_tickets service_role DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 GRANT roles authenticated SELECT
 GRANT roles service_role DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
@@ -320,6 +338,7 @@ INDEX CREATE INDEX evaluation_sheets_review_period_idx ON public.evaluation_shee
 INDEX CREATE INDEX evaluation_sheets_secondary_evaluator_idx ON public.evaluation_sheets USING btree (secondary_evaluator_id)
 INDEX CREATE INDEX idx_employees_user_id ON public.employees USING btree (user_id)
 INDEX CREATE INDEX milestones_review_sheet_idx ON public.milestones USING btree (sheet_id)
+INDEX CREATE INDEX notifications_recipient_idx ON public.notifications USING btree (recipient_employee_id, created_at DESC)
 INDEX CREATE INDEX sheet_corrections_sheet_idx ON public.sheet_corrections USING btree (sheet_id)
 INDEX CREATE UNIQUE INDEX common_evaluation_item_sets_pkey ON public.common_evaluation_item_sets USING btree (id)
 INDEX CREATE UNIQUE INDEX common_evaluation_items_pkey ON public.common_evaluation_items USING btree (id)
@@ -342,6 +361,7 @@ INDEX CREATE UNIQUE INDEX evaluation_sheets_pkey ON public.evaluation_sheets USI
 INDEX CREATE UNIQUE INDEX milestones_pkey ON public.milestones USING btree (id)
 INDEX CREATE UNIQUE INDEX milestones_sheet_carried_from_key ON public.milestones USING btree (sheet_id, carried_from_id) WHERE (carried_from_id IS NOT NULL)
 INDEX CREATE UNIQUE INDEX milestones_sheet_id_goal_number_key ON public.milestones USING btree (sheet_id, goal_number)
+INDEX CREATE UNIQUE INDEX notifications_pkey ON public.notifications USING btree (id)
 INDEX CREATE UNIQUE INDEX registration_tickets_pkey ON public.registration_tickets USING btree (employee_id)
 INDEX CREATE UNIQUE INDEX roles_pkey ON public.roles USING btree (id)
 INDEX CREATE UNIQUE INDEX roles_role_name_key ON public.roles USING btree (role_name)
@@ -377,6 +397,8 @@ POLICY milestones | subject adds goals to a draft | {authenticated} | INSERT | u
 POLICY milestones | subject and evaluators change goals in their stage | {authenticated} | UPDATE | using (sheet_access(sheet_id) = ANY (ARRAY['subject:draft'::text, 'first'::text, 'second'::text])) | check (sheet_access(sheet_id) = ANY (ARRAY['subject:draft'::text, 'first'::text, 'second'::text]))
 POLICY milestones | subject and evaluators read goals | {authenticated} | SELECT | using (sheet_access(sheet_id) IS NOT NULL) | check -
 POLICY milestones | subject removes goals from a draft | {authenticated} | DELETE | using (sheet_access(sheet_id) = 'subject:draft'::text) | check -
+POLICY notifications | recipients mark their notifications | {authenticated} | UPDATE | using (recipient_employee_id = current_employee_id()) | check (recipient_employee_id = current_employee_id())
+POLICY notifications | recipients read their notifications | {authenticated} | SELECT | using (recipient_employee_id = current_employee_id()) | check -
 POLICY roles | enabled employee required | {authenticated} | ALL | using (current_employee_id() IS NOT NULL) | check (current_employee_id() IS NOT NULL)
 POLICY roles | roles select all | {authenticated} | SELECT | using true | check -
 POLICY security_audit_log | Admin reads audit log | {authenticated} | SELECT | using current_employee_is_admin() | check -
@@ -398,6 +420,7 @@ TABLE evaluation_periods rls=true
 TABLE evaluation_settings rls=true
 TABLE evaluation_sheets rls=true
 TABLE milestones rls=true
+TABLE notifications rls=true
 TABLE registration_tickets rls=true
 TABLE roles rls=true
 TABLE security_audit_log rls=true
@@ -416,6 +439,7 @@ TRIGGER evaluation_sheets a_evaluation_sheets_freeze_totals BEFORE UPDATE
 TRIGGER evaluation_sheets evaluation_sheets_access_guard BEFORE UPDATE
 TRIGGER evaluation_sheets evaluation_sheets_audit AFTER UPDATE
 TRIGGER evaluation_sheets evaluation_sheets_check_completion BEFORE UPDATE
+TRIGGER evaluation_sheets evaluation_sheets_notify_next_evaluator AFTER UPDATE
 TRIGGER evaluation_sheets evaluation_sheets_require_active_period BEFORE DELETE,INSERT,UPDATE
 TRIGGER evaluation_sheets evaluation_sheets_set_evaluators BEFORE INSERT
 TRIGGER evaluation_sheets evaluation_sheets_set_grade BEFORE INSERT

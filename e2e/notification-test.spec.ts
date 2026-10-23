@@ -100,9 +100,15 @@ test("Admin selects either notification, retries failures, and does not persist 
 		await settings.scrollIntoViewIfNeeded();
 		await expect(send).toBeVisible();
 		await page.screenshot({ path: test.info().outputPath("smtp-mobile.png"), fullPage: true });
-		expect(
-			await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
-		).toBe(true);
+		// CI の Linux フォントは幅が広い。字間を広げて、フォント次第ではみ出す箇所も手元で落とす
+		for (const spacing of ["", "0.15em"]) {
+			expect(
+				await page.evaluate((spacing) => {
+					document.body.style.letterSpacing = spacing;
+					return document.documentElement.scrollWidth <= window.innerWidth;
+				}, spacing),
+			).toBe(true);
+		}
 		await page.reload();
 		await expect(to).toHaveValue("");
 		expect(snapshot()).toBe(before);

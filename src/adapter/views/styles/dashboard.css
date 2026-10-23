@@ -585,8 +585,10 @@
 	text-decoration: none;
 }
 
-/* 横幅が足りないときは表だけを横スクロールさせる */
+/* 横幅が足りないときは表だけを横スクロールさせる。
+   relative で、表の中の .visually-hidden(absolute)を枠の外へ逃がさない */
 .table-scroll {
+	position: relative;
 	overflow-x: auto;
 }
 

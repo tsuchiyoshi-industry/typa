@@ -227,6 +227,7 @@
 	font-size: 0.8125rem;
 }
 .review-table-scroll {
+	position: relative;
 	overflow: auto;
 	border: 1px solid var(--hr-border);
 	border-radius: var(--hr-radius-md);

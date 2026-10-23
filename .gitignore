@@ -2,6 +2,7 @@ node_modules
 dist
 coverage
 test-results
+.vitest
 playwright-report
 *.tsbuildinfo
 .env.local

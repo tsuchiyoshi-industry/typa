@@ -49,6 +49,7 @@ import {
 	IssuePendingEmployeeInvitationsInteractor,
 } from "./application/usecases/IssueEmployeeInvitationInteractor";
 import { LoadEmployeeMasterInteractor } from "./application/usecases/LoadEmployeeMasterInteractor";
+import { PreRegisterEmployeeInteractor } from "./application/usecases/PreRegisterEmployeeInteractor";
 import { RegisterEmployeeAccountInteractor } from "./application/usecases/RegisterEmployeeAccountInteractor";
 import { ResetEmployeeRegistrationInteractor } from "./application/usecases/ResetEmployeeRegistrationInteractor";
 import { SaveEvaluationPeriodInteractor } from "./application/usecases/SaveEvaluationPeriodInteractor";
@@ -86,6 +87,9 @@ import { TauriSheetPdfGateway } from "./infrastructure/repositories/TauriSheetPd
 // ログイン後の画面のコードは、ログイン画面では読み込まない。
 // 紐付けを確かめた時点でまとめて読み込み、開いたあとで読み込み画面を挟まない。
 const EmployeeMasterView = lazy(() => import("./adapter/views/EmployeeMasterView"));
+const EmployeePreRegistrationView = lazy(
+	() => import("./adapter/views/EmployeePreRegistrationView"),
+);
 const HelpView = lazy(() => import("./adapter/views/HelpView"));
 const ReviewerWorkspaceView = lazy(() => import("./adapter/views/ReviewerWorkspaceView"));
 const SettingsView = lazy(() => import("./adapter/views/SettingsView"));
@@ -96,6 +100,7 @@ const SheetEditorView = lazy(() => import("./adapter/views/SheetEditorView"));
 const SheetListView = lazy(() => import("./adapter/views/SheetListView"));
 const protectedViews = [
 	EmployeeMasterView,
+	EmployeePreRegistrationView,
 	HelpView,
 	ReviewerWorkspaceView,
 	SettingsView,
@@ -262,6 +267,7 @@ const employeeMasterController = new EmployeeMasterController(
 	new UpdateEmployeeEnabledInteractor(employeeMasterRepository),
 	new IssueEmployeeInvitationInteractor(employeeMasterRepository),
 	new IssuePendingEmployeeInvitationsInteractor(employeeMasterRepository),
+	new PreRegisterEmployeeInteractor(employeeMasterRepository),
 	employeeMasterPresenter,
 );
 
@@ -413,6 +419,15 @@ const App: Component = () => {
 						)}
 					/>
 					<Route path="/setup" component={() => <SetupView controller={accountController} />} />
+					<Route
+						path="/setup/employees"
+						component={() => (
+							<EmployeePreRegistrationView
+								controller={employeeMasterController}
+								viewModel={employeeMasterPresenter.viewModel}
+							/>
+						)}
+					/>
 					<Route
 						path="/setup/import"
 						component={() => <SheetImportView controller={sheetImportController} />}

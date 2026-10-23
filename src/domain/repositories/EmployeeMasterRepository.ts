@@ -13,6 +13,18 @@ export interface EmployeeInvitation {
 	expiresAt: string;
 }
 
+/** 仮登録する社員。評価者は社員番号で指す。null は未設定。 */
+export interface NewEmployee {
+	employeeNo: string;
+	name: string;
+	gradeId: number;
+	careerCourse: string;
+	primaryEvaluatorEmployeeNo: string | null;
+	secondaryEvaluatorEmployeeNo: string | null;
+	/** 二次評価者を「なし」と明示する。secondaryEvaluatorEmployeeNo とは同時に指定しない。 */
+	noSecondaryEvaluator: boolean;
+}
+
 export interface EmployeeMasterRepository {
 	findCurrentEmployeeProfile(): Promise<EmployeeProfile | null>;
 	findAllEmployeeProfiles(): Promise<EmployeeProfile[]>;
@@ -57,4 +69,9 @@ export interface EmployeeMasterRepository {
 	 * 評価データとアカウントは残る。変更できたら true。
 	 */
 	updateEnabledByEmployeeNo(targetEmployeeNo: string, enabled: boolean): Promise<boolean>;
+	/**
+	 * ログイン用アカウントのない社員の行を足す(権限は Employee)。本人は招待コードで新規登録する。
+	 * Admin の確認と、大文字・小文字だけが違う社員番号の拒否は DB 関数が行う。足せたら true。
+	 */
+	preRegisterEmployee(employee: NewEmployee): Promise<boolean>;
 }

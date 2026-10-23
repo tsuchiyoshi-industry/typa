@@ -399,6 +399,34 @@ a.setup-task-link:hover {
 	background: var(--hr-surface-hover);
 }
 
+/* 初期ユーザ: 社員の仮登録 */
+.pre-registration-form {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
+	align-items: start;
+}
+.pre-registration-field {
+	display: grid;
+	gap: 0.35rem;
+	font-size: 0.8125rem;
+	color: var(--hr-text-muted);
+}
+/* 選択欄も、隣の入力欄と同じ地・角・文字の大きさにそろえる */
+.pre-registration-form select {
+	min-height: 2.5rem;
+	padding-block: 0.4rem;
+	border-radius: var(--hr-radius-sm);
+	background: var(--hr-bg-elevated);
+	font-size: 0.9rem;
+}
+.pre-registration-form .settings-actions {
+	grid-column: 1 / -1;
+	margin-top: 0.4rem;
+}
+.master-header p a {
+	color: var(--hr-link);
+}
+
 /* データ取込 */
 .back-link {
 	display: inline-flex;

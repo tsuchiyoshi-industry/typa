@@ -131,7 +131,7 @@ select '管理 太郎', 'A0001', (select id from public.roles where role_name = 
 | `workspace_settings.required_domain` | 会社のメールドメイン | 認証コードを受け取れるのは、このドメインのメールアドレスだけ。ログイン用の内部アドレス（`typa-<社員番号>@<ドメイン>`）にも使うため、**登録が始まった後に変えると全員がログインできなくなる** |
 | `roles` | なし（固定） | `Admin`・`Reviewer`・`Employee` の3つ。綴りを変えると、その権限は Employee として扱われる |
 | `common_evaluation_item_sets`、`employee_grades`、`common_evaluation_items` | 等級の一覧、等級ごとの評価項目と配点 | 等級は項目セットを1つ指す。セットのない等級と、等級が未設定の社員は、全等級に共通の項目だけで評価される。評価項目を変える画面はないので、SQL で管理する |
-| `employees` | 社員番号、氏名、権限、コース区分、等級 | 社員の追加・氏名や社員番号の変更は SQL でしかできない。コース区分が `役員` の社員は、社員マスタで等級・評価者の管理対象から外れる。評価者（`primary_evaluator_id` など）は、登録後に Admin がアプリの社員マスタで設定できる |
+| `employees` | 社員番号、氏名、権限、コース区分、等級 | 最初の Admin は SQL で入れる。2人目からは Admin がアプリの導入処理「初期ユーザ」で仮登録できる。氏名や社員番号の変更は SQL でしかできない。コース区分が `役員` の社員は、社員マスタで等級・評価者の管理対象から外れる。評価者（`primary_evaluator_id` など）は、登録後に Admin がアプリの社員マスタで設定できる |
 
 `evaluation_periods`（評価期間）は入れなくてかまいません。Admin がアプリの設定画面で追加し、「この期間を開始する」で実施中にします。
 

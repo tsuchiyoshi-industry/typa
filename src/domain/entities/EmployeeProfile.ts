@@ -1,5 +1,12 @@
 import type { EmployeeRole } from "../valueObjects/EmployeeRole";
 
+/** キャリアコース。役員は評価される側ではない(isExecutive)。 */
+export const CAREER_COURSES = ["総合職", "一般職", "技能職", "役員"] as const;
+
+/** 社員番号はログインIDになる。ログイン用の内部アドレスに使えるのは半角英数字・ハイフン・アンダースコアだけ。 */
+export const isValidEmployeeNo = (employeeNo: string): boolean =>
+	/^[A-Za-z0-9_-]+$/.test(employeeNo);
+
 export class EmployeeProfile {
 	constructor(
 		public readonly id: number,

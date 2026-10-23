@@ -1,3 +1,5 @@
+import { isValidEmployeeNo } from "../../domain/entities/EmployeeProfile";
+
 /**
  * ログインIDは社員番号。Supabase Auth はメールアドレスを要求するため、社員番号から内部用の
  * アドレスを組み立てて渡す。このアドレスにメールが届くことはなく、利用者にも見せない。
@@ -5,7 +7,7 @@
  */
 export function toAuthEmail(employeeNo: string, requiredDomain: string | undefined): string | null {
 	const domain = requiredDomain?.slice(requiredDomain.lastIndexOf("@") + 1);
-	if (!domain || !/^[A-Za-z0-9_-]+$/.test(employeeNo)) {
+	if (!domain || !isValidEmployeeNo(employeeNo)) {
 		return null;
 	}
 	return `typa-${employeeNo.toLowerCase()}@${domain}`;

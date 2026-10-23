@@ -264,6 +264,7 @@ FUNCTION issue_pending_employee_invitations() definer=true anon=false authentica
 FUNCTION lock_employee_administration() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=ca0590d5aedbe55640c261bb9f8cd068
 FUNCTION lock_evaluation_sheet(bigint) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=ee701b7ab71476d24a520441d88c9e5b
 FUNCTION lock_sheet_content_write() definer=false anon=true authenticated=true service_role=true auth_admin=true config={"search_path=\"\""} md5=fbd7044d6c3b970359c6602bbc047a4b
+FUNCTION pre_register_employee(text,text,smallint,text,text,text,boolean) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=a0740d9a885fbba877b743feb5bca6b5
 FUNCTION previous_evaluation_period(bigint) definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=7aeaaf43cfa45f1bd1ffefd3322e2af6
 FUNCTION previous_evaluation_sheet(bigint) definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=c2111e15a539aa409c4bbdc1caca02ee
 FUNCTION recalculate_corrected_sheet(bigint) definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=f01f3e51d5cfefac66ffb2378997fc9c
@@ -326,6 +327,7 @@ INDEX CREATE UNIQUE INDEX employee_grades_grade_name_key ON public.employee_grad
 INDEX CREATE UNIQUE INDEX employee_grades_pkey ON public.employee_grades USING btree (id)
 INDEX CREATE UNIQUE INDEX employee_invitations_pkey ON public.employee_invitations USING btree (employee_id)
 INDEX CREATE UNIQUE INDEX employees_employee_no_key ON public.employees USING btree (employee_no)
+INDEX CREATE UNIQUE INDEX employees_employee_no_lower_key ON public.employees USING btree (lower(employee_no))
 INDEX CREATE UNIQUE INDEX employees_pkey ON public.employees USING btree (id)
 INDEX CREATE UNIQUE INDEX employees_user_id_key ON public.employees USING btree (user_id) WHERE (user_id IS NOT NULL)
 INDEX CREATE UNIQUE INDEX evaluation_periods_period_name_key ON public.evaluation_periods USING btree (period_name)

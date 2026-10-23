@@ -189,6 +189,9 @@ export function masterRepository() {
 		resetRegistrationByEmployeeNo: vi
 			.fn<EmployeeMasterRepository["resetRegistrationByEmployeeNo"]>()
 			.mockResolvedValue(true),
+		preRegisterEmployee: vi
+			.fn<EmployeeMasterRepository["preRegisterEmployee"]>()
+			.mockResolvedValue(true),
 	} satisfies EmployeeMasterRepository;
 }
 export function authRepository() {

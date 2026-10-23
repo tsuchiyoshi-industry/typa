@@ -4,6 +4,7 @@ import type {
 	EmployeeInvitation,
 	EmployeeMasterRepository,
 	EvaluatorType,
+	NewEmployee,
 } from "../../domain/repositories/EmployeeMasterRepository";
 import { EmployeeRole } from "../../domain/valueObjects/EmployeeRole";
 import { supabase } from "../db/supabase";
@@ -212,6 +213,26 @@ export class SupabaseEmployeeMasterRepository implements EmployeeMasterRepositor
 
 		// 自分の利用状態を変えたかもしれない
 		this.current = undefined;
+		return data === true;
+	}
+
+	async preRegisterEmployee(employee: NewEmployee): Promise<boolean> {
+		// employees はクライアントから行を足せない。Admin の確認と番号の重なりの確認を DB 関数に任せる
+		const { data, error } = await supabase.rpc("pre_register_employee", {
+			p_employee_no: employee.employeeNo,
+			p_name: employee.name,
+			p_grade_id: employee.gradeId,
+			p_career_course: employee.careerCourse,
+			p_primary_evaluator_no: employee.primaryEvaluatorEmployeeNo,
+			p_secondary_evaluator_no: employee.secondaryEvaluatorEmployeeNo,
+			p_no_secondary_evaluator: employee.noSecondaryEvaluator,
+		});
+
+		if (error) {
+			console.error("Error pre-registering employee:", error);
+			return false;
+		}
+
 		return data === true;
 	}
 

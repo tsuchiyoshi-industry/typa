@@ -8,6 +8,10 @@ import type {
 	LoadEmployeeMasterInteractor,
 	LoadEmployeeMasterOutputPort,
 } from "../../application/usecases/LoadEmployeeMasterInteractor";
+import type {
+	PreRegisterEmployeeInteractor,
+	PreRegisterEmployeeRequest,
+} from "../../application/usecases/PreRegisterEmployeeInteractor";
 import type { ResetEmployeeRegistrationInteractor } from "../../application/usecases/ResetEmployeeRegistrationInteractor";
 import type {
 	UpdateEmployeeEnabledInteractor,
@@ -34,6 +38,7 @@ export class EmployeeMasterController {
 		private readonly updateEnabledUseCase: UpdateEmployeeEnabledInteractor,
 		private readonly issueInvitationUseCase: IssueEmployeeInvitationInteractor,
 		private readonly issuePendingInvitationsUseCase: IssuePendingEmployeeInvitationsInteractor,
+		private readonly preRegisterUseCase: PreRegisterEmployeeInteractor,
 		private readonly presenter: {
 			viewModel: () => EmployeeMasterViewModel;
 			outputPort: {
@@ -149,6 +154,14 @@ export class EmployeeMasterController {
 		} catch (error) {
 			this.presenter.presentError(messageOf(error, "招待コードを発行できませんでした"));
 		}
+	}
+
+	/** 仮登録できたら true。一覧は読み込み直すので、評価者の選択肢にもすぐ出る。 */
+	preRegister(request: PreRegisterEmployeeRequest): Promise<boolean> {
+		return this.applyUpdate(
+			() => this.preRegisterUseCase.execute(request, this.presenter.outputPort.update),
+			"仮登録できませんでした",
+		);
 	}
 
 	dismissInvitation(): void {

@@ -2,12 +2,12 @@ import { A } from "@solidjs/router";
 import FileUp from "lucide-solid/icons/file-up";
 import ListChecks from "lucide-solid/icons/list-checks";
 import PackageOpen from "lucide-solid/icons/package-open";
-import Users from "lucide-solid/icons/users";
+import UserPlus from "lucide-solid/icons/user-plus";
 import { type Component, createResource, For, Show } from "solid-js";
 import { messageOf } from "../../application/errorMessage";
 import type { AccountController } from "../controllers/AccountController";
 
-// ponytail: データ取込以外は名前だけ。中身ができたら href を付ける
+// ponytail: 導入チェックは名前だけ。中身ができたら href を付ける
 const TASKS = [
 	{
 		icon: FileUp,
@@ -16,10 +16,10 @@ const TASKS = [
 		href: "/setup/import",
 	},
 	{
-		icon: Users,
-		title: "初期アカウント発行",
-		description: "取り込んだ社員に、登録用の案内をまとめて送ります。",
-		href: null,
+		icon: UserPlus,
+		title: "初期ユーザ",
+		description: "社員を社員マスタに仮登録します。登録した社員には招待コードを渡します。",
+		href: "/setup/employees",
 	},
 	{
 		icon: ListChecks,

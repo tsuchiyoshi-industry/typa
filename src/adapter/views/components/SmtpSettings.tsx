@@ -135,6 +135,7 @@ const SmtpSettings: Component<SmtpSettingsProps> = (props) => {
 							onChange={() => void choose("in_app")}
 						/>
 						アプリ内通知
+						<span class="field-hint">画面上部のベルに届きます</span>
 					</label>
 					<label>
 						<input

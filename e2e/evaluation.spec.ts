@@ -81,6 +81,46 @@ test("a sheet goes from the employee through both evaluators to a final rank", a
 		await signOut(page);
 	});
 
+	await test.step("一次評価者のベルに依頼が届き、開くとシートに移って既読になる", async () => {
+		await signIn(page, "RELEASE002");
+		await page.getByRole("button", { name: "通知（未読 1 件）" }).click();
+		const inbox = page.getByRole("region", { name: "通知" });
+		await expect(inbox).toBeVisible();
+		await page.screenshot({ path: test.info().outputPath("bell-desktop.png") });
+		await page.setViewportSize({ width: 390, height: 844 });
+		await page.screenshot({ path: test.info().outputPath("bell-mobile.png") });
+		// 狭い画面でも、一覧が画面の外にはみ出さない(CI の幅の広いフォントも字間で再現する)
+		for (const spacing of ["", "0.15em"]) {
+			expect(
+				await page.evaluate((spacing) => {
+					document.body.style.letterSpacing = spacing;
+					const panel = document.querySelector(".notification-panel") as HTMLElement;
+					const box = panel.getBoundingClientRect();
+					return (
+						document.documentElement.scrollWidth <= window.innerWidth &&
+						box.left >= 0 &&
+						box.right <= window.innerWidth
+					);
+				}, spacing),
+			).toBe(true);
+		}
+		await page.evaluate(() => {
+			document.body.style.letterSpacing = "";
+		});
+		await page.setViewportSize({ width: 1280, height: 720 });
+		const request = inbox.getByRole("link", {
+			name: /Release test 4さんの評価シートが提出されました.*一次評価をお願いします/,
+		});
+		await request.click();
+		await expect(page).toHaveURL(/\/sheet\/\d+$/);
+		await expect(page.getByText(GOAL)).toBeVisible();
+		await expect(page.getByRole("button", { name: "通知", exact: true })).toBeVisible();
+		// 読み直しても既読のまま(DB に保存されている)
+		await page.reload();
+		await expect(page.getByRole("button", { name: "通知", exact: true })).toBeVisible();
+		await signOut(page);
+	});
+
 	await test.step("一次評価者が採点して保存する(まだ確定しない)", async () => {
 		await signIn(page, "RELEASE002");
 		const sheet = await openSubordinate(page);
@@ -116,6 +156,18 @@ test("a sheet goes from the employee through both evaluators to a final rank", a
 		expect(await goalScoresSeenBySubject()).toEqual(
 			expect.objectContaining({ firstScore: 0, secondScore: 0 }),
 		);
+	});
+
+	await test.step("二次評価者のベルに、二次評価の依頼が届く", async () => {
+		await signIn(page, "RELEASE003");
+		await page.getByRole("button", { name: "通知（未読 1 件）" }).click();
+		await expect(
+			page.getByRole("region", { name: "通知" }).getByRole("link", {
+				name: /Release test 4さんの一次評価が確定しました.*二次評価をお願いします/,
+			}),
+		).toBeVisible();
+		await page.keyboard.press("Escape");
+		await signOut(page);
 	});
 
 	await test.step("二次評価者が採点して最終評価を確定する", async () => {

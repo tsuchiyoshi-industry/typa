@@ -190,3 +190,9 @@ it("offers mail as soon as the test send passed and the settings were saved", as
 	await waitFor(() => expect(mail.disabled).toBe(false));
 	expect(mail.checked).toBe(false);
 });
+
+it("says where in-app notices arrive", async () => {
+	const view = setup();
+	const inApp = await view.findByRole("radio", { name: /アプリ内通知/ });
+	expect(inApp.closest("label")?.textContent).toContain("画面上部のベル");
+});

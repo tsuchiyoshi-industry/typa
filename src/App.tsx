@@ -14,6 +14,7 @@ import { ChallengeEvaluationController } from "./adapter/controllers/ChallengeEv
 import { CommonEvaluationController } from "./adapter/controllers/CommonEvaluationController";
 import { EmployeeMasterController } from "./adapter/controllers/EmployeeMasterController";
 import { EvaluationPeriodController } from "./adapter/controllers/EvaluationPeriodController";
+import { NotificationInboxController } from "./adapter/controllers/NotificationInboxController";
 import { RetroactiveCorrectionController } from "./adapter/controllers/RetroactiveCorrectionController";
 import { ReviewerWorkspaceController } from "./adapter/controllers/ReviewerWorkspaceController";
 import { SettingsController } from "./adapter/controllers/SettingsController";
@@ -78,6 +79,7 @@ import { SupabaseEvaluationPeriodRepository } from "./infrastructure/repositorie
 import { SupabaseEvaluationSettingsRepository } from "./infrastructure/repositories/SupabaseEvaluationSettingsRepository";
 import { SupabaseEvaluationSheetRepository } from "./infrastructure/repositories/SupabaseEvaluationSheetRepository";
 import { SupabaseMilestoneRepository } from "./infrastructure/repositories/SupabaseMilestoneRepository";
+import { SupabaseNotificationInboxRepository } from "./infrastructure/repositories/SupabaseNotificationInboxRepository";
 import { SupabaseReviewerWorkspaceRepository } from "./infrastructure/repositories/SupabaseReviewerWorkspaceRepository";
 import { SupabaseSheetCorrectionRepository } from "./infrastructure/repositories/SupabaseSheetCorrectionRepository";
 import { SupabaseSheetImportRepository } from "./infrastructure/repositories/SupabaseSheetImportRepository";
@@ -151,6 +153,9 @@ const evaluationPeriodController = new EvaluationPeriodController(
 	new CloseEvaluationPeriodInteractor(evaluationPeriodRepository, employeeMasterRepository),
 );
 const emailNotificationRepository = new SupabaseEmailNotificationRepository();
+const notificationInboxController = new NotificationInboxController(
+	new SupabaseNotificationInboxRepository(),
+);
 const smtpSettingsController = new SmtpSettingsController(
 	workspaceSettingsRepository,
 	new UpdateSmtpSettingsInteractor(emailNotificationRepository, employeeMasterRepository),
@@ -337,7 +342,7 @@ const App: Component = () => {
 	const ProtectedLayout: Component<{ children?: JSX.Element }> = (props) => (
 		<Show when={isLinked() !== null}>
 			<Show when={session() && isLinked()} fallback={<Navigate href="/login" />}>
-				<DashboardLayout controller={accountController}>
+				<DashboardLayout controller={accountController} inbox={notificationInboxController}>
 					<Suspense>{props.children}</Suspense>
 				</DashboardLayout>
 			</Show>

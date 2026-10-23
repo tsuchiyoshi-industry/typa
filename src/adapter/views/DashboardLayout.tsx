@@ -11,12 +11,15 @@ import User from "lucide-solid/icons/user";
 import X from "lucide-solid/icons/x";
 import { type Component, createSignal, type JSX, onCleanup, onMount, Show } from "solid-js";
 import type { AccountController, CurrentUserDto } from "../controllers/AccountController";
+import type { NotificationInboxController } from "../controllers/NotificationInboxController";
+import NotificationBell from "./components/NotificationBell";
 import ThemeMenuItem from "./components/ThemeMenuItem";
 import { clearUnsavedChanges, confirmDiscard } from "./feedback";
 
 /** ログイン後の画面に共通のトップバー。ページ移動のたびに作り直さない。 */
 const DashboardLayout: Component<{
 	controller: AccountController;
+	inbox: Pick<NotificationInboxController, "load" | "markRead" | "markAllRead">;
 	children?: JSX.Element | JSX.Element[];
 }> = (props) => {
 	const location = useLocation();
@@ -96,6 +99,7 @@ const DashboardLayout: Component<{
 						社員マスタ
 					</A>
 				</nav>
+				<NotificationBell controller={props.inbox} />
 				<div class="user-menu-container">
 					<button
 						type="button"

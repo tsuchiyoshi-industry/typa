@@ -50,6 +50,17 @@ export function createNotificationBackend(): NotificationBackend {
 			}
 			return data as SmtpSettings | null;
 		},
+		async saveSmtp(smtp) {
+			const now = new Date().toISOString();
+			const { data, error } = await admin
+				.from("workspace_settings")
+				.update({ ...smtp, smtp_verified_at: now, updated_at: now })
+				.eq("id", true)
+				.select("id");
+			if (error || data?.length !== 1) {
+				throw error ?? new Error("Workspace settings row is missing");
+			}
+		},
 		async complete(claimId, success) {
 			const { data, error } = await admin.rpc("complete_sheet_notification", {
 				p_claim_id: claimId,

@@ -26,6 +26,123 @@ export interface NotificationBackend {
 	smtp(): Promise<SmtpSettings | null>;
 	complete(claimId: string, success: boolean): Promise<void>;
 	send(settings: SmtpSettings, mail: Mail): Promise<void>;
+	/** 送信テストに成功した設定を保存し、確認済みにする。 */
+	saveSmtp(settings: SmtpSettings): Promise<void>;
+}
+
+/** 入力された SMTP 設定。正しくなければ、直してほしいことを返す。 */
+function parseSmtpSettings(value: unknown): SmtpSettings | string {
+	const { host, port, user, password } = (
+		value && typeof value === "object" && !Array.isArray(value) ? value : {}
+	) as Record<string, unknown>;
+	const smtpHost = typeof host === "string" ? host.trim() : "";
+	const smtpUser = typeof user === "string" ? user.trim() : "";
+	if (!smtpHost || /\s/.test(smtpHost)) {
+		return "SMTP ホストを入力してください。";
+	}
+	if (!Number.isInteger(port) || (port as number) < 1 || (port as number) > 65535) {
+		return "ポートは 1〜65535 の整数で入力してください。";
+	}
+	if (!/^[^\s@<>,;]+@[^\s@<>,;]+$/.test(smtpUser)) {
+		return "送信元メールアドレスを正しく入力してください。";
+	}
+	if (typeof password !== "string") {
+		return "パスワードを入力してください。";
+	}
+	return {
+		smtp_host: smtpHost,
+		smtp_port: port as number,
+		smtp_user: smtpUser,
+		smtp_password: password,
+	};
+}
+
+/** 有効な Admin でなければ、断る応答を返す。 */
+async function refuseNonAdmin(
+	backend: NotificationBackend,
+	actor: string,
+): Promise<Response | null> {
+	try {
+		return (await backend.canSendTest(actor))
+			? null
+			: respond({ error: "送信テストは Admin のみ利用できます。" }, 403);
+	} catch {
+		return respond({ error: "送信テストの権限を確認できませんでした。" }, 503);
+	}
+}
+
+/** パスワードが空欄なら登録済みのものを使う。ただし別のサーバー・アカウントへは渡さない。 */
+async function withStoredPassword(
+	backend: NotificationBackend,
+	settings: SmtpSettings,
+): Promise<SmtpSettings | Response> {
+	if (settings.smtp_password) {
+		return settings;
+	}
+	let stored: SmtpSettings | null;
+	try {
+		stored = await backend.smtp();
+	} catch {
+		return respond({ error: "登録済みの通知メールの設定を読み込めませんでした。" }, 503);
+	}
+	const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
+	if (
+		!stored?.smtp_password ||
+		!same(stored.smtp_host, settings.smtp_host) ||
+		!same(stored.smtp_user, settings.smtp_user)
+	) {
+		return respond(
+			{
+				error:
+					"パスワードを入力してください。SMTP ホストか送信元メールアドレスを変えるときは、パスワードも入力し直してください。",
+			},
+			400,
+		);
+	}
+	return { ...settings, smtp_password: stored.smtp_password };
+}
+
+async function saveSmtpSettings(
+	backend: NotificationBackend,
+	actor: string,
+	body: Record<string, unknown>,
+): Promise<Response> {
+	const denied = await refuseNonAdmin(backend, actor);
+	if (denied) {
+		return denied;
+	}
+	const to = normalizeEmailAddress(body.to);
+	if (!to) {
+		return respond({ error: "宛先メールアドレスを1件入力してください。" }, 400);
+	}
+	if (!isNotificationTemplateId(body.templateId)) {
+		return respond({ error: "送信する通知パターンを選んでください。" }, 400);
+	}
+	const settings = parseSmtpSettings(body.smtp);
+	if (typeof settings === "string") {
+		return respond({ error: settings }, 400);
+	}
+	const complete = await withStoredPassword(backend, settings);
+	if (complete instanceof Response) {
+		return complete;
+	}
+	try {
+		await backend.send(complete, composeTestMail(body.templateId, to));
+	} catch (error) {
+		return testMailFailed(error, complete.smtp_password);
+	}
+	try {
+		await backend.saveSmtp(complete);
+	} catch {
+		return respond(
+			{
+				error:
+					"テストメールは送信しましたが、設定を保存できませんでした。時間をおいて、もう一度保存してください。",
+			},
+			503,
+		);
+	}
+	return respond({ success: true });
 }
 
 async function sendTestNotification(
@@ -33,12 +150,9 @@ async function sendTestNotification(
 	actor: string,
 	body: Record<string, unknown>,
 ): Promise<Response> {
-	try {
-		if (!(await backend.canSendTest(actor))) {
-			return respond({ error: "送信テストは Admin のみ利用できます。" }, 403);
-		}
-	} catch {
-		return respond({ error: "送信テストの権限を確認できませんでした。" }, 503);
+	const denied = await refuseNonAdmin(backend, actor);
+	if (denied) {
+		return denied;
 	}
 	const to = normalizeEmailAddress(body.to);
 	if (!to) {
@@ -56,14 +170,18 @@ async function sendTestNotification(
 		await backend.send(smtp, composeTestMail(body.templateId, to));
 		return respond({ success: true });
 	} catch (error) {
-		// 送信テストは Admin だけが使う。原因を直せるよう SMTP の応答を見せ、パスワードだけは伏せる
-		return respond(
-			{
-				error: `テストメールを送信できませんでした。SMTP設定と接続先を確認してください。（詳細: ${errorDetail(error, smtp?.smtp_password)}）`,
-			},
-			503,
-		);
+		return testMailFailed(error, smtp?.smtp_password);
 	}
+}
+
+/** 送信テストは Admin だけが使う。原因を直せるよう SMTP の応答を見せ、パスワードだけは伏せる。 */
+function testMailFailed(error: unknown, password?: string): Response {
+	return respond(
+		{
+			error: `テストメールを送信できませんでした。SMTP設定と接続先を確認してください。（詳細: ${errorDetail(error, password)}）`,
+		},
+		503,
+	);
 }
 
 function errorDetail(error: unknown, secret?: string): string {
@@ -144,6 +262,9 @@ export function createNotificationHandler(backend: NotificationBackend) {
 		const input = body as Record<string, unknown>;
 		if (input.mode === "test") {
 			return sendTestNotification(backend, actor, input);
+		}
+		if (input.mode === "save") {
+			return saveSmtpSettings(backend, actor, input);
 		}
 		if (input.mode !== undefined) {
 			return respond({ error: "送信内容を確認してください。" }, 400);

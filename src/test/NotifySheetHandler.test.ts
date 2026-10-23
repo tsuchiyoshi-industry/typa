@@ -29,6 +29,7 @@ function setup() {
 		}),
 		complete: vi.fn().mockResolvedValue(undefined),
 		send: vi.fn().mockResolvedValue(undefined),
+		saveSmtp: vi.fn().mockResolvedValue(undefined),
 	} satisfies NotificationBackend;
 	const handle = createNotificationHandler(backend);
 	const request = (body: string = '{"sheetId":1}') =>
@@ -178,4 +179,153 @@ it("shows why the SMTP settings could not be read", async () => {
 	expect(response.status).toBe(503);
 	expect((await response.json()).error).toContain("（詳細: connection refused）");
 	expect(backend.send).not.toHaveBeenCalled();
+});
+
+// 設定の保存: 入力された設定で送信テストを行い、成功したときだけ保存する
+const entered = {
+	smtp_host: "new.example.jp",
+	smtp_port: 587,
+	smtp_user: "new@example.jp",
+	smtp_password: "new-password",
+};
+const saveRequest = (change: Record<string, unknown> = {}, smtp: Record<string, unknown> = {}) =>
+	JSON.stringify({
+		mode: "save",
+		to: "test@example.jp",
+		templateId: "submitted",
+		smtp: {
+			host: "new.example.jp",
+			port: 587,
+			user: "new@example.jp",
+			password: "new-password",
+			...smtp,
+		},
+		...change,
+	});
+
+it("sends a test mail with the entered settings, then saves them", async () => {
+	const { backend, request } = setup();
+	const response = await request(saveRequest());
+	expect(response.status).toBe(200);
+	expect(await response.json()).toEqual({ success: true });
+	expect(backend.send).toHaveBeenCalledExactlyOnceWith(
+		entered,
+		composeTestMail("submitted", "test@example.jp"),
+	);
+	expect(backend.saveSmtp).toHaveBeenCalledExactlyOnceWith(entered);
+	expect(backend.send.mock.invocationCallOrder[0]).toBeLessThan(
+		backend.saveSmtp.mock.invocationCallOrder[0],
+	);
+});
+
+it("saves nothing when the test mail fails, and explains why without the password", async () => {
+	const { backend, request } = setup();
+	backend.send.mockRejectedValueOnce(
+		Object.assign(new Error("received fatal alert: HandshakeFailure new-password"), {
+			code: "ESOCKET",
+		}),
+	);
+	const response = await request(saveRequest());
+	expect(response.status).toBe(503);
+	const { error } = await response.json();
+	expect(error).toContain("テストメールを送信できませんでした");
+	expect(error).toContain("ESOCKET: received fatal alert: HandshakeFailure ********");
+	expect(error).not.toContain("new-password");
+	expect(backend.saveSmtp).not.toHaveBeenCalled();
+});
+
+it("lets only an enabled Admin save, checking before anything is sent", async () => {
+	const { backend, request } = setup();
+	backend.canSendTest.mockResolvedValueOnce(false);
+	expect((await request(saveRequest())).status).toBe(403);
+	backend.canSendTest.mockRejectedValueOnce(new Error("unavailable"));
+	expect((await request(saveRequest())).status).toBe(503);
+	expect(backend.canSendTest).toHaveBeenCalledWith("actor");
+	expect(backend.send).not.toHaveBeenCalled();
+	expect(backend.saveSmtp).not.toHaveBeenCalled();
+});
+
+it.each([
+	[{ to: null }, {}],
+	[{ to: "not-an-address" }, {}],
+	[{ to: "a@example.jp,b@example.jp" }, {}],
+	[{ to: "a@example.jp\r\nBcc: other@example.jp" }, {}],
+	[{ templateId: "finalized" }, {}],
+	[{ templateId: "__proto__" }, {}],
+	[{ smtp: null }, {}],
+	[{ smtp: [] }, {}],
+	[{ smtp: "smtp.example.jp" }, {}],
+	[{}, { host: "" }],
+	[{}, { host: " " }],
+	[{}, { host: "smtp example.jp" }],
+	[{}, { host: 1 }],
+	[{}, { port: 0 }],
+	[{}, { port: 70000 }],
+	[{}, { port: 58.7 }],
+	[{}, { port: "587" }],
+	[{}, { port: null }],
+	[{}, { user: "not-an-address" }],
+	[{}, { user: "a@example.jp, b@example.jp" }],
+	[{}, { user: null }],
+	[{}, { password: 1234 }],
+])("rejects %j %j without sending or saving", async (change, smtp) => {
+	const { backend, request } = setup();
+	expect((await request(saveRequest(change, smtp))).status).toBe(400);
+	expect(backend.send).not.toHaveBeenCalled();
+	expect(backend.saveSmtp).not.toHaveBeenCalled();
+});
+
+it("uses the stored password when it is left blank for the same server and sender", async () => {
+	const { backend, request } = setup();
+	const stored = await backend.smtp();
+	const response = await request(
+		saveRequest({}, { host: stored.smtp_host, user: stored.smtp_user, port: 587, password: "" }),
+	);
+	expect(response.status).toBe(200);
+	const kept = { ...stored, smtp_port: 587 };
+	expect(backend.send).toHaveBeenCalledExactlyOnceWith(kept, expect.anything());
+	expect(backend.saveSmtp).toHaveBeenCalledExactlyOnceWith(kept);
+});
+
+it.each([
+	["another server", { host: "attacker.example" }, undefined],
+	["another sender", { user: "other@example.jp" }, undefined],
+	["no stored password", {}, null],
+	["an empty stored password", {}, ""],
+])("requires the password again for %s", async (_, change, storedPassword) => {
+	const { backend, request } = setup();
+	const stored = await backend.smtp();
+	if (storedPassword !== undefined) {
+		backend.smtp.mockResolvedValue(
+			storedPassword === null ? null : { ...stored, smtp_password: storedPassword },
+		);
+	}
+	const response = await request(
+		saveRequest({}, { host: stored.smtp_host, user: stored.smtp_user, password: "", ...change }),
+	);
+	expect(response.status).toBe(400);
+	expect((await response.json()).error).toContain("パスワード");
+	expect(backend.send).not.toHaveBeenCalled();
+	expect(backend.saveSmtp).not.toHaveBeenCalled();
+});
+
+it("sends nothing when the stored settings cannot be read", async () => {
+	const { backend, request } = setup();
+	backend.smtp.mockRejectedValueOnce(new Error("connection refused"));
+	const stored = { host: "smtp.example.jp", user: "sender@example.jp", password: "" };
+	const response = await request(saveRequest({}, stored));
+	expect(response.status).toBe(503);
+	expect((await response.json()).error).toContain("読み込めませんでした");
+	expect(backend.send).not.toHaveBeenCalled();
+	expect(backend.saveSmtp).not.toHaveBeenCalled();
+});
+
+it("says the test mail went out when only saving fails", async () => {
+	const { backend, request } = setup();
+	backend.saveSmtp.mockRejectedValueOnce(new Error("database unavailable"));
+	const response = await request(saveRequest());
+	expect(response.status).toBe(503);
+	const { error } = await response.json();
+	expect(error).toContain("テストメールは送信しましたが、設定を保存できませんでした");
+	expect(error).not.toContain("new-password");
 });

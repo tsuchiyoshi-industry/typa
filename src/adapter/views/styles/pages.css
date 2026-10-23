@@ -190,6 +190,37 @@
 	box-shadow: 0 0 0 3px var(--hr-accent-muted);
 }
 
+/* 通知の方法: アプリ内通知かメールのどちらか一方 */
+.notification-channel {
+	display: grid;
+	justify-items: start;
+	gap: 0.1rem;
+	margin: 0 0 1.75rem;
+	padding: 0;
+	border: 0;
+}
+.notification-channel legend {
+	margin-bottom: 0.35rem;
+	padding: 0;
+	font-size: 0.9375rem;
+	font-weight: 600;
+	color: var(--hr-text);
+}
+.notification-channel label {
+	display: inline-flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	column-gap: 0.5rem;
+	min-height: 2.25rem;
+	font-size: 0.875rem;
+	color: var(--hr-text);
+}
+.notification-channel input {
+	accent-color: var(--hr-accent);
+}
+.notification-channel label:has(input:disabled) {
+	color: var(--hr-text-muted);
+}
 .smtp-test-form {
 	display: grid;
 	grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;

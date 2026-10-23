@@ -53,7 +53,6 @@ import { PreRegisterEmployeeInteractor } from "./application/usecases/PreRegiste
 import { RegisterEmployeeAccountInteractor } from "./application/usecases/RegisterEmployeeAccountInteractor";
 import { ResetEmployeeRegistrationInteractor } from "./application/usecases/ResetEmployeeRegistrationInteractor";
 import { SaveEvaluationPeriodInteractor } from "./application/usecases/SaveEvaluationPeriodInteractor";
-import { SendTestNotificationInteractor } from "./application/usecases/SendTestNotificationInteractor";
 import { SignInEmployeeInteractor } from "./application/usecases/SignInEmployeeInteractor";
 import { UpdateEmployeeEnabledInteractor } from "./application/usecases/UpdateEmployeeEnabledInteractor";
 import { UpdateEmployeeEvaluatorInteractor } from "./application/usecases/UpdateEmployeeEvaluatorInteractor";
@@ -64,6 +63,7 @@ import { UpdateEvaluationAllocationInteractor } from "./application/usecases/Upd
 import { UpdateEvaluationStatusInteractor } from "./application/usecases/UpdateEvaluationStatusInteractor";
 import { UpdateMaxChallengeGoalsInteractor } from "./application/usecases/UpdateMaxChallengeGoalsInteractor";
 import { UpdateMilestoneInteractor } from "./application/usecases/UpdateMilestoneInteractor";
+import { UpdateNotificationChannelInteractor } from "./application/usecases/UpdateNotificationChannelInteractor";
 import { UpdateOverallCommentInteractor } from "./application/usecases/UpdateOverallCommentInteractor";
 import { UpdateSmtpSettingsInteractor } from "./application/usecases/UpdateSmtpSettingsInteractor";
 import { UpsertCommonEvaluationInteractor } from "./application/usecases/UpsertCommonEvaluationInteractor";
@@ -153,8 +153,8 @@ const evaluationPeriodController = new EvaluationPeriodController(
 const emailNotificationRepository = new SupabaseEmailNotificationRepository();
 const smtpSettingsController = new SmtpSettingsController(
 	workspaceSettingsRepository,
-	new UpdateSmtpSettingsInteractor(workspaceSettingsRepository, employeeMasterRepository),
-	new SendTestNotificationInteractor(emailNotificationRepository, employeeMasterRepository),
+	new UpdateSmtpSettingsInteractor(emailNotificationRepository, employeeMasterRepository),
+	new UpdateNotificationChannelInteractor(workspaceSettingsRepository, employeeMasterRepository),
 );
 const evaluationScoreUpdateService = new EvaluationScoreUpdateService(
 	evaluationSheetRepository,

@@ -16,7 +16,7 @@ interface SettingsViewProps {
 		EvaluationPeriodController,
 		"load" | "save" | "remove" | "close" | "preview" | "divisions"
 	>;
-	smtpController: Pick<SmtpSettingsController, "load" | "save" | "sendTest">;
+	smtpController: Pick<SmtpSettingsController, "load" | "save" | "chooseChannel">;
 }
 
 const TOTAL = EvaluationAllocation.TOTAL;
@@ -169,7 +169,7 @@ const SettingsView: Component<SettingsViewProps> = (props) => {
 						設定
 					</h1>
 					<p>
-						評価期間、評価の計算に使う会社ごとの基準、通知メールの送信元です。Admin
+						評価期間、評価の計算に使う会社ごとの基準、評価の依頼を知らせる方法です。Admin
 						だけが変更できます。
 					</p>
 				</div>

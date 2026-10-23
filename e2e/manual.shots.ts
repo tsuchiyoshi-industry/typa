@@ -320,7 +320,7 @@ test("manual screenshots", async ({ page }) => {
 		await menu(page, "設定");
 		await shot(page.getByRole("region", { name: "評価点の配点" }), "admin", "08-allocation");
 		await shot(page.getByRole("region", { name: "チャレンジ目標の数" }), "admin", "09-max-goals");
-		await shot(page.getByRole("region", { name: "通知メール" }), "admin", "10-smtp");
+		await shot(page.getByRole("region", { name: "通知", exact: true }), "admin", "10-smtp");
 
 		// 期を上期・下期に分けて追加し、上期を始める(2026年度 下期は同時に締められる)
 		const periods = page.getByRole("region", { name: "評価期間", exact: true });

@@ -1,9 +1,8 @@
 import { messageOf } from "../../application/errorMessage";
 import type {
-	SendTestNotificationInteractor,
-	SendTestNotificationRequest,
-	SendTestNotificationResponse,
-} from "../../application/usecases/SendTestNotificationInteractor";
+	UpdateNotificationChannelInteractor,
+	UpdateNotificationChannelResponse,
+} from "../../application/usecases/UpdateNotificationChannelInteractor";
 import type {
 	UpdateSmtpSettingsInteractor,
 	UpdateSmtpSettingsRequest,
@@ -14,27 +13,27 @@ import type {
 	WorkspaceSettingsRepository,
 } from "../../domain/repositories/WorkspaceSettingsRepository";
 
-/** 設定画面の「通知メール」。送信に使う SMTP サーバーと送信元アドレス。 */
+/** 設定画面の「通知メール」。送信テストに成功した SMTP サーバーと送信元アドレスだけを保存する。 */
 export class SmtpSettingsController {
 	constructor(
 		private readonly settingsRepository: Pick<WorkspaceSettingsRepository, "findSmtpSummary">,
 		private readonly updateUseCase: UpdateSmtpSettingsInteractor,
-		private readonly sendTestUseCase: SendTestNotificationInteractor,
+		private readonly channelUseCase: UpdateNotificationChannelInteractor,
 	) {}
+
+	async chooseChannel(channel: string): Promise<UpdateNotificationChannelResponse> {
+		let response = { success: false, message: "通知の方法を変更できませんでした。" };
+		try {
+			await this.channelUseCase.execute({ channel }, { present: (result) => (response = result) });
+		} catch (error) {
+			console.error("Error saving the notification channel:", error);
+		}
+		return response;
+	}
 
 	/** パスワードは読み出さない。Admin 以外は null。 */
 	load(): Promise<SmtpSettingsSummary | null> {
 		return this.settingsRepository.findSmtpSummary();
-	}
-
-	async sendTest(request: SendTestNotificationRequest): Promise<SendTestNotificationResponse> {
-		let response = { success: false, message: "テストメールを送信できませんでした。" };
-		try {
-			await this.sendTestUseCase.execute(request, { present: (result) => (response = result) });
-		} catch (error) {
-			response.message = messageOf(error, response.message);
-		}
-		return response;
 	}
 
 	async save(request: UpdateSmtpSettingsRequest): Promise<UpdateSmtpSettingsResponse> {
@@ -42,7 +41,8 @@ export class SmtpSettingsController {
 		try {
 			await this.updateUseCase.execute(request, { present: (result) => (response = result) });
 		} catch (error) {
-			console.error("Error saving SMTP settings:", error);
+			// 送信テストの失敗は、SMTP の応答を添えた理由が届く
+			response.message = messageOf(error, response.message);
 		}
 		return response;
 	}

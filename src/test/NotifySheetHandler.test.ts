@@ -84,103 +84,6 @@ it("does not send again after delivery or during cooldown", async () => {
 	expect(backend.send).not.toHaveBeenCalled();
 });
 
-const testRequest = (change: Record<string, unknown> = {}) =>
-	JSON.stringify({
-		mode: "test",
-		to: " test@example.jp ",
-		templateId: "submitted",
-		...change,
-	});
-
-it.each(NOTIFICATION_TEMPLATES)(
-	"sends the $id test without claiming or recording a sheet notification",
-	async ({ id }) => {
-		const { backend, request } = setup();
-		const response = await request(testRequest({ templateId: id, sheetId: 999 }));
-		expect(response.status).toBe(200);
-		expect(await response.json()).toEqual({ success: true });
-		expect(backend.canSendTest).toHaveBeenCalledWith("actor");
-		expect(backend.send).toHaveBeenCalledExactlyOnceWith(
-			await backend.smtp(),
-			composeTestMail(id, "test@example.jp"),
-		);
-		expect(backend.claim).not.toHaveBeenCalled();
-		expect(backend.complete).not.toHaveBeenCalled();
-	},
-);
-
-it("requires login and an enabled Admin before reading SMTP settings or sending a test", async () => {
-	const { backend, request } = setup();
-	backend.authenticate.mockResolvedValueOnce(null);
-	expect((await request(testRequest())).status).toBe(401);
-	expect(backend.canSendTest).not.toHaveBeenCalled();
-	backend.canSendTest.mockResolvedValueOnce(false);
-	expect((await request(testRequest())).status).toBe(403);
-	backend.canSendTest.mockRejectedValueOnce(new Error("unavailable"));
-	expect((await request(testRequest())).status).toBe(503);
-	expect(backend.smtp).not.toHaveBeenCalled();
-	expect(backend.send).not.toHaveBeenCalled();
-});
-
-it.each([
-	{ to: null },
-	{ to: "" },
-	{ to: "not-an-address" },
-	{ to: "a@example.jp,b@example.jp" },
-	{ to: "a@example.jp\r\nBcc: other@example.jp" },
-	{ to: `${"a".repeat(255)}@example.jp` },
-	{ templateId: null },
-	{ templateId: "" },
-	{ templateId: "finalized" },
-	{ templateId: "__proto__" },
-])("rejects invalid test input %j without sending", async (change) => {
-	const { backend, request } = setup();
-	expect((await request(testRequest(change))).status).toBe(400);
-	expect(backend.smtp).not.toHaveBeenCalled();
-	expect(backend.send).not.toHaveBeenCalled();
-	expect(backend.claim).not.toHaveBeenCalled();
-	expect(backend.complete).not.toHaveBeenCalled();
-});
-
-it("reports missing configuration and shows the SMTP error without the password", async () => {
-	const { backend, request } = setup();
-	backend.smtp.mockResolvedValueOnce(null);
-	expect((await request(testRequest())).status).toBe(409);
-	expect(backend.send).not.toHaveBeenCalled();
-	backend.send.mockRejectedValueOnce(
-		Object.assign(new Error("Invalid login: 535 bad credentials private-password"), {
-			code: "EAUTH",
-		}),
-	);
-	const response = await request(testRequest());
-	expect(response.status).toBe(503);
-	const { error } = await response.json();
-	expect(error).toContain("テストメールを送信できませんでした");
-	expect(error).toContain("EAUTH: Invalid login: 535 bad credentials ********");
-	expect(error).not.toContain("private-password");
-	expect(backend.complete).not.toHaveBeenCalled();
-});
-
-it.each([
-	["a non-Error value", "socket closed", "socket closed"],
-	["an error without a message", new Error(""), "Error"],
-	["a very long message", new Error("x".repeat(1000)), "x".repeat(300)],
-])("keeps the test failure readable for %s", async (_, thrown, expected) => {
-	const { backend, request } = setup();
-	backend.send.mockRejectedValueOnce(thrown);
-	const { error } = await (await request(testRequest())).json();
-	expect(error).toContain(`（詳細: ${expected}）`);
-});
-
-it("shows why the SMTP settings could not be read", async () => {
-	const { backend, request } = setup();
-	backend.smtp.mockRejectedValueOnce(new Error("connection refused"));
-	const response = await request(testRequest());
-	expect(response.status).toBe(503);
-	expect((await response.json()).error).toContain("（詳細: connection refused）");
-	expect(backend.send).not.toHaveBeenCalled();
-});
-
 // 設定の保存: 入力された設定で送信テストを行い、成功したときだけ保存する
 const entered = {
 	smtp_host: "new.example.jp",
@@ -328,4 +231,60 @@ it("says the test mail went out when only saving fails", async () => {
 	const { error } = await response.json();
 	expect(error).toContain("テストメールは送信しましたが、設定を保存できませんでした");
 	expect(error).not.toContain("new-password");
+});
+
+it.each(NOTIFICATION_TEMPLATES)(
+	"saves after the $id sample without claiming or recording a sheet notification",
+	async ({ id }) => {
+		const { backend, request } = setup();
+		const response = await request(saveRequest({ templateId: id, sheetId: 999 }));
+		expect(response.status).toBe(200);
+		expect(backend.send).toHaveBeenCalledExactlyOnceWith(
+			entered,
+			composeTestMail(id, "test@example.jp"),
+		);
+		expect(backend.claim).not.toHaveBeenCalled();
+		expect(backend.complete).not.toHaveBeenCalled();
+	},
+);
+
+it("requires login before checking the Admin", async () => {
+	const { backend, request } = setup();
+	backend.authenticate.mockResolvedValueOnce(null);
+	expect((await request(saveRequest())).status).toBe(401);
+	expect(backend.canSendTest).not.toHaveBeenCalled();
+	expect(backend.send).not.toHaveBeenCalled();
+});
+
+it.each([
+	{ to: "" },
+	{ to: `${"a".repeat(255)}@example.jp` },
+	{ templateId: null },
+	{ templateId: "" },
+])("rejects the test recipient or pattern %j without sending", async (change) => {
+	const { backend, request } = setup();
+	expect((await request(saveRequest(change))).status).toBe(400);
+	expect(backend.send).not.toHaveBeenCalled();
+	expect(backend.saveSmtp).not.toHaveBeenCalled();
+});
+
+it.each([
+	["a non-Error value", "socket closed", "socket closed"],
+	["an error without a message", new Error(""), "Error"],
+	["a very long message", new Error("x".repeat(1000)), "x".repeat(300)],
+])("keeps the test failure readable for %s", async (_, thrown, expected) => {
+	const { backend, request } = setup();
+	backend.send.mockRejectedValueOnce(thrown);
+	const { error } = await (await request(saveRequest())).json();
+	expect(error).toContain(`（詳細: ${expected}）`);
+});
+
+it("no longer accepts a test with the saved settings that skips saving", async () => {
+	const { backend, request } = setup();
+	const response = await request(
+		JSON.stringify({ mode: "test", to: "test@example.jp", templateId: "submitted" }),
+	);
+	expect(response.status).toBe(400);
+	expect(backend.smtp).not.toHaveBeenCalled();
+	expect(backend.send).not.toHaveBeenCalled();
 });

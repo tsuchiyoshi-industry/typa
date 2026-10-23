@@ -5,11 +5,12 @@ import type {
 	ReportDelivery,
 	SheetNotification,
 } from "../../domain/repositories/EmailNotificationRepository";
+import type { SmtpSettings } from "../../domain/repositories/WorkspaceSettingsRepository";
 import { supabase } from "../db/supabase";
 
 /**
  * 通知メールは Edge Function(notify-sheet)が送る。通常通知の宛先・文面はシートの状態から決め、
- * 評価者のメールアドレスと SMTP のパスワードはアプリに渡さない。送信テストは入力した宛先を使う。
+ * 評価者のメールアドレスと SMTP のパスワードはアプリに渡さない。SMTP 設定は、入力した宛先への送信テストに成功したときだけ保存される。
  */
 export class SupabaseEmailNotificationRepository
 	implements EmailNotificationRepository, NotificationTestGateway
@@ -28,10 +29,15 @@ export class SupabaseEmailNotificationRepository
 		return data;
 	}
 
-	async sendTest(to: string, templateId: string): Promise<void> {
-		const data = await this.invoke<{ success?: boolean }>({ mode: "test", to, templateId });
+	async saveAfterTestMail(settings: SmtpSettings, to: string, templateId: string): Promise<void> {
+		const data = await this.invoke<{ success?: boolean }>({
+			mode: "save",
+			smtp: settings,
+			to,
+			templateId,
+		});
 		if (data?.success !== true) {
-			throw new Error("テストメールを送信できませんでした。");
+			throw new Error("通知メールの設定を保存できませんでした。");
 		}
 	}
 

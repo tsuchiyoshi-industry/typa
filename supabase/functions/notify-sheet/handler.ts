@@ -1,5 +1,6 @@
 import { normalizeEmailAddress } from "../_shared/emailAddress.ts";
 import { isNotificationTemplateId } from "../_shared/notificationTemplates.ts";
+import { smtpSettingsProblem } from "../_shared/smtpSettings.ts";
 import {
 	composeMails,
 	composeTestMail,
@@ -37,14 +38,9 @@ function parseSmtpSettings(value: unknown): SmtpSettings | string {
 	) as Record<string, unknown>;
 	const smtpHost = typeof host === "string" ? host.trim() : "";
 	const smtpUser = typeof user === "string" ? user.trim() : "";
-	if (!smtpHost || /\s/.test(smtpHost)) {
-		return "SMTP ホストを入力してください。";
-	}
-	if (!Number.isInteger(port) || (port as number) < 1 || (port as number) > 65535) {
-		return "ポートは 1〜65535 の整数で入力してください。";
-	}
-	if (!/^[^\s@<>,;]+@[^\s@<>,;]+$/.test(smtpUser)) {
-		return "送信元メールアドレスを正しく入力してください。";
+	const problem = smtpSettingsProblem(smtpHost, port, smtpUser);
+	if (problem) {
+		return problem;
 	}
 	if (typeof password !== "string") {
 		return "パスワードを入力してください。";
@@ -145,35 +141,6 @@ async function saveSmtpSettings(
 	return respond({ success: true });
 }
 
-async function sendTestNotification(
-	backend: NotificationBackend,
-	actor: string,
-	body: Record<string, unknown>,
-): Promise<Response> {
-	const denied = await refuseNonAdmin(backend, actor);
-	if (denied) {
-		return denied;
-	}
-	const to = normalizeEmailAddress(body.to);
-	if (!to) {
-		return respond({ error: "宛先メールアドレスを1件入力してください。" }, 400);
-	}
-	if (!isNotificationTemplateId(body.templateId)) {
-		return respond({ error: "送信する通知パターンを選んでください。" }, 400);
-	}
-	let smtp: SmtpSettings | null = null;
-	try {
-		smtp = await backend.smtp();
-		if (!smtp?.smtp_host || !smtp.smtp_user) {
-			return respond({ error: "通知メールの設定を保存してから送信テストを行ってください。" }, 409);
-		}
-		await backend.send(smtp, composeTestMail(body.templateId, to));
-		return respond({ success: true });
-	} catch (error) {
-		return testMailFailed(error, smtp?.smtp_password);
-	}
-}
-
 /** 送信テストは Admin だけが使う。原因を直せるよう SMTP の応答を見せ、パスワードだけは伏せる。 */
 function testMailFailed(error: unknown, password?: string): Response {
 	return respond(
@@ -260,9 +227,6 @@ export function createNotificationHandler(backend: NotificationBackend) {
 			return respond({ error: "送信内容を確認してください。" }, 400);
 		}
 		const input = body as Record<string, unknown>;
-		if (input.mode === "test") {
-			return sendTestNotification(backend, actor, input);
-		}
 		if (input.mode === "save") {
 			return saveSmtpSettings(backend, actor, input);
 		}

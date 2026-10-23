@@ -16,8 +16,8 @@ COLUMN GRANT milestones authenticated SELECT achievement,challenge_goal,goal_num
 COLUMN GRANT milestones authenticated UPDATE achievement,challenge_goal,first_score,goal_number,midterm_goal,second_score,sheet_id
 COLUMN GRANT roles authenticated SELECT id,role_name
 COLUMN GRANT security_audit_log authenticated SELECT action,actor_user_id,details,entity_id,id,occurred_at
-COLUMN GRANT workspace_settings authenticated SELECT id,notification_channel,smtp_host,smtp_password_set,smtp_port,smtp_user
-COLUMN GRANT workspace_settings authenticated UPDATE notification_channel,smtp_host,smtp_password,smtp_port,smtp_user,updated_at
+COLUMN GRANT workspace_settings authenticated SELECT id,notification_channel,smtp_host,smtp_password_set,smtp_port,smtp_user,smtp_verified_at
+COLUMN GRANT workspace_settings authenticated UPDATE notification_channel,updated_at
 COLUMN common_evaluation_item_sets.id smallint null=NO default=-
 COLUMN common_evaluation_item_sets.name text null=NO default=-
 COLUMN common_evaluation_items.description text null=NO default=-

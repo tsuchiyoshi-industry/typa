@@ -1,11 +1,12 @@
 import { type Component, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { NOTIFICATION_TEMPLATES } from "../../../../supabase/functions/_shared/notificationTemplates";
-import type { SmtpSettingsSummary } from "../../../domain/repositories/WorkspaceSettingsRepository";
+import type { NotificationChannel } from "../../../domain/repositories/WorkspaceSettingsRepository";
 import type { SmtpSettingsController } from "../../controllers/SmtpSettingsController";
 import { showToast } from "../feedback";
+import { formatDateTime } from "../format";
 
 interface SmtpSettingsProps {
-	controller: Pick<SmtpSettingsController, "load" | "save" | "sendTest">;
+	controller: Pick<SmtpSettingsController, "load" | "save" | "chooseChannel">;
 }
 
 /** Admin が、通知メールを送る SMTP サーバーと送信元アドレスを決める。 */
@@ -13,19 +14,13 @@ const SmtpSettings: Component<SmtpSettingsProps> = (props) => {
 	const [loading, setLoading] = createSignal(true);
 	const [error, setError] = createSignal<string | null>(null);
 	const [saving, setSaving] = createSignal(false);
-	const [sending, setSending] = createSignal(false);
-	const busy = () => saving() || sending();
 	const [passwordSet, setPasswordSet] = createSignal(false);
+	const [channel, setChannel] = createSignal<NotificationChannel>("in_app");
+	const [verifiedAt, setVerifiedAt] = createSignal<string | null>(null);
+	const [choosing, setChoosing] = createSignal(false);
 	const [form, setForm] = createSignal({ host: "", port: "465", user: "", password: "" });
-	const [saved, setSaved] = createSignal<SmtpSettingsSummary | null>(null);
 	const [testTo, setTestTo] = createSignal("");
 	const [templateId, setTemplateId] = createSignal<string>(NOTIFICATION_TEMPLATES[0].id);
-	const hasSavedSettings = () => !!saved()?.host && !!saved()?.user;
-	const dirty = () =>
-		form().host.trim() !== (saved()?.host ?? "") ||
-		Number(form().port) !== (saved()?.port ?? 465) ||
-		form().user.trim() !== (saved()?.user ?? "") ||
-		form().password !== "";
 	let mounted = true;
 	onCleanup(() => {
 		mounted = false;
@@ -35,11 +30,10 @@ const SmtpSettings: Component<SmtpSettingsProps> = (props) => {
 		setError(null);
 		try {
 			const settings = await props.controller.load();
-			if (mounted) {
-				setSaved(settings);
-			}
 			if (mounted && settings) {
 				setPasswordSet(settings.passwordSet);
+				setChannel(settings.channel);
+				setVerifiedAt(settings.verifiedAt);
 				setForm({
 					host: settings.host,
 					port: String(settings.port),
@@ -49,7 +43,7 @@ const SmtpSettings: Component<SmtpSettingsProps> = (props) => {
 			}
 		} catch {
 			if (mounted) {
-				setError("通知メールの設定を読み込めませんでした。");
+				setError("通知の設定を読み込めませんでした。");
 			}
 		} finally {
 			if (mounted) {
@@ -59,18 +53,52 @@ const SmtpSettings: Component<SmtpSettingsProps> = (props) => {
 	};
 	onMount(() => void load());
 
+	// 選んだらすぐ保存する。保存できなければ、保存済みの方法に戻す
+	const choose = async (next: NotificationChannel) => {
+		if (choosing()) {
+			return;
+		}
+		const previous = channel();
+		setChannel(next);
+		setChoosing(true);
+		try {
+			const result = await props.controller.chooseChannel(next);
+			showToast(result.success ? "success" : "error", result.message);
+			if (!result.success) {
+				setChannel(previous);
+			}
+		} catch {
+			showToast("error", "通知の方法を変更できませんでした。時間をおいて再度お試しください。");
+			setChannel(previous);
+		} finally {
+			if (mounted) {
+				setChoosing(false);
+			}
+		}
+	};
+
 	const save = async (event: Event) => {
 		event.preventDefault();
-		if (busy()) {
+		if (saving()) {
 			return;
 		}
 		setSaving(true);
 		try {
-			const result = await props.controller.save({ ...form(), port: Number(form().port) });
+			const result = await props.controller.save({
+				...form(),
+				port: Number(form().port),
+				to: testTo(),
+				templateId: templateId(),
+			});
 			showToast(result.success ? "success" : "error", result.message);
 			if (result.success) {
 				await load();
 			}
+		} catch {
+			showToast(
+				"error",
+				"通知メールの設定を保存できませんでした。時間をおいて再度お試しください。",
+			);
 		} finally {
 			if (mounted) {
 				setSaving(false);
@@ -78,37 +106,11 @@ const SmtpSettings: Component<SmtpSettingsProps> = (props) => {
 		}
 	};
 
-	const sendTest = async (event: Event) => {
-		event.preventDefault();
-		if (busy() || !hasSavedSettings() || dirty()) {
-			return;
-		}
-		setSending(true);
-		try {
-			const result = await props.controller.sendTest({ to: testTo(), templateId: templateId() });
-			if (mounted) {
-				showToast(result.success ? "success" : "error", result.message);
-			}
-		} catch {
-			if (mounted) {
-				showToast("error", "テストメールを送信できませんでした。時間をおいて再度お試しください。");
-			}
-		} finally {
-			if (mounted) {
-				setSending(false);
-			}
-		}
-	};
-
 	return (
-		<section class="info-card" aria-labelledby="smtp-heading">
-			<h2 id="smtp-heading">通知メール</h2>
+		<section class="info-card" aria-labelledby="notification-heading">
+			<h2 id="notification-heading">通知</h2>
 			<p>
-				提出時に一次評価者へ、一次評価の確定時に二次評価者へ通知します。SMTPサーバーと送信元メールアドレスを設定します。
-				送信ポートは465（TLS）を指定してください。25と587は使用できません。
-			</p>
-			<p class="allocation-note">
-				保存したパスワードは、この画面には表示されません。変更するときだけ入力してください。
+				提出されたときは一次評価者に、一次評価が確定したときは二次評価者に、評価の依頼を知らせます。
 			</p>
 
 			<Show when={error()}>
@@ -120,104 +122,127 @@ const SmtpSettings: Component<SmtpSettingsProps> = (props) => {
 				</div>
 			</Show>
 
-			<Show
-				when={!loading()}
-				fallback={<p class="page-note">通知メールの設定を読み込んでいます...</p>}
-			>
-				<form class="allocation-form period-form" onSubmit={(event) => void save(event)}>
+			<Show when={!loading()} fallback={<p class="page-note">通知の設定を読み込んでいます...</p>}>
+				<fieldset class="notification-channel">
+					<legend>通知の方法</legend>
 					<label>
-						SMTP ホスト
 						<input
-							type="text"
-							required
-							placeholder="smtp.example.jp"
-							value={form().host}
-							disabled={busy()}
-							onInput={(event) => setForm({ ...form(), host: event.currentTarget.value })}
+							type="radio"
+							name="notification-channel"
+							value="in_app"
+							checked={channel() === "in_app"}
+							disabled={choosing()}
+							onChange={() => void choose("in_app")}
 						/>
+						アプリ内通知
 					</label>
 					<label>
-						ポート
 						<input
-							type="number"
-							required
-							min="1"
-							max="65535"
-							step="1"
-							value={form().port}
-							disabled={busy()}
-							onInput={(event) => setForm({ ...form(), port: event.currentTarget.value })}
+							type="radio"
+							name="notification-channel"
+							value="email"
+							checked={channel() === "email"}
+							disabled={choosing() || !verifiedAt()}
+							onChange={() => void choose("email")}
 						/>
+						メール
 					</label>
-					<label>
-						送信元メールアドレス
-						<input
-							type="email"
-							required
-							autocomplete="off"
-							value={form().user}
-							disabled={busy()}
-							onInput={(event) => setForm({ ...form(), user: event.currentTarget.value })}
-						/>
-					</label>
-					<label>
-						パスワード
-						<input
-							type="password"
-							required={!passwordSet()}
-							autocomplete="new-password"
-							placeholder={passwordSet() ? "登録済み（変更しない場合は空欄）" : undefined}
-							value={form().password}
-							disabled={busy()}
-							onInput={(event) => setForm({ ...form(), password: event.currentTarget.value })}
-						/>
-					</label>
-					<button type="submit" class="primary-action" disabled={busy()}>
-						{saving() ? "保存中..." : "通知メールの設定を保存する"}
-					</button>
-				</form>
-				<h3>送信テスト</h3>
-				<p class="allocation-note">
-					保存済みの設定で、選択した通知をサンプルの社員・評価期間で送信します。入力した宛先は保存されません。
-				</p>
-				<Show when={dirty() || !hasSavedSettings()}>
-					<p class="field-hint">通知メールの設定を保存してから送信してください。</p>
-				</Show>
-				<form
-					class="allocation-form period-form smtp-test-form"
-					onSubmit={(event) => void sendTest(event)}
-				>
-					<label>
-						宛先メールアドレス
-						<input
-							type="email"
-							required
-							autocomplete="off"
-							value={testTo()}
-							disabled={busy()}
-							onInput={(event) => setTestTo(event.currentTarget.value)}
-						/>
-					</label>
-					<label>
-						通知パターン
-						<select
-							required
-							value={templateId()}
-							disabled={busy()}
-							onChange={(event) => setTemplateId(event.currentTarget.value)}
-						>
-							<For each={NOTIFICATION_TEMPLATES}>
-								{(template) => <option value={template.id}>{template.label}</option>}
-							</For>
-						</select>
-					</label>
-					<button
-						type="submit"
-						class="primary-action"
-						disabled={busy() || !hasSavedSettings() || dirty()}
+					<Show
+						when={verifiedAt()}
+						fallback={
+							<p class="field-hint">メールは、下の送信テストに成功した設定を保存すると選べます。</p>
+						}
 					>
-						{sending() ? "送信中..." : "テストメールを送信する"}
-					</button>
+						{(at) => <p class="field-hint">送信テスト済み（{formatDateTime(at())}）</p>}
+					</Show>
+				</fieldset>
+				<h3>メールの送信設定</h3>
+				<p class="allocation-note">
+					送信ポートは465（TLS）を指定してください。25と587は使用できません。保存したパスワードは、この画面には表示されません。変更するときだけ入力してください。
+				</p>
+				<form onSubmit={(event) => void save(event)}>
+					<div class="allocation-form period-form">
+						<label>
+							SMTP ホスト
+							<input
+								type="text"
+								required
+								placeholder="smtp.example.jp"
+								value={form().host}
+								disabled={saving()}
+								onInput={(event) => setForm({ ...form(), host: event.currentTarget.value })}
+							/>
+						</label>
+						<label>
+							ポート
+							<input
+								type="number"
+								required
+								min="1"
+								max="65535"
+								step="1"
+								value={form().port}
+								disabled={saving()}
+								onInput={(event) => setForm({ ...form(), port: event.currentTarget.value })}
+							/>
+						</label>
+						<label>
+							送信元メールアドレス
+							<input
+								type="email"
+								required
+								autocomplete="off"
+								value={form().user}
+								disabled={saving()}
+								onInput={(event) => setForm({ ...form(), user: event.currentTarget.value })}
+							/>
+						</label>
+						<label>
+							パスワード
+							<input
+								type="password"
+								required={!passwordSet()}
+								autocomplete="new-password"
+								placeholder={passwordSet() ? "登録済み（変更しない場合は空欄）" : undefined}
+								value={form().password}
+								disabled={saving()}
+								onInput={(event) => setForm({ ...form(), password: event.currentTarget.value })}
+							/>
+						</label>
+					</div>
+					<h4>送信テスト</h4>
+					<p class="allocation-note">
+						入力した設定で、選択した通知をサンプルの社員・評価期間で送信し、届いたときだけ設定を保存します。宛先は保存されません。
+					</p>
+					<div class="allocation-form period-form smtp-test-form">
+						<label>
+							宛先メールアドレス
+							<input
+								type="email"
+								required
+								autocomplete="off"
+								value={testTo()}
+								disabled={saving()}
+								onInput={(event) => setTestTo(event.currentTarget.value)}
+							/>
+						</label>
+						<label>
+							通知パターン
+							<select
+								required
+								value={templateId()}
+								disabled={saving()}
+								onChange={(event) => setTemplateId(event.currentTarget.value)}
+							>
+								<For each={NOTIFICATION_TEMPLATES}>
+									{(template) => <option value={template.id}>{template.label}</option>}
+								</For>
+							</select>
+						</label>
+						<button type="submit" class="primary-action" disabled={saving()}>
+							{saving() ? "送信中..." : "テストメールを送って保存する"}
+						</button>
+					</div>
 				</form>
 			</Show>
 		</section>

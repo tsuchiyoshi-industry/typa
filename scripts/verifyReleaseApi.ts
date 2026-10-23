@@ -131,21 +131,31 @@ Deno.serve({hostname:"127.0.0.1",port:56423},createNotificationHandler(createNot
 		}),
 	);
 	console.log("API: management password login passed.");
+	// 保存は送信テストに成功したときだけ。閉じたローカルのポートに送るので、外へは何も出ない
 	const testNotice = (token: string, templateId = "submitted") =>
 		fetch("http://127.0.0.1:56423", {
 			method: "POST",
 			headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-			body: JSON.stringify({ mode: "test", to: "test@release.example", templateId }),
+			body: JSON.stringify({
+				mode: "save",
+				to: "test@release.example",
+				templateId,
+				smtp: { host: "127.0.0.1", port: 1, user: "sender@release.example", password: "synthetic" },
+			}),
 		});
 	const adminSession = required(await supabase.auth.getSession()).session;
 	assert.ok(adminSession);
-	const beforeTest = sql(
-		"select jsonb_build_object('smtp', (select to_jsonb(s) from public.workspace_settings s), 'deliveries', (select count(*) from public.sheet_notification_deliveries))",
-	);
+	const settingsSnapshot = () =>
+		sql(
+			"select jsonb_build_object('smtp', (select to_jsonb(s) from public.workspace_settings s), 'deliveries', (select count(*) from public.sheet_notification_deliveries))",
+		);
+	const beforeTest = settingsSnapshot();
 	assert.equal((await testNotice("invalid-token")).status, 401);
 	assert.equal((await testNotice(adminSession.access_token, "__proto__")).status, 400);
 	for (const templateId of ["submitted", "first_evaluated"]) {
-		assert.equal((await testNotice(adminSession.access_token, templateId)).status, 409); // Saved SMTP is empty; never send externally.
+		const failed = await testNotice(adminSession.access_token, templateId);
+		assert.equal(failed.status, 503);
+		assert.match((await failed.json()).error, /詳細: /);
 	}
 	sql("update public.employees set is_enabled=false where id=900001");
 	try {
@@ -153,14 +163,24 @@ Deno.serve({hostname:"127.0.0.1",port:56423},createNotificationHandler(createNot
 	} finally {
 		sql("update public.employees set is_enabled=true where id=900001");
 	}
+	// アプリからは、送信テストを経ずに SMTP 設定を書き換えられず、確かめていない設定でメールも選べない
 	assert.equal(
-		sql(
-			"select jsonb_build_object('smtp', (select to_jsonb(s) from public.workspace_settings s), 'deliveries', (select count(*) from public.sheet_notification_deliveries))",
-		),
-		beforeTest,
+		(await supabase.from("workspace_settings").update({ smtp_host: "evil.example" }).eq("id", true))
+			.error?.code,
+		"42501",
 	);
+	assert.equal(
+		(
+			await supabase
+				.from("workspace_settings")
+				.update({ notification_channel: "email" })
+				.eq("id", true)
+		).error?.code,
+		"23514",
+	);
+	assert.equal(settingsSnapshot(), beforeTest);
 	console.log(
-		"API: test notification authentication, enabled Admin checks, template validation and no database writes passed.",
+		"API: SMTP save authentication, enabled Admin checks, template validation, failed test sends and direct writes left the database unchanged.",
 	);
 	const master = new SupabaseEmployeeMasterRepository(),
 		employees = new SupabaseEmployeeRepository();

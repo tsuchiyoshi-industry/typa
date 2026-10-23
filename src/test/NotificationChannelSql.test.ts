@@ -81,3 +81,31 @@ it.each([["both"], ["IN_APP"], [""], [null]])("rejects %j as the channel", async
 	});
 	expect(await channel()).toEqual([{ notification_channel: "in_app" }]);
 });
+
+it.each([
+	["smtp_host", "'evil.example'"],
+	["smtp_port", "25"],
+	["smtp_user", "'evil@example.jp'"],
+	["smtp_password", "'changed'"],
+	["smtp_verified_at", "now()"],
+])("does not let even an Admin change %s without a test send", async (column, value) => {
+	await actAs(db, 1);
+	await expect(
+		db.query(`update public.workspace_settings set ${column} = ${value} where id`),
+	).rejects.toMatchObject({ code: "42501" });
+});
+
+it("shows an Admin when the SMTP settings passed the test send", async () => {
+	await db.exec(
+		"reset role; update public.workspace_settings set smtp_verified_at = '2026-10-23T05:00:00Z'",
+	);
+	await actAs(db, 1);
+	const { rows } = await db.query<{ verified: boolean }>(
+		"select smtp_verified_at = '2026-10-23T05:00:00Z' as verified from public.workspace_settings",
+	);
+	expect(rows).toEqual([{ verified: true }]);
+	await actAs(db, 2);
+	expect((await db.query("select smtp_verified_at from public.workspace_settings")).rows).toEqual(
+		[],
+	);
+});

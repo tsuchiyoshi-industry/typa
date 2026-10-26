@@ -150,15 +150,16 @@ jobs:
             exit 1
           fi
 
-      # リリースの一覧で何の PDF か分かる名前で添える
+      # リリースの一覧で何の PDF か分かる名前で添える。GitHub は添付の名前の日本語を置き換えるので英数字にする
+      # (日本語名だと3冊が同じ名前になり、アップロードが Not Found で止まった)
       - name: Name manual PDFs
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p manual
-          cp docs/manual/user.pdf manual/TYPA利用者向けユーザガイド.pdf
-          cp docs/manual/evaluator.pdf manual/TYPA評価者向けユーザガイド.pdf
-          cp docs/manual/admin.pdf manual/TYPA管理者向けユーザガイド.pdf
+          cp docs/manual/user.pdf manual/TYPA-user-guide.pdf
+          cp docs/manual/evaluator.pdf manual/TYPA-evaluator-guide.pdf
+          cp docs/manual/admin.pdf manual/TYPA-admin-guide.pdf
 
       - name: Generate release notes
         shell: bash

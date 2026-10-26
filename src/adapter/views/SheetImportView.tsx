@@ -111,7 +111,10 @@ const SheetImportView: Component<{ controller: SheetImportController }> = (props
 								<h2 id="import-template-heading">1. テンプレートを保存して記入する</h2>
 								<p>
 									実施中の評価期間「{loaded().periodName}」・対象 {loaded().employees.length}
-									人・目標は1人 {loaded().maxGoals}件まで。提出済みの社員は載りません。
+									人・目標は1人 {loaded().maxGoals}件まで。目標を送信済みの社員は載りません。
+								</p>
+								<p class="field-hint">
+									期中目標が2件以上あるときは、同じ社員番号・目標番号の行を足して、1行に1件ずつ書きます。チャレンジ目標と点数は最初の行だけに書きます。
 								</p>
 								<div class="import-actions">
 									<button

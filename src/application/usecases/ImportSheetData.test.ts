@@ -1,4 +1,4 @@
-import { expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { SheetImportController } from "../../adapter/controllers/SheetImportController";
 import type {
 	SheetImportRepository,
@@ -149,5 +149,89 @@ it("reports a failure on the way to the database instead of crashing", async () 
 		errors: [{ file: null, line: null, message: "Admin のみ操作できます。" }],
 		summary: null,
 		applied: false,
+	});
+});
+
+describe("several period goals for one challenge goal", () => {
+	const header = CSV_HEADERS.goals.join(",");
+	const sent = async (body: string) => {
+		const { result, importRows } = await run(`${header}\n${body}`);
+		return { result, rows: importRows.mock.calls[0]?.[0] };
+	};
+
+	it("adds a period goal for each further row of the same employee and goal number, in file order", async () => {
+		const { rows } = await sent(
+			[
+				"E1,社員1,1,品質を高める,手順書を作る,作成した,3,",
+				"E2,社員2,1,別の人の目標,,ひとりで達成,,",
+				"E1,社員1,１,,共有会を開く,,,",
+				"E1,社員1,1,品質を高める,点検表を直す,,3,",
+			].join("\n"),
+		);
+		expect(rows).toEqual([
+			{
+				line: 2,
+				employeeNo: "E1",
+				name: "社員1",
+				goalNumber: "1",
+				challengeGoal: "品質を高める",
+				periodGoals: [
+					{ description: "手順書を作る", achievement: "作成した" },
+					{ description: "共有会を開く", achievement: "" },
+					{ description: "点検表を直す", achievement: "" },
+				],
+				achievement: "",
+				firstScore: "3",
+				secondScore: "",
+			},
+			expect.objectContaining({
+				line: 3,
+				employeeNo: "E2",
+				periodGoals: [],
+				achievement: "ひとりで達成",
+			}),
+		]);
+	});
+
+	it.each([
+		[
+			"a different challenge goal",
+			"E1,社員1,1,別のテーマ,共有会を開く,,,",
+			"チャレンジ目標が、同じ目標の2行目と違います",
+		],
+		[
+			"a different score",
+			"E1,社員1,1,,共有会を開く,,4,",
+			"一次評価点が、同じ目標の2行目と違います",
+		],
+		["a row without a period goal", "E1,社員1,1,,,あとで書く,,", "期中目標が空欄です"],
+	])(
+		"refuses %s on a further row, naming its line, without asking the database",
+		async (_, row, message) => {
+			const { result, rows } = await sent(`E1,社員1,1,品質を高める,手順書を作る,,3,\n${row}`);
+			expect(rows).toBeUndefined();
+			expect(result?.errors).toEqual([
+				{ file: "goals", line: 3, message: expect.stringContaining(message) },
+			]);
+		},
+	);
+
+	it("keeps the Milestone rules: at most four period goals, and no theme achievement beside them", async () => {
+		const five = Array.from({ length: 5 }, (_, i) => `E1,社員1,1,テーマ,タスク${i + 1},,,`).join(
+			"\n",
+		);
+		// 決まりを破った行(5件目)を示す
+		expect((await sent(five)).result?.errors).toEqual([
+			{ file: "goals", line: 6, message: expect.stringContaining("0〜4件") },
+		]);
+		const both = await sent("E1,社員1,1,テーマ,,テーマの実績,,\nE1,社員1,1,,タスク,,,");
+		expect(both.rows).toBeUndefined();
+		expect(both.result?.errors).toEqual([
+			{ file: "goals", line: 3, message: expect.stringContaining("期中目標があるときは") },
+		]);
+		const beside = await sent(
+			"E1,社員1,1,テーマ,タスク,タスクの実績,,\nE1,社員1,1,,,テーマの実績,,",
+		);
+		expect(beside.result?.errors?.[0]?.line).toBe(3);
 	});
 });

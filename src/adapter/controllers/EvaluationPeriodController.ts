@@ -6,15 +6,18 @@ import type {
 	CloseEvaluationPeriodInteractor,
 	CloseEvaluationPeriodResponse,
 } from "../../application/usecases/CloseEvaluationPeriodInteractor";
+import { describeCloseEvaluationPeriodError } from "../../application/usecases/CloseEvaluationPeriodInteractor";
 import type { DeleteEvaluationPeriodInteractor } from "../../application/usecases/DeleteEvaluationPeriodInteractor";
+import { describeDeleteEvaluationPeriodError } from "../../application/usecases/DeleteEvaluationPeriodInteractor";
 import {
+	describeSaveEvaluationPeriodError,
 	type EvaluationPeriodChangeResponse,
 	planNewPeriods,
 	type SaveEvaluationPeriodInteractor,
 	type SaveEvaluationPeriodRequest,
 } from "../../application/usecases/SaveEvaluationPeriodInteractor";
-import { DomainError } from "../../domain/DomainError";
 import { EvaluationCalendar } from "../../domain/entities/EvaluationCalendar";
+import { describePeriodError } from "../../domain/entities/PeriodError";
 import type { EvaluationPeriodRepository } from "../../domain/repositories/EvaluationPeriodRepository";
 import { PeriodDivision } from "../../domain/valueObjects/PeriodDivision";
 
@@ -47,26 +50,28 @@ export class EvaluationPeriodController {
 
 	/** 追加する評価期間を、保存せずに計算する。入力が足りない・誤っているときは、その理由。 */
 	preview(request: Omit<SaveEvaluationPeriodRequest, "periodId">): EvaluationPeriodPreview {
-		try {
-			return {
-				periods: planNewPeriods(request).map((plan) => ({
-					periodName: plan.periodName,
-					startDate: plan.range.start.toString(),
-					endDate: plan.range.end.toString(),
-				})),
-			};
-		} catch (error) {
-			if (error instanceof DomainError) {
-				return { error: error.message };
-			}
-			throw error;
+		const planned = planNewPeriods(request);
+		if (!planned.ok) {
+			return { error: describePeriodError(planned.error) };
 		}
+		return {
+			periods: planned.value.map((plan) => ({
+				periodName: plan.periodName,
+				startDate: plan.range.start.toString(),
+				endDate: plan.range.end.toString(),
+			})),
+		};
 	}
 
 	async save(request: SaveEvaluationPeriodRequest): Promise<EvaluationPeriodChangeResponse> {
 		let response = { success: false, message: "評価期間を保存できませんでした。" };
 		try {
-			await this.saveUseCase.execute(request, { present: (result) => (response = result) });
+			const result = await this.saveUseCase.execute(request, {
+				present: (value) => (response = value),
+			});
+			if (!result.ok) {
+				return { success: false, message: describeSaveEvaluationPeriodError(result.error) };
+			}
 		} catch (error) {
 			console.error("Error saving evaluation period:", error);
 		}
@@ -76,7 +81,13 @@ export class EvaluationPeriodController {
 	async remove(periodId: number): Promise<EvaluationPeriodChangeResponse> {
 		let response = { success: false, message: "評価期間を削除できませんでした。" };
 		try {
-			await this.deleteUseCase.execute({ periodId }, { present: (result) => (response = result) });
+			const result = await this.deleteUseCase.execute(
+				{ periodId },
+				{ present: (value) => (response = value) },
+			);
+			if (!result.ok) {
+				return { success: false, message: describeDeleteEvaluationPeriodError(result.error) };
+			}
 		} catch (error) {
 			console.error("Error deleting evaluation period:", error);
 		}
@@ -90,10 +101,16 @@ export class EvaluationPeriodController {
 			message: "評価期間を切り替えられませんでした。",
 		};
 		try {
-			await this.closeUseCase.execute(
+			const result = await this.closeUseCase.execute(
 				{ nextPeriodId, confirmed },
-				{ present: (result) => (response = result) },
+				{ present: (value) => (response = value) },
 			);
+			if (!result.ok) {
+				return {
+					status: "rejected",
+					message: describeCloseEvaluationPeriodError(result.error),
+				};
+			}
 		} catch (error) {
 			console.error("Error closing evaluation period:", error);
 		}

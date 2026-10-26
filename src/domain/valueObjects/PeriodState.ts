@@ -1,5 +1,3 @@
-import { DomainError } from "../DomainError";
-
 export const PERIOD_STATE_VALUES = ["not_started", "active", "closed"] as const;
 export type PeriodStateValue = (typeof PERIOD_STATE_VALUES)[number];
 
@@ -18,10 +16,10 @@ export class PeriodState {
 	static readonly ACTIVE = new PeriodState("active", "実施中");
 	static readonly CLOSED = new PeriodState("closed", "締め済み");
 
-	/** 保存してある「実施中か」「締めたか」から。両方が立つことはない(立っていたら例外)。 */
+	/** 保存してある「実施中か」「締めたか」から。両方が立つことはない(立っていたらデータの不整合として例外)。 */
 	static of(isActive: boolean, isClosed: boolean): PeriodState {
 		if (isActive && isClosed) {
-			throw new DomainError("実施中の評価期間は、締め済みにはなりません。");
+			throw new Error("実施中の評価期間は、締め済みにはなりません。");
 		}
 		return isActive ? PeriodState.ACTIVE : isClosed ? PeriodState.CLOSED : PeriodState.NOT_STARTED;
 	}

@@ -1,9 +1,10 @@
-import { DomainError } from "../DomainError";
+import { err, expectOk, ok, type Result } from "../Result";
 import { DateRange } from "../valueObjects/DateRange";
 import type { PeriodDivision } from "../valueObjects/PeriodDivision";
 import { PeriodPart } from "../valueObjects/PeriodPart";
 import type { TermName } from "../valueObjects/TermName";
 import { EvaluationPeriodPlan } from "./EvaluationPeriodPlan";
+import { describePeriodError, type PeriodError } from "./PeriodError";
 
 /**
  * 期(年度)。開始日・終了日と区切り方から、独立した評価期間に分ける。
@@ -19,22 +20,27 @@ export class EvaluationTerm {
 		private readonly ranges: readonly DateRange[],
 	) {}
 
-	/** 区切った評価期間のどれかが空になる(期が短すぎる)ときは例外。 */
-	static of(name: TermName, range: DateRange, division: PeriodDivision): EvaluationTerm {
+	/** 区切った評価期間のどれかが空になる(期が短すぎる)ときは失敗。 */
+	static of(
+		name: TermName,
+		range: DateRange,
+		division: PeriodDivision,
+	): Result<EvaluationTerm, PeriodError> {
 		const starts = Array.from({ length: division.parts }, (_, i) =>
 			range.start.addMonths(division.monthsPerPart * i),
 		);
 		const ends = [...starts.slice(1).map((start) => start.previousDay()), range.end];
 		if (starts.some((start, i) => ends[i].isBefore(start))) {
-			throw new DomainError(
-				`${division.label}に分けるには期間が短すぎます。開始日と終了日を確かめてください。`,
-			);
+			return err({ kind: "termTooShort", division: division.label });
 		}
-		return new EvaluationTerm(
-			name,
-			range,
-			division,
-			starts.map((start, i) => DateRange.of(start, ends[i])),
+		return ok(
+			new EvaluationTerm(
+				name,
+				range,
+				division,
+				// どの区切りも開始日 <= 終了日であることは、上で確かめてある
+				starts.map((start, i) => expectOk(DateRange.of(start, ends[i]), describePeriodError)),
+			),
 		);
 	}
 

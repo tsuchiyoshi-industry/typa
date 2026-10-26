@@ -19,13 +19,15 @@ describe("value objects and immutable entities", () => {
 	it("validates rank even when runtime values bypass TypeScript", () => {
 		expect(() => EvaluationRank.from("X", "none")).toThrow("Invalid evaluation rank");
 	});
-	it.each([NaN, Infinity, -Infinity, -1])("rejects invalid score %s", (value) =>
-		expect(() => Score.from(value)).toThrow(),
-	);
+	// 小数を切り捨てて受け付けない(2.9 を 2 として保存しない)
+	it.each([NaN, Infinity, -Infinity, -1, 5, 2.9, "3"])("rejects invalid score %s", (value) => {
+		expect(Score.isValid(value)).toBe(false);
+		expect(() => Score.from(value as number)).toThrow("点数は 0〜4 の整数");
+	});
 	it("normalizes optional scores and compares values", () => {
+		expect([0, 1, 4].every((value) => Score.isValid(value))).toBe(true);
 		expect(Score.fromOptional().toNumber()).toBe(0);
 		expect(Score.fromOptional(null).equals(Score.from(0))).toBe(true);
-		expect(Score.from(2.9).toNumber()).toBe(2);
 		expect(Score.from(2).equals(Score.from(3))).toBe(false);
 	});
 	it.each([null, undefined, "", "   "])("normalizes empty comment %s", (value) =>
@@ -160,18 +162,13 @@ describe("value objects and immutable entities", () => {
 			commonEvaluationEvaluationScore: 60,
 			totalEvaluationScore: 70,
 		});
-		expect(objectives.withFirstAsFinal()).toMatchObject({
-			firstTotalScore: 2,
-			secondTotalScore: 2,
-			secondTotalRate: 50,
-		});
 	});
 	it("handles empty totals without dividing by zero", () => {
-		expect(EvaluationScoreTotals.fromObjectives([])).toEqual(EvaluationScoreTotals.zero());
+		expect(EvaluationScoreTotals.fromObjectives([])).toEqual(EvaluationScoreTotals.fromValues({}));
 		expect(EvaluationScoreTotals.fromCommonEvaluationResults([])).toEqual(
-			EvaluationScoreTotals.zero(),
+			EvaluationScoreTotals.fromValues({}),
 		);
-		expect(EvaluationAllocatedScores.zero().totalEvaluationScore).toBe(0);
+		expect(EvaluationAllocatedScores.fromValues({}).totalEvaluationScore).toBe(0);
 	});
 	it.each([NaN, Infinity, -1, null, undefined])("normalizes stored totals %s", (value) => {
 		expect(
@@ -181,7 +178,7 @@ describe("value objects and immutable entities", () => {
 				secondTotalScore: value,
 				secondTotalRate: value,
 			}),
-		).toEqual(EvaluationScoreTotals.zero());
+		).toEqual(EvaluationScoreTotals.fromValues({}));
 		expect(
 			EvaluationAllocatedScores.fromValues({
 				objectiveSecondRate: value,
@@ -208,25 +205,19 @@ describe("value objects and immutable entities", () => {
 			}).totalEvaluationScore,
 		).toBe(49);
 	});
-	it("updates milestone without modifying original or other evaluator", () => {
+	it("changes a milestone's text without touching the original or its scores", () => {
 		const original = milestone();
-		const changed = original.withScoreUpdates({ firstScore: 3 });
-		expect(original.firstScore.value).toBe(2);
-		expect(changed.secondScore.value).toBe(4);
-		expect(
-			changed.withTextUpdates({
-				challengeGoal: "new",
-				periodGoals: [{ description: "task", achievement: "done" }],
-			}).firstScore.value,
-		).toBe(3);
-		expect(original.withScoreUpdates({ secondScore: 1 }).firstScore.value).toBe(2);
+		const changed = original.withTextUpdates({
+			challengeGoal: "new",
+			periodGoals: [{ description: "task", achievement: "done" }],
+		});
+		expect(changed.ok && [changed.value.firstScore.value, changed.value.secondScore.value]).toEqual(
+			[2, 4],
+		);
+		expect(original.challengeGoal).toBe("目標");
 	});
-	it("updates common result without modifying original or other evaluator", () => {
-		const original = commonResult();
-		expect(original.withFirstUpdate(4, " x ").firstComment.value).toBe("x");
-		expect(original.withFirstUpdate(4, "x").secondScore.value).toBe(4);
-		expect(original.withSecondUpdate(2).firstScore.value).toBe(3);
-		expect(original.firstScore.value).toBe(3);
+	it("trims a common result's comment", () => {
+		expect(commonResult({ firstComment: " x " }).firstComment.value).toBe("x");
 	});
 	it("entity identity is stable across rehydration", () => {
 		expect(employee().equals(employee())).toBe(true);
@@ -248,8 +239,6 @@ describe("value objects and immutable entities", () => {
 		expect(period().equals(period())).toBe(true);
 		expect(commonResult().item.equals(commonResult().item)).toBe(true);
 		expect(sheet().equals(sheet())).toBe(true);
-		expect(sheet(EvaluationStatus.DRAFT).isEditable()).toBe(true);
-		expect(sheet(EvaluationStatus.FINALIZED).isEditable()).toBe(false);
 	});
 	it("keeps roles to the known values and treats an unknown stored name as the weakest role", () => {
 		expect(EmployeeRole.ALL.map(String)).toEqual([...EMPLOYEE_ROLE_NAMES]);

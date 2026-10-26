@@ -94,7 +94,7 @@ it("hides the stages the reviewer has no part in", async () => {
 });
 it("opens a sheet from anywhere on its row, but not a draft", async () => {
 	const view = setup([reviewerRow(1), reviewerRow(2, { status: "draft" })]);
-	const draft = (await view.findByText("提出待ち")).closest("tr") as HTMLElement;
+	const draft = (await view.findByText("目標の送信待ち")).closest("tr") as HTMLElement;
 	fireEvent.click(within(draft).getByText("技術1級"));
 	expect(view.history.get()).not.toContain("sheet=");
 	expect((within(draft).getByRole("button", { name: /社員2/ }) as HTMLButtonElement).disabled).toBe(
@@ -453,3 +453,28 @@ it("shows an error dialog for an empty objective even when all scores are saved"
 	expect(dialog.textContent).toContain("目標 1：チャレンジ目標");
 	expect(row.status).not.toBe("finalized");
 });
+it.each([
+	["目標を確定する", "目標を確定しますか？", "目標を確定する", EvaluationStatus.GOALS_CONFIRMED],
+	[
+		"要修正として下書きに戻す",
+		"目標を要修正として戻しますか？",
+		"要修正として戻す",
+		EvaluationStatus.DRAFT,
+	],
+] as const)(
+	"lets the primary evaluator choose whether to mail the subject when pressing 「%s」",
+	async (button, title, confirm, status) => {
+		const goalsSent = { status: "goals_submitted", isPrimary: true, firstRank: null } as const;
+		const view = setup([reviewerRow(1, goalsSent)], "/review?period=10&sheet=101");
+		const updateStatus = vi.spyOn(view.editor.controller, "updateStatus");
+		fireEvent.click(await view.findByRole("button", { name: button }));
+		const dialog = await view.findByRole("dialog", { name: title });
+		const notify = within(dialog).getByRole("checkbox", {
+			name: "本人（社員1）に通知メールを送る",
+		}) as HTMLInputElement;
+		expect(notify.checked).toBe(true);
+		fireEvent.click(notify);
+		fireEvent.click(within(dialog).getByRole("button", { name: confirm }));
+		await waitFor(() => expect(updateStatus).toHaveBeenCalledWith(status, false));
+	},
+);

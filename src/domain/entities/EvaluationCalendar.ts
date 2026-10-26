@@ -37,12 +37,6 @@ export class EvaluationCalendar {
 		return this.periods.filter((other) => other.isInSameTermAs(period)).reverse();
 	}
 
-	/** 当期。実施中の評価期間が無ければ空。 */
-	currentTerm(): EvaluationPeriod[] {
-		const active = this.active();
-		return active ? this.termOf(active) : [];
-	}
-
 	/** 前の評価期間。無ければ null。 */
 	previousOf(period: EvaluationPeriod): EvaluationPeriod | null {
 		return this.periods.find((other) => other.range.endsBefore(period.range)) ?? null;

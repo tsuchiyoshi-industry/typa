@@ -26,9 +26,12 @@ it.each([
 	["the subject in a closed period", EvaluationStatus.DRAFT, 1, true],
 ] as const)("refuses %s without writing", async (_, status, id, closed) => {
 	const { useCase, milestones, out } = setup(status, closed);
-	await expect(
-		useCase.execute({ sheetId: 100, currentEmployeeId: id, previousGoalId: 7 }, out),
-	).rejects.toThrow();
+	expect(
+		await useCase.execute({ sheetId: 100, currentEmployeeId: id, previousGoalId: 7 }, out),
+	).toMatchObject({
+		ok: false,
+		error: closed ? { kind: "periodClosed" } : { kind: "forbidden", action: "carryOverGoal" },
+	});
 	expect(milestones.carryOver).not.toHaveBeenCalled();
 	expect(out.present).not.toHaveBeenCalled();
 });
@@ -36,13 +39,13 @@ it.each([
 it("refuses a sheet it cannot find, and a malformed goal id", async () => {
 	const { useCase, sheets, milestones, out } = setup();
 	for (const previousGoalId of [0, -1, 1.5, Number.NaN]) {
-		await expect(
-			useCase.execute({ sheetId: 100, currentEmployeeId: 1, previousGoalId }, out),
-		).rejects.toThrow("前期の目標が不正です。");
+		expect(
+			await useCase.execute({ sheetId: 100, currentEmployeeId: 1, previousGoalId }, out),
+		).toMatchObject({ ok: false, error: { kind: "previousGoalInvalid" } });
 	}
 	sheets.findById.mockResolvedValue(null);
-	await expect(
-		useCase.execute({ sheetId: 100, currentEmployeeId: 1, previousGoalId: 7 }, out),
-	).rejects.toThrow("評価シートが見つかりません。");
+	expect(
+		await useCase.execute({ sheetId: 100, currentEmployeeId: 1, previousGoalId: 7 }, out),
+	).toMatchObject({ ok: false, error: { kind: "sheetNotFound" } });
 	expect(milestones.carryOver).not.toHaveBeenCalled();
 });

@@ -125,7 +125,6 @@ export function toEvaluationSheetDto(
 		corrections: sheet.corrections
 			.filter((correction) => policy.canViewCorrection(correction))
 			.map(toSheetCorrectionDto),
-		isEditable: sheet.isEditable(),
 		pendingObjectiveFields: sheet.pendingObjectiveFields(),
 		permissions: {
 			isSubject: policy.isSubject(),

@@ -1,6 +1,6 @@
 import type { CommonEvaluationResult } from "../entities/CommonEvaluationResult";
 import type { Milestone } from "../entities/Milestone";
-import { EvaluationAllocation } from "./EvaluationAllocation";
+import { EvaluationAllocation, toNonNegativeInteger } from "./EvaluationAllocation";
 import { Score } from "./Score";
 
 export class EvaluationScoreTotals {
@@ -12,10 +12,6 @@ export class EvaluationScoreTotals {
 		private readonly maxTotalScore: number | null = null,
 	) {}
 
-	static zero(): EvaluationScoreTotals {
-		return new EvaluationScoreTotals(0, 0, 0, 0);
-	}
-
 	static fromValues(params: {
 		firstTotalScore?: number | null;
 		firstTotalRate?: number | null;
@@ -24,51 +20,26 @@ export class EvaluationScoreTotals {
 		maxTotalScore?: number | null;
 	}): EvaluationScoreTotals {
 		return new EvaluationScoreTotals(
-			EvaluationScoreTotals.toNonNegativeInteger(params.firstTotalScore),
-			EvaluationScoreTotals.toNonNegativeInteger(params.firstTotalRate),
-			EvaluationScoreTotals.toNonNegativeInteger(params.secondTotalScore),
-			EvaluationScoreTotals.toNonNegativeInteger(params.secondTotalRate),
-			params.maxTotalScore == null
-				? null
-				: EvaluationScoreTotals.toNonNegativeInteger(params.maxTotalScore),
-		);
-	}
-
-	static fromObjectives(objectives: Milestone[]): EvaluationScoreTotals {
-		const firstTotalScore = objectives.reduce(
-			(sum, objective) => sum + objective.firstScore.toNumber(),
-			0,
-		);
-		const secondTotalScore = objectives.reduce(
-			(sum, objective) => sum + objective.secondScore.toNumber(),
-			0,
-		);
-		const maxTotalScore = objectives.length * Score.MAX;
-
-		return new EvaluationScoreTotals(
-			firstTotalScore,
-			EvaluationScoreTotals.toRate(firstTotalScore, maxTotalScore),
-			secondTotalScore,
-			EvaluationScoreTotals.toRate(secondTotalScore, maxTotalScore),
-			maxTotalScore || null,
+			toNonNegativeInteger(params.firstTotalScore),
+			toNonNegativeInteger(params.firstTotalRate),
+			toNonNegativeInteger(params.secondTotalScore),
+			toNonNegativeInteger(params.secondTotalRate),
+			params.maxTotalScore == null ? null : toNonNegativeInteger(params.maxTotalScore),
 		);
 	}
 
 	/**
-	 * 共通評価の項目の配点は係数。各項目を 1〜4 で評価し、「配点 × 評価」がその項目の得点、
-	 * 「配点 × 4」が満点になる。配点 1 の項目が 10 個なら満点は 40 点。
+	 * 各項目を 1〜4 で評価し、「配点 × 評価」をその項目の得点、「配点 × 4」を満点とする。
+	 * チャレンジ目標は配点 1、共通評価は項目の配点(係数)。配点 1 の項目が 10 個なら満点は 40 点。
 	 */
-	static fromCommonEvaluationResults(results: CommonEvaluationResult[]): EvaluationScoreTotals {
-		const firstTotalScore = results.reduce(
-			(sum, result) => sum + result.item.weight * result.firstScore.toNumber(),
-			0,
-		);
-		const secondTotalScore = results.reduce(
-			(sum, result) => sum + result.item.weight * result.secondScore.toNumber(),
-			0,
-		);
-		const maxTotalScore = results.reduce((sum, result) => sum + result.item.weight * Score.MAX, 0);
-
+	static fromWeightedScores(
+		items: readonly { weight: number; firstScore: number; secondScore: number }[],
+	): EvaluationScoreTotals {
+		const sum = (score: (item: (typeof items)[number]) => number) =>
+			items.reduce((total, item) => total + item.weight * score(item), 0);
+		const firstTotalScore = sum((item) => item.firstScore);
+		const secondTotalScore = sum((item) => item.secondScore);
+		const maxTotalScore = sum(() => Score.MAX);
 		return new EvaluationScoreTotals(
 			firstTotalScore,
 			EvaluationScoreTotals.toRate(firstTotalScore, maxTotalScore),
@@ -78,14 +49,25 @@ export class EvaluationScoreTotals {
 		);
 	}
 
-	/** 二次評価者「なし」の社員の確定値: 一次評価の合計をそのまま最終(二次)の合計として扱う。 */
-	withFirstAsFinal(): EvaluationScoreTotals {
-		return new EvaluationScoreTotals(
-			this.firstTotalScore,
-			this.firstTotalRate,
-			this.firstTotalScore,
-			this.firstTotalRate,
-			this.maxTotalScore,
+	static fromObjectives(objectives: readonly Milestone[]): EvaluationScoreTotals {
+		return EvaluationScoreTotals.fromWeightedScores(
+			objectives.map((objective) => ({
+				weight: 1,
+				firstScore: objective.firstScore.toNumber(),
+				secondScore: objective.secondScore.toNumber(),
+			})),
+		);
+	}
+
+	static fromCommonEvaluationResults(
+		results: readonly CommonEvaluationResult[],
+	): EvaluationScoreTotals {
+		return EvaluationScoreTotals.fromWeightedScores(
+			results.map((result) => ({
+				weight: result.item.weight,
+				firstScore: result.firstScore.toNumber(),
+				secondScore: result.secondScore.toNumber(),
+			})),
 		);
 	}
 
@@ -108,12 +90,5 @@ export class EvaluationScoreTotals {
 			return 0;
 		}
 		return Math.round((totalScore / maxTotalScore) * 100);
-	}
-
-	private static toNonNegativeInteger(value?: number | null): number {
-		if (!Number.isFinite(value) || value == null || value < 0) {
-			return 0;
-		}
-		return Math.round(value);
 	}
 }

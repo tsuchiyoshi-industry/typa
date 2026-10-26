@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { Employee } from "../../domain/entities/Employee";
 import { EvaluationSheet } from "../../domain/entities/EvaluationSheet";
 import { Milestone } from "../../domain/entities/Milestone";
-import { EvaluationScoreUpdateService } from "../../domain/services/EvaluationScoreUpdateService";
+import type { Result } from "../../domain/Result";
 import { EvaluationStatus } from "../../domain/valueObjects/EvaluationStatus";
 import {
 	commonRepository,
@@ -17,7 +17,7 @@ import {
 } from "../../test/fixtures";
 import { FetchEvaluationSheetInteractor } from "./FetchEvaluationSheetInteractor";
 import { UpdateEvaluationStatusInteractor } from "./UpdateEvaluationStatusInteractor";
-import { UpdateMilestoneInteractor } from "./UpdateMilestoneInteractor";
+import { type MilestoneTextChanges, UpdateMilestoneInteractor } from "./UpdateMilestoneInteractor";
 import { UpdateOverallCommentInteractor } from "./UpdateOverallCommentInteractor";
 import { UpsertCommonEvaluationInteractor } from "./UpsertCommonEvaluationInteractor";
 
@@ -27,15 +27,21 @@ function setup(status = EvaluationStatus.SUBMITTED) {
 	const employees = employeeRepository();
 	const milestones = milestoneRepository();
 	const common = commonRepository();
-	const scores = new EvaluationScoreUpdateService(sheets, milestones, common);
-	return { sheets, employees, milestones, common, scores, out: output<never>() };
+	return { sheets, employees, milestones, common, out: output<never>() };
 }
-/** 評価者が入力できる段階。一次評価者は提出済み、二次評価者は一次評価の確定後。 */
+/** 評価者が入力できる段階。一次評価者は一次評価待ち、二次評価者は一次評価の確定後。 */
 const stageOf = (evaluatorId: number) =>
 	evaluatorId === 3 ? EvaluationStatus.FIRST_EVALUATED : EvaluationStatus.SUBMITTED;
 const notificationRepository = () => ({
 	notifySheetStatusChanged: vi.fn().mockResolvedValue(undefined),
 });
+
+async function expectResultError<T, E extends { kind: string }>(
+	result: Promise<Result<T, E>>,
+	error: Partial<E>,
+) {
+	expect(await result).toMatchObject({ ok: false, error });
+}
 
 describe("sheet reading and confidentiality", () => {
 	it.each([null, 4])("denies viewer %s without presenting personal data", async (id) => {
@@ -49,16 +55,17 @@ describe("sheet reading and confidentiality", () => {
 		expect(out.present).not.toHaveBeenCalled();
 		expect(employees.findGradeName).not.toHaveBeenCalled();
 	});
-	it("returns an empty result for missing sheet", async () => {
+	it("fails closed for a missing sheet", async () => {
 		const { sheets, employees, out } = setup();
 		sheets.findById.mockResolvedValue(null);
-		await new FetchEvaluationSheetInteractor(sheets, employees).execute(
-			{ sheetId: 100, currentEmployeeId: 1 },
-			out,
-		);
-		expect(out.present).toHaveBeenCalledWith(
-			expect.objectContaining({ subject: null, objectives: [] }),
-		);
+		await expect(
+			new FetchEvaluationSheetInteractor(sheets, employees).execute(
+				{ sheetId: 100, currentEmployeeId: 1 },
+				out,
+			),
+		).rejects.toThrow("見つかりません");
+		expect(out.present).not.toHaveBeenCalled();
+		expect(employees.findGradeName).not.toHaveBeenCalled();
 	});
 	it.each([1, 2, 3])("redacts all restricted fields for role %s", async (id) => {
 		const { sheets, employees } = setup();
@@ -124,15 +131,22 @@ describe("sheet reading and confidentiality", () => {
 });
 
 describe("milestone updates validate before side effects", () => {
+	type Setup = ReturnType<typeof setup>;
+	const use = (milestones: Setup["milestones"], sheets: Setup["sheets"]) =>
+		new UpdateMilestoneInteractor(milestones, sheets);
+	const text = (change: MilestoneTextChanges, milestoneId = 11, currentEmployeeId = 1) =>
+		({ action: "text", sheetId: 100, currentEmployeeId, milestoneId, ...change }) as const;
+	const upsert = (goalNumber: number, change: MilestoneTextChanges) =>
+		({ action: "upsertText", sheetId: 100, currentEmployeeId: 1, goalNumber, ...change }) as const;
+	const score = (
+		currentEmployeeId: number,
+		scores: { firstScore?: number; secondScore?: number },
+	) => ({ action: "score", sheetId: 100, currentEmployeeId, milestoneId: 11, ...scores }) as const;
+
 	it.each(["update", "upsert"])("partial text %s preserves omitted fields", async (mode) => {
-		const { sheets, milestones, scores, out } = setup(EvaluationStatus.DRAFT);
-		await new UpdateMilestoneInteractor(milestones, sheets, scores).execute(
-			{
-				sheetId: 100,
-				currentEmployeeId: 1,
-				...(mode === "update" ? { milestoneId: 11 } : { goalNumber: 1 }),
-				challengeGoal: "new",
-			},
+		const { sheets, milestones, out } = setup(EvaluationStatus.DRAFT);
+		await use(milestones, sheets).execute(
+			mode === "update" ? text({ challengeGoal: "new" }) : upsert(1, { challengeGoal: "new" }),
 			out,
 		);
 		expect(mode === "update" ? milestones.updateText : milestones.upsertText).toHaveBeenCalledWith(
@@ -141,111 +155,167 @@ describe("milestone updates validate before side effects", () => {
 				: [100, 1, "new", [{ description: "手順を見直す", achievement: "達成" }], ""]),
 		);
 	});
-	it.each(["text", "score"])("rejects a milestone from another sheet (%s)", async (kind) => {
-		const { sheets, milestones, scores, out } = setup(EvaluationStatus.DRAFT);
-		await expect(
-			new UpdateMilestoneInteractor(milestones, sheets, scores).execute(
-				{
-					sheetId: 100,
-					currentEmployeeId: 1,
-					milestoneId: 999,
-					...(kind === "text" ? { challengeGoal: "attack" } : { firstScore: 4 }),
-				},
-				out,
-			),
-		).rejects.toThrow("属して");
-		expect(milestones.updateText).not.toHaveBeenCalled();
+	it.each(["text", "score", "delete"] as const)(
+		"rejects a milestone from another sheet (%s)",
+		async (action) => {
+			const { sheets, milestones, out } = setup(EvaluationStatus.DRAFT);
+			const target = { sheetId: 100, currentEmployeeId: 1, milestoneId: 999 };
+			await expectResultError(
+				use(milestones, sheets).execute(
+					action === "text"
+						? text({ challengeGoal: "attack" }, 999)
+						: action === "score"
+							? { action, ...target, firstScore: 4 }
+							: { action, ...target },
+					out,
+				),
+				{ kind: "goalNotOnSheet" },
+			);
+			expect(milestones.updateText).not.toHaveBeenCalled();
+			expect(milestones.updateScore).not.toHaveBeenCalled();
+			expect(milestones.delete).not.toHaveBeenCalled();
+		},
+	);
+	it("ignores score fields smuggled into a text request", async () => {
+		const { sheets, milestones, out } = setup(EvaluationStatus.DRAFT);
+		await use(milestones, sheets).execute(
+			{ ...text({ challengeGoal: "changed" }), firstScore: 4 } as never,
+			out,
+		);
+		expect(milestones.updateText).toHaveBeenCalledOnce();
 		expect(milestones.updateScore).not.toHaveBeenCalled();
-		expect(sheets.updateScoreTotals).not.toHaveBeenCalled();
 	});
-	it("rejects mixed authorized text and unauthorized score without partial write", async () => {
-		const { sheets, milestones, scores, out } = setup(EvaluationStatus.DRAFT);
-		await expect(
-			new UpdateMilestoneInteractor(milestones, sheets, scores).execute(
-				{
-					sheetId: 100,
-					currentEmployeeId: 1,
-					milestoneId: 11,
-					challengeGoal: "changed",
-					firstScore: 4,
-				},
-				out,
-			),
-		).rejects.toThrow("一次評価者");
+	it("rejects an unknown action and an empty change before writing", async () => {
+		const { sheets, milestones, out } = setup(EvaluationStatus.DRAFT);
+		await expectResultError(
+			use(milestones, sheets).execute({ ...text({}), action: "overwrite" } as never, out),
+			{ kind: "actionUnknown" },
+		);
+		await expectResultError(use(milestones, sheets).execute(text({}), out), {
+			kind: "nothingToSave",
+		});
+		const evaluator = setup();
+		await expectResultError(
+			use(evaluator.milestones, evaluator.sheets).execute(score(2, {}), out),
+			{ kind: "nothingToSave" },
+		);
 		expect(milestones.updateText).not.toHaveBeenCalled();
+		expect(evaluator.milestones.updateScore).not.toHaveBeenCalled();
 	});
 	it.each([-1, 5, 0.5, NaN, Infinity])("rejects score %s before persisting", async (firstScore) => {
-		const { sheets, milestones, scores, out } = setup();
-		await expect(
-			new UpdateMilestoneInteractor(milestones, sheets, scores).execute(
-				{ sheetId: 100, currentEmployeeId: 2, milestoneId: 11, firstScore },
-				out,
-			),
-		).rejects.toThrow("整数");
+		const { sheets, milestones, out } = setup();
+		await expectResultError(use(milestones, sheets).execute(score(2, { firstScore }), out), {
+			kind: "scoreOutOfRange",
+		});
 		expect(milestones.updateScore).not.toHaveBeenCalled();
 	});
 	it.each([0, -1, 1.5, NaN, 5])("rejects invalid goal number %s", async (goalNumber) => {
-		const { sheets, milestones, scores, out } = setup(EvaluationStatus.DRAFT);
-		await expect(
-			new UpdateMilestoneInteractor(milestones, sheets, scores).execute(
-				{ sheetId: 100, currentEmployeeId: 1, goalNumber, challengeGoal: "x" },
-				out,
-			),
-		).rejects.toThrow("番号");
+		const { sheets, milestones, out } = setup(EvaluationStatus.DRAFT);
+		await expectResultError(
+			use(milestones, sheets).execute(upsert(goalNumber, { challengeGoal: "x" }), out),
+			{ kind: "goalNumberInvalid" },
+		);
 		expect(milestones.upsertText).not.toHaveBeenCalled();
 	});
 	it.each([EvaluationStatus.SUBMITTED, EvaluationStatus.FINALIZED])(
 		"denies subject editing locked goal (%s)",
 		async (status) => {
-			const { sheets, milestones, scores, out } = setup(status);
-			await expect(
-				new UpdateMilestoneInteractor(milestones, sheets, scores).execute(
-					{ sheetId: 100, currentEmployeeId: 1, milestoneId: 11, challengeGoal: "x" },
-					out,
-				),
-			).rejects.toThrow("目標");
+			const { sheets, milestones, out } = setup(status);
+			await expectResultError(use(milestones, sheets).execute(text({ challengeGoal: "x" }), out), {
+				kind: "forbidden",
+				action: "editGoalText",
+			});
 			expect(milestones.updateText).not.toHaveBeenCalled();
 		},
 	);
-	it.each([2, 3])(
-		"writes only permitted evaluator score %s and recalculates totals",
-		async (id) => {
-			const { sheets, milestones, scores, out } = setup(stageOf(id));
-			await new UpdateMilestoneInteractor(milestones, sheets, scores).execute(
-				{
-					sheetId: 100,
-					currentEmployeeId: id,
-					milestoneId: 11,
-					...(id === 2 ? { firstScore: 2 } : { secondScore: 4 }),
-				},
-				out,
-			);
-			expect(milestones.updateScore).toHaveBeenCalledWith(
-				11,
-				id === 2 ? 2 : undefined,
-				id === 3 ? 4 : undefined,
-			);
-			expect(sheets.updateScoreTotals).not.toHaveBeenCalled();
-			expect(out.present).toHaveBeenCalledWith(
-				expect.objectContaining({
-					milestone: expect.objectContaining({ secondScore: id === 2 ? null : 4 }),
-				}),
-			);
-		},
-	);
+	it.each([2, 3])("writes only permitted evaluator score %s and reads totals back", async (id) => {
+		const { sheets, milestones, out } = setup(stageOf(id));
+		await use(milestones, sheets).execute(
+			score(id, id === 2 ? { firstScore: 2 } : { secondScore: 4 }),
+			out,
+		);
+		expect(milestones.updateScore).toHaveBeenCalledWith(
+			11,
+			id === 2 ? 2 : undefined,
+			id === 3 ? 4 : undefined,
+		);
+		// 集計は DB が行い、保存の後に読み直す
+		expect(milestones.updateScore.mock.invocationCallOrder[0]).toBeLessThan(
+			sheets.findById.mock.invocationCallOrder[1],
+		);
+		expect(out.present).toHaveBeenCalledWith(
+			expect.objectContaining({
+				milestone: expect.objectContaining({ secondScore: id === 2 ? null : 4 }),
+			}),
+		);
+	});
+	it.each([1, 3])("refuses a first score from %s, who is not the primary evaluator", async (id) => {
+		const { sheets, milestones, out } = setup();
+		await expectResultError(use(milestones, sheets).execute(score(id, { firstScore: 4 }), out), {
+			kind: "forbidden",
+			action: "editFirstScore",
+		});
+		expect(milestones.updateScore).not.toHaveBeenCalled();
+	});
+	it("does not read back after a failed score write, and fails when the sheet cannot be read", async () => {
+		const failed = setup();
+		failed.milestones.updateScore.mockRejectedValue(new Error("write failed"));
+		await expect(
+			use(failed.milestones, failed.sheets).execute(score(2, { firstScore: 2 }), failed.out),
+		).rejects.toThrow("write failed");
+		expect(failed.sheets.findById).toHaveBeenCalledTimes(1);
+		expect(failed.out.present).not.toHaveBeenCalled();
+
+		const lost = setup();
+		lost.sheets.findById.mockResolvedValueOnce(sheet()).mockResolvedValueOnce(null);
+		await expect(
+			use(lost.milestones, lost.sheets).execute(score(2, { firstScore: 2 }), lost.out),
+		).rejects.toThrow("読み込めませんでした");
+		expect(lost.out.present).not.toHaveBeenCalled();
+	});
 	it.each(["update", "upsert"])("allows subject text %s on draft", async (mode) => {
-		const { sheets, milestones, scores, out } = setup(EvaluationStatus.DRAFT);
-		await new UpdateMilestoneInteractor(milestones, sheets, scores).execute(
-			{
-				sheetId: 100,
-				currentEmployeeId: 1,
-				...(mode === "update" ? { milestoneId: 11 } : { goalNumber: 1 }),
-				challengeGoal: "new",
-				periodGoals: [{ description: "mid", achievement: "done" }],
-			},
+		const { sheets, milestones, out } = setup(EvaluationStatus.DRAFT);
+		const change = {
+			challengeGoal: "new",
+			periodGoals: [{ description: "mid", achievement: "done" }],
+		};
+		await use(milestones, sheets).execute(
+			mode === "update" ? text(change) : upsert(1, change),
 			out,
 		);
 		expect(mode === "update" ? milestones.updateText : milestones.upsertText).toHaveBeenCalled();
+	});
+	it("creates a goal by number only while the sheet has room", async () => {
+		const { sheets, milestones, out } = setup(EvaluationStatus.DRAFT);
+		// 新しい目標は、保存後の読み直しに無いので「読み込めませんでした」になるが、書き込みは済んでいる
+		await expect(
+			use(milestones, sheets).execute(upsert(2, { challengeGoal: "" }), out),
+		).rejects.toThrow("読み込めませんでした");
+		expect(milestones.upsertText).toHaveBeenCalledWith(100, 2, "", [], "");
+
+		const full = setup(EvaluationStatus.DRAFT);
+		full.sheets.findById.mockResolvedValue(
+			EvaluationSheet.create({ ...sheet(EvaluationStatus.DRAFT), maxObjectives: 1 }),
+		);
+		await expectResultError(
+			use(full.milestones, full.sheets).execute(upsert(2, { challengeGoal: "x" }), full.out),
+			{ kind: "goalNumberInvalid" },
+		);
+		full.sheets.findById.mockResolvedValue(
+			EvaluationSheet.create({
+				...sheet(EvaluationStatus.DRAFT),
+				maxObjectives: 3,
+				objectives: [
+					milestone(),
+					Milestone.restore({ id: 12, sheetId: 100, goalNumber: 2, challengeGoal: "目標2" }),
+					Milestone.restore({ id: 13, sheetId: 100, goalNumber: 3, challengeGoal: "目標3" }),
+				],
+			}),
+		);
+		expect(
+			await use(full.milestones, full.sheets).execute(upsert(3, { challengeGoal: "x" }), full.out),
+		).toMatchObject({ ok: true, value: undefined });
+		expect(full.milestones.upsertText).toHaveBeenCalledOnce();
 	});
 	// fixtures の目標 11 は、期中目標「手順を見直す」(達成状況「達成」)が1件
 	it.each([
@@ -270,81 +340,68 @@ describe("milestone updates validate before side effects", () => {
 		[
 			"anything once the achievements are submitted",
 			EvaluationStatus.SUBMITTED,
-			{
-				periodGoals: [{ description: "手順を見直す", achievement: "書き換え" }],
-			},
+			{ periodGoals: [{ description: "手順を見直す", achievement: "書き換え" }] },
 		],
 	] as const)("rejects %s without saving", async (_, status, change) => {
-		const { sheets, milestones, scores, out } = setup(status);
-		await expect(
-			new UpdateMilestoneInteractor(milestones, sheets, scores).execute(
-				{ sheetId: 100, currentEmployeeId: 1, milestoneId: 11, ...change },
-				out,
-			),
-		).rejects.toThrow();
+		const { sheets, milestones, out } = setup(status);
+		expect((await use(milestones, sheets).execute(text(change), out)).ok).toBe(false);
 		expect(milestones.updateText).not.toHaveBeenCalled();
 		expect(milestones.upsertText).not.toHaveBeenCalled();
 	});
-	it("lets the subject write only the achievements after the goals are confirmed", async () => {
-		const { sheets, milestones, scores, out } = setup(EvaluationStatus.GOALS_CONFIRMED);
-		await new UpdateMilestoneInteractor(milestones, sheets, scores).execute(
-			{
-				sheetId: 100,
-				currentEmployeeId: 1,
-				milestoneId: 11,
-				challengeGoal: "目標",
-				periodGoals: [{ description: "手順を見直す", achievement: "書き足した" }],
-			},
-			out,
-		);
-		expect(milestones.updateText).toHaveBeenCalledWith(
-			11,
-			"目標",
-			[{ description: "手順を見直す", achievement: "書き足した" }],
-			"",
-		);
-		for (const id of [2, 3]) {
-			await expect(
-				new UpdateMilestoneInteractor(milestones, sheets, scores).execute(
-					{ sheetId: 100, currentEmployeeId: id, milestoneId: 11, achievement: "x" },
-					out,
-				),
-			).rejects.toThrow("この状態では");
-		}
-	});
-	it("rejects no changes and score without milestone ID", async () => {
-		const { sheets, milestones, scores, out } = setup();
-		const interactor = new UpdateMilestoneInteractor(milestones, sheets, scores);
-		await expect(interactor.execute({ sheetId: 100, currentEmployeeId: 2 }, out)).rejects.toThrow(
-			"No milestone",
-		);
-		await expect(
-			interactor.execute({ sheetId: 100, currentEmployeeId: 2, firstScore: 2 }, out),
-		).rejects.toThrow("ID is required");
-	});
+	it.each([EvaluationStatus.GOALS_SUBMITTED, EvaluationStatus.GOALS_CONFIRMED])(
+		"lets only the subject write the achievements in %s",
+		async (status) => {
+			const { sheets, milestones, out } = setup(status);
+			await use(milestones, sheets).execute(
+				text({
+					challengeGoal: "目標",
+					periodGoals: [{ description: "手順を見直す", achievement: "書き足した" }],
+				}),
+				out,
+			);
+			expect(milestones.updateText).toHaveBeenCalledWith(
+				11,
+				"目標",
+				[{ description: "手順を見直す", achievement: "書き足した" }],
+				"",
+			);
+			for (const id of [2, 3]) {
+				await expectResultError(
+					use(milestones, sheets).execute(text({ achievement: "x" }, 11, id), out),
+					{ kind: "forbidden", action: "editGoalText" },
+				);
+			}
+			// 確認中・確定後は、新しい目標を番号で作れない
+			await expectResultError(
+				use(milestones, sheets).execute(upsert(2, { achievement: "x" }), out),
+				{ kind: "forbidden", action: "editGoalText" },
+			);
+			expect(milestones.upsertText).not.toHaveBeenCalled();
+		},
+	);
 });
 
 describe("common evaluation updates", () => {
 	// 評価は 1〜4。配点(5)は係数なので、点数の上限ではない
 	const result = { id: 21, itemId: 31, firstComment: "x", firstScore: 3, secondScore: 4 };
 	it.each([1, 4])("denies role %s without saving", async (id) => {
-		const { sheets, scores, common, out } = setup();
-		await expect(
-			new UpsertCommonEvaluationInteractor(sheets, scores).execute(
+		const { sheets, common, out } = setup();
+		await expectResultError(
+			new UpsertCommonEvaluationInteractor(sheets, common).execute(
 				{ sheetId: 100, currentEmployeeId: id, results: [result] },
 				out,
 			),
-		).rejects.toThrow("権限");
+			{ kind: "forbidden", action: "editCommonEvaluation" },
+		);
 		expect(common.upsertResults).not.toHaveBeenCalled();
 	});
 	it.each([2, 3])("passes least privilege flags for evaluator %s", async (id) => {
-		const { sheets, scores, common, out } = setup(stageOf(id));
-		await new UpsertCommonEvaluationInteractor(sheets, scores).execute(
+		const { sheets, common, out } = setup(stageOf(id));
+		await new UpsertCommonEvaluationInteractor(sheets, common).execute(
 			{ sheetId: 100, currentEmployeeId: id, results: [result] },
 			out,
 		);
 		expect(common.upsertResults).toHaveBeenCalledWith(100, [result], id === 2, id === 3);
-		expect(sheets.updateScoreTotals).not.toHaveBeenCalled();
 		expect(out.present).toHaveBeenCalledWith({ sheetId: 100, success: true });
 	});
 	it.each([
@@ -353,13 +410,13 @@ describe("common evaluation updates", () => {
 		{ results: [{ ...result, firstScore: 6 }] },
 		{ results: [{ ...result, firstScore: NaN }] },
 	])("rejects invalid batch before any write", async ({ results }) => {
-		const { sheets, scores, common, out } = setup();
-		await expect(
-			new UpsertCommonEvaluationInteractor(sheets, scores).execute(
+		const { sheets, common, out } = setup();
+		expect(
+			await new UpsertCommonEvaluationInteractor(sheets, common).execute(
 				{ sheetId: 100, currentEmployeeId: 2, results },
 				out,
 			),
-		).rejects.toThrow();
+		).toMatchObject({ ok: false });
 		expect(common.upsertResults).not.toHaveBeenCalled();
 		expect(out.present).not.toHaveBeenCalled();
 	});
@@ -388,12 +445,16 @@ describe("comments, final rank, status and notifications", () => {
 		[3, "second", EvaluationStatus.FINALIZED],
 	] as const)("denies evaluator %s comment %s", async (id, target, status = undefined) => {
 		const { sheets, employees, out } = setup(status);
-		await expect(
+		await expectResultError(
 			new UpdateOverallCommentInteractor(sheets, employees).execute(
 				{ sheetId: 100, currentEmployeeId: id, target, comment: "x" },
 				out,
 			),
-		).rejects.toThrow("権限");
+			{
+				kind: "forbidden",
+				action: target === "first" ? "editFirstOverallComment" : "editSecondOverallComment",
+			},
+		);
 		expect(sheets.updateOverallComment).not.toHaveBeenCalled();
 	});
 	it.each([
@@ -457,7 +518,10 @@ describe("comments, final rank, status and notifications", () => {
 				out,
 			);
 			expect(sheets.updateStatus).toHaveBeenCalled();
-			await expect(useCase.resendNotification(100, id, vi.fn())).rejects.toThrow();
+			await expectResultError(useCase.resendNotification(100, id, vi.fn()), {
+				kind: "forbidden",
+				action: "resendNotification",
+			});
 			expect(notifications.notifySheetStatusChanged).not.toHaveBeenCalled();
 		},
 	);
@@ -484,12 +548,13 @@ describe("comments, final rank, status and notifications", () => {
 	] as const)("rejects forbidden transition %s by %s to %s", async (initial, id, status) => {
 		const { sheets, employees, out } = setup(initial);
 		const notifications = notificationRepository();
-		await expect(
+		await expectResultError(
 			new UpdateEvaluationStatusInteractor(sheets, employees, notifications).execute(
 				{ sheetId: 100, currentEmployeeId: id, status: EvaluationStatus.from(status) },
 				out,
 			),
-		).rejects.toThrow();
+			{ kind: "transitionForbidden", to: status },
+		);
 		expect(sheets.updateStatus).not.toHaveBeenCalled();
 		expect(notifications.notifySheetStatusChanged).not.toHaveBeenCalled();
 	});
@@ -503,7 +568,6 @@ describe("comments, final rank, status and notifications", () => {
 		expect(first.sheets.updateStatus).toHaveBeenCalledWith(100, EvaluationStatus.FIRST_EVALUATED, {
 			first: expect.objectContaining({ letter: "B", level: "none" }),
 		});
-		expect(first.sheets.updateScoreTotals).not.toHaveBeenCalled();
 
 		const final = setup(EvaluationStatus.FIRST_EVALUATED);
 		await new UpdateEvaluationStatusInteractor(final.sheets, final.employees).execute(
@@ -622,27 +686,27 @@ describe("comments, final rank, status and notifications", () => {
 		const interactor = new UpdateEvaluationStatusInteractor(sheets, employees);
 
 		// 二次評価者ではない社員(3)は確定できない
-		await expect(
+		await expectResultError(
 			interactor.execute(
 				{ sheetId: 100, currentEmployeeId: 3, status: EvaluationStatus.FINALIZED },
 				out,
 			),
-		).rejects.toThrow("最終評価者");
+			{ kind: "transitionForbidden", to: "finalized" },
+		);
 		// 一次評価者の確定がそのまま評価の確定になるので、「一次評価済み」の段は通らない
-		await expect(
+		await expectResultError(
 			interactor.execute(
 				{ sheetId: 100, currentEmployeeId: 2, status: EvaluationStatus.FIRST_EVALUATED },
 				out,
 			),
-		).rejects.toThrow("一次評価者");
-		expect(sheets.updateScoreTotals).not.toHaveBeenCalled();
+			{ kind: "transitionForbidden", to: "first_evaluated" },
+		);
 
 		await interactor.execute(
 			{ sheetId: 100, currentEmployeeId: 2, status: EvaluationStatus.FINALIZED },
 			out,
 		);
 		// 集計と確定はDBが一つの処理で行い、事前の集計保存はしない。
-		expect(sheets.updateScoreTotals).not.toHaveBeenCalled();
 		// 一次評価 70点 → B が、一次評価ランクと最終評価ランクの両方になる
 		expect(sheets.updateStatus).toHaveBeenCalledWith(100, EvaluationStatus.FINALIZED, {
 			first: expect.objectContaining({ letter: "B", level: "none" }),
@@ -660,7 +724,7 @@ describe("comments, final rank, status and notifications", () => {
 	it.each(["comment", "status", "milestone", "common"])(
 		"missing sheet fails closed for %s",
 		async (kind) => {
-			const { sheets, employees, milestones, scores, out } = setup();
+			const { sheets, employees, milestones, common, out } = setup();
 			sheets.findById.mockResolvedValue(null);
 			const run = () => {
 				switch (kind) {
@@ -675,53 +739,54 @@ describe("comments, final rank, status and notifications", () => {
 							out,
 						);
 					case "milestone":
-						return new UpdateMilestoneInteractor(milestones, sheets, scores).execute(
-							{ sheetId: 100, currentEmployeeId: 1 },
+						return new UpdateMilestoneInteractor(milestones, sheets).execute(
+							{ action: "delete", sheetId: 100, currentEmployeeId: 1, milestoneId: 11 },
 							out,
 						);
 					default:
-						return new UpsertCommonEvaluationInteractor(sheets, scores).execute(
+						return new UpsertCommonEvaluationInteractor(sheets, common).execute(
 							{ sheetId: 100, currentEmployeeId: 2, results: [] },
 							out,
 						);
 				}
 			};
-			await expect(run()).rejects.toThrow("見つかりません");
+			expect(await run()).toMatchObject({ ok: false, error: { kind: "sheetNotFound" } });
 			expect(out.present).not.toHaveBeenCalled();
 		},
 	);
 });
 
 it("rejects removing the last goal before writing", async () => {
-	const { sheets, milestones, scores, out } = setup(EvaluationStatus.DRAFT);
-	await expect(
-		new UpdateMilestoneInteractor(milestones, sheets, scores).execute(
-			{ sheetId: 100, currentEmployeeId: 1, milestoneId: 11, delete: true },
+	const { sheets, milestones, out } = setup(EvaluationStatus.DRAFT);
+	await expectResultError(
+		new UpdateMilestoneInteractor(milestones, sheets).execute(
+			{ action: "delete", sheetId: 100, currentEmployeeId: 1, milestoneId: 11 },
 			out,
 		),
-	).rejects.toThrow("最低1件");
+		{ kind: "lastGoal" },
+	);
 	expect(milestones.delete).not.toHaveBeenCalled();
 });
 it.each([1, 2])("allows only the subject to delete a tab (%s)", async (employeeId) => {
-	const { sheets, milestones, scores, out } = setup(EvaluationStatus.DRAFT);
+	const { sheets, milestones, out } = setup(EvaluationStatus.DRAFT);
 	sheets.findById.mockResolvedValue(
 		EvaluationSheet.create({
 			...sheet(EvaluationStatus.DRAFT),
 			objectives: [
 				milestone(),
-				Milestone.create({ ...milestone(), id: 12, goalNumber: 2, firstScore: 0, secondScore: 0 }),
+				Milestone.restore({ ...milestone(), id: 12, goalNumber: 2, firstScore: 0, secondScore: 0 }),
 			],
 		}),
 	);
-	const result = new UpdateMilestoneInteractor(milestones, sheets, scores).execute(
-		{ sheetId: 100, currentEmployeeId: employeeId, milestoneId: 12, delete: true },
+	const result = new UpdateMilestoneInteractor(milestones, sheets).execute(
+		{ action: "delete", sheetId: 100, currentEmployeeId: employeeId, milestoneId: 12 },
 		out,
 	);
 	if (employeeId === 1) {
 		await result;
 		expect(milestones.delete).toHaveBeenCalledWith(12);
 	} else {
-		await expect(result).rejects.toThrow("削除");
+		await expectResultError(result, { kind: "forbidden", action: "deleteGoal" });
 		expect(milestones.delete).not.toHaveBeenCalled();
 	}
 });
@@ -748,12 +813,13 @@ describe("deliberate notification retry", () => {
 	it.each([1, 2, 3, 4])("rejects retries on finalized sheets by %s", async (actor) => {
 		const sheets = sheetRepository();
 		sheets.findById.mockResolvedValue(sheet(EvaluationStatus.FINALIZED));
-		await expect(
+		await expectResultError(
 			new UpdateEvaluationStatusInteractor(sheets, employeeRepository()).resendNotification(
 				100,
 				actor,
 				vi.fn(),
 			),
-		).rejects.toThrow("権限");
+			{ kind: "forbidden", action: "resendNotification" },
+		);
 	});
 });

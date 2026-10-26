@@ -1,29 +1,32 @@
 import { describe, expect, it } from "vitest";
 import { sheet } from "../../test/fixtures";
-import { DomainError } from "../DomainError";
 import { Milestone } from "../entities/Milestone";
+import { describeMilestoneError } from "../entities/MilestoneError";
 import { EvaluationStatus } from "./EvaluationStatus";
-import { addPeriodGoal, assertPeriodGoals, copyPeriodGoals, MAX_PERIOD_GOALS } from "./PeriodGoal";
+import { addPeriodGoal, MAX_PERIOD_GOALS, toPeriodGoals } from "./PeriodGoal";
 
 const task = (description: string, achievement = "") => ({ description, achievement });
+const params = (periodGoals: unknown = [task("手順書を作る")], achievement = "") => ({
+	id: 1,
+	sheetId: 1,
+	goalNumber: 1,
+	challengeGoal: "テーマ",
+	periodGoals: periodGoals as never,
+	achievement,
+});
 const goal = (periodGoals = [task("手順書を作る")], achievement = "") =>
-	Milestone.create({
-		id: 1,
-		sheetId: 1,
-		goalNumber: 1,
-		challengeGoal: "テーマ",
-		periodGoals,
-		achievement,
-	});
+	Milestone.restore(params(periodGoals, achievement));
+const failure = (result: { ok: boolean; error?: unknown }) => (result.ok ? null : result.error);
 
 describe("period goals", () => {
-	it("allows 0 to MAX_PERIOD_GOALS tasks", () => {
+	it("allows 0 to MAX_PERIOD_GOALS tasks and says when there are more", () => {
 		expect(MAX_PERIOD_GOALS).toBe(4);
-		expect(() => assertPeriodGoals([])).not.toThrow();
-		expect(() => assertPeriodGoals(Array.from({ length: 4 }, () => task("a")))).not.toThrow();
-		expect(() => assertPeriodGoals(Array.from({ length: 5 }, () => task("a")))).toThrow(
-			DomainError,
-		);
+		expect(toPeriodGoals([])).toEqual({ ok: true, value: [] });
+		expect(toPeriodGoals(Array.from({ length: 4 }, () => task("a"))).ok).toBe(true);
+		expect(failure(toPeriodGoals(Array.from({ length: 5 }, () => task("a"))))).toEqual({
+			kind: "tooManyPeriodGoals",
+			max: 4,
+		});
 	});
 
 	it.each([
@@ -32,40 +35,60 @@ describe("period goals", () => {
 		["missing achievement", [{ description: "a" }]],
 		["number", [{ description: 1, achievement: "" }]],
 		["extra key", [{ description: "a", achievement: "", done: true }]],
-	])("rejects malformed input as a DomainError (%s)", (_, value) => {
-		expect(() => assertPeriodGoals(value)).toThrow(DomainError);
-		expect(() => copyPeriodGoals(value as never)).toThrow(DomainError);
+	])("reports malformed input as such (%s)", (_, value) => {
+		expect(failure(toPeriodGoals(value))).toEqual({ kind: "periodGoalsMalformed" });
+	});
+
+	it("copies the tasks so a caller cannot change them afterwards", () => {
+		const input = [task("a", "x")];
+		const copied = toPeriodGoals(input);
+		input[0].achievement = "changed";
+		expect(copied.ok && copied.value[0].achievement).toBe("x");
 	});
 
 	it("moves the challenge achievement into the first task instead of dropping it", () => {
 		expect(addPeriodGoal([], "テーマの実績")).toEqual({
-			periodGoals: [task("", "テーマの実績")],
-			achievement: "",
+			ok: true,
+			value: { periodGoals: [task("", "テーマの実績")], achievement: "" },
 		});
 		expect(addPeriodGoal([task("a", "x")], "")).toEqual({
-			periodGoals: [task("a", "x"), task("")],
-			achievement: "",
+			ok: true,
+			value: { periodGoals: [task("a", "x"), task("")], achievement: "" },
 		});
-		expect(() =>
-			addPeriodGoal(
-				Array.from({ length: 4 }, () => task("a")),
-				"",
+		expect(
+			failure(
+				addPeriodGoal(
+					Array.from({ length: 4 }, () => task("a")),
+					"",
+				),
 			),
-		).toThrow(DomainError);
+		).toEqual({
+			kind: "tooManyPeriodGoals",
+			max: 4,
+		});
 	});
 });
 
 describe("milestone text", () => {
 	it("keeps the challenge achievement only while there are no tasks", () => {
 		expect(goal([], "テーマの実績").achievement).toBe("テーマの実績");
-		expect(() => goal([task("a")], "テーマの実績")).toThrow(DomainError);
-		expect(() =>
-			goal([]).withTextUpdates({
-				challengeGoal: "テーマ",
-				periodGoals: [task("a")],
-				achievement: "残った実績",
-			}),
-		).toThrow(DomainError);
+		expect(failure(Milestone.from(params([task("a")], "テーマの実績")))).toEqual({
+			kind: "achievementBesideTasks",
+		});
+		expect(
+			failure(
+				goal([]).withTextUpdates({
+					challengeGoal: "テーマ",
+					periodGoals: [task("a")],
+					achievement: "残った実績",
+				}),
+			),
+		).toEqual({ kind: "achievementBesideTasks" });
+	});
+
+	it("refuses to restore stored data that breaks the rules, as a data error", () => {
+		expect(() => goal([task("a")], "テーマの実績")).toThrow("期中目標があるときは");
+		expect(() => Milestone.restore(params([null]))).toThrow("期中目標は0〜4件");
 	});
 
 	it("after the goals are confirmed, changes only the achievements", () => {
@@ -73,28 +96,36 @@ describe("milestone text", () => {
 		const next = fixed.withAchievementUpdates({
 			periodGoals: [task("手順書を作る", "作成済み"), task("共有する", "未着手")],
 		});
-		expect(next.periodGoals.map((item) => item.achievement)).toEqual(["作成済み", "未着手"]);
-		expect(next.challengeGoal).toBe("テーマ");
+		expect(next.ok && next.value.periodGoals.map((item) => item.achievement)).toEqual([
+			"作成済み",
+			"未着手",
+		]);
 
-		for (const periodGoals of [
-			[task("手順書を直す"), task("共有する")],
-			[task("共有する"), task("手順書を作る")],
-			[task("手順書を作る")],
-			[task("手順書を作る"), task("共有する"), task("追加")],
+		for (const change of [
+			{ periodGoals: [task("手順書を直す"), task("共有する")] },
+			{ periodGoals: [task("共有する"), task("手順書を作る")] },
+			{ periodGoals: [task("手順書を作る")] },
+			{ periodGoals: [task("手順書を作る"), task("共有する"), task("追加")] },
+			{ challengeGoal: "別のテーマ" },
 		]) {
-			expect(() => fixed.withAchievementUpdates({ periodGoals })).toThrow(
-				"目標確定後は達成状況だけを編集できます。",
-			);
+			expect(failure(fixed.withAchievementUpdates(change))).toEqual({ kind: "goalsFixed" });
 		}
-		expect(() => fixed.withAchievementUpdates({ challengeGoal: "別のテーマ" })).toThrow(
-			DomainError,
+		expect(failure(fixed.withAchievementUpdates({ achievement: "テーマの実績" }))).toEqual({
+			kind: "achievementBesideTasks",
+		});
+		const theme = goal([]).withAchievementUpdates({ achievement: "テーマの実績" });
+		expect(theme.ok && theme.value.achievement).toBe("テーマの実績");
+	});
+
+	it("words every failure for the person who caused it", () => {
+		expect(describeMilestoneError({ kind: "goalsFixed" })).toBe(
+			"目標確定後は達成状況だけを編集できます。",
 		);
-		expect(() => fixed.withAchievementUpdates({ achievement: "テーマの実績" })).toThrow(
-			DomainError,
+		expect(describeMilestoneError({ kind: "tooManyPeriodGoals", max: 4 })).toContain("4件");
+		expect(describeMilestoneError({ kind: "achievementBesideTasks" })).toContain(
+			"期中目標があるときは",
 		);
-		expect(goal([]).withAchievementUpdates({ achievement: "テーマの実績" }).achievement).toBe(
-			"テーマの実績",
-		);
+		expect(describeMilestoneError({ kind: "periodGoalsMalformed" })).toContain("0〜4件");
 	});
 });
 

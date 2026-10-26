@@ -3,6 +3,7 @@ import type {
 	UpsertCommonEvaluationInteractor,
 	UpsertCommonEvaluationOutputPort,
 } from "../../application/usecases/UpsertCommonEvaluationInteractor";
+import { describeUpsertCommonEvaluationError } from "../../application/usecases/UpsertCommonEvaluationInteractor";
 import type { EmployeeRepository } from "../../domain/repositories/EmployeeRepository";
 import type { CommonEvaluationViewModel } from "../presenters/CommonEvaluationPresenter";
 import { requireCurrentEmployeeId } from "./currentEmployee";
@@ -39,10 +40,14 @@ export class CommonEvaluationController {
 		}
 
 		try {
-			await this.upsertUseCase.execute(
+			const result = await this.upsertUseCase.execute(
 				{ sheetId, results, currentEmployeeId },
 				this.presenter.outputPort.upsert,
 			);
+			if (!result.ok) {
+				this.presenter.presentUpsertError(describeUpsertCommonEvaluationError(result.error));
+				return false;
+			}
 			return true;
 		} catch (error) {
 			this.presenter.presentUpsertError(messageOf(error, "登録に失敗しました"));

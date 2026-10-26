@@ -1,26 +1,51 @@
 import type { EvaluationSheet } from "../../domain/entities/EvaluationSheet";
 import { Milestone } from "../../domain/entities/Milestone";
+import type { MilestoneError } from "../../domain/entities/MilestoneError";
 import type { EvaluationSheetRepository } from "../../domain/repositories/EvaluationSheetRepository";
 import type { MilestoneRepository } from "../../domain/repositories/MilestoneRepository";
-import type { EvaluationScoreUpdateService } from "../../domain/services/EvaluationScoreUpdateService";
+import { err, ok, type Result } from "../../domain/Result";
 import { EvaluationSheetAccessPolicy } from "../../domain/services/EvaluationSheetAccessPolicy";
+import type { SheetAccessError } from "../../domain/services/SheetAccessError";
 import type { PeriodGoal } from "../../domain/valueObjects/PeriodGoal";
+import { Score } from "../../domain/valueObjects/Score";
 import type { MilestoneDto } from "../dtos/MilestoneDto";
 import type { OutputPort } from "../ports/OutputPort";
-import type { UseCase } from "../ports/UseCase";
+import type { FallibleUseCase } from "../ports/UseCase";
+import type { RequestErrorOf } from "./SheetEditError";
 
-export interface UpdateMilestoneRequest {
-	sheetId: number;
-	currentEmployeeId: number;
-	milestoneId?: number;
-	delete?: boolean;
-	goalNumber?: number;
+/** 書き換える欄。指定しなかった欄は今のまま。 */
+export interface MilestoneTextChanges {
 	challengeGoal?: string;
 	periodGoals?: readonly PeriodGoal[];
 	achievement?: string;
-	firstScore?: number;
-	secondScore?: number;
 }
+
+/**
+ * チャレンジ目標への操作は4つで、1回に1つだけ行う。
+ * text: 保存済みの目標の文言 / upsertText: その番号の目標に書く(無ければ作る) /
+ * score: 評価者の点数 / delete: 本人が目標を消す
+ */
+export type UpdateMilestoneRequest = { sheetId: number; currentEmployeeId: number } & (
+	| ({ action: "text"; milestoneId: number } & MilestoneTextChanges)
+	| ({ action: "upsertText"; goalNumber: number } & MilestoneTextChanges)
+	| { action: "score"; milestoneId: number; firstScore?: number; secondScore?: number }
+	| { action: "delete"; milestoneId: number }
+);
+
+/** 目標への操作で起こり得る失敗。 */
+export type UpdateMilestoneError =
+	| RequestErrorOf<
+			| "sheetNotFound"
+			| "goalNotOnSheet"
+			| "goalNumberInvalid"
+			| "tooManyGoals"
+			| "lastGoal"
+			| "nothingToSave"
+			| "scoreOutOfRange"
+			| "actionUnknown"
+	  >
+	| SheetAccessError
+	| MilestoneError;
 
 export interface UpdateMilestoneResponse {
 	milestone: MilestoneDto;
@@ -28,182 +53,189 @@ export interface UpdateMilestoneResponse {
 
 export interface UpdateMilestoneOutputPort extends OutputPort<UpdateMilestoneResponse> {}
 
+type Outcome<T> = Result<T, UpdateMilestoneError>;
+
+/** 書き込む前に、対象・権限・値をすべて確かめる。見せてよい点数は、保存後に読み直したシートで決める。 */
 export class UpdateMilestoneInteractor
-	implements UseCase<UpdateMilestoneRequest, UpdateMilestoneOutputPort>
+	implements FallibleUseCase<UpdateMilestoneRequest, UpdateMilestoneOutputPort, UpdateMilestoneError>
 {
 	constructor(
 		private readonly milestoneRepository: MilestoneRepository,
 		private readonly evaluationSheetRepository: EvaluationSheetRepository,
-		private readonly evaluationScoreUpdateService: EvaluationScoreUpdateService,
 	) {}
 
 	async execute(
 		request: UpdateMilestoneRequest,
 		outputPort: UpdateMilestoneOutputPort,
-	): Promise<void> {
+	): Promise<Outcome<void>> {
 		const sheet = await this.evaluationSheetRepository.findById(request.sheetId);
 		if (!sheet) {
-			throw new Error("評価シートが見つかりません。");
+			return err({ kind: "sheetNotFound" });
 		}
 		const policy = EvaluationSheetAccessPolicy.for(request.currentEmployeeId, sheet);
-		policy.assertPeriodOpen();
-		const currentObjective = sheet.objectives.find((objective) =>
-			request.milestoneId !== undefined
-				? objective.id === request.milestoneId
-				: objective.goalNumber === request.goalNumber,
-		);
-		// Validate the entire request before the first write, including the child resource binding.
-		if (
-			request.milestoneId !== undefined &&
-			!sheet.objectives.some(
-				(objective) => objective.id === request.milestoneId && objective.sheetId === sheet.sheetId,
-			)
-		) {
-			throw new Error("対象の目標はこの評価シートに属していません。");
-		}
-		if (
-			request.goalNumber !== undefined &&
-			(!Number.isSafeInteger(request.goalNumber) ||
-				request.goalNumber < 1 ||
-				request.goalNumber > sheet.maxObjectives)
-		) {
-			throw new Error("目標番号が不正です。");
-		}
-		for (const score of [request.firstScore, request.secondScore]) {
-			if (score !== undefined && (!Number.isInteger(score) || score < 0 || score > 4)) {
-				throw new Error("目標の評価点は0から4の整数で指定してください。");
-			}
-		}
-		if (request.firstScore !== undefined || request.secondScore !== undefined) {
-			if (request.milestoneId === undefined) {
-				throw new Error("Milestone ID is required to update milestone score.");
-			}
-			if (request.firstScore !== undefined && !policy.canEditMilestoneFirstScore()) {
-				throw new Error("一次評価者のみ一次評価を編集できます。");
-			}
-			if (request.secondScore !== undefined && !policy.canEditMilestoneSecondScore()) {
-				throw new Error("二次評価者のみ二次評価を編集できます。");
-			}
+		const open = policy.periodOpen();
+		if (!open.ok) {
+			return open;
 		}
 
-		const updatesScore = request.firstScore !== undefined || request.secondScore !== undefined;
-		// 保存後に読み直したシートから、保存した目標を取り出す(見せてよい点数は DB が決める)
-		const savedObjective = (saved: EvaluationSheet | null): Milestone => {
-			const objective = saved?.objectives.find((candidate) =>
-				request.milestoneId !== undefined
-					? candidate.id === request.milestoneId
-					: candidate.goalNumber === request.goalNumber,
-			);
-			if (!objective) {
-				throw new Error("保存した目標を読み込めませんでした。");
-			}
-			return objective;
-		};
-
-		let updated: Milestone | null = null;
-		if (request.delete) {
-			if (!policy.canEditMilestoneGoal()) {
-				throw new Error("自分の評価シートの目標のみ削除できます。");
-			}
-			if (!currentObjective) {
-				throw new Error("対象の目標が見つかりません。");
-			}
-			if (sheet.objectives.length <= 1) {
-				throw new Error("チャレンジ目標は最低1件必要です。");
-			}
-			if (
-				[
-					request.challengeGoal,
-					request.periodGoals,
-					request.achievement,
-					request.firstScore,
-					request.secondScore,
-				].some((value) => value !== undefined)
-			) {
-				throw new Error("削除と更新は同時に指定できません。");
-			}
-			await this.milestoneRepository.delete(currentObjective.id);
-			updated = currentObjective;
+		const milestone = await this.apply(sheet, policy, request);
+		if (!milestone.ok) {
+			return milestone;
 		}
-		if (
-			!currentObjective &&
-			request.goalNumber !== undefined &&
-			sheet.objectives.length >= sheet.maxObjectives
-		) {
-			throw new Error(`チャレンジ目標は最大${sheet.maxObjectives}件です。`);
-		}
-
-		if (
-			request.challengeGoal !== undefined ||
-			request.periodGoals !== undefined ||
-			request.achievement !== undefined
-		) {
-			const changes = {
-				challengeGoal: request.challengeGoal,
-				periodGoals: request.periodGoals,
-				achievement: request.achievement,
-			};
-			// 書いてよい欄と、書いた後の目標が正しいかは Milestone が確かめる
-			let next: Milestone;
-			if (policy.canEditMilestoneGoal()) {
-				next = (
-					currentObjective ??
-					Milestone.create({
-						id: 0,
-						sheetId: sheet.sheetId,
-						goalNumber: request.goalNumber ?? 0,
-						challengeGoal: "",
-					})
-				).withTextUpdates(changes);
-			} else if (
-				policy.canEditMilestoneAchievement() &&
-				currentObjective &&
-				request.milestoneId !== undefined
-			) {
-				next = currentObjective.withAchievementUpdates(changes);
-			} else {
-				throw new Error("この状態では目標・達成状況を編集できません。");
-			}
-
-			const text = [next.challengeGoal, next.periodGoals, next.achievement] as const;
-			if (request.milestoneId !== undefined) {
-				await this.milestoneRepository.updateText(request.milestoneId, ...text);
-			} else if (request.goalNumber !== undefined) {
-				await this.milestoneRepository.upsertText(request.sheetId, request.goalNumber, ...text);
-			}
-			// 点数も保存するときは、その後にまとめて読み直す
-			if (!updatesScore && (request.milestoneId ?? request.goalNumber) !== undefined) {
-				updated = savedObjective(await this.evaluationSheetRepository.findById(request.sheetId));
-			}
-		}
-
-		if (updatesScore) {
-			updated = savedObjective(
-				await this.evaluationScoreUpdateService.updateObjectiveScore(
-					request.sheetId,
-					request.milestoneId as number,
-					request.firstScore,
-					request.secondScore,
-				),
-			);
-		}
-
-		if (!updated) {
-			throw new Error("No milestone changes were provided.");
-		}
-
-		const canViewSecondScore = policy.canViewMilestoneSecondScore();
+		const saved = milestone.value;
 		outputPort.present({
 			milestone: {
-				id: updated.id,
-				sheetId: updated.sheetId,
-				goalNumber: updated.goalNumber,
-				challengeGoal: updated.challengeGoal,
-				periodGoals: updated.periodGoals,
-				achievement: updated.achievement,
-				firstScore: policy.canViewMilestoneFirstScore() ? updated.firstScore.toNumber() : null,
-				secondScore: canViewSecondScore ? updated.secondScore.toNumber() : null,
+				id: saved.id,
+				sheetId: saved.sheetId,
+				goalNumber: saved.goalNumber,
+				challengeGoal: saved.challengeGoal,
+				periodGoals: saved.periodGoals,
+				achievement: saved.achievement,
+				firstScore: policy.canViewMilestoneFirstScore() ? saved.firstScore.toNumber() : null,
+				secondScore: policy.canViewMilestoneSecondScore() ? saved.secondScore.toNumber() : null,
 			},
 		});
+		return ok(undefined);
 	}
+
+	private apply(
+		sheet: EvaluationSheet,
+		policy: EvaluationSheetAccessPolicy,
+		request: UpdateMilestoneRequest,
+	): Promise<Outcome<Milestone>> {
+		switch (request.action) {
+			case "delete":
+				return this.delete(sheet, policy, request.milestoneId);
+			case "score":
+				return this.score(sheet, policy, request);
+			case "text": {
+				const target = objectiveOf(sheet, request.milestoneId);
+				return target.ok
+					? this.text(sheet, policy, target.value, request)
+					: Promise.resolve(target);
+			}
+			case "upsertText": {
+				const slot = slotOf(sheet, request.goalNumber);
+				return slot.ok ? this.text(sheet, policy, slot.value, request) : Promise.resolve(slot);
+			}
+			default:
+				return Promise.resolve(err({ kind: "actionUnknown" }));
+		}
+	}
+
+	private async delete(
+		sheet: EvaluationSheet,
+		policy: EvaluationSheetAccessPolicy,
+		milestoneId: number,
+	): Promise<Outcome<Milestone>> {
+		const target = objectiveOf(sheet, milestoneId);
+		if (!target.ok) {
+			return target;
+		}
+		if (!policy.canEditMilestoneGoal()) {
+			return err({ kind: "forbidden", action: "deleteGoal" });
+		}
+		if (sheet.objectives.length <= 1) {
+			return err({ kind: "lastGoal" });
+		}
+		await this.milestoneRepository.delete(target.value.id);
+		return target;
+	}
+
+	private async score(
+		sheet: EvaluationSheet,
+		policy: EvaluationSheetAccessPolicy,
+		request: { milestoneId: number; firstScore?: number; secondScore?: number },
+	): Promise<Outcome<Milestone>> {
+		const target = objectiveOf(sheet, request.milestoneId);
+		if (!target.ok) {
+			return target;
+		}
+		const { firstScore, secondScore } = request;
+		if (firstScore === undefined && secondScore === undefined) {
+			return err({ kind: "nothingToSave" });
+		}
+		if ([firstScore, secondScore].some((score) => score !== undefined && !Score.isValid(score))) {
+			return err({ kind: "scoreOutOfRange" });
+		}
+		if (firstScore !== undefined && !policy.canEditMilestoneFirstScore()) {
+			return err({ kind: "forbidden", action: "editFirstScore" });
+		}
+		if (secondScore !== undefined && !policy.canEditMilestoneSecondScore()) {
+			return err({ kind: "forbidden", action: "editSecondScore" });
+		}
+		await this.milestoneRepository.updateScore(target.value.id, firstScore, secondScore);
+		return ok(await this.reload(sheet, (objective) => objective.id === target.value.id));
+	}
+
+	private async text(
+		sheet: EvaluationSheet,
+		policy: EvaluationSheetAccessPolicy,
+		current: Milestone,
+		changes: MilestoneTextChanges & { action: "text" | "upsertText" },
+	): Promise<Outcome<Milestone>> {
+		const { challengeGoal, periodGoals, achievement } = changes;
+		if (challengeGoal === undefined && periodGoals === undefined && achievement === undefined) {
+			return err({ kind: "nothingToSave" });
+		}
+		// 書いてよい欄と、書いた後の目標が正しいかは Milestone が確かめる
+		let next: Result<Milestone, MilestoneError>;
+		if (policy.canEditMilestoneGoal()) {
+			next = current.withTextUpdates({ challengeGoal, periodGoals, achievement });
+		} else if (policy.canEditMilestoneAchievement() && current.id > 0) {
+			next = current.withAchievementUpdates({ challengeGoal, periodGoals, achievement });
+		} else {
+			return err({ kind: "forbidden", action: "editGoalText" });
+		}
+		if (!next.ok) {
+			return next;
+		}
+
+		const text = [next.value.challengeGoal, next.value.periodGoals, next.value.achievement] as const;
+		if (changes.action === "text") {
+			await this.milestoneRepository.updateText(current.id, ...text);
+			return ok(await this.reload(sheet, (objective) => objective.id === current.id));
+		}
+		// (シート, 目標番号) の一意制約で、あれば更新・なければ追加する
+		await this.milestoneRepository.upsertText(sheet.sheetId, current.goalNumber, ...text);
+		return ok(await this.reload(sheet, (objective) => objective.goalNumber === current.goalNumber));
+	}
+
+	/**
+	 * 保存後に読み直したシートから、保存した目標を取り出す(見せてよい点数は DB が決める)。
+	 * 書けたのに読めないのは想定外なので、例外にする。
+	 */
+	private async reload(
+		sheet: EvaluationSheet,
+		isSaved: (objective: Milestone) => boolean,
+	): Promise<Milestone> {
+		const saved = (await this.evaluationSheetRepository.findById(sheet.sheetId))?.objectives.find(
+			isSaved,
+		);
+		if (!saved) {
+			throw new Error("保存した目標を読み込めませんでした。");
+		}
+		return saved;
+	}
+}
+
+/** このシートの目標。ほかのシートの目標 ID は受け付けない。 */
+function objectiveOf(sheet: EvaluationSheet, milestoneId: number): Outcome<Milestone> {
+	const objective = sheet.objectives.find((candidate) => candidate.id === milestoneId);
+	return objective ? ok(objective) : err({ kind: "goalNotOnSheet" });
+}
+
+/** その番号の目標。まだ無ければ、上限の内側で新しく作る目標(id 0)。 */
+function slotOf(sheet: EvaluationSheet, goalNumber: number): Outcome<Milestone> {
+	if (!Number.isSafeInteger(goalNumber) || goalNumber < 1 || goalNumber > sheet.maxObjectives) {
+		return err({ kind: "goalNumberInvalid" });
+	}
+	const existing = sheet.objectives.find((objective) => objective.goalNumber === goalNumber);
+	if (existing) {
+		return ok(existing);
+	}
+	if (sheet.objectives.length >= sheet.maxObjectives) {
+		return err({ kind: "tooManyGoals", max: sheet.maxObjectives });
+	}
+	return Milestone.from({ id: 0, sheetId: sheet.sheetId, goalNumber, challengeGoal: "" });
 }

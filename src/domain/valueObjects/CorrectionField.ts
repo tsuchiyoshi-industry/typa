@@ -1,5 +1,6 @@
-import { DomainError } from "../DomainError";
-import { assertPeriodGoals, type PeriodGoal } from "./PeriodGoal";
+import type { CorrectionError } from "../entities/CorrectionError";
+import { err, ok, type Result } from "../Result";
+import { type PeriodGoal, toPeriodGoals } from "./PeriodGoal";
 
 /** 何を直すか。目標(goal)・共通評価の項目(common)・シート全体(sheet)。 */
 export type CorrectionTarget = "goal" | "common" | "sheet";
@@ -15,7 +16,7 @@ export const CORRECTION_FIELD_VALUES = [
 ] as const;
 export type CorrectionFieldValue = (typeof CORRECTION_FIELD_VALUES)[number];
 /**
- * その項目を見られる段階。content は記入した内容(本人と、提出後の評価者)、first は一次評価、
+ * その項目を見られる段階。content は記入した内容(本人と、送信後の評価者)、first は一次評価、
  * second は二次評価。修正も、直した項目と同じ人にだけ見せる。
  */
 export type CorrectionStage = "content" | "first" | "second";
@@ -42,6 +43,14 @@ const FIELDS: Record<
 	},
 };
 
+/**
+ * 引く表。Map にするのは、「constructor」などの Object の性質を、項目と取り違えないため
+ * (ふつうのオブジェクトをキーで引くと、プロトタイプのものまで見つかる)。
+ */
+const LOOKUP = new Map(
+	Object.entries(FIELDS).map(([target, fields]) => [target, new Map(Object.entries(fields))]),
+);
+
 /** 遡及処理で直せる項目。直せるものだけを、ここに挙げる(状態・評価者・ランクは直さない)。 */
 export class CorrectionField {
 	static readonly MAX_TEXT_LENGTH = 2000;
@@ -53,19 +62,18 @@ export class CorrectionField {
 		readonly stage: CorrectionStage,
 	) {}
 
-	static of(target: string, field: string): CorrectionField {
-		const found = (
-			FIELDS as Record<string, Record<string, { label: string; stage: CorrectionStage }>>
-		)[target]?.[field];
-		if (!found) {
-			throw new DomainError("遡及処理で直せない項目です。");
-		}
-		return new CorrectionField(
-			target as CorrectionTarget,
-			field as CorrectionFieldValue,
-			found.label,
-			found.stage,
-		);
+	static of(target: string, field: string): Result<CorrectionField, CorrectionError> {
+		const found = LOOKUP.get(target)?.get(field);
+		return found
+			? ok(
+					new CorrectionField(
+						target as CorrectionTarget,
+						field as CorrectionFieldValue,
+						found.label,
+						found.stage,
+					),
+				)
+			: err({ kind: "fieldNotCorrectable" });
 	}
 
 	get isScore(): boolean {
@@ -76,25 +84,22 @@ export class CorrectionField {
 	 * 直した後の値として正しいか。点数は 1〜4(未評価には戻さない)、文章は 2000 文字まで。
 	 * 期中目標は JSON の一覧で、タスクごとの文章も 2000 文字まで。
 	 */
-	assertValid(value: string): void {
+	validate(value: string): Result<string, CorrectionError> {
+		const tooLong = (text: string) => text.length > CorrectionField.MAX_TEXT_LENGTH;
+		const textTooLong = err({ kind: "textTooLong", max: CorrectionField.MAX_TEXT_LENGTH } as const);
 		if (this.value === "period_goals") {
 			const goals = parsePeriodGoals(value);
 			if (!goals) {
-				throw new DomainError("期中目標の形式が不正です。");
+				return err({ kind: "periodGoalsMalformed" });
 			}
-			for (const goal of goals) {
-				assertTextLength(goal.description);
-				assertTextLength(goal.achievement);
-			}
-			return;
+			return goals.some((goal) => tooLong(goal.description) || tooLong(goal.achievement))
+				? textTooLong
+				: ok(value);
 		}
 		if (this.isScore) {
-			if (!/^[1-4]$/.test(value)) {
-				throw new DomainError("点数は 1〜4 で入力してください。");
-			}
-		} else {
-			assertTextLength(value);
+			return /^[1-4]$/.test(value) ? ok(value) : err({ kind: "scoreInvalid" });
 		}
+		return tooLong(value) ? textTooLong : ok(value);
 	}
 
 	/** 画面に出す値。点数の 0 は「未評価」、空の文章は「(空欄)」。 */
@@ -127,17 +132,12 @@ export class CorrectionField {
 
 /** JSON の期中目標の一覧。形が違えば null。 */
 export function parsePeriodGoals(value: string): readonly PeriodGoal[] | null {
+	let parsed: unknown;
 	try {
-		const goals: unknown = JSON.parse(value);
-		assertPeriodGoals(goals);
-		return goals;
+		parsed = JSON.parse(value);
 	} catch {
 		return null;
 	}
-}
-
-function assertTextLength(value: string): void {
-	if (value.length > CorrectionField.MAX_TEXT_LENGTH) {
-		throw new DomainError(`文章は ${CorrectionField.MAX_TEXT_LENGTH} 文字以内で入力してください。`);
-	}
+	const goals = toPeriodGoals(parsed);
+	return goals.ok ? goals.value : null;
 }

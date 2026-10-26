@@ -1,4 +1,5 @@
-import { DomainError } from "../DomainError";
+import type { PeriodError } from "../entities/PeriodError";
+import { err, ok, type Result } from "../Result";
 import type { CalendarDate } from "./CalendarDate";
 
 /** 開始日から終了日まで(両端を含む)。終了日が開始日より前にはならない。 */
@@ -8,11 +9,8 @@ export class DateRange {
 		readonly end: CalendarDate,
 	) {}
 
-	static of(start: CalendarDate, end: CalendarDate): DateRange {
-		if (end.isBefore(start)) {
-			throw new DomainError("終了日は開始日以降の日付にしてください。");
-		}
-		return new DateRange(start, end);
+	static of(start: CalendarDate, end: CalendarDate): Result<DateRange, PeriodError> {
+		return end.isBefore(start) ? err({ kind: "rangeReversed" }) : ok(new DateRange(start, end));
 	}
 
 	/** other が始まる前に、この期間が終わっている(1日でも重なれば false)。 */

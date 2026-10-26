@@ -10,10 +10,8 @@ import type {
 	EvaluationSheetRepository,
 	EvaluationSheetSummary,
 } from "../../domain/repositories/EvaluationSheetRepository";
-import type { EvaluationAllocatedScores } from "../../domain/valueObjects/EvaluationAllocatedScores";
 import { EvaluationAllocation } from "../../domain/valueObjects/EvaluationAllocation";
 import { EvaluationRank } from "../../domain/valueObjects/EvaluationRank";
-import type { EvaluationScoreTotals } from "../../domain/valueObjects/EvaluationScoreTotals";
 import { EvaluationStatus } from "../../domain/valueObjects/EvaluationStatus";
 import type { PeriodGoal } from "../../domain/valueObjects/PeriodGoal";
 import { supabase } from "../db/supabase";
@@ -219,7 +217,7 @@ export function toSheet(row: SheetRpcRow): EvaluationSheet | null {
 		firstOverallComment: row.firstOverallComment,
 		secondOverallComment: row.secondOverallComment,
 		objectives: row.objectives.map((objective) =>
-			Milestone.create({ ...objective, sheetId: row.id }),
+			Milestone.restore({ ...objective, sheetId: row.id }),
 		),
 		commonEvaluationResults: row.commonResults.map((result) =>
 			CommonEvaluationResult.create({
@@ -283,52 +281,6 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 		}
 		// シートが無いか、呼び出した人がそのシートの本人・評価者ではない
 		return data ? toSheet(data as SheetRpcRow) : null;
-	}
-
-	async updateScoreTotals(
-		sheetId: number,
-		totals: {
-			objectives?: EvaluationScoreTotals;
-			commonEvaluationResults?: EvaluationScoreTotals;
-			allocatedScores?: EvaluationAllocatedScores;
-		},
-	): Promise<void> {
-		const payload: Record<string, number> = {};
-
-		if (totals.objectives) {
-			payload.objectives_first_total_score = totals.objectives.firstTotalScore;
-			payload.objectives_first_total_rate = totals.objectives.firstTotalRate;
-			payload.objectives_second_total_score = totals.objectives.secondTotalScore;
-			payload.objectives_second_total_rate = totals.objectives.secondTotalRate;
-		}
-
-		if (totals.commonEvaluationResults) {
-			payload.common_evaluation_first_total_score = totals.commonEvaluationResults.firstTotalScore;
-			payload.common_evaluation_first_total_rate = totals.commonEvaluationResults.firstTotalRate;
-			payload.common_evaluation_second_total_score =
-				totals.commonEvaluationResults.secondTotalScore;
-			payload.common_evaluation_second_total_rate = totals.commonEvaluationResults.secondTotalRate;
-		}
-
-		if (totals.allocatedScores) {
-			payload.objectives_second_evaluation_score = totals.allocatedScores.objectiveEvaluationScore;
-			payload.common_evaluation_second_evaluation_score =
-				totals.allocatedScores.commonEvaluationEvaluationScore;
-			payload.total_evaluation_score = totals.allocatedScores.totalEvaluationScore;
-			// この評価点を計算したときの配点。確定後はこの値を使い続ける
-			payload.objective_allocation = totals.allocatedScores.objectiveAllocationScore;
-			payload.common_allocation = totals.allocatedScores.commonEvaluationAllocationScore;
-		}
-
-		if (Object.keys(payload).length === 0) {
-			return;
-		}
-
-		const { error } = await supabase.from("evaluation_sheets").update(payload).eq("id", sheetId);
-
-		if (error) {
-			throw error;
-		}
 	}
 
 	async updateOverallComment(

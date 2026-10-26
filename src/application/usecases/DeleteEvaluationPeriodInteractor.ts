@@ -1,13 +1,33 @@
-import { DomainError } from "../../domain/DomainError";
+import { describePeriodError, type PeriodError } from "../../domain/entities/PeriodError";
+import { err, ok, type Result } from "../../domain/Result";
 import type { EmployeeMasterRepository } from "../../domain/repositories/EmployeeMasterRepository";
 import type { EvaluationPeriodRepository } from "../../domain/repositories/EvaluationPeriodRepository";
 import { canEditSettings } from "../../domain/services/EmployeeMasterAccessService";
 import type { OutputPort } from "../ports/OutputPort";
-import type { UseCase } from "../ports/UseCase";
+import type { FallibleUseCase } from "../ports/UseCase";
 import type { EvaluationPeriodChangeResponse } from "./SaveEvaluationPeriodInteractor";
 
 export interface DeleteEvaluationPeriodRequest {
 	periodId: number;
+}
+
+export type DeleteEvaluationPeriodError =
+	| PeriodError
+	| { kind: "forbidden" }
+	| { kind: "periodNotFound" }
+	| { kind: "deleteFailed" };
+
+export function describeDeleteEvaluationPeriodError(error: DeleteEvaluationPeriodError): string {
+	switch (error.kind) {
+		case "forbidden":
+			return "評価期間を削除できるのは Admin のみです。";
+		case "periodNotFound":
+			return "評価期間が見つかりませんでした。";
+		case "deleteFailed":
+			return "評価期間を削除できませんでした。";
+		default:
+			return describePeriodError(error);
+	}
 }
 
 /**
@@ -15,7 +35,12 @@ export interface DeleteEvaluationPeriodRequest {
  * 評価シートが1枚でもある期間は削除できない(DB側でも拒否する)。
  */
 export class DeleteEvaluationPeriodInteractor
-	implements UseCase<DeleteEvaluationPeriodRequest, OutputPort<EvaluationPeriodChangeResponse>>
+	implements
+		FallibleUseCase<
+			DeleteEvaluationPeriodRequest,
+			OutputPort<EvaluationPeriodChangeResponse>,
+			DeleteEvaluationPeriodError
+		>
 {
 	constructor(
 		private readonly periodRepository: EvaluationPeriodRepository,
@@ -25,33 +50,28 @@ export class DeleteEvaluationPeriodInteractor
 	async execute(
 		request: DeleteEvaluationPeriodRequest,
 		outputPort: OutputPort<EvaluationPeriodChangeResponse>,
-	): Promise<void> {
-		const reject = (message: string) => outputPort.present({ success: false, message });
-
+	): Promise<Result<void, DeleteEvaluationPeriodError>> {
 		const currentEmployee = await this.employeeMasterRepository.findCurrentEmployeeProfile();
 		if (!currentEmployee || !canEditSettings(currentEmployee.role)) {
-			return reject("評価期間を削除できるのは Admin のみです。");
+			return err({ kind: "forbidden" });
 		}
 
 		const period = await this.periodRepository.findById(request.periodId);
 		if (!period) {
-			return reject("評価期間が見つかりませんでした。");
+			return err({ kind: "periodNotFound" });
 		}
-		try {
-			period.assertCanDelete(await this.periodRepository.countSheetsByStatus(period.id));
-		} catch (error) {
-			if (error instanceof DomainError) {
-				return reject(error.message);
-			}
-			throw error;
+		const canDelete = period.deletable(await this.periodRepository.countSheetsByStatus(period.id));
+		if (!canDelete.ok) {
+			return canDelete;
 		}
 
 		if (!(await this.periodRepository.delete(period.id))) {
-			return reject("評価期間を削除できませんでした。");
+			return err({ kind: "deleteFailed" });
 		}
 		outputPort.present({
 			success: true,
 			message: `評価期間「${period.periodName}」を削除しました。`,
 		});
+		return ok(undefined);
 	}
 }

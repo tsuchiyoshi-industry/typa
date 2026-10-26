@@ -54,15 +54,12 @@ function setup(testCase: (typeof cases)[number], goalScore = 4, commonScore = 4)
 		primaryEvaluatorName: "一次",
 		secondaryEvaluatorName: "二次",
 		objectives: [
-			milestone().withScoreUpdates({
-				firstScore: first ? goalScore : 0,
-				secondScore: first ? 0 : goalScore,
-			}),
+			milestone({ firstScore: first ? goalScore : 0, secondScore: first ? 0 : goalScore }),
 		],
 		commonEvaluationResults: [
 			first
-				? commonResult().withFirstUpdate(commonScore, "")
-				: commonResult().withFirstUpdate(0, "").withSecondUpdate(commonScore),
+				? commonResult({ firstScore: commonScore, firstComment: "" })
+				: commonResult({ firstScore: 0, firstComment: "", secondScore: commonScore }),
 		],
 		status: testCase.status,
 	});
@@ -84,8 +81,10 @@ describe.each(cases)("$label", (testCase) => {
 		"rejects unset goal/common %s/%s before any write or notification",
 		async (goal, common, missing) => {
 			const { sheets, notifications, request, useCase, out } = setup(testCase, goal, common);
-			await expect(useCase.execute(request, out)).rejects.toThrow(missing);
-			expect(sheets.updateScoreTotals).not.toHaveBeenCalled();
+			expect(await useCase.execute(request, out)).toMatchObject({
+				ok: false,
+				error: { kind: "evaluationIncomplete", stage: testCase.stage, pending: [missing] },
+			});
 			expect(sheets.updateStatus).not.toHaveBeenCalled();
 			expect(notifications.notifySheetStatusChanged).not.toHaveBeenCalled();
 			expect(out.present).not.toHaveBeenCalled();
@@ -93,9 +92,14 @@ describe.each(cases)("$label", (testCase) => {
 	);
 	it("reports all missing items together", async () => {
 		const { request, useCase, out } = setup(testCase, 0, 0);
-		await expect(useCase.execute(request, out)).rejects.toThrow(
-			/2 件.*\n・チャレンジ目標 1\n・共通評価「共通項目」/,
-		);
+		expect(await useCase.execute(request, out)).toMatchObject({
+			ok: false,
+			error: {
+				kind: "evaluationIncomplete",
+				stage: testCase.stage,
+				pending: ["チャレンジ目標 1", "共通評価「共通項目」"],
+			},
+		});
 	});
 	it("accepts complete own scores without requiring the other evaluator's scores or comments", async () => {
 		const { sheets, request, useCase, out } = setup(testCase, 1, 1);
@@ -128,7 +132,7 @@ it("checks every saved goal including the second one", () => {
 		...current,
 		objectives: [
 			...current.objectives,
-			Milestone.create({
+			Milestone.restore({
 				id: 12,
 				sheetId: 100,
 				goalNumber: 2,

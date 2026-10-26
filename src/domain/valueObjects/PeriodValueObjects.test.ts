@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { DomainError } from "../DomainError";
+import { describePeriodError } from "../entities/PeriodError";
+import { expectOk } from "../Result";
 import { CalendarDate } from "./CalendarDate";
 import { DateRange } from "./DateRange";
 import { PeriodDivision } from "./PeriodDivision";
@@ -8,7 +9,9 @@ import { PeriodState } from "./PeriodState";
 import { SheetCountsByStatus } from "./SheetCountsByStatus";
 import { TermName } from "./TermName";
 
-const date = CalendarDate.parse;
+const date = (value: string) => expectOk(CalendarDate.parse(value), describePeriodError);
+const termName = (value: string) => expectOk(TermName.from(value), describePeriodError);
+const division = (value: string) => expectOk(PeriodDivision.from(value), describePeriodError);
 
 describe("CalendarDate", () => {
 	it.each(["2026-04-01", "2028-02-29", "2026-12-31", "1900-01-01", "9999-12-31"])(
@@ -29,8 +32,10 @@ describe("CalendarDate", () => {
 		["letters", "abcd-ef-gh"],
 		["a year before 1900", "1899-12-31"],
 	])("rejects %s (%s)", (_label, value) => {
-		expect(() => date(value)).toThrow(DomainError);
-		expect(() => date(value)).toThrow("日付は実在する日を YYYY-MM-DD で入力してください。");
+		expect(CalendarDate.parse(value)).toMatchObject({
+			ok: false,
+			error: { kind: "dateInvalid" },
+		});
 	});
 
 	it.each([
@@ -62,7 +67,7 @@ describe("CalendarDate", () => {
 	it("orders dates by the calendar, not by the text", () => {
 		expect(date("2026-04-01").isBefore(date("2026-04-02"))).toBe(true);
 		expect(date("2026-12-31").isBefore(date("2027-01-01"))).toBe(true);
-		expect(date("2027-01-01").isAfter(date("2026-12-31"))).toBe(true);
+		expect(date("2027-01-01").isBefore(date("2026-12-31"))).toBe(false);
 		expect(date("2026-04-01").isBefore(date("2026-04-01"))).toBe(false);
 		expect(date("2026-04-01").equals(date("2026-04-01"))).toBe(true);
 		expect(date("2026-04-01").compare(date("2026-03-31"))).toBe(1);
@@ -72,38 +77,60 @@ describe("CalendarDate", () => {
 
 describe("DateRange", () => {
 	it("allows a single day and rejects an end before the start", () => {
-		expect(DateRange.of(date("2026-04-01"), date("2026-04-01")).end.toString()).toBe("2026-04-01");
-		expect(() => DateRange.of(date("2026-04-02"), date("2026-04-01"))).toThrow(
-			"終了日は開始日以降の日付にしてください。",
-		);
+		expect(
+			expectOk(
+				DateRange.of(date("2026-04-01"), date("2026-04-01")),
+				describePeriodError,
+			).end.toString(),
+		).toBe("2026-04-01");
+		expect(DateRange.of(date("2026-04-02"), date("2026-04-01"))).toMatchObject({
+			ok: false,
+			error: { kind: "rangeReversed" },
+		});
 	});
 
 	it("ends before another only when not a single day overlaps", () => {
-		const firstHalf = DateRange.of(date("2026-04-01"), date("2026-09-30"));
-		const secondHalf = DateRange.of(date("2026-10-01"), date("2027-03-31"));
-		const overlapping = DateRange.of(date("2026-09-30"), date("2027-03-31"));
+		const firstHalf = expectOk(
+			DateRange.of(date("2026-04-01"), date("2026-09-30")),
+			describePeriodError,
+		);
+		const secondHalf = expectOk(
+			DateRange.of(date("2026-10-01"), date("2027-03-31")),
+			describePeriodError,
+		);
+		const overlapping = expectOk(
+			DateRange.of(date("2026-09-30"), date("2027-03-31")),
+			describePeriodError,
+		);
 		expect(firstHalf.endsBefore(secondHalf)).toBe(true);
 		expect(secondHalf.endsBefore(firstHalf)).toBe(false);
 		expect(firstHalf.endsBefore(overlapping)).toBe(false);
 		expect(firstHalf.endsBefore(firstHalf)).toBe(false);
-		expect(firstHalf.equals(DateRange.of(date("2026-04-01"), date("2026-09-30")))).toBe(true);
+		expect(
+			firstHalf.equals(
+				expectOk(DateRange.of(date("2026-04-01"), date("2026-09-30")), describePeriodError),
+			),
+		).toBe(true);
 	});
 });
 
 describe("TermName", () => {
 	it("trims the name and compares by value", () => {
-		expect(TermName.from("  26期 ").toString()).toBe("26期");
-		expect(TermName.from("26期").equals(TermName.from(" 26期"))).toBe(true);
-		expect(TermName.from("26期").equals(TermName.from("27期"))).toBe(false);
+		expect(termName("  26期 ").toString()).toBe("26期");
+		expect(termName("26期").equals(termName(" 26期"))).toBe(true);
+		expect(termName("26期").equals(termName("27期"))).toBe(false);
 	});
 
 	it.each(["", "   ", "\t"])("rejects a blank name %j", (value) => {
-		expect(() => TermName.from(value)).toThrow("期の名前を入力してください。");
+		expect(TermName.from(value)).toMatchObject({ ok: false, error: { kind: "termNameMissing" } });
 	});
 
 	it("rejects a name longer than 40 characters", () => {
-		expect(TermName.from("期".repeat(40)).toString()).toHaveLength(40);
-		expect(() => TermName.from("期".repeat(41))).toThrow("40 文字以内");
+		expect(termName("期".repeat(40)).toString()).toHaveLength(40);
+		expect(TermName.from("期".repeat(41))).toMatchObject({
+			ok: false,
+			error: { kind: "termNameTooLong", max: 40 },
+		});
 	});
 });
 
@@ -120,15 +147,18 @@ describe("PeriodDivision and PeriodPart", () => {
 			["half", 2, 6],
 			["quarter", 4, 3],
 		]);
-		expect(PeriodDivision.from("half")).toBe(PeriodDivision.HALF);
+		expect(division("half")).toBe(PeriodDivision.HALF);
 	});
 
 	it.each(["", "monthly", "HALF", "full "])("rejects unknown division %j", (value) => {
-		expect(() => PeriodDivision.from(value)).toThrow(DomainError);
+		expect(PeriodDivision.from(value)).toMatchObject({
+			ok: false,
+			error: { kind: "divisionUnknown" },
+		});
 	});
 
 	it("names each part the way the company says it", () => {
-		const term = TermName.from("26期");
+		const term = termName("26期");
 		expect(PeriodPart.of(PeriodDivision.FULL, 1).nameIn(term)).toBe("26期");
 		expect(PeriodPart.WHOLE_TERM.nameIn(term)).toBe("26期");
 		expect([1, 2].map((n) => PeriodPart.of(PeriodDivision.HALF, n).nameIn(term))).toEqual([
@@ -150,7 +180,7 @@ describe("PeriodDivision and PeriodPart", () => {
 		[PeriodDivision.QUARTER, 5],
 		[PeriodDivision.QUARTER, 1.5],
 	])("rejects a part the division does not have (%s, %d)", (division, number) => {
-		expect(() => PeriodPart.of(division, number)).toThrow(DomainError);
+		expect(() => PeriodPart.of(division, number)).toThrow();
 	});
 
 	it("compares parts by division and number", () => {
@@ -178,7 +208,9 @@ describe("PeriodState", () => {
 			["active", "実施中"],
 			["closed", "締め済み"],
 		]);
-		expect(() => PeriodState.of(true, true)).toThrow(DomainError);
+		expect(() => PeriodState.of(true, true)).toThrow(
+			"実施中の評価期間は、締め済みにはなりません。",
+		);
 	});
 });
 

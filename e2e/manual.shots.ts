@@ -61,7 +61,7 @@ async function menu(page: Page, name: string) {
 	await page.getByRole("link", { name }).click();
 }
 
-/** 本人がシートを作り、目標を書いて提出する。 */
+/** 本人がシートを作り、目標を書いて送信する。 */
 async function writeSheet(
 	page: Page,
 	goal: { challenge: string; task: string; achievement: string },
@@ -142,7 +142,7 @@ test("manual screenshots", async ({ page }) => {
 		await shot(page, "user", "03-register-code");
 	});
 
-	await test.step("利用者(二次評価者なし): 作成・提出", async () => {
+	await test.step("利用者(二次評価者なし): 作成・送信", async () => {
 		await signIn(page, "RELEASE006");
 		await page.getByRole("link", { name: "新規作成" }).click();
 		await page.getByRole("button", { name: "評価シートを作成" }).click();
@@ -156,7 +156,7 @@ test("manual screenshots", async ({ page }) => {
 		await signOut(page);
 	});
 
-	await test.step("利用者: 作成・記入・提出", async () => {
+	await test.step("利用者: 作成・記入・送信", async () => {
 		await signIn(page, "RELEASE004");
 		await expect(page.getByRole("heading", { name: "評価シート一覧" })).toBeVisible();
 		await expect(page.getByText("自分の評価シートはまだありません")).toBeVisible();

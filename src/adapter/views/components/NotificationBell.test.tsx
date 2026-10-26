@@ -16,7 +16,7 @@ afterEach(() => {
 
 const item = (overrides: Partial<InboxItem> = {}): InboxItem => ({
 	id: 7,
-	title: "山田 太郎さんの評価シートが提出されました",
+	title: "山田 太郎さんの一次評価の依頼が届きました",
 	detail: "一次評価をお願いします（2026年度 上期）",
 	href: "/sheet/100",
 	createdAt: "2026-10-23T05:00:00Z",
@@ -68,7 +68,7 @@ it("lists each request with whether it was read and when it came", async () => {
 	const list = view.getByRole("region", { name: "通知" });
 	const links = within(list).getAllByRole("link");
 	expect(links).toHaveLength(2);
-	expect(links[0].textContent).toContain("山田 太郎さんの評価シートが提出されました");
+	expect(links[0].textContent).toContain("山田 太郎さんの一次評価の依頼が届きました");
 	expect(links[0].textContent).toContain("一次評価をお願いします（2026年度 上期）");
 	expect(links[0].textContent).toContain("未読");
 	expect(links[0].textContent).toContain(formatDateTime("2026-10-23T05:00:00Z"));

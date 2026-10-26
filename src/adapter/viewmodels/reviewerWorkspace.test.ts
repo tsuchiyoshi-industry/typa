@@ -15,7 +15,7 @@ const submittedToPrimary = { status: "submitted", isPrimary: true, firstRank: nu
 it("labels each stage from the reviewer's point of view", () => {
 	const cases = [
 		[reviewerRow(1, { sheetId: null, status: "missing" }), "未作成"],
-		[reviewerRow(1, { status: "draft" }), "提出待ち"],
+		[reviewerRow(1, { status: "draft" }), "目標の送信待ち"],
 		[reviewerRow(1, submittedToPrimary), "一次評価する"],
 		[reviewerRow(1, { ...submittedToPrimary, primaryIsFinal: true }), "評価する"],
 		[reviewerRow(1, { status: "submitted" }), "一次評価待ち"],
@@ -119,7 +119,7 @@ it("counts only the stages the reviewer takes part in", () => {
 	expect(reviewStats(secondOnly)).toEqual([
 		["all", "全員", 3],
 		["second", "二次評価する", 1],
-		["waiting", "提出・相手の評価待ち", 1],
+		["waiting", "本人・相手の評価待ち", 1],
 		["finalized", "最終評価済み", 1],
 	]);
 	const firstOnly = [reviewerRow(1, { ...submittedToPrimary, canViewSecond: false })];

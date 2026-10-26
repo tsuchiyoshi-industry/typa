@@ -21,7 +21,7 @@ describe("authorization matrix", () => {
 			(id) => {
 				const policy = EvaluationSheetAccessPolicy.for(id, sheet(status));
 				const draft = status === EvaluationStatus.DRAFT;
-				// 一次評価は提出済みの間だけ、二次評価は一次評価の確定後だけ
+				// 一次評価は一次評価待ちの間だけ、二次評価は一次評価の確定後だけ
 				const firstStage = status === EvaluationStatus.SUBMITTED;
 				const secondStage = status === EvaluationStatus.FIRST_EVALUATED;
 				// 下書きは評価者に見せない
@@ -85,8 +85,8 @@ describe("authorization matrix", () => {
 				expect(closed.canReturnGoalsToDraft()).toBe(false);
 				expect(closed.canConfirmFirstEvaluation()).toBe(false);
 				expect(closed.canFinalizeEvaluation()).toBe(false);
-				expect(() => closed.assertPeriodOpen()).toThrow("この評価期間は締められているため");
-				expect(() => open.assertPeriodOpen()).not.toThrow();
+				expect(closed.periodOpen()).toEqual({ ok: false, error: { kind: "periodClosed" } });
+				expect(open.periodOpen().ok).toBe(true);
 				// 締めた下書きはもう変わらないので、評価者も読める。ほかの見られる範囲は変わらない
 				const closedDraftForEvaluator = status === EvaluationStatus.DRAFT && id !== 1;
 				expect(closed.canViewSheet()).toBe(open.canViewSheet() || closedDraftForEvaluator);

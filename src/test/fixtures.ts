@@ -49,8 +49,8 @@ export const profile = (role = "Employee", id = 1, registered = true) =>
 		false,
 		registered,
 	);
-export const milestone = () =>
-	Milestone.create({
+export const milestone = (scores: { firstScore?: number; secondScore?: number } = {}) =>
+	Milestone.restore({
 		id: 11,
 		sheetId: 100,
 		goalNumber: 1,
@@ -58,8 +58,11 @@ export const milestone = () =>
 		periodGoals: [{ description: "手順を見直す", achievement: "達成" }],
 		firstScore: 2,
 		secondScore: 4,
+		...scores,
 	});
-export const commonResult = () =>
+export const commonResult = (
+	values: { firstScore?: number; secondScore?: number; firstComment?: string } = {},
+) =>
 	CommonEvaluationResult.create({
 		id: 21,
 		sheetId: 100,
@@ -69,6 +72,7 @@ export const commonResult = () =>
 		secondScore: 4,
 		firstComment: "一次コメント",
 		item: new CommonEvaluationItem(31, "共通項目", "説明", 5, 5),
+		...values,
 	});
 /** gradeId: シート作成時の等級。省略すると社員の今の等級(5)。periodClosed: 締めた評価期間のシート。 */
 export const sheet = (
@@ -99,9 +103,6 @@ export function sheetRepository() {
 	return {
 		findById: vi.fn<EvaluationSheetRepository["findById"]>().mockResolvedValue(sheet()),
 		createOrGetSheet: vi.fn<EvaluationSheetRepository["createOrGetSheet"]>().mockResolvedValue(100),
-		updateScoreTotals: vi
-			.fn<EvaluationSheetRepository["updateScoreTotals"]>()
-			.mockResolvedValue(undefined),
 		updateOverallComment: vi
 			.fn<EvaluationSheetRepository["updateOverallComment"]>()
 			.mockResolvedValue(sheet()),

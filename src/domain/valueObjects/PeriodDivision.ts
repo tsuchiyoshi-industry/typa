@@ -1,4 +1,5 @@
-import { DomainError } from "../DomainError";
+import type { PeriodError } from "../entities/PeriodError";
+import { err, ok, type Result } from "../Result";
 
 /** DB にはこの文字列で保存する。 */
 export const PERIOD_DIVISION_VALUES = ["full", "half", "quarter"] as const;
@@ -31,13 +32,10 @@ export class PeriodDivision {
 		PeriodDivision.QUARTER,
 	];
 
-	/** 知らない値は例外(勝手に通年として扱わない)。 */
-	static from(value: string): PeriodDivision {
+	/** 知らない値は失敗(勝手に通年として扱わない)。 */
+	static from(value: string): Result<PeriodDivision, PeriodError> {
 		const division = PeriodDivision.ALL.find((candidate) => candidate.value === value);
-		if (!division) {
-			throw new DomainError("評価期間の区切りは、通年・半期・四半期から選んでください。");
-		}
-		return division;
+		return division ? ok(division) : err({ kind: "divisionUnknown" });
 	}
 
 	/** 1つの期を、いくつの評価期間に分けるか。 */
@@ -50,10 +48,13 @@ export class PeriodDivision {
 		return 12 / this.parts;
 	}
 
-	/** part 番目(1 から)の区切りの呼び方。範囲外は例外。 */
+	/**
+	 * part 番目(1 から)の区切りの呼び方。part は区切った順番か保存値で、利用者の入力ではない。
+	 * 範囲外はデータの不整合なので例外。
+	 */
 	partLabel(part: number): string {
 		if (!Number.isInteger(part) || part < 1 || part > this.parts) {
-			throw new DomainError(`${this.label}の区切りは 1〜${this.parts} 番目です。`);
+			throw new Error(`${this.label}の区切りは 1〜${this.parts} 番目です。`);
 		}
 		return this.partLabels[part - 1];
 	}

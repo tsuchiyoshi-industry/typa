@@ -1,4 +1,6 @@
+import { expectOk } from "../Result";
 import { CorrectionField, type CorrectionStage } from "../valueObjects/CorrectionField";
+import { describeCorrectionError } from "./CorrectionError";
 
 /**
  * 締め後修正(遡及処理)の記録。評価期間を締めた後に、Admin がシートの項目を直したこと。
@@ -32,7 +34,7 @@ export class SheetCorrection {
 	}): SheetCorrection {
 		return new SheetCorrection(
 			params.id,
-			CorrectionField.of(params.target, params.field),
+			expectOk(CorrectionField.of(params.target, params.field), describeCorrectionError),
 			params.goalNumber ?? null,
 			params.itemTitle ?? null,
 			params.before,

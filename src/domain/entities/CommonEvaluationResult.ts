@@ -32,28 +32,4 @@ export class CommonEvaluationResult {
 			params.item,
 		);
 	}
-
-	withFirstUpdate(score: number, comment: string): CommonEvaluationResult {
-		return new CommonEvaluationResult(
-			this.id,
-			this.sheetId,
-			this.itemId,
-			Score.from(score),
-			this.secondScore,
-			Comment.from(comment),
-			this.item,
-		);
-	}
-
-	withSecondUpdate(score: number): CommonEvaluationResult {
-		return new CommonEvaluationResult(
-			this.id,
-			this.sheetId,
-			this.itemId,
-			this.firstScore,
-			Score.from(score),
-			this.firstComment,
-			this.item,
-		);
-	}
 }

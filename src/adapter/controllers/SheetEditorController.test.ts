@@ -83,7 +83,7 @@ it("takes permissions from the sheet it shows, and drops them while another shee
 	await Promise.resolve();
 	expect(presenter.viewModel().canEditSecond).toBe(false);
 	expect(presenter.viewModel().canFinalizeEvaluation).toBe(false);
-	// 提出済みのシートでは、二次評価者はまだ入力できない
+	// 一次評価待ちのシートでは、二次評価者はまだ入力できない
 	present?.();
 	await pending;
 	expect(presenter.viewModel().sheet?.sheetId).toBe(102);

@@ -1,8 +1,13 @@
 import { messageOf } from "../../application/errorMessage";
-import type { CarryOverGoalInteractor } from "../../application/usecases/CarryOverGoalInteractor";
+import {
+	type CarryOverGoalInteractor,
+	describeCarryOverGoalError,
+} from "../../application/usecases/CarryOverGoalInteractor";
+import { describeSheetEditError } from "../../application/usecases/SheetEditError";
 import type {
 	UpdateMilestoneInteractor,
 	UpdateMilestoneOutputPort,
+	UpdateMilestoneRequest,
 } from "../../application/usecases/UpdateMilestoneInteractor";
 import type { EmployeeRepository } from "../../domain/repositories/EmployeeRepository";
 import type {
@@ -36,10 +41,13 @@ export class ChallengeEvaluationController {
 		}
 		let goalNumber: number | null = null;
 		try {
-			await this.carryOverGoalUseCase.execute(
+			const result = await this.carryOverGoalUseCase.execute(
 				{ sheetId, currentEmployeeId, previousGoalId },
 				{ present: (response) => (goalNumber = response.goalNumber) },
 			);
+			if (!result.ok) {
+				return { error: describeCarryOverGoalError(result.error) };
+			}
 		} catch (error) {
 			return { error: messageOf(error, "前期の目標を引き継げませんでした。") };
 		}
@@ -60,35 +68,42 @@ export class ChallengeEvaluationController {
 		return requireCurrentEmployeeId(this.employeeRepository, this.presentUpdateError);
 	}
 
-	async updateText(
+	/** 目標への操作を1つ行う。失敗の理由は画面に出し、false を返す。 */
+	private async run(
+		request: DistributiveOmit<UpdateMilestoneRequest, "currentEmployeeId">,
+		failure: string,
+	): Promise<boolean> {
+		const currentEmployeeId = await this.requireCurrentEmployeeId();
+		if (currentEmployeeId === null) {
+			return false;
+		}
+		try {
+			const result = await this.updateMilestoneUseCase.execute(
+				{ ...request, currentEmployeeId } as UpdateMilestoneRequest,
+				this.outputPort,
+			);
+			if (!result.ok) {
+				this.presentUpdateError(describeSheetEditError(result.error));
+				return false;
+			}
+			return true;
+		} catch (error) {
+			this.presentUpdateError(messageOf(error, failure));
+			return false;
+		}
+	}
+
+	updateText(
 		sheetId: number,
 		milestoneId: number,
 		challengeGoal: string,
 		periodGoals: readonly PeriodGoal[],
 		achievement: string,
 	): Promise<boolean> {
-		const currentEmployeeId = await this.requireCurrentEmployeeId();
-		if (currentEmployeeId === null) {
-			return false;
-		}
-
-		try {
-			await this.updateMilestoneUseCase.execute(
-				{
-					sheetId,
-					currentEmployeeId,
-					milestoneId,
-					challengeGoal,
-					periodGoals,
-					achievement,
-				},
-				this.outputPort,
-			);
-			return true;
-		} catch (error) {
-			this.presentUpdateError(messageOf(error, "更新に失敗しました"));
-			return false;
-		}
+		return this.run(
+			{ action: "text", sheetId, milestoneId, challengeGoal, periodGoals, achievement },
+			"更新に失敗しました",
+		);
 	}
 
 	async upsertText(
@@ -102,74 +117,27 @@ export class ChallengeEvaluationController {
 			this.presentUpdateError("評価シートIDを取得できないため、目標を保存できません。");
 			return false;
 		}
-
-		const currentEmployeeId = await this.requireCurrentEmployeeId();
-		if (currentEmployeeId === null) {
-			return false;
-		}
-
-		try {
-			await this.updateMilestoneUseCase.execute(
-				{
-					sheetId,
-					currentEmployeeId,
-					goalNumber,
-					challengeGoal,
-					periodGoals,
-					achievement,
-				},
-				this.outputPort,
-			);
-			return true;
-		} catch (error) {
-			this.presentUpdateError(messageOf(error, "更新に失敗しました"));
-			return false;
-		}
+		return this.run(
+			{ action: "upsertText", sheetId, goalNumber, challengeGoal, periodGoals, achievement },
+			"更新に失敗しました",
+		);
 	}
 
-	async delete(sheetId: number, milestoneId: number): Promise<boolean> {
-		const currentEmployeeId = await this.requireCurrentEmployeeId();
-		if (currentEmployeeId === null) {
-			return false;
-		}
-		try {
-			await this.updateMilestoneUseCase.execute(
-				{ sheetId, currentEmployeeId, milestoneId, delete: true },
-				this.outputPort,
-			);
-			return true;
-		} catch (error) {
-			this.presentUpdateError(messageOf(error, "削除に失敗しました"));
-			return false;
-		}
+	delete(sheetId: number, milestoneId: number): Promise<boolean> {
+		return this.run({ action: "delete", sheetId, milestoneId }, "削除に失敗しました");
 	}
 
-	async updateScore(
+	updateScore(
 		sheetId: number,
 		milestoneId: number,
 		firstScore?: number,
 		secondScore?: number,
 	): Promise<boolean> {
-		const currentEmployeeId = await this.requireCurrentEmployeeId();
-		if (currentEmployeeId === null) {
-			return false;
-		}
-
-		try {
-			await this.updateMilestoneUseCase.execute(
-				{
-					sheetId,
-					currentEmployeeId,
-					milestoneId,
-					firstScore,
-					secondScore,
-				},
-				this.outputPort,
-			);
-			return true;
-		} catch (error) {
-			this.presentUpdateError(messageOf(error, "更新に失敗しました"));
-			return false;
-		}
+		return this.run(
+			{ action: "score", sheetId, milestoneId, firstScore, secondScore },
+			"更新に失敗しました",
+		);
 	}
 }
+
+type DistributiveOmit<T, K extends keyof T> = T extends unknown ? Omit<T, K> : never;

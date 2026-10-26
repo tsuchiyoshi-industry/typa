@@ -19,10 +19,15 @@ import type {
 	UpdateEvaluationStatusInteractor,
 	UpdateEvaluationStatusOutputPort,
 } from "../../application/usecases/UpdateEvaluationStatusInteractor";
+import {
+	describeResendNotificationError,
+	describeUpdateEvaluationStatusError,
+} from "../../application/usecases/UpdateEvaluationStatusInteractor";
 import type {
 	UpdateOverallCommentInteractor,
 	UpdateOverallCommentOutputPort,
 } from "../../application/usecases/UpdateOverallCommentInteractor";
+import { describeUpdateOverallCommentError } from "../../application/usecases/UpdateOverallCommentInteractor";
 import type { EmployeeRepository } from "../../domain/repositories/EmployeeRepository";
 import type { EvaluationStatus } from "../../domain/valueObjects/EvaluationStatus";
 import type { SheetEditorViewModel } from "../presenters/SheetEditorPresenter";
@@ -141,7 +146,7 @@ export class SheetEditorController {
 
 		this.presenter.beginOverallCommentUpdate();
 		try {
-			await this.updateOverallCommentUseCase.execute(
+			const result = await this.updateOverallCommentUseCase.execute(
 				{
 					sheetId: sheet.sheetId,
 					target,
@@ -150,6 +155,12 @@ export class SheetEditorController {
 				},
 				this.presenter.outputPort.overallComment,
 			);
+			if (!result.ok) {
+				this.presenter.presentOverallCommentUpdateError(
+					describeUpdateOverallCommentError(result.error),
+				);
+				return false;
+			}
 			return true;
 		} catch (error) {
 			this.presenter.presentOverallCommentUpdateError(messageOf(error, "総評の保存に失敗しました"));
@@ -176,7 +187,7 @@ export class SheetEditorController {
 
 		this.presenter.beginStatusUpdate();
 		try {
-			await this.updateStatusUseCase.execute(
+			const result = await this.updateStatusUseCase.execute(
 				{
 					sheetId: sheet.sheetId,
 					status,
@@ -185,6 +196,10 @@ export class SheetEditorController {
 				},
 				this.presenter.outputPort.status,
 			);
+			if (!result.ok) {
+				this.presenter.presentStatusUpdateError(describeUpdateEvaluationStatusError(result.error));
+				return false;
+			}
 			return true;
 		} catch (error) {
 			this.presenter.presentStatusUpdateError(messageOf(error, "ステータスの変更に失敗しました"));
@@ -201,9 +216,14 @@ export class SheetEditorController {
 		if (current === null) {
 			return;
 		}
-		await this.updateStatusUseCase.resendNotification(sheet.sheetId, current, (delivery) =>
-			this.presenter.outputPort.status.presentNotificationDelivery?.(delivery),
+		const result = await this.updateStatusUseCase.resendNotification(
+			sheet.sheetId,
+			current,
+			(delivery) => this.presenter.outputPort.status.presentNotificationDelivery?.(delivery),
 		);
+		if (!result.ok) {
+			this.presenter.presentStatusUpdateError(describeResendNotificationError(result.error));
+		}
 	}
 
 	async createSheet(): Promise<number | null> {

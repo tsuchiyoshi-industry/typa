@@ -1,30 +1,19 @@
 import { describe, expect, it } from "vitest";
 import { toSheetExportDataDto } from "../../application/dtos/ExportSheetMapper";
-import {
-	commonRepository,
-	commonResult,
-	employee,
-	milestone,
-	milestoneRepository,
-	period,
-	sheetRepository,
-} from "../../test/fixtures";
+import { commonResult, employee, milestone, period } from "../../test/fixtures";
 import { reviewerRow } from "../../test/reviewerFixture";
 import { CommonEvaluationItem } from "../entities/CommonEvaluationItem";
 import { CommonEvaluationResult } from "../entities/CommonEvaluationResult";
 import { EvaluationSheet } from "../entities/EvaluationSheet";
 import { Milestone } from "../entities/Milestone";
 import { reviewScore } from "../entities/ReviewerWorkspace";
-import { EvaluationScoreUpdateService } from "../services/EvaluationScoreUpdateService";
 import { EvaluationAllocatedScores } from "./EvaluationAllocatedScores";
 import { EvaluationAllocation } from "./EvaluationAllocation";
 import { EvaluationScoreTotals } from "./EvaluationScoreTotals";
 
 const calculate = (scores: number[], allocation = EvaluationAllocation.DEFAULT) =>
 	EvaluationAllocatedScores.fromTotals(
-		EvaluationScoreTotals.fromObjectives(
-			scores.map((score) => milestone().withScoreUpdates({ secondScore: score })),
-		),
+		EvaluationScoreTotals.fromObjectives(scores.map((score) => milestone({ secondScore: score }))),
 		EvaluationScoreTotals.fromCommonEvaluationResults([commonResult()]),
 		false,
 		allocation,
@@ -71,7 +60,7 @@ describe("configurable allocation", () => {
 		expect(
 			EvaluationAllocatedScores.fromTotals(
 				restored,
-				EvaluationScoreTotals.zero(),
+				EvaluationScoreTotals.fromValues({}),
 				false,
 				allocation,
 			).objectiveEvaluationScore,
@@ -92,7 +81,7 @@ describe("configurable allocation", () => {
 		const totals = EvaluationScoreTotals.fromCommonEvaluationResults(results);
 		expect(
 			EvaluationAllocatedScores.fromTotals(
-				EvaluationScoreTotals.zero(),
+				EvaluationScoreTotals.fromValues({}),
 				totals,
 				false,
 				EvaluationAllocation.of(35, 65),
@@ -100,7 +89,7 @@ describe("configurable allocation", () => {
 		).toBe(65);
 		expect(
 			EvaluationAllocatedScores.fromTotals(
-				EvaluationScoreTotals.zero(),
+				EvaluationScoreTotals.fromValues({}),
 				totals,
 				true,
 				EvaluationAllocation.of(35, 65),
@@ -122,8 +111,11 @@ describe("configurable allocation", () => {
 				),
 			);
 		const allocated = (totals: EvaluationScoreTotals, primaryIsFinal: boolean) =>
-			EvaluationAllocatedScores.fromTotals(EvaluationScoreTotals.zero(), totals, primaryIsFinal)
-				.commonEvaluationEvaluationScore;
+			EvaluationAllocatedScores.fromTotals(
+				EvaluationScoreTotals.fromValues({}),
+				totals,
+				primaryIsFinal,
+			).commonEvaluationEvaluationScore;
 		// 配点 1 の項目を 4 と評価すれば 4 点。10 個すべて 4 なら 40 / 40 で、共通評価の配点 80 点を満額
 		const ten = ratings([4, 4, 4, 3, 3, 3, 2, 2, 1, 0]);
 		expect(ten).toMatchObject({ firstTotalScore: 26, firstTotalRate: 65, secondTotalScore: 40 });
@@ -177,31 +169,23 @@ describe("configurable allocation", () => {
 		expect(reviewScore(row, "second")).toBe(calculate([2, 3], allocation).totalEvaluationScore);
 		expect(reviewScore(row, "second")).toBe(88);
 	});
-	it("uses settings in goal updates and common updates", async () => {
+	it("uses the configured allocation for a sheet's scores", () => {
 		const allocation = EvaluationAllocation.of(35, 65);
-		const sheets = sheetRepository();
-		sheets.findById.mockResolvedValue(
-			EvaluationSheet.create({
-				sheetId: 100,
-				subject: employee(),
-				evaluationPeriod: period(),
-				primaryEvaluatorName: "一次",
-				secondaryEvaluatorName: "二次",
-				objectives: [milestone()],
-				commonEvaluationResults: [commonResult()],
-				allocation,
-			}),
-		);
-		const common = commonRepository();
-		const service = new EvaluationScoreUpdateService(sheets, milestoneRepository(), common);
-		const saved = await service.updateObjectiveScore(100, 11, undefined, 4);
-		await service.upsertCommonEvaluationResults(100, [], false, true);
+		const saved = EvaluationSheet.create({
+			sheetId: 100,
+			subject: employee(),
+			evaluationPeriod: period(),
+			primaryEvaluatorName: "一次",
+			secondaryEvaluatorName: "二次",
+			objectives: [milestone()],
+			commonEvaluationResults: [commonResult()],
+			allocation,
+		});
 		expect(saved.allocatedScores).toMatchObject({
 			objectiveAllocationScore: 35,
 			commonEvaluationAllocationScore: 65,
 			totalEvaluationScore: 100,
 		});
-		expect(sheets.updateScoreTotals).not.toHaveBeenCalled();
 	});
 });
 it("rounds an exact half point up even when dividing first would fall just short of it", () => {
@@ -222,7 +206,7 @@ it.each([
 	async ({ scores, allocation: objectiveAllocation, rate, points }) => {
 		const allocation = EvaluationAllocation.of(objectiveAllocation, 100 - objectiveAllocation);
 		const objectives = scores.map((score, index) =>
-			Milestone.create({
+			Milestone.restore({
 				id: 11 + index,
 				sheetId: 100,
 				goalNumber: index + 1,
@@ -244,7 +228,7 @@ it.each([
 			expect(
 				EvaluationAllocatedScores.fromTotals(
 					totals,
-					EvaluationScoreTotals.zero(),
+					EvaluationScoreTotals.fromValues({}),
 					primaryIsFinal,
 					allocation,
 				).objectiveEvaluationScore,
@@ -276,26 +260,13 @@ it.each([
 		expect(reviewScore(row, "first")).toBe(current.firstEvaluationScore());
 		expect(reviewScore(row, "second")).toBe(current.allocatedScores.totalEvaluationScore);
 		expect(current.allocatedScores.totalEvaluationScore).toBe(points + allocation.common);
-		const sheets = sheetRepository();
-		sheets.findById.mockResolvedValue(current);
-		const saved = await new EvaluationScoreUpdateService(
-			sheets,
-			milestoneRepository(),
-			commonRepository(),
-		).updateObjectiveScore(
-			100,
-			objectives[objectives.length - 1].id,
-			undefined,
-			scores[scores.length - 1],
-		);
-		expect(sheets.updateScoreTotals).not.toHaveBeenCalled();
-		expect(saved.objectiveScoreTotals).toMatchObject({
+		expect(current.objectiveScoreTotals).toMatchObject({
 			firstTotalScore: sum,
 			secondTotalScore: sum,
 			firstTotalRate: rate,
 			secondTotalRate: rate,
 		});
-		expect(saved.allocatedScores).toMatchObject({
+		expect(current.allocatedScores).toMatchObject({
 			objectiveEvaluationScore: points,
 			totalEvaluationScore: points + allocation.common,
 		});

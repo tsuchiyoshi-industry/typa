@@ -121,7 +121,6 @@ export function reviewerEditorFixture(
 			totalEvaluationScore: finalScore(row),
 		},
 		status: EvaluationStatus.from(row.status).toString(),
-		isEditable: false,
 		pendingObjectiveFields: row.objectives
 			.filter((objective) => !objective.challengeGoal.trim())
 			.map((objective) => `目標 ${objective.goalNumber}：チャレンジ目標`),
@@ -137,7 +136,7 @@ export function reviewerEditorFixture(
 			canConfirmGoals: row.isPrimary && row.status === "goals_submitted",
 			canRequestFirstEvaluation: false,
 			canSubmitGoals: false,
-			canReturnGoalsToDraft: false,
+			canReturnGoalsToDraft: row.isPrimary && row.status === "goals_submitted",
 			canConfirmFirstEvaluation: canConfirmFirst(row),
 			canFinalizeEvaluation: canFinalize(row),
 		},

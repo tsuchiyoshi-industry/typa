@@ -108,7 +108,13 @@ export const PeriodGoalsEditor: Component<{
 						type="button"
 						class="secondary-action"
 						disabled={props.goals.length >= MAX_PERIOD_GOALS}
-						onClick={() => props.onChange(addPeriodGoal(props.goals, props.achievement))}
+						onClick={() => {
+							// 上限ではボタンを押せないので、失敗するのは画面の状態が古いときだけ。そのときは何もしない
+							const next = addPeriodGoal(props.goals, props.achievement);
+							if (next.ok) {
+								props.onChange(next.value);
+							}
+						}}
 					>
 						期中目標を追加
 					</button>

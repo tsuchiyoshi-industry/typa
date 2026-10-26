@@ -320,6 +320,34 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 		return success;
 	};
 
+	/**
+	 * その状態へ変えたときに知らせる相手(EvaluationStatus.handoff の to)と、通知メールを送るかの選択。
+	 * アプリ内通知は状態の変更と同時に必ず届くので、選べるのはメールのときだけ。初めは「送る」。
+	 */
+	const mailChoice = (status: EvaluationStatus) => {
+		let notify = true;
+		const to = status.handoff()?.to;
+		const recipient =
+			to &&
+			{
+				subject: `本人（${sheet()?.subject?.name ?? ""}）`,
+				primary: `一次評価者（${sheet()?.primaryEvaluator ?? "未設定"}）`,
+				secondary: `二次評価者（${sheet()?.secondaryEvaluator ?? "未設定"}）`,
+			}[to];
+		return {
+			checkbox:
+				sheet()?.notifiesByMail && recipient
+					? {
+							label: `${recipient}に通知メールを送る`,
+							onChange: (checked: boolean) => {
+								notify = checked;
+							},
+						}
+					: undefined,
+			notify: () => notify,
+		};
+	};
+
 	const ensureObjectiveFieldsComplete = () => {
 		const missing = sheet()?.pendingObjectiveFields ?? [];
 		if (missing.length === 0) {
@@ -327,7 +355,7 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 		}
 		const max = sheet()?.maxObjectives ?? 0;
 		void confirmAction({
-			title: "チャレンジ目標が空欄の目標は提出・確定できません",
+			title: "チャレンジ目標が空欄の目標は送信・確定できません",
 			message: `目標は1〜${max}件必要です。チャレンジ目標を入力して保存するか、不要なタブを削除してください。`,
 			details: missing,
 			confirmLabel: "閉じる",
@@ -344,24 +372,16 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 		if (!ensureNothingUnsaved()) {
 			return;
 		}
-		let notify = true;
+		const mail = mailChoice(EvaluationStatus.GOALS_SUBMITTED);
 		const confirmed = await confirmAction({
 			title: "目標を送信しますか？",
 			message:
 				"目標を一次評価者へ送信します。一次評価者が要修正として戻すか、目標を確定します。この時点では評価は始まりません。",
-			// アプリ内通知は、確定と同時に必ず届く。選べるのはメールのときだけ
-			checkbox: sheet()?.notifiesByMail
-				? {
-						label: `一次評価者（${sheet()?.primaryEvaluator ?? "未設定"}）に通知メールを送る`,
-						onChange: (checked) => {
-							notify = checked;
-						},
-					}
-				: undefined,
+			checkbox: mail.checkbox,
 			confirmLabel: "目標を送信する",
 		});
 		if (confirmed) {
-			await changeStatus(EvaluationStatus.GOALS_SUBMITTED, "目標を送信しました", notify);
+			await changeStatus(EvaluationStatus.GOALS_SUBMITTED, "目標を送信しました", mail.notify());
 		}
 	};
 
@@ -369,13 +389,15 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 		if (!ensureNothingUnsaved()) {
 			return;
 		}
+		const mail = mailChoice(EvaluationStatus.DRAFT);
 		const confirmed = await confirmAction({
 			title: "目標を要修正として戻しますか？",
 			message: "本人が目標を修正できる下書きへ戻します。本人は修正後にもう一度目標を送信します。",
+			checkbox: mail.checkbox,
 			confirmLabel: "要修正として戻す",
 		});
 		if (confirmed) {
-			if (await changeStatus(EvaluationStatus.DRAFT, "下書きに戻しました")) {
+			if (await changeStatus(EvaluationStatus.DRAFT, "下書きに戻しました", mail.notify())) {
 				if (props.embedded) {
 					props.onStageCompleted?.();
 				} else {
@@ -389,15 +411,19 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 		if (!ensureObjectiveFieldsComplete() || !ensureNothingUnsaved()) {
 			return;
 		}
+		const mail = mailChoice(EvaluationStatus.GOALS_CONFIRMED);
 		if (
 			await confirmAction({
 				title: "目標を確定しますか？",
 				message:
 					"目標の内容を固定し、本人が達成状況だけを記入できる状態にします。一次評価はまだ始まりません。",
+				checkbox: mail.checkbox,
 				confirmLabel: "目標を確定する",
 			})
 		) {
-			if (await changeStatus(EvaluationStatus.GOALS_CONFIRMED, "目標を確定しました")) {
+			if (
+				await changeStatus(EvaluationStatus.GOALS_CONFIRMED, "目標を確定しました", mail.notify())
+			) {
 				props.onStageCompleted?.();
 			}
 		}
@@ -406,15 +432,17 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 		if (!ensureNothingUnsaved()) {
 			return;
 		}
+		const mail = mailChoice(EvaluationStatus.SUBMITTED);
 		if (
 			await confirmAction({
 				title: "一次評価を依頼しますか？",
 				message:
-					"保存した達成状況を提出します。依頼後は本人による目標・達成状況の修正はできません。",
+					"保存した達成状況で一次評価を依頼します。依頼後は本人による目標・達成状況の修正はできません。",
+				checkbox: mail.checkbox,
 				confirmLabel: "一次評価を依頼する",
 			})
 		) {
-			await changeStatus(EvaluationStatus.SUBMITTED, "一次評価を依頼しました");
+			await changeStatus(EvaluationStatus.SUBMITTED, "一次評価を依頼しました", mail.notify());
 		}
 	};
 
@@ -425,26 +453,22 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 		if (!ensureNothingUnsaved() || !ensureEvaluationComplete()) {
 			return;
 		}
-		let notify = true;
+		const mail = mailChoice(EvaluationStatus.FIRST_EVALUATED);
 		const confirmed = await confirmAction({
 			title: "一次評価を確定しますか？",
 			message: `一次評価ランクは ${rankText(sheet()?.firstEvaluationRank)} です。確定すると一次評価は変更できなくなります。この操作は取り消せません。`,
 			note: nextNote(),
-			// アプリ内通知は、確定と同時に必ず届く。選べるのはメールのときだけ
-			checkbox: sheet()?.notifiesByMail
-				? {
-						label: `二次評価者（${sheet()?.secondaryEvaluator ?? "未設定"}）に通知メールを送る`,
-						onChange: (checked) => {
-							notify = checked;
-						},
-					}
-				: undefined,
+			checkbox: mail.checkbox,
 			confirmLabel: "一次評価を確定する",
 			tone: "danger",
 		});
 		if (
 			confirmed &&
-			(await changeStatus(EvaluationStatus.FIRST_EVALUATED, "一次評価を確定しました", notify))
+			(await changeStatus(
+				EvaluationStatus.FIRST_EVALUATED,
+				"一次評価を確定しました",
+				mail.notify(),
+			))
 		) {
 			props.onStageCompleted?.();
 		}

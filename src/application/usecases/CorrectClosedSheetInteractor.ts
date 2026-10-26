@@ -1,13 +1,17 @@
-import { DomainError } from "../../domain/DomainError";
+import {
+	type CorrectionError,
+	describeCorrectionError,
+} from "../../domain/entities/CorrectionError";
 import {
 	type RequestedChange,
 	RetroactiveCorrection,
 } from "../../domain/entities/RetroactiveCorrection";
+import { err, ok, type Result } from "../../domain/Result";
 import type { EmployeeMasterRepository } from "../../domain/repositories/EmployeeMasterRepository";
 import type { SheetCorrectionRepository } from "../../domain/repositories/SheetCorrectionRepository";
 import { canCorrectClosedSheets } from "../../domain/services/EmployeeMasterAccessService";
 import type { OutputPort } from "../ports/OutputPort";
-import type { UseCase } from "../ports/UseCase";
+import type { FallibleUseCase } from "../ports/UseCase";
 
 export interface CorrectClosedSheetRequest {
 	sheetId: number;
@@ -23,12 +27,27 @@ export type CorrectClosedSheetResponse =
 	| { status: "ready"; changes: { subject: string; before: string; after: string }[] }
 	| { status: "corrected"; message: string };
 
+type CorrectClosedSheetSuccess = Exclude<CorrectClosedSheetResponse, { status: "rejected" }>;
+
+export type CorrectClosedSheetError = CorrectionError | { kind: "forbidden" };
+
+export function describeCorrectClosedSheetError(error: CorrectClosedSheetError): string {
+	return error.kind === "forbidden"
+		? "遡及処理を行えるのは Admin のみです。"
+		: describeCorrectionError(error);
+}
+
 /**
  * 遡及処理(締め後修正)。締めた評価期間を開き直さず、締めたシートの項目を直して、直したことを残す。
  * Admin だけが行える(DB 関数も同じ条件で拒否する)。直したことは、そのシートを振り返る本人・評価者に見える。
  */
 export class CorrectClosedSheetInteractor
-	implements UseCase<CorrectClosedSheetRequest, OutputPort<CorrectClosedSheetResponse>>
+	implements
+		FallibleUseCase<
+			CorrectClosedSheetRequest,
+			OutputPort<CorrectClosedSheetSuccess>,
+			CorrectClosedSheetError
+		>
 {
 	constructor(
 		private readonly correctionRepository: SheetCorrectionRepository,
@@ -37,28 +56,22 @@ export class CorrectClosedSheetInteractor
 
 	async execute(
 		request: CorrectClosedSheetRequest,
-		outputPort: OutputPort<CorrectClosedSheetResponse>,
-	): Promise<void> {
-		const reject = (message: string) => outputPort.present({ status: "rejected", message });
-
+		outputPort: OutputPort<CorrectClosedSheetSuccess>,
+	): Promise<Result<void, CorrectClosedSheetError>> {
 		const currentEmployee = await this.employeeMasterRepository.findCurrentEmployeeProfile();
 		if (!currentEmployee || !canCorrectClosedSheets(currentEmployee.role)) {
-			return reject("遡及処理を行えるのは Admin のみです。");
+			return err({ kind: "forbidden" });
 		}
 
 		const sheet = await this.correctionRepository.findClosedSheet(request.sheetId);
-		let correction: RetroactiveCorrection;
-		try {
-			correction = RetroactiveCorrection.propose(sheet, request.changes, request.reason);
-		} catch (error) {
-			if (error instanceof DomainError) {
-				return reject(error.message);
-			}
-			throw error;
+		const proposed = RetroactiveCorrection.propose(sheet, request.changes, request.reason);
+		if (!proposed.ok) {
+			return proposed;
 		}
+		const correction = proposed.value;
 
 		if (!request.confirmed) {
-			return outputPort.present({
+			outputPort.present({
 				status: "ready",
 				changes: correction.changes.map((change) => ({
 					subject: change.subject,
@@ -66,6 +79,7 @@ export class CorrectClosedSheetInteractor
 					after: change.afterText,
 				})),
 			});
+			return ok(undefined);
 		}
 
 		const count = await this.correctionRepository.record(correction);
@@ -73,5 +87,6 @@ export class CorrectClosedSheetInteractor
 			status: "corrected",
 			message: `${sheet.subject.name}さんの「${sheet.evaluationPeriod.periodName}」のシートを ${count} 件修正しました。修正したことは、本人と評価者のシートに表示されます。`,
 		});
+		return ok(undefined);
 	}
 }

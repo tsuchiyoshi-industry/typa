@@ -1,5 +1,11 @@
 import { expect, it } from "vitest";
+import { employee, period } from "../../test/fixtures";
 import { reviewerRow } from "../../test/reviewerFixture";
+import { EvaluationAllocation } from "../valueObjects/EvaluationAllocation";
+import { CommonEvaluationItem } from "./CommonEvaluationItem";
+import { CommonEvaluationResult } from "./CommonEvaluationResult";
+import { EvaluationSheet } from "./EvaluationSheet";
+import { Milestone } from "./Milestone";
 import {
 	canOpen,
 	finalScore,
@@ -89,4 +95,61 @@ it("treats zero as a real score: an unscored submitted sheet is still the review
 	const row = reviewerRow(1, { ...submittedToPrimary, objectives: [], commonItems: [] });
 	expect(reviewScore(row, "first")).toBe(0);
 	expect(reviewTask(row)).toBe("first");
+});
+
+it("scores a list row exactly as the sheet scores the same marks, for any marks and allocation", () => {
+	// 決まった種から作る疑似乱数。失敗したときに同じ値で再現できる
+	let seed = 20261026;
+	const next = (max: number) => {
+		seed = (seed * 1103515245 + 12345) % 2147483648;
+		return seed % (max + 1);
+	};
+	for (let round = 0; round < 300; round++) {
+		const objective = next(100);
+		const objectives = Array.from({ length: 1 + next(3) }, (_, i) => ({
+			id: i + 1,
+			goalNumber: i + 1,
+			challengeGoal: "目標",
+			achievement: "",
+			periodGoals: [],
+			firstScore: next(4),
+			secondScore: next(4),
+		}));
+		const commonItems = Array.from({ length: next(6) }, (_, i) => ({
+			id: i + 1,
+			title: `項目${i}`,
+			weight: 1 + next(9),
+			firstScore: next(4),
+			secondScore: next(4),
+			firstComment: "",
+		}));
+		const row = reviewerRow(1, {
+			objectiveAllocation: objective,
+			commonAllocation: 100 - objective,
+			objectives,
+			commonItems,
+		});
+		const sheet = EvaluationSheet.create({
+			sheetId: 101,
+			subject: employee(),
+			evaluationPeriod: period(),
+			primaryEvaluatorName: "一次",
+			secondaryEvaluatorName: "二次",
+			objectives: objectives.map((goal) => Milestone.restore({ ...goal, sheetId: 101 })),
+			commonEvaluationResults: commonItems.map((item) =>
+				CommonEvaluationResult.create({
+					id: item.id,
+					sheetId: 101,
+					itemId: item.id,
+					firstScore: item.firstScore,
+					secondScore: item.secondScore,
+					firstComment: "",
+					item: new CommonEvaluationItem(item.id, item.title, "", item.weight, 1),
+				}),
+			),
+			allocation: EvaluationAllocation.of(objective, 100 - objective),
+		});
+		expect(reviewScore(row, "first")).toBe(sheet.firstEvaluationScore());
+		expect(reviewScore(row, "second")).toBe(sheet.allocatedScores.totalEvaluationScore);
+	}
 });

@@ -103,8 +103,7 @@ export interface EvaluationSheetDto {
 	commonEvaluationScoreTotals: EvaluationScoreTotalsDto;
 	allocatedScores: EvaluationAllocatedScoresDto;
 	status: EvaluationStatusValue;
-	isEditable: boolean;
-	/** 提出・一次評価の確定を止める、目標の不足(件数や空のチャレンジ目標)。 */
+	/** 送信・確定を止める、目標の不足(件数や空のチャレンジ目標)。 */
 	pendingObjectiveFields: string[];
 	/** シートと同じ読み込みで決める。シートと権限が食い違う間を作らない。 */
 	permissions: SheetPermissionsDto;

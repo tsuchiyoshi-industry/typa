@@ -73,7 +73,7 @@ describe("EvaluationSheetAccessPolicy", () => {
 			).toBe(false);
 		});
 
-		it("提出後は一次評価者が、一次評価の確定後は二次評価者がスコアを編集できる", () => {
+		it("一次評価の依頼後は一次評価者が、一次評価の確定後は二次評価者がスコアを編集できる", () => {
 			const sheet = buildSheet(EvaluationStatus.SUBMITTED);
 			expect(
 				EvaluationSheetAccessPolicy.for(PRIMARY_EVALUATOR_ID, sheet).canEditMilestoneFirstScore(),
@@ -147,7 +147,7 @@ describe("EvaluationSheetAccessPolicy", () => {
 	});
 
 	describe("共通評価(CommonEvaluation)", () => {
-		it("提出後は評価者のみ閲覧でき、本人は閲覧できない", () => {
+		it("目標の送信後は評価者のみ閲覧でき、本人は閲覧できない", () => {
 			const sheet = buildSheet(EvaluationStatus.SUBMITTED);
 			expect(
 				EvaluationSheetAccessPolicy.for(PRIMARY_EVALUATOR_ID, sheet).canViewCommonEvaluation(),
@@ -176,7 +176,7 @@ describe("EvaluationSheetAccessPolicy", () => {
 			).toBe(false);
 		});
 
-		it("提出後は一次評価者が、一次評価の確定後は二次評価者がスコアを編集できる", () => {
+		it("一次評価の依頼後は一次評価者が、一次評価の確定後は二次評価者がスコアを編集できる", () => {
 			const sheet = buildSheet(EvaluationStatus.SUBMITTED);
 			expect(
 				EvaluationSheetAccessPolicy.for(PRIMARY_EVALUATOR_ID, sheet).canEditCommonEvaluationFirst(),
@@ -212,11 +212,11 @@ describe("EvaluationSheetAccessPolicy", () => {
 		});
 	});
 
-	describe("シートロック(提出・一次評価の確定・評価の確定)", () => {
+	describe("状態の変更(送信・一次評価の確定・評価の確定)", () => {
 		const can = (id: number, status: EvaluationStatus) =>
 			EvaluationSheetAccessPolicy.for(id, buildSheet(status));
 
-		it("本人は下書きを提出できるが、評価者はまだ何も確定できない", () => {
+		it("本人は下書きの目標を送信できるが、評価者はまだ何も確定できない", () => {
 			expect(can(SUBJECT_ID, EvaluationStatus.DRAFT).canSubmitGoals()).toBe(true);
 			expect(can(PRIMARY_EVALUATOR_ID, EvaluationStatus.DRAFT).canConfirmFirstEvaluation()).toBe(
 				false,
@@ -244,7 +244,7 @@ describe("EvaluationSheetAccessPolicy", () => {
 			expect(can(SECONDARY_EVALUATOR_ID, status).canFinalizeEvaluation()).toBe(true);
 		});
 
-		it("確定済みシートは誰も戻せず、再確定・再提出もできない", () => {
+		it("確定済みシートは誰も戻せず、再確定・再送信もできない", () => {
 			const status = EvaluationStatus.FINALIZED;
 			expect(can(SUBJECT_ID, status).canReturnGoalsToDraft()).toBe(false);
 			expect(can(SUBJECT_ID, status).canSubmitGoals()).toBe(false);

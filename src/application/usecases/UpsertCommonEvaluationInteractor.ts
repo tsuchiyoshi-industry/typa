@@ -1,9 +1,14 @@
+import { err, ok, type Result } from "../../domain/Result";
+import type { CommonEvaluationRepository } from "../../domain/repositories/CommonEvaluationRepository";
 import type { EvaluationSheetRepository } from "../../domain/repositories/EvaluationSheetRepository";
-import type { EvaluationScoreUpdateService } from "../../domain/services/EvaluationScoreUpdateService";
 import { EvaluationSheetAccessPolicy } from "../../domain/services/EvaluationSheetAccessPolicy";
+import {
+	describeSheetAccessError,
+	type SheetAccessError,
+} from "../../domain/services/SheetAccessError";
 import { Score } from "../../domain/valueObjects/Score";
 import type { OutputPort } from "../ports/OutputPort";
-import type { UseCase } from "../ports/UseCase";
+import type { FallibleUseCase } from "../ports/UseCase";
 
 export interface UpsertCommonEvaluationRequest {
 	sheetId: number;
@@ -25,29 +30,58 @@ export interface UpsertCommonEvaluationResponse {
 export interface UpsertCommonEvaluationOutputPort
 	extends OutputPort<UpsertCommonEvaluationResponse> {}
 
+export type UpsertCommonEvaluationError =
+	| SheetAccessError
+	| { kind: "sheetNotFound" }
+	| { kind: "commonItemInvalid" }
+	| { kind: "scoreOutOfRange" };
+
+export function describeUpsertCommonEvaluationError(error: UpsertCommonEvaluationError): string {
+	switch (error.kind) {
+		case "sheetNotFound":
+			return "評価シートが見つかりません。";
+		case "commonItemInvalid":
+			return "共通評価項目が不正または重複しています。";
+		case "scoreOutOfRange":
+			return "共通評価の評価点が範囲外です。";
+		case "periodClosed":
+		case "forbidden":
+		case "transitionForbidden":
+			return describeSheetAccessError(error);
+	}
+}
+
 export class UpsertCommonEvaluationInteractor
-	implements UseCase<UpsertCommonEvaluationRequest, UpsertCommonEvaluationOutputPort>
+	implements
+		FallibleUseCase<
+			UpsertCommonEvaluationRequest,
+			UpsertCommonEvaluationOutputPort,
+			UpsertCommonEvaluationError
+		>
 {
 	constructor(
 		private readonly evaluationSheetRepository: EvaluationSheetRepository,
-		private readonly evaluationScoreUpdateService: EvaluationScoreUpdateService,
+		private readonly commonEvaluationRepository: Pick<CommonEvaluationRepository, "upsertResults">,
 	) {}
 
 	async execute(
 		request: UpsertCommonEvaluationRequest,
 		outputPort: UpsertCommonEvaluationOutputPort,
-	): Promise<void> {
+	): Promise<Result<void, UpsertCommonEvaluationError>> {
 		const sheet = await this.evaluationSheetRepository.findById(request.sheetId);
 		if (!sheet) {
-			throw new Error("評価シートが見つかりません。");
+			return err({ kind: "sheetNotFound" });
 		}
 		const policy = EvaluationSheetAccessPolicy.for(request.currentEmployeeId, sheet);
-		policy.assertPeriodOpen();
+		const open = policy.periodOpen();
+		if (!open.ok) {
+			return open;
+		}
 		const canEditFirst = policy.canEditCommonEvaluationFirst();
 		const canEditSecond = policy.canEditCommonEvaluationSecond();
 
 		if (!canEditFirst && !canEditSecond) {
-			throw new Error("共通評価を更新する権限がありません。");
+			return err({ kind: "forbidden", action: "editCommonEvaluation" });
 		}
 		const seen = new Set<number>();
 		for (const result of request.results) {
@@ -55,7 +89,7 @@ export class UpsertCommonEvaluationInteractor
 				(entry) => entry.itemId === result.itemId,
 			);
 			if (!existing || seen.has(result.itemId)) {
-				throw new Error("共通評価項目が不正または重複しています。");
+				return err({ kind: "commonItemInvalid" });
 			}
 			seen.add(result.itemId);
 			const scores: number[] = [];
@@ -67,18 +101,19 @@ export class UpsertCommonEvaluationInteractor
 			}
 			for (const score of scores) {
 				// 評価は 0(未評価)〜4。配点は係数で、点数の上限ではない
-				if (!Number.isInteger(score) || score < 0 || score > Score.MAX) {
-					throw new Error("共通評価の評価点が範囲外です。");
+				if (!Score.isValid(score)) {
+					return err({ kind: "scoreOutOfRange" });
 				}
 			}
 		}
 
-		await this.evaluationScoreUpdateService.upsertCommonEvaluationResults(
+		await this.commonEvaluationRepository.upsertResults(
 			request.sheetId,
 			request.results,
 			canEditFirst,
 			canEditSecond,
 		);
 		outputPort.present({ sheetId: request.sheetId, success: true });
+		return ok(undefined);
 	}
 }

@@ -76,7 +76,7 @@ const piePiece = (index: number, steps: number): string => {
 	].join("");
 };
 /**
- * その人の進み具合。円を段階の数(提出 → 一次評価 → 二次評価)に切り分け、済んだ段階を塗る。
+ * その人の進み具合。円を段階の数(目標送信 → 目標確定 → 一次評価の依頼 → 一次評価 → 二次評価)に切り分け、済んだ段階を塗る。
  * 外側の輪は「自分の番」、破線の円はシート未作成。図の右に、状態を言葉でも書く。
  */
 const Stage: Component<{ row: ReviewerRowDto }> = (props) => {
@@ -512,7 +512,7 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 									// 窓を閉じたときに、どの行を開いていたかが分かる
 									current: current()?.employeeId === row.employeeId,
 								}}
-								title={canOpen(row) ? undefined : "本人が提出すると開けるようになります"}
+								title={canOpen(row) ? undefined : "本人が目標を送信すると開けるようになります"}
 								onClick={() => open(row)}
 							>
 								<td>

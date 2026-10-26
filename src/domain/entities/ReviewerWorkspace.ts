@@ -1,8 +1,9 @@
+import { EvaluationAllocatedScores } from "../valueObjects/EvaluationAllocatedScores";
 import { EvaluationAllocation } from "../valueObjects/EvaluationAllocation";
 import { EvaluationRank } from "../valueObjects/EvaluationRank";
+import { EvaluationScoreTotals } from "../valueObjects/EvaluationScoreTotals";
 import { EvaluationStatus, type EvaluationStatusValue } from "../valueObjects/EvaluationStatus";
 import type { PeriodGoal } from "../valueObjects/PeriodGoal";
-import { Score } from "../valueObjects/Score";
 
 export interface ReviewObjective {
 	id: number;
@@ -87,7 +88,7 @@ export function reviewTask(row: ReviewerRow): ReviewTask {
 export const isMyTurn = (row: ReviewerRow): boolean =>
 	reviewTask(row) === "goals" || reviewTask(row) === "first" || reviewTask(row) === "second";
 
-/** 評価者は提出済みのシートだけを開ける。下書きは内容が届かない。 */
+/** 評価者は、本人が目標を送信したシートだけを開ける。下書きは内容が届かない。 */
 export const canOpen = (row: ReviewerRow): boolean =>
 	row.sheetId !== null && !!sheetStatus(row)?.isSentToEvaluators();
 
@@ -110,7 +111,10 @@ const finalEvaluationStarted = (row: ReviewerRow): boolean => {
 	);
 };
 
-/** Match the sheet's allocation and rounding. Zero is a valid score, never a completion marker. */
+/**
+ * 一覧の行の評価点。シートと同じ値オブジェクトで計算するので、丸めも含めてシートの評価点と一致する。
+ * 0 は未評価の点数で、完了の印ではない。
+ */
 export function reviewScore(row: ReviewerRow, stage: "first" | "second"): number | null {
 	if (
 		!canOpen(row) ||
@@ -119,21 +123,18 @@ export function reviewScore(row: ReviewerRow, stage: "first" | "second"): number
 	) {
 		return null;
 	}
-	const scoreKey = stage === "first" ? "firstScore" : "secondScore";
-	const objectiveTotal = row.objectives.reduce((sum, item) => sum + (item[scoreKey] ?? 0), 0);
-	// 共通評価の配点は係数。得点は「配点 × 評価」、満点は「配点 × 4」
-	const weight = row.commonItems.reduce((sum, item) => sum + item.weight, 0);
-	const commonTotal = row.commonItems.reduce(
-		(sum, item) => sum + item.weight * (item[scoreKey] ?? 0),
-		0,
-	);
-	return (
-		EvaluationAllocation.fromTotal(
-			row.objectiveAllocation,
-			objectiveTotal,
-			row.objectives.length * Score.MAX,
-		) + EvaluationAllocation.fromTotal(row.commonAllocation, commonTotal, weight * Score.MAX)
-	);
+	const totals = (
+		items: readonly { weight: number; firstScore: number; secondScore: number | null }[],
+	) =>
+		EvaluationScoreTotals.fromWeightedScores(
+			items.map((item) => ({ ...item, secondScore: item.secondScore ?? 0 })),
+		);
+	return EvaluationAllocatedScores.fromTotals(
+		totals(row.objectives.map((goal) => ({ ...goal, weight: 1 }))),
+		totals(row.commonItems),
+		stage === "first",
+		EvaluationAllocation.of(row.objectiveAllocation, row.commonAllocation),
+	).totalEvaluationScore;
 }
 
 export function finalScore(row: ReviewerRow): number | null {

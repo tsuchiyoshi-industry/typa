@@ -39,7 +39,7 @@ it("says whose sheet waits for which evaluation, links to it, and counts the unr
 			},
 			{
 				id: 7,
-				title: "山田 太郎さんの評価シートが提出されました",
+				title: "山田 太郎さんの一次評価の依頼が届きました",
 				detail: "一次評価をお願いします（2026年度 上期）",
 				href: "/sheet/100",
 				createdAt: "2026-10-23T05:00:00Z",

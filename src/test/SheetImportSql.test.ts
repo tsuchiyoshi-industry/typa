@@ -1,8 +1,16 @@
+import { readFileSync } from "node:fs";
 import type { PGlite } from "@electric-sql/pglite";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { actAs, createProdLikeDb } from "./prodLikeDb";
 
 let db: PGlite;
+const wordingMigration = readFileSync(
+	new URL(
+		"../../supabase/migrations/202610260001_goal_workflow_message_wording.sql",
+		import.meta.url,
+	),
+	"utf8",
+);
 const query = async <T = Record<string, unknown>>(sql: string, params: unknown[] = []) =>
 	(await db.query<T>(sql, params)).rows;
 type Result = {
@@ -51,6 +59,10 @@ beforeAll(async () => {
 }, 60_000);
 afterAll(async () => {
 	await db?.close();
+});
+
+it("can safely reapply the wording migration", async () => {
+	await db.exec(wordingMigration);
 });
 
 it("lets only an Admin read the template or import", async () => {
@@ -102,7 +114,7 @@ it("rejects every row when one is wrong, naming the file and line, and writes no
 		"goals:4 社員番号「E99」の社員がいません(利用停止中の社員には取り込めません)。",
 		"goals:5 氏名が社員マスタの「社員6」と違います。社員番号を確かめてください。",
 		"goals:5 二次評価者がいない社員のため、二次評価点は入れられません。",
-		"goals:6 この社員の、実施中の評価期間の評価シートは提出済みのため、取り込めません。",
+		"goals:6 この社員の、実施中の評価期間の評価シートは目標を送信済みのため、取り込めません。",
 		"goals:7 目標番号は 1〜4 の数字で入力してください(「9」)。",
 		"goals:7 チャレンジ目標が空欄です。",
 		"goals:7 一次評価点は 1〜4 の数字か空欄にしてください(「abc」)。",
@@ -113,6 +125,29 @@ it("rejects every row when one is wrong, naming the file and line, and writes no
 	expect(await query("select 1 from public.evaluation_sheets where employee_id in (4, 6)")).toEqual(
 		[],
 	);
+});
+
+it("uses goal-submission wording when an empty goal is submitted", async () => {
+	await db.exec("reset role");
+	const [{ id }] = await query<{ id: number }>(
+		"insert into public.evaluation_sheets (period_id, employee_id, status) values (1, 4, 'draft') returning id",
+	);
+	await query(
+		"insert into public.milestones (sheet_id, goal_number, challenge_goal, period_goals) values ($1, 1, '', '[]'::jsonb)",
+		[id],
+	);
+
+	try {
+		await actAs(db, 4);
+		await expect(
+			query("update public.evaluation_sheets set status = 'goals_submitted' where id = $1", [id]),
+		).rejects.toThrow(
+			"チャレンジ目標が空欄の目標は送信・確定できません。入力して保存するか、不要なタブを削除してください。",
+		);
+	} finally {
+		await db.exec("reset role");
+		await query("delete from public.evaluation_sheets where id = $1", [id]);
+	}
 });
 
 it("creates draft sheets with goals, scores and comments, and replaces them on a second import", async () => {

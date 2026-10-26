@@ -1,4 +1,4 @@
-import { EvaluationAllocation } from "./EvaluationAllocation";
+import { EvaluationAllocation, toNonNegativeInteger } from "./EvaluationAllocation";
 import type { EvaluationScoreTotals } from "./EvaluationScoreTotals";
 
 export class EvaluationAllocatedScores {
@@ -11,10 +11,6 @@ export class EvaluationAllocatedScores {
 		public readonly commonEvaluationEvaluationScore: number,
 		public readonly totalEvaluationScore: number,
 	) {}
-
-	static zero(): EvaluationAllocatedScores {
-		return EvaluationAllocatedScores.fromValues({});
-	}
 
 	/**
 	 * 最終評価の獲得率から評価点を出す。最終評価は二次評価で、
@@ -65,20 +61,16 @@ export class EvaluationAllocatedScores {
 		allocation?: EvaluationAllocation;
 	}): EvaluationAllocatedScores {
 		const allocation = params.allocation ?? EvaluationAllocation.DEFAULT;
-		const objectiveSecondRate = EvaluationAllocatedScores.toNonNegativeInteger(
-			params.objectiveSecondRate,
-		);
-		const commonEvaluationSecondRate = EvaluationAllocatedScores.toNonNegativeInteger(
-			params.commonEvaluationSecondRate,
-		);
+		const objectiveSecondRate = toNonNegativeInteger(params.objectiveSecondRate);
+		const commonEvaluationSecondRate = toNonNegativeInteger(params.commonEvaluationSecondRate);
 		const objectiveEvaluationScore =
 			params.objectiveEvaluationScore == null
 				? EvaluationAllocation.toScore(allocation.objective, objectiveSecondRate)
-				: EvaluationAllocatedScores.toNonNegativeInteger(params.objectiveEvaluationScore);
+				: toNonNegativeInteger(params.objectiveEvaluationScore);
 		const commonEvaluationEvaluationScore =
 			params.commonEvaluationEvaluationScore == null
 				? EvaluationAllocation.toScore(allocation.common, commonEvaluationSecondRate)
-				: EvaluationAllocatedScores.toNonNegativeInteger(params.commonEvaluationEvaluationScore);
+				: toNonNegativeInteger(params.commonEvaluationEvaluationScore);
 
 		return new EvaluationAllocatedScores(
 			allocation.objective,
@@ -89,14 +81,7 @@ export class EvaluationAllocatedScores {
 			commonEvaluationEvaluationScore,
 			params.totalEvaluationScore == null
 				? objectiveEvaluationScore + commonEvaluationEvaluationScore
-				: EvaluationAllocatedScores.toNonNegativeInteger(params.totalEvaluationScore),
+				: toNonNegativeInteger(params.totalEvaluationScore),
 		);
-	}
-
-	private static toNonNegativeInteger(value?: number | null): number {
-		if (!Number.isFinite(value) || value == null || value < 0) {
-			return 0;
-		}
-		return Math.round(value);
 	}
 }

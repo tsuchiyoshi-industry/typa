@@ -417,22 +417,22 @@ describe("lists and permission queries", () => {
 		repo.findDistinctPeriods.mockRejectedValue(new Error("DB"));
 		await expect(interactor.execute({}, out)).rejects.toThrow("DB");
 	});
-	it("gives no permissions on a sheet that does not exist", async () => {
+	it("says a sheet it cannot read is not found, instead of handing out an empty draft", async () => {
 		const sheets = sheetRepository();
 		sheets.findById.mockResolvedValue(null);
 		const out = output<import("../dtos/EvaluationSheetDto").EvaluationSheetDto>();
-		await new FetchEvaluationSheetInteractor(sheets, employeeRepository()).execute(
-			{ sheetId: 100, currentEmployeeId: 2 },
-			out,
-		);
-		expect(Object.values(out.present.mock.calls[0][0].permissions).every((value) => !value)).toBe(
-			true,
-		);
+		await expect(
+			new FetchEvaluationSheetInteractor(sheets, employeeRepository()).execute(
+				{ sheetId: 100, currentEmployeeId: 2 },
+				out,
+			),
+		).rejects.toThrow("評価シートが見つかりません。");
+		expect(out.present).not.toHaveBeenCalled();
 	});
 	// シートを読めない人(4)は、権限を返す前に断る(SheetSecurity.test.ts)
 	it.each([1, 2, 3])("resolves sheet-specific permissions for %s", async (id) => {
 		const out = output<never>();
-		// 提出済みは一次評価の段階。二次評価者は読めるが、一次評価が確定するまで入力できない
+		// 一次評価待ちは一次評価の段階。二次評価者は読めるが、一次評価が確定するまで入力できない
 		await new FetchEvaluationSheetInteractor(sheetRepository(), employeeRepository()).execute(
 			{ sheetId: 100, currentEmployeeId: id },
 			out,
@@ -478,7 +478,6 @@ describe("sheet creation orchestration", () => {
 			out,
 		);
 		expect(sheets.createOrGetSheet).toHaveBeenCalledWith(2, 1);
-		expect(sheets.updateScoreTotals).not.toHaveBeenCalled();
 		expect(out.present).toHaveBeenCalledWith({ sheetId: 100 });
 	});
 	it("does not report success when the sheet cannot be created", async () => {

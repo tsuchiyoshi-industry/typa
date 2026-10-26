@@ -248,7 +248,7 @@ FUNCTION can_transition_sheet(evaluation_sheets,text,integer) definer=false anon
 FUNCTION carry_over_goal(bigint,bigint) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=a915ab803caef129594ecec4b6d4349a
 FUNCTION changed_columns(jsonb,jsonb) definer=false anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=5a3f7369be904b9ff458a6e5b80bc6f2
 FUNCTION check_challenge_goal_number() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=8508db91753240b9a1c1a9e5ce7d55af
-FUNCTION check_evaluation_completion() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=2379bd479bcc1263d6bad73d47dba7b6
+FUNCTION check_evaluation_completion() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=ff43729b43c583d1f126ffbceb624caf
 FUNCTION check_milestone_achievement_placement() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=b191362f9bd785b62a624c107bd5bab0
 FUNCTION check_user_limit() definer=true anon=false authenticated=false service_role=true auth_admin=false config=- md5=71d1ea349152ed5ab2cd3514f88b5681
 FUNCTION claim_sheet_notification(bigint,uuid) definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=c842799d2bdf95306f531fe83bdceafa
@@ -279,7 +279,7 @@ FUNCTION guard_evaluation_period_delete() definer=true anon=false authenticated=
 FUNCTION guard_evaluation_sheet_write() definer=false anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=432c1ba5119a9f1c06b735693d0ecff6
 FUNCTION guard_milestone_write() definer=false anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=61611f1c7e408cbca61b85143de3ab94
 FUNCTION hook_before_user_created(jsonb) definer=true anon=false authenticated=false service_role=true auth_admin=true config={"search_path=\"\""} md5=168993d16d5254dfefe8634a2eecf7e9
-FUNCTION import_sheet_data(jsonb,jsonb,boolean) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=400305c45f4b418c7fb4b8539a024c2c
+FUNCTION import_sheet_data(jsonb,jsonb,boolean) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=07edbd748d9102cf4dd209befc8dda08
 FUNCTION is_current_evaluator_of(integer) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=ec3da46d3c72021039e51b463f8163e0
 FUNCTION issue_employee_invitation(text) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=5a0a8587d455f8934e6013a5add1c487
 FUNCTION issue_pending_employee_invitations() definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=587e00f4bd6ce2ab6354cb5b48c7db02

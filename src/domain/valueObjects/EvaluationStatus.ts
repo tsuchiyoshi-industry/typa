@@ -40,7 +40,7 @@ export class EvaluationStatus {
 	static readonly GOALS_SUBMITTED = new EvaluationStatus("goals_submitted");
 	/** 一次評価者が目標を確定済み。目標は固定で、本人が達成状況だけを記入する。 */
 	static readonly GOALS_CONFIRMED = new EvaluationStatus("goals_confirmed");
-	/** 本人が達成状況を提出して一次評価を依頼済み。本人は変更できず、一次評価を待っている。 */
+	/** 本人が一次評価を依頼済み。本人は変更できず、一次評価を待っている。 */
 	static readonly SUBMITTED = new EvaluationStatus("submitted");
 	/** 一次評価者が確定済み。一次評価は変更できず、二次評価者の評価を待っている。 */
 	static readonly FIRST_EVALUATED = new EvaluationStatus("first_evaluated");
@@ -79,7 +79,7 @@ export class EvaluationStatus {
 		return this !== EvaluationStatus.DRAFT;
 	}
 
-	/** 達成状況が提出され、採点が始まった後。目標の確認中は点数もランクもまだ無い。 */
+	/** 一次評価が依頼され、採点が始まった後。目標の確認中は点数もランクもまだ無い。 */
 	isEvaluationStarted(): boolean {
 		return this.order() >= EvaluationStatus.SUBMITTED.order();
 	}

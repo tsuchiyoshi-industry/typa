@@ -322,11 +322,11 @@ const SettingsView: Component<SettingsViewProps> = (props) => {
 						<h2 id="max-goals-heading">チャレンジ目標の数</h2>
 						<p>
 							1枚の評価シートに置ける目標の数の上限です。目標は最低 1
-							件必要で、上限を超えるシートは提出・確定できません。
+							件必要で、上限を超えるシートは送信・確定できません。
 						</p>
 						<p class="allocation-note">
 							チャレンジ目標の得点率は「点数の合計 ÷（そのシートの目標の数 ×
-							4）」で、上限を変えても変わりません。上限を下げると、それより多い目標を持つ未確定のシートは、目標を減らすまで提出・確定できなくなります。
+							4）」で、上限を変えても変わりません。上限を下げると、それより多い目標を持つ未確定のシートは、目標を減らすまで送信・確定できなくなります。
 						</p>
 						<form class="allocation-form" onSubmit={(event) => void saveMaxGoals(event)}>
 							<label>

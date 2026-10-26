@@ -46,3 +46,11 @@ export class EvaluationAllocation {
 		return this.objective === other.objective && this.common === other.common;
 	}
 }
+
+/** 保存値の読み込みで、欠けた値や負の値・小数を、0 以上の整数にそろえる。 */
+export function toNonNegativeInteger(value?: number | null): number {
+	if (!Number.isFinite(value) || value == null || value < 0) {
+		return 0;
+	}
+	return Math.round(value);
+}

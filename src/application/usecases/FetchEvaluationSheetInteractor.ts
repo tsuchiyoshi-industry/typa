@@ -1,9 +1,7 @@
 import type { EmployeeRepository } from "../../domain/repositories/EmployeeRepository";
 import type { EvaluationSheetRepository } from "../../domain/repositories/EvaluationSheetRepository";
 import { EvaluationSheetAccessPolicy } from "../../domain/services/EvaluationSheetAccessPolicy";
-import { EvaluationAllocation } from "../../domain/valueObjects/EvaluationAllocation";
-import { EvaluationStatus } from "../../domain/valueObjects/EvaluationStatus";
-import { type EvaluationSheetDto, NO_SHEET_PERMISSIONS } from "../dtos/EvaluationSheetDto";
+import type { EvaluationSheetDto } from "../dtos/EvaluationSheetDto";
 import { toEvaluationSheetDto } from "../dtos/EvaluationSheetMapper";
 import type { OutputPort } from "../ports/OutputPort";
 import type { UseCase } from "../ports/UseCase";
@@ -30,48 +28,9 @@ export class FetchEvaluationSheetInteractor
 		outputPort: FetchEvaluationSheetOutputPort,
 	): Promise<void> {
 		const sheet = await this.evaluationSheetRepository.findById(request.sheetId);
+		// 無いシートも、読む権限の無いシートも、DB からは同じく見えない。空の下書きを作って見せない
 		if (!sheet) {
-			outputPort.present({
-				sheetId: 0,
-				subject: null,
-				evaluationPeriod: null,
-				primaryEvaluator: "未設定",
-				secondaryEvaluator: "未設定",
-				primaryIsFinalEvaluator: false,
-				notifiesByMail: false,
-				corrections: [],
-				maxObjectives: 0,
-				firstOverallComment: "",
-				secondOverallComment: "",
-				objectives: [],
-				commonEvaluation: null,
-				objectiveScoreTotals: {
-					firstTotalScore: 0,
-					firstTotalRate: 0,
-					secondTotalScore: 0,
-					secondTotalRate: 0,
-				},
-				commonEvaluationScoreTotals: {
-					firstTotalScore: 0,
-					firstTotalRate: 0,
-					secondTotalScore: 0,
-					secondTotalRate: 0,
-				},
-				allocatedScores: {
-					objectiveAllocationScore: EvaluationAllocation.DEFAULT.objective,
-					objectiveSecondRate: 0,
-					objectiveEvaluationScore: 0,
-					commonEvaluationAllocationScore: EvaluationAllocation.DEFAULT.common,
-					commonEvaluationSecondRate: 0,
-					commonEvaluationEvaluationScore: 0,
-					totalEvaluationScore: 0,
-				},
-				status: EvaluationStatus.DRAFT.toString(),
-				isEditable: true,
-				pendingObjectiveFields: [],
-				permissions: NO_SHEET_PERMISSIONS,
-			});
-			return;
+			throw new Error("評価シートが見つかりません。");
 		}
 
 		const policy = EvaluationSheetAccessPolicy.for(request.currentEmployeeId, sheet);

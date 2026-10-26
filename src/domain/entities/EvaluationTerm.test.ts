@@ -1,16 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { DomainError } from "../DomainError";
+import { expectOk } from "../Result";
 import { CalendarDate } from "../valueObjects/CalendarDate";
 import { DateRange } from "../valueObjects/DateRange";
 import { PeriodDivision } from "../valueObjects/PeriodDivision";
 import { TermName } from "../valueObjects/TermName";
 import { EvaluationTerm } from "./EvaluationTerm";
+import { describePeriodError } from "./PeriodError";
 
+const date = (value: string) => expectOk(CalendarDate.parse(value), describePeriodError);
 const term = (start: string, end: string, division: PeriodDivision, name = "26期") =>
-	EvaluationTerm.of(
-		TermName.from(name),
-		DateRange.of(CalendarDate.parse(start), CalendarDate.parse(end)),
-		division,
+	expectOk(
+		EvaluationTerm.of(
+			expectOk(TermName.from(name), describePeriodError),
+			expectOk(DateRange.of(date(start), date(end)), describePeriodError),
+			division,
+		),
+		describePeriodError,
 	);
 const periods = (start: string, end: string, division: PeriodDivision) =>
 	term(start, end, division)
@@ -73,27 +78,34 @@ describe("dividing a term into evaluation periods", () => {
 	});
 
 	it.each([
-		[PeriodDivision.HALF, "2026-09-30", "半期(上期・下期)に分けるには期間が短すぎます。"],
-		[PeriodDivision.QUARTER, "2026-09-30", "四半期に分けるには期間が短すぎます。"],
-		[PeriodDivision.QUARTER, "2026-12-31", "四半期に分けるには期間が短すぎます。"],
-	])("refuses to leave an empty period (%s until %s)", (division, end, message) => {
-		expect(() => term("2026-04-01", end, division)).toThrow(DomainError);
-		expect(() => term("2026-04-01", end, division)).toThrow(message);
+		[PeriodDivision.HALF, "2026-09-30", "半期(上期・下期)"],
+		[PeriodDivision.QUARTER, "2026-09-30", "四半期"],
+		[PeriodDivision.QUARTER, "2026-12-31", "四半期"],
+	])("refuses to leave an empty period (%s until %s)", (division, end, expectedDivision) => {
+		const result = EvaluationTerm.of(
+			expectOk(TermName.from("26期"), describePeriodError),
+			expectOk(DateRange.of(date("2026-04-01"), date(end)), describePeriodError),
+			division,
+		);
+		expect(result).toMatchObject({
+			ok: false,
+			error: { kind: "termTooShort", division: expectedDivision },
+		});
 	});
 
 	it("passes how the periods may be closed on to every period", () => {
 		const plans = term("2026-04-01", "2027-03-31", PeriodDivision.HALF).divide(true);
 		expect(plans.map((plan) => plan.allowUnfinalizedClose)).toEqual([true, true]);
 		expect(plans.map((plan) => plan.part.number)).toEqual([1, 2]);
-		expect(plans.every((plan) => plan.term.equals(TermName.from("26期")))).toBe(true);
+		expect(
+			plans.every((plan) => plan.term.equals(expectOk(TermName.from("26期"), describePeriodError))),
+		).toBe(true);
 	});
 
 	it("covers the whole term without gaps or overlaps, whatever day it starts on", () => {
 		// 2028 年(うるう年)の毎日を開始日にして、1年の期を分ける
 		for (let day = 0; day < 366; day++) {
-			const start = CalendarDate.parse(
-				new Date(Date.UTC(2028, 0, 1 + day)).toISOString().slice(0, 10),
-			);
+			const start = date(new Date(Date.UTC(2028, 0, 1 + day)).toISOString().slice(0, 10));
 			const end = start.addMonths(12).previousDay();
 			for (const division of PeriodDivision.ALL) {
 				const ranges = term(start.toString(), end.toString(), division)

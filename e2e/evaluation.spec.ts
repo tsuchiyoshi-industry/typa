@@ -65,7 +65,7 @@ async function openSubordinate(page: Page) {
 }
 
 test("a sheet goes from the employee through both evaluators to a final rank", async ({ page }) => {
-	await test.step("本人が目標を書いて提出する", async () => {
+	await test.step("本人が目標を書いて送信する", async () => {
 		await signIn(page, "RELEASE004");
 		await page.getByRole("link", { name: "新規作成" }).click();
 		await page.getByRole("button", { name: "評価シートを作成" }).click();
@@ -82,7 +82,7 @@ test("a sheet goes from the employee through both evaluators to a final rank", a
 		});
 
 		await page.getByRole("button", { name: "目標を保存" }).click();
-		// 保存直後に押しても、保存後の読み直しが済むまで提出は待たされる(空欄扱いにならない)
+		// 保存直後に押しても、保存後の読み直しが済むまで送信は待たされる(空欄扱いにならない)
 		await page.getByRole("button", { name: "目標を送信する" }).click();
 		await confirm(page, "目標を送信しますか？", "目標を送信する");
 		await expect(page.getByText(/一次評価者による目標の確認を待っています。/)).toBeVisible();
@@ -90,7 +90,7 @@ test("a sheet goes from the employee through both evaluators to a final rank", a
 		await expect(page.getByRole("tabpanel")).toContainText("研修を開く");
 		await expect(page.getByRole("tabpanel")).toContainText("参加者に案内した");
 
-		// 提出後は目標を書き換えられない
+		// 送信後は目標を書き換えられない
 		await expect(page.getByRole("button", { name: "目標を編集" })).toHaveCount(0);
 		await signOut(page);
 	});
@@ -163,7 +163,7 @@ test("a sheet goes from the employee through both evaluators to a final rank", a
 		});
 		await page.setViewportSize({ width: 1280, height: 720 });
 		const request = inbox.getByRole("link", {
-			name: /Release test 4さんの評価シートが提出されました.*一次評価をお願いします/,
+			name: /Release test 4さんの一次評価の依頼が届きました.*一次評価をお願いします/,
 		});
 		await request.click();
 		await expect(page).toHaveURL(/\/sheet\/\d+$/);

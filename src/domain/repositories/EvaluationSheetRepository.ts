@@ -1,7 +1,5 @@
 import type { EvaluationSheet } from "../entities/EvaluationSheet";
-import type { EvaluationAllocatedScores } from "../valueObjects/EvaluationAllocatedScores";
 import type { EvaluationRank } from "../valueObjects/EvaluationRank";
-import type { EvaluationScoreTotals } from "../valueObjects/EvaluationScoreTotals";
 import type { EvaluationStatus } from "../valueObjects/EvaluationStatus";
 
 export interface EvaluationSheetSummary {
@@ -44,14 +42,6 @@ export interface EvaluationSheetOverviewRow extends EvaluationSheetSummary {
 export interface EvaluationSheetRepository {
 	findById(sheetId: number): Promise<EvaluationSheet | null>;
 	createOrGetSheet(periodId: number, employeeId: number): Promise<number>;
-	updateScoreTotals(
-		sheetId: number,
-		totals: {
-			objectives?: EvaluationScoreTotals;
-			commonEvaluationResults?: EvaluationScoreTotals;
-			allocatedScores?: EvaluationAllocatedScores;
-		},
-	): Promise<void>;
 	updateOverallComment(
 		sheetId: number,
 		target: "first" | "second",

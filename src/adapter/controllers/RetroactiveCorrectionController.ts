@@ -12,6 +12,7 @@ import type {
 	CorrectClosedSheetRequest,
 	CorrectClosedSheetResponse,
 } from "../../application/usecases/CorrectClosedSheetInteractor";
+import { describeCorrectClosedSheetError } from "../../application/usecases/CorrectClosedSheetInteractor";
 import { EvaluationCalendar } from "../../domain/entities/EvaluationCalendar";
 import type { EvaluationPeriodRepository } from "../../domain/repositories/EvaluationPeriodRepository";
 import type { EvaluationSheetRepository } from "../../domain/repositories/EvaluationSheetRepository";
@@ -66,7 +67,15 @@ export class RetroactiveCorrectionController {
 			message: "シートを修正できませんでした。",
 		};
 		try {
-			await this.correctUseCase.execute(request, { present: (result) => (response = result) });
+			const result = await this.correctUseCase.execute(request, {
+				present: (value) => (response = value),
+			});
+			if (!result.ok) {
+				return {
+					status: "rejected",
+					message: describeCorrectClosedSheetError(result.error),
+				};
+			}
 		} catch (error) {
 			console.error("Error correcting a closed sheet:", error);
 			return { status: "rejected", message: messageOf(error, "シートを修正できませんでした。") };

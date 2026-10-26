@@ -1,4 +1,5 @@
-import { DomainError } from "../DomainError";
+import type { PeriodError } from "../entities/PeriodError";
+import { err, ok, type Result } from "../Result";
 
 const DAY_MS = 86_400_000;
 
@@ -20,7 +21,7 @@ export class CalendarDate {
 	}
 
 	/** YYYY-MM-DD の、実在する日付だけを受け付ける(2026-02-30 や 2026-4-1、1900 年より前は不可)。 */
-	static parse(value: string): CalendarDate {
+	static parse(value: string): Result<CalendarDate, PeriodError> {
 		const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
 		if (match) {
 			const [year, month, day] = match.slice(1).map(Number);
@@ -31,10 +32,10 @@ export class CalendarDate {
 				day >= 1 &&
 				day <= daysInMonth(year, month)
 			) {
-				return new CalendarDate(year, month, day);
+				return ok(new CalendarDate(year, month, day));
 			}
 		}
-		throw new DomainError("日付は実在する日を YYYY-MM-DD で入力してください。");
+		return err({ kind: "dateInvalid" });
 	}
 
 	/** months か月後(負なら前)の同じ日。その月にない日(8/31 の半年後など)は、その月の末日にする。 */
@@ -57,10 +58,6 @@ export class CalendarDate {
 
 	isBefore(other: CalendarDate): boolean {
 		return this.compare(other) < 0;
-	}
-
-	isAfter(other: CalendarDate): boolean {
-		return this.compare(other) > 0;
 	}
 
 	equals(other: CalendarDate): boolean {

@@ -4,11 +4,16 @@ export class Score {
 
 	private constructor(public readonly value: number) {}
 
+	/** 0(未評価)〜4 の整数か。画面や API から来た値は、保存の前にこれで確かめる。 */
+	static isValid(value: unknown): value is number {
+		return Number.isInteger(value) && (value as number) >= 0 && (value as number) <= Score.MAX;
+	}
+
 	static from(value: number): Score {
-		if (!Number.isFinite(value) || value < 0 || value > Score.MAX) {
-			throw new Error(`Score must be between 0 and ${Score.MAX}.`);
+		if (!Score.isValid(value)) {
+			throw new Error(`点数は 0〜${Score.MAX} の整数で指定してください。`);
 		}
-		return new Score(Math.floor(value));
+		return new Score(value);
 	}
 
 	static fromOptional(value?: number | null): Score {

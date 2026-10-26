@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { EvaluationPeriodController } from "../../adapter/controllers/EvaluationPeriodController";
 import { EvaluationPeriod } from "../../domain/entities/EvaluationPeriod";
 import type { EvaluationPeriodPlan } from "../../domain/entities/EvaluationPeriodPlan";
-import { EvaluationScoreUpdateService } from "../../domain/services/EvaluationScoreUpdateService";
 import { EvaluationStatus } from "../../domain/valueObjects/EvaluationStatus";
 import { SheetCountsByStatus } from "../../domain/valueObjects/SheetCountsByStatus";
 import {
@@ -19,9 +18,14 @@ import {
 import {
 	CloseEvaluationPeriodInteractor,
 	type CloseEvaluationPeriodResponse,
+	describeCloseEvaluationPeriodError,
 } from "./CloseEvaluationPeriodInteractor";
-import { DeleteEvaluationPeriodInteractor } from "./DeleteEvaluationPeriodInteractor";
 import {
+	DeleteEvaluationPeriodInteractor,
+	describeDeleteEvaluationPeriodError,
+} from "./DeleteEvaluationPeriodInteractor";
+import {
+	describeSaveEvaluationPeriodError,
 	type EvaluationPeriodChangeResponse,
 	SaveEvaluationPeriodInteractor,
 } from "./SaveEvaluationPeriodInteractor";
@@ -62,10 +66,13 @@ describe("closing an evaluation period", () => {
 		confirmed: boolean,
 	) => {
 		const out = output<CloseEvaluationPeriodResponse>();
-		await new CloseEvaluationPeriodInteractor(context.periods, context.employees).execute(
-			{ nextPeriodId, confirmed },
-			out,
-		);
+		const result = await new CloseEvaluationPeriodInteractor(
+			context.periods,
+			context.employees,
+		).execute({ nextPeriodId, confirmed }, out);
+		if (!result.ok) {
+			return { status: "rejected", message: describeCloseEvaluationPeriodError(result.error) };
+		}
 		return out.present.mock.calls[0][0];
 	};
 
@@ -189,18 +196,24 @@ describe("adding, editing and deleting evaluation periods", () => {
 		request: Parameters<SaveEvaluationPeriodInteractor["execute"]>[0],
 	) => {
 		const out = output<EvaluationPeriodChangeResponse>();
-		await new SaveEvaluationPeriodInteractor(context.periods, context.employees).execute(
-			request,
-			out,
-		);
+		const result = await new SaveEvaluationPeriodInteractor(
+			context.periods,
+			context.employees,
+		).execute(request, out);
+		if (!result.ok) {
+			return { success: false, message: describeSaveEvaluationPeriodError(result.error) };
+		}
 		return out.present.mock.calls[0][0];
 	};
 	const remove = async (context: ReturnType<typeof setup>, periodId: number) => {
 		const out = output<EvaluationPeriodChangeResponse>();
-		await new DeleteEvaluationPeriodInteractor(context.periods, context.employees).execute(
-			{ periodId },
-			out,
-		);
+		const result = await new DeleteEvaluationPeriodInteractor(
+			context.periods,
+			context.employees,
+		).execute({ periodId }, out);
+		if (!result.ok) {
+			return { success: false, message: describeDeleteEvaluationPeriodError(result.error) };
+		}
 		return out.present.mock.calls[0][0];
 	};
 
@@ -221,7 +234,7 @@ describe("adding, editing and deleting evaluation periods", () => {
 			},
 		]);
 		// 自分自身の名前は重複として扱わない
-		expect(
+		await expect(
 			await run(context, {
 				...nextTerm,
 				periodId: 3,
@@ -428,7 +441,6 @@ describe("adding, editing and deleting evaluation periods", () => {
 });
 
 describe("sheets of a closed period", () => {
-	const closedMessage = "この評価期間は締められているため";
 	// 状態だけなら編集できる段階のシートでも、締めた期間では誰も変更できない
 	const repositories = (status: EvaluationStatus) => {
 		const sheets = sheetRepository();
@@ -439,7 +451,6 @@ describe("sheets of a closed period", () => {
 			sheets,
 			milestones,
 			common,
-			scores: new EvaluationScoreUpdateService(sheets, milestones, common),
 		};
 	};
 
@@ -457,34 +468,35 @@ describe("sheets of a closed period", () => {
 					{ sheetId: 100, status: next, currentEmployeeId: employeeId },
 					output<never>(),
 				),
-			).rejects.toThrow(closedMessage);
+			).resolves.toMatchObject({ ok: false, error: { kind: "periodClosed" } });
 			expect(sheets.updateStatus).not.toHaveBeenCalled();
-			expect(sheets.updateScoreTotals).not.toHaveBeenCalled();
 		}
 	});
 
 	it("rejects goals, scores, common evaluation and comments before any write", async () => {
 		const draft = repositories(EvaluationStatus.DRAFT);
 		await expect(
-			new UpdateMilestoneInteractor(draft.milestones, draft.sheets, draft.scores).execute(
-				{ sheetId: 100, currentEmployeeId: 1, milestoneId: 11, challengeGoal: "書き換え" },
+			new UpdateMilestoneInteractor(draft.milestones, draft.sheets).execute(
+				{
+					action: "text",
+					sheetId: 100,
+					currentEmployeeId: 1,
+					milestoneId: 11,
+					challengeGoal: "書き換え",
+				},
 				output<never>(),
 			),
-		).rejects.toThrow(closedMessage);
+		).resolves.toMatchObject({ ok: false, error: { kind: "periodClosed" } });
 
 		const submitted = repositories(EvaluationStatus.SUBMITTED);
 		await expect(
-			new UpdateMilestoneInteractor(
-				submitted.milestones,
-				submitted.sheets,
-				submitted.scores,
-			).execute(
-				{ sheetId: 100, currentEmployeeId: 2, milestoneId: 11, firstScore: 4 },
+			new UpdateMilestoneInteractor(submitted.milestones, submitted.sheets).execute(
+				{ action: "score", sheetId: 100, currentEmployeeId: 2, milestoneId: 11, firstScore: 4 },
 				output<never>(),
 			),
-		).rejects.toThrow(closedMessage);
+		).resolves.toMatchObject({ ok: false, error: { kind: "periodClosed" } });
 		await expect(
-			new UpsertCommonEvaluationInteractor(submitted.sheets, submitted.scores).execute(
+			new UpsertCommonEvaluationInteractor(submitted.sheets, submitted.common).execute(
 				{
 					sheetId: 100,
 					currentEmployeeId: 2,
@@ -492,13 +504,13 @@ describe("sheets of a closed period", () => {
 				},
 				output<never>(),
 			),
-		).rejects.toThrow(closedMessage);
+		).resolves.toMatchObject({ ok: false, error: { kind: "periodClosed" } });
 		await expect(
 			new UpdateOverallCommentInteractor(submitted.sheets, employeeRepository()).execute(
 				{ sheetId: 100, target: "first", comment: "書き換え", currentEmployeeId: 2 },
 				output<never>(),
 			),
-		).rejects.toThrow(closedMessage);
+		).resolves.toMatchObject({ ok: false, error: { kind: "periodClosed" } });
 
 		for (const { sheets, milestones, common } of [draft, submitted]) {
 			for (const write of [
@@ -507,7 +519,6 @@ describe("sheets of a closed period", () => {
 				milestones.updateScore,
 				common.upsertResults,
 				sheets.updateOverallComment,
-				sheets.updateScoreTotals,
 				sheets.updateStatus,
 			]) {
 				expect(write).not.toHaveBeenCalled();

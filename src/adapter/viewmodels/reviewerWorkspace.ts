@@ -17,7 +17,7 @@ export const reviewLabel = (row: ReviewerRowDto): string => {
 		return "未作成";
 	}
 	if (status.isDraft()) {
-		return "提出待ち";
+		return "目標の送信待ち";
 	}
 	if (status.isGoalsSubmitted()) {
 		return row.isPrimary ? "目標を確認する" : "目標確認待ち";
@@ -70,7 +70,7 @@ export function reviewStats(rows: ReviewerRowDto[]): [ReviewFilter, string, numb
 		["goals", "目標を確認する", count("goals"), rows.some((row) => row.isPrimary)],
 		["first", "一次評価する", count("first"), rows.some((row) => row.isPrimary)],
 		["second", "二次評価する", count("second"), rows.some((row) => row.canViewSecond)],
-		["waiting", "提出・相手の評価待ち", count("waiting"), true],
+		["waiting", "本人・相手の評価待ち", count("waiting"), true],
 		["finalized", "最終評価済み", count("finalized"), true],
 	];
 	return stats.filter(([, , , shown]) => shown).map(([key, label, total]) => [key, label, total]);

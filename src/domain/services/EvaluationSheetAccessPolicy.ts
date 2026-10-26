@@ -1,6 +1,8 @@
 import type { EvaluationSheet } from "../entities/EvaluationSheet";
 import type { SheetCorrection } from "../entities/SheetCorrection";
+import { err, ok, type Result } from "../Result";
 import { isPrimaryEvaluator, isSecondaryEvaluator, isSubject } from "./EvaluatorRoleService";
+import type { SheetAccessError } from "./SheetAccessError";
 
 /**
  * 評価シートに対する「誰が・何を・見る/編集できるか」を一箇所に集約したドメインポリシー。
@@ -18,7 +20,7 @@ import { isPrimaryEvaluator, isSecondaryEvaluator, isSubject } from "./Evaluator
  */
 export class EvaluationSheetAccessPolicy {
 	private readonly viewerIsFinalEvaluator: boolean;
-	/** 評価者として、提出済み(または締めた期間)のシートを見ている。書きかけの下書きは評価者に見せない。 */
+	/** 評価者として、目標を送信済み(または締めた期間)のシートを見ている。書きかけの下書きは評価者に見せない。 */
 	private readonly viewerIsEvaluatorOfSubmittedSheet: boolean;
 	/** シートの評価期間が実施中か。締めた期間のシートは誰も変更できない。 */
 	private readonly periodIsOpen: boolean;
@@ -89,22 +91,18 @@ export class EvaluationSheetAccessPolicy {
 	}
 
 	/** 締めた評価期間のシートを変更しようとしたら、役割より先にその理由で止める。 */
-	assertPeriodOpen(): void {
-		if (!this.periodIsOpen) {
-			throw new Error(
-				"この評価期間は締められているため、評価シートを変更できません。変更が必要な場合は、TYPA の管理担当者に連絡してください。",
-			);
-		}
+	periodOpen(): Result<void, SheetAccessError> {
+		return this.periodIsOpen ? ok(undefined) : err({ kind: "periodClosed" });
 	}
 
 	// --- チャレンジ目標(Milestone) ---
 
 	/** 目標の文言(チャレンジ目標・期中目標)を編集できるのは、下書きの間の本人だけ。 */
 	canEditMilestoneGoal(): boolean {
-		return this.periodIsOpen && this.viewerIsSubject && this.sheet.isEditable();
+		return this.periodIsOpen && this.viewerIsSubject && this.sheet.status.isDraft();
 	}
 
-	/** 一次評価者は、本人の提出後から一次評価を確定するまで編集できる。 */
+	/** 一次評価者は、本人が一次評価を依頼してから一次評価を確定するまで編集できる。 */
 	canEditMilestoneFirstScore(): boolean {
 		return (
 			this.periodIsOpen &&
@@ -176,7 +174,7 @@ export class EvaluationSheetAccessPolicy {
 		return (!this.viewerIsSubject && this.viewerIsFinalEvaluator) || this.viewerReadsRecord;
 	}
 
-	// --- シートロック(提出・確定) ---
+	// --- 状態の変更(送信・確定・依頼) ---
 
 	/** 本人は自分の下書きの目標を、一次評価者へ送信できる。 */
 	canSubmitGoals(): boolean {
@@ -198,7 +196,7 @@ export class EvaluationSheetAccessPolicy {
 		);
 	}
 
-	/** 本人が達成状況を提出して、一次評価の依頼に進める。 */
+	/** 本人は目標確定後に、一次評価を依頼できる。 */
 	canRequestFirstEvaluation(): boolean {
 		return this.periodIsOpen && this.viewerIsSubject && this.sheet.status.isGoalsConfirmed();
 	}
@@ -217,7 +215,7 @@ export class EvaluationSheetAccessPolicy {
 	}
 
 	/**
-	 * 一次評価者は提出済みのシートの一次評価を確定し、二次評価者へ引き継げる。確定後は一次評価を変更できない。
+	 * 一次評価者は一次評価待ちのシートの一次評価を確定し、二次評価者へ引き継げる。確定後は一次評価を変更できない。
 	 * 一次評価者が最終評価者を兼ねる社員では、一次評価の確定がそのまま評価の確定(canFinalizeEvaluation)になる。
 	 */
 	canConfirmFirstEvaluation(): boolean {
@@ -232,7 +230,7 @@ export class EvaluationSheetAccessPolicy {
 
 	/**
 	 * 最終評価者は、一次評価が確定したシートを確定し、不可逆にロックできる。
-	 * 一次評価者が最終評価者を兼ねる社員では、提出済みのシートをそのまま確定する。
+	 * 一次評価者が最終評価者を兼ねる社員では、一次評価待ちのシートをそのまま確定する。
 	 */
 	canFinalizeEvaluation(): boolean {
 		return (

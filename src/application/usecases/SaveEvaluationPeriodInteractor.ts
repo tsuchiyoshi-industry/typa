@@ -1,7 +1,8 @@
-import { DomainError } from "../../domain/DomainError";
 import { EvaluationCalendar } from "../../domain/entities/EvaluationCalendar";
 import type { EvaluationPeriodPlan } from "../../domain/entities/EvaluationPeriodPlan";
 import { EvaluationTerm } from "../../domain/entities/EvaluationTerm";
+import { describePeriodError, type PeriodError } from "../../domain/entities/PeriodError";
+import { err, ok, type Result } from "../../domain/Result";
 import type { EmployeeMasterRepository } from "../../domain/repositories/EmployeeMasterRepository";
 import type { EvaluationPeriodRepository } from "../../domain/repositories/EvaluationPeriodRepository";
 import { canEditSettings } from "../../domain/services/EmployeeMasterAccessService";
@@ -10,7 +11,7 @@ import { DateRange } from "../../domain/valueObjects/DateRange";
 import { PeriodDivision } from "../../domain/valueObjects/PeriodDivision";
 import { TermName } from "../../domain/valueObjects/TermName";
 import type { OutputPort } from "../ports/OutputPort";
-import type { UseCase } from "../ports/UseCase";
+import type { FallibleUseCase } from "../ports/UseCase";
 
 export interface SaveEvaluationPeriodRequest {
 	/** 省略すると追加。指定すると、その評価期間の期の名前・日付・締め方を変える。 */
@@ -30,22 +31,66 @@ export interface EvaluationPeriodChangeResponse {
 	message: string;
 }
 
-const rangeOf = (request: Pick<SaveEvaluationPeriodRequest, "startDate" | "endDate">) => {
-	if (!request.startDate || !request.endDate) {
-		throw new DomainError("開始日と終了日を入力してください。");
+export type SaveEvaluationPeriodError =
+	| PeriodError
+	| { kind: "forbidden" }
+	| { kind: "periodNotFound" }
+	| { kind: "periodNameTaken"; periodName: string }
+	| { kind: "saveFailed" };
+
+export function describeSaveEvaluationPeriodError(error: SaveEvaluationPeriodError): string {
+	switch (error.kind) {
+		case "forbidden":
+			return "評価期間を変更できるのは Admin のみです。";
+		case "periodNotFound":
+			return "評価期間が見つかりませんでした。";
+		case "periodNameTaken":
+			return `「${error.periodName}」という評価期間は既にあります。`;
+		case "saveFailed":
+			return "評価期間を保存できませんでした。";
+		default:
+			return describePeriodError(error);
 	}
-	return DateRange.of(CalendarDate.parse(request.startDate), CalendarDate.parse(request.endDate));
+}
+
+const rangeOf = (
+	request: Pick<SaveEvaluationPeriodRequest, "startDate" | "endDate">,
+): Result<DateRange, PeriodError> => {
+	if (!request.startDate || !request.endDate) {
+		return err({ kind: "datesMissing" });
+	}
+	const start = CalendarDate.parse(request.startDate);
+	if (!start.ok) {
+		return start;
+	}
+	const end = CalendarDate.parse(request.endDate);
+	if (!end.ok) {
+		return end;
+	}
+	return DateRange.of(start.value, end.value);
 };
 
-/** 追加する評価期間。期を区切り方どおりに分ける。決まりに反するときは DomainError。 */
+/** 追加する評価期間。期を区切り方どおりに分ける。 */
 export const planNewPeriods = (
 	request: Omit<SaveEvaluationPeriodRequest, "periodId">,
-): EvaluationPeriodPlan[] =>
-	EvaluationTerm.of(
-		TermName.from(request.termName),
-		rangeOf(request),
-		PeriodDivision.from(request.division ?? "full"),
-	).divide(request.allowUnfinalizedClose ?? false);
+): Result<EvaluationPeriodPlan[], PeriodError> => {
+	const term = TermName.from(request.termName);
+	if (!term.ok) {
+		return term;
+	}
+	const range = rangeOf(request);
+	if (!range.ok) {
+		return range;
+	}
+	const division = PeriodDivision.from(request.division ?? "full");
+	if (!division.ok) {
+		return division;
+	}
+	const evaluationTerm = EvaluationTerm.of(term.value, range.value, division.value);
+	return evaluationTerm.ok
+		? ok(evaluationTerm.value.divide(request.allowUnfinalizedClose ?? false))
+		: evaluationTerm;
+};
 
 /**
  * 評価期間を追加する(期を上期・下期などに分けて、まとめて追加できる)、または期の名前・日付・締め方を変える。
@@ -53,7 +98,12 @@ export const planNewPeriods = (
  * 実施中かどうかはここでは変わらない。追加した評価期間は締めた状態で始まり、期間締めで実施中になる。
  */
 export class SaveEvaluationPeriodInteractor
-	implements UseCase<SaveEvaluationPeriodRequest, OutputPort<EvaluationPeriodChangeResponse>>
+	implements
+		FallibleUseCase<
+			SaveEvaluationPeriodRequest,
+			OutputPort<EvaluationPeriodChangeResponse>,
+			SaveEvaluationPeriodError
+		>
 {
 	constructor(
 		private readonly periodRepository: EvaluationPeriodRepository,
@@ -63,48 +113,53 @@ export class SaveEvaluationPeriodInteractor
 	async execute(
 		request: SaveEvaluationPeriodRequest,
 		outputPort: OutputPort<EvaluationPeriodChangeResponse>,
-	): Promise<void> {
-		const reject = (message: string) => outputPort.present({ success: false, message });
-
+	): Promise<Result<void, SaveEvaluationPeriodError>> {
 		const currentEmployee = await this.employeeMasterRepository.findCurrentEmployeeProfile();
 		if (!currentEmployee || !canEditSettings(currentEmployee.role)) {
-			return reject("評価期間を変更できるのは Admin のみです。");
+			return err({ kind: "forbidden" });
 		}
 
 		const calendar = new EvaluationCalendar(await this.periodRepository.findDistinctPeriods());
 		const editing = request.periodId === undefined ? null : calendar.find(request.periodId);
 		if (request.periodId !== undefined && !editing) {
-			return reject("評価期間が見つかりませんでした。");
+			return err({ kind: "periodNotFound" });
 		}
 
 		let plans: EvaluationPeriodPlan[];
-		try {
-			plans = editing
-				? [
-						editing.replan({
-							term: TermName.from(request.termName),
-							range: rangeOf(request),
-							allowUnfinalizedClose: request.allowUnfinalizedClose ?? false,
-						}),
-					]
-				: planNewPeriods(request);
-		} catch (error) {
-			if (error instanceof DomainError) {
-				return reject(error.message);
+		if (editing) {
+			const term = TermName.from(request.termName);
+			if (!term.ok) {
+				return term;
 			}
-			throw error;
+			const range = rangeOf(request);
+			if (!range.ok) {
+				return range;
+			}
+			plans = [
+				editing.replan({
+					term: term.value,
+					range: range.value,
+					allowUnfinalizedClose: request.allowUnfinalizedClose ?? false,
+				}),
+			];
+		} else {
+			const planned = planNewPeriods(request);
+			if (!planned.ok) {
+				return planned;
+			}
+			plans = planned.value;
 		}
 
 		const taken = plans.find((plan) => calendar.hasPeriodNamed(plan.periodName, editing?.id));
 		if (taken) {
-			return reject(`「${taken.periodName}」という評価期間は既にあります。`);
+			return err({ kind: "periodNameTaken", periodName: taken.periodName });
 		}
 
 		const saved = editing
 			? await this.periodRepository.update(editing.id, plans[0])
 			: await this.periodRepository.create(plans);
 		if (!saved) {
-			return reject("評価期間を保存できませんでした。");
+			return err({ kind: "saveFailed" });
 		}
 		const names = plans.map(({ periodName }) => `「${periodName}」`).join("");
 		outputPort.present({
@@ -113,5 +168,6 @@ export class SaveEvaluationPeriodInteractor
 				? `評価期間${names}を保存しました。`
 				: `評価期間${names}を追加しました。開始するには、一覧の「この期間を開始する」を押してください。`,
 		});
+		return ok(undefined);
 	}
 }

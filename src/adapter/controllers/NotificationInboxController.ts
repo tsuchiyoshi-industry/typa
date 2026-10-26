@@ -25,7 +25,7 @@ const WORDING: Record<InAppNotification["kind"], { done: string; next: string }>
 		done: "目標が要修正として戻されました",
 		next: "目標を修正して再送信してください",
 	},
-	submitted: { done: "評価シートが提出されました", next: "一次評価をお願いします" },
+	submitted: { done: "一次評価の依頼が届きました", next: "一次評価をお願いします" },
 	first_evaluated: { done: "一次評価が確定しました", next: "二次評価をお願いします" },
 };
 

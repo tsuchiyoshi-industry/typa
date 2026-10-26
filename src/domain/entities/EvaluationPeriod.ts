@@ -1,4 +1,4 @@
-import { DomainError } from "../DomainError";
+import { err, expectOk, ok, type Result } from "../Result";
 import { CalendarDate } from "../valueObjects/CalendarDate";
 import { DateRange } from "../valueObjects/DateRange";
 import { PeriodDivision } from "../valueObjects/PeriodDivision";
@@ -7,6 +7,7 @@ import { PeriodState } from "../valueObjects/PeriodState";
 import type { SheetCountsByStatus } from "../valueObjects/SheetCountsByStatus";
 import { TermName } from "../valueObjects/TermName";
 import { EvaluationPeriodPlan } from "./EvaluationPeriodPlan";
+import { describePeriodError, type PeriodError } from "./PeriodError";
 
 /**
  * 評価期間。期(年度)を通年のまま、または上期・下期、四半期に分けたものの1つで、
@@ -39,9 +40,14 @@ export class EvaluationPeriod {
 	}): EvaluationPeriod {
 		return new EvaluationPeriod(
 			params.id,
-			TermName.from(params.termName),
-			PeriodPart.of(PeriodDivision.from(params.division ?? "full"), params.part ?? 1),
-			DateRange.of(CalendarDate.parse(params.startDate), CalendarDate.parse(params.endDate)),
+			trusted(TermName.from(params.termName)),
+			PeriodPart.of(trusted(PeriodDivision.from(params.division ?? "full")), params.part ?? 1),
+			trusted(
+				DateRange.of(
+					trusted(CalendarDate.parse(params.startDate)),
+					trusted(CalendarDate.parse(params.endDate)),
+				),
+			),
 			PeriodState.of(params.isActive, params.isClosed ?? false),
 			params.allowUnfinalizedClose ?? false,
 		);
@@ -77,49 +83,48 @@ export class EvaluationPeriod {
 	}
 
 	/** 次に実施する評価期間として開始できるか。開始できるのは未開始の評価期間だけ(締めたものは再開しない)。 */
-	assertCanStart(): void {
+	startable(): Result<void, PeriodError> {
 		if (this.isActive) {
-			throw new DomainError(`「${this.periodName}」は既に実施中です。`);
+			return err({ kind: "alreadyActive", periodName: this.periodName });
 		}
 		if (this.isClosed) {
-			throw new DomainError(
-				`「${this.periodName}」は締め済みのため、もう一度開始することはできません。`,
-			);
+			return err({ kind: "alreadyClosed", periodName: this.periodName });
 		}
+		return ok(undefined);
 	}
 
 	/**
 	 * 締められるか。評価が確定していないシートが残っていれば締められない。
 	 * ただし Admin が「評価が確定していなくても締められる」とした評価期間は、そのまま締められる。
 	 */
-	assertCanClose(sheets: SheetCountsByStatus): void {
-		if (sheets.unfinished() > 0 && !this.allowUnfinalizedClose) {
-			throw new DomainError(
-				`「${this.periodName}」に未確定の評価シートが ${sheets.unfinished()} 件あります（${sheets.describeUnfinished()}）。すべての評価を確定してから締めてください。評価を確定せずに締めるには、この期間を編集して「評価が確定していなくても締められる」をオンにしてください。`,
-			);
-		}
+	closable(sheets: SheetCountsByStatus): Result<void, PeriodError> {
+		return sheets.unfinished() > 0 && !this.allowUnfinalizedClose
+			? err({
+					kind: "unfinishedSheets",
+					periodName: this.periodName,
+					count: sheets.unfinished(),
+					detail: sheets.describeUnfinished(),
+				})
+			: ok(undefined);
 	}
 
 	/** 削除できるか。実施中の評価期間と、評価シートが1枚でもある評価期間は削除できない。 */
-	assertCanDelete(sheets: SheetCountsByStatus): void {
+	deletable(sheets: SheetCountsByStatus): Result<void, PeriodError> {
 		if (this.isActive) {
-			throw new DomainError("実施中の評価期間は削除できません。");
+			return err({ kind: "activeCannotBeDeleted" });
 		}
 		if (sheets.total() > 0) {
-			throw new DomainError(
-				`「${this.periodName}」には評価シートが ${sheets.total()} 件あるため、削除できません。`,
-			);
+			return err({ kind: "hasSheets", periodName: this.periodName, count: sheets.total() });
 		}
+		return ok(undefined);
 	}
 
 	/**
 	 * 遡及処理(締め後修正)を受け付けるか。締めた評価期間のシートだけを、評価期間を開き直さずに直す。
 	 * 実施中・未開始の評価期間のシートは、ふだんの記入と評価で直す。
 	 */
-	assertAllowsRetroactiveCorrection(): void {
-		if (!this.isClosed) {
-			throw new DomainError("遡及処理で修正できるのは、締め済みの評価期間のシートだけです。");
-		}
+	allowsRetroactiveCorrection(): boolean {
+		return this.isClosed;
 	}
 
 	/**
@@ -148,3 +153,6 @@ export class EvaluationPeriod {
 		return this.id === other.id;
 	}
 }
+
+/** 保存済みの評価期間の値。きまりに反していればデータの不整合として例外にする。 */
+const trusted = <T>(result: Result<T, PeriodError>): T => expectOk(result, describePeriodError);

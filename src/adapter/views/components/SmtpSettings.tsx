@@ -111,7 +111,7 @@ const SmtpSettings: Component<SmtpSettingsProps> = (props) => {
 		<section class="info-card" aria-labelledby="notification-heading">
 			<h2 id="notification-heading">通知</h2>
 			<p>
-				提出されたときは一次評価者に、一次評価が確定したときは二次評価者に、評価の依頼を知らせます。
+				目標の送信・一次評価の依頼は一次評価者に、目標の確定・要修正は本人に、一次評価の確定は二次評価者に知らせます。
 			</p>
 
 			<Show when={error()}>

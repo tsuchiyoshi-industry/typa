@@ -199,7 +199,7 @@ describe("help", () => {
 			"true",
 		);
 		expect(view.getByRole("link", { name: "評価シート一覧へ" }).getAttribute("href")).toBe("/");
-		expect(view.getByRole("heading", { name: "記入・提出の手順" })).toBeTruthy();
+		expect(view.getByRole("heading", { name: "記入・送信の手順" })).toBeTruthy();
 		expect(
 			view.getByText(
 				"保存はチャレンジ目標ごとに行います。期中目標は各チャレンジ目標に0〜4件。0件の場合はチャレンジ目標に達成状況を記入します。",
@@ -216,7 +216,7 @@ describe("help", () => {
 		expect(answer).toContain("画面上部のベル");
 		expect(answer).toContain("管理者");
 		expect(view.getByText("ベルの未読")).toBeTruthy();
-		// 提出の手順は、通知メールを選べるのはメールのときだけと案内する
+		// 送信の手順は、通知メールを選べるのはメールのときだけと案内する
 		expect(view.queryByText(/確認画面で通知メールの有無を選び、/)).toBeNull();
 	});
 	it("explains plainly why a mail server may be refused, and why mail is never sent unencrypted", () => {

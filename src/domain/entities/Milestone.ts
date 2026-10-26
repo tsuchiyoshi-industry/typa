@@ -1,11 +1,23 @@
-import { DomainError } from "../DomainError";
-import { copyPeriodGoals, emptyPeriodGoals, type PeriodGoal } from "../valueObjects/PeriodGoal";
+import { err, expectOk, ok, type Result } from "../Result";
+import { emptyPeriodGoals, type PeriodGoal, toPeriodGoals } from "../valueObjects/PeriodGoal";
 import { Score } from "../valueObjects/Score";
+import { describeMilestoneError, type MilestoneError } from "./MilestoneError";
 
 interface TextParams {
 	challengeGoal?: string;
 	periodGoals?: readonly PeriodGoal[];
 	achievement?: string;
+}
+
+interface MilestoneParams {
+	id: number;
+	sheetId: number;
+	goalNumber: number;
+	challengeGoal: string;
+	periodGoals?: readonly PeriodGoal[];
+	achievement?: string;
+	firstScore?: number;
+	secondScore?: number;
 }
 
 /**
@@ -23,73 +35,66 @@ export class Milestone {
 		public readonly achievement: string,
 		public readonly firstScore: Score,
 		public readonly secondScore: Score,
-	) {
-		if (periodGoals.length > 0 && achievement !== "") {
-			throw new DomainError("期中目標があるときは、達成状況を期中目標ごとに記入してください。");
+	) {}
+
+	/** 入力から作る。期中目標の形と件数、達成状況の置き場所を確かめる。 */
+	static from(params: MilestoneParams): Result<Milestone, MilestoneError> {
+		const periodGoals = toPeriodGoals(params.periodGoals ?? emptyPeriodGoals());
+		if (!periodGoals.ok) {
+			return periodGoals;
 		}
+		const achievement = params.achievement ?? "";
+		if (periodGoals.value.length > 0 && achievement !== "") {
+			return err({ kind: "achievementBesideTasks" });
+		}
+		return ok(
+			new Milestone(
+				params.id,
+				params.sheetId,
+				params.goalNumber,
+				params.challengeGoal ?? "",
+				periodGoals.value,
+				achievement,
+				Score.fromOptional(params.firstScore),
+				Score.fromOptional(params.secondScore),
+			),
+		);
 	}
 
-	static create(params: {
-		id: number;
-		sheetId: number;
-		goalNumber: number;
-		challengeGoal: string;
-		periodGoals?: readonly PeriodGoal[];
-		achievement?: string;
-		firstScore?: number;
-		secondScore?: number;
-	}): Milestone {
-		return new Milestone(
-			params.id,
-			params.sheetId,
-			params.goalNumber,
-			params.challengeGoal ?? "",
-			copyPeriodGoals(params.periodGoals ?? emptyPeriodGoals()),
-			params.achievement ?? "",
-			Score.fromOptional(params.firstScore),
-			Score.fromOptional(params.secondScore),
-		);
+	/** 保存済みの目標を戻す。きまりに反していればデータの不整合として例外にする。 */
+	static restore(params: MilestoneParams): Milestone {
+		return expectOk(Milestone.from(params), describeMilestoneError);
 	}
 
 	/** 下書きの間の編集。指定しなかった欄は今のまま。 */
-	withTextUpdates(params: TextParams): Milestone {
-		return new Milestone(
-			this.id,
-			this.sheetId,
-			this.goalNumber,
-			params.challengeGoal ?? this.challengeGoal,
-			copyPeriodGoals(params.periodGoals ?? this.periodGoals),
-			params.achievement ?? this.achievement,
-			this.firstScore,
-			this.secondScore,
-		);
+	withTextUpdates(params: TextParams): Result<Milestone, MilestoneError> {
+		return Milestone.from({
+			id: this.id,
+			sheetId: this.sheetId,
+			goalNumber: this.goalNumber,
+			challengeGoal: params.challengeGoal ?? this.challengeGoal,
+			periodGoals: params.periodGoals ?? this.periodGoals,
+			achievement: params.achievement ?? this.achievement,
+			firstScore: this.firstScore.toNumber(),
+			secondScore: this.secondScore.toNumber(),
+		});
 	}
 
 	/**
-	 * 目標確定後の編集。チャレンジ目標と期中目標の本文・件数・順序は変えず、達成状況だけを変える
+	 * 目標の送信後の編集。チャレンジ目標と期中目標の本文・件数・順序は変えず、達成状況だけを変える
 	 * (DB の goal_achievement_only と同じ)。
 	 */
-	withAchievementUpdates(params: TextParams): Milestone {
+	withAchievementUpdates(params: TextParams): Result<Milestone, MilestoneError> {
 		const next = this.withTextUpdates(params);
-		const sameDescriptions =
-			next.periodGoals.length === this.periodGoals.length &&
-			next.periodGoals.every((goal, i) => goal.description === this.periodGoals[i].description);
-		if (next.challengeGoal !== this.challengeGoal || !sameDescriptions) {
-			throw new DomainError("目標確定後は達成状況だけを編集できます。");
+		if (!next.ok) {
+			return next;
 		}
-		return next;
-	}
-
-	withScoreUpdates(params: { firstScore?: number; secondScore?: number }): Milestone {
-		return new Milestone(
-			this.id,
-			this.sheetId,
-			this.goalNumber,
-			this.challengeGoal,
-			this.periodGoals,
-			this.achievement,
-			params.firstScore !== undefined ? Score.from(params.firstScore) : this.firstScore,
-			params.secondScore !== undefined ? Score.from(params.secondScore) : this.secondScore,
-		);
+		const goals = next.value.periodGoals;
+		const sameDescriptions =
+			goals.length === this.periodGoals.length &&
+			goals.every((goal, i) => goal.description === this.periodGoals[i].description);
+		return next.value.challengeGoal === this.challengeGoal && sameDescriptions
+			? next
+			: err({ kind: "goalsFixed" });
 	}
 }

@@ -209,8 +209,6 @@ describe("showing corrections on a sheet and in its PDF", () => {
 			isActive: true,
 		});
 		expect(open.isClosed).toBe(false);
-		expect(() => open.assertAllowsRetroactiveCorrection()).toThrow(
-			"締め済みの評価期間のシートだけ",
-		);
+		expect(open.allowsRetroactiveCorrection()).toBe(false);
 	});
 });

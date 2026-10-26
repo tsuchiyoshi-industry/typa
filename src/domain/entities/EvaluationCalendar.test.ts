@@ -1,11 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { DomainError } from "../DomainError";
+import { expectOk } from "../Result";
 import { CalendarDate } from "../valueObjects/CalendarDate";
 import { DateRange } from "../valueObjects/DateRange";
 import { SheetCountsByStatus } from "../valueObjects/SheetCountsByStatus";
 import { TermName } from "../valueObjects/TermName";
 import { EvaluationCalendar } from "./EvaluationCalendar";
 import { EvaluationPeriod } from "./EvaluationPeriod";
+import { describePeriodError } from "./PeriodError";
+
+const date = (value: string) => expectOk(CalendarDate.parse(value), describePeriodError);
+const termName = (value: string) => expectOk(TermName.from(value), describePeriodError);
+const range = (start: string, end: string) =>
+	expectOk(DateRange.of(date(start), date(end)), describePeriodError);
 
 let nextId = 1;
 const period = (
@@ -80,16 +86,23 @@ describe("evaluation period", () => {
 				isActive: false,
 				...override,
 			}),
-		).toThrow(DomainError);
+		).toThrow();
 	});
 
 	it("can be started only before it has ever started (a closed period is never reopened)", () => {
-		expect(() => quarters27[0].assertCanStart()).not.toThrow();
-		expect(() => second26.assertCanStart()).toThrow("「26期 下期」は既に実施中です。");
-		expect(() => term25.assertCanStart()).toThrow(
-			"「25期」は締め済みのため、もう一度開始することはできません。",
-		);
-		expect(() => first26.assertCanStart()).toThrow(DomainError);
+		expect(quarters27[0].startable()).toEqual({ ok: true, value: undefined });
+		expect(second26.startable()).toEqual({
+			ok: false,
+			error: { kind: "alreadyActive", periodName: "26期 下期" },
+		});
+		expect(term25.startable()).toEqual({
+			ok: false,
+			error: { kind: "alreadyClosed", periodName: "25期" },
+		});
+		expect(first26.startable()).toEqual({
+			ok: false,
+			error: { kind: "alreadyClosed", periodName: "26期 上期" },
+		});
 		expect([term25, second26, quarters27[0]].map((p) => p.state.label)).toEqual([
 			"締め済み",
 			"実施中",
@@ -107,32 +120,46 @@ describe("evaluation period", () => {
 				isActive: true,
 				isClosed: true,
 			}),
-		).toThrow(DomainError);
+		).toThrow();
 	});
 
 	it("closes only with every sheet finalized, unless the Admin allowed otherwise", () => {
 		const unfinished = SheetCountsByStatus.from({ draft: 2, submitted: 1, finalized: 7 });
-		expect(() => second26.assertCanClose(SheetCountsByStatus.from({ finalized: 9 }))).not.toThrow();
-		expect(() => second26.assertCanClose(SheetCountsByStatus.NONE)).not.toThrow();
-		expect(() => second26.assertCanClose(unfinished)).toThrow(
-			"「26期 下期」に未確定の評価シートが 3 件あります（下書き 2 件・一次評価待ち 1 件）。",
-		);
+		expect(second26.closable(SheetCountsByStatus.from({ finalized: 9 }))).toEqual({
+			ok: true,
+			value: undefined,
+		});
+		expect(second26.closable(SheetCountsByStatus.NONE)).toEqual({ ok: true, value: undefined });
+		expect(second26.closable(unfinished)).toMatchObject({
+			ok: false,
+			error: {
+				kind: "unfinishedSheets",
+				periodName: "26期 下期",
+				count: 3,
+				detail: "下書き 2 件・一次評価待ち 1 件",
+			},
+		});
 		const loose = period("26期", "half", 1, "2026-04-01", "2026-09-30", {
 			isActive: true,
 			allowUnfinalizedClose: true,
 		});
-		expect(() => loose.assertCanClose(unfinished)).not.toThrow();
+		expect(loose.closable(unfinished)).toEqual({ ok: true, value: undefined });
 	});
 
 	it("can be deleted only when it is not in progress and has no sheets", () => {
-		expect(() => first26.assertCanDelete(SheetCountsByStatus.NONE)).not.toThrow();
-		expect(() => quarters27[0].assertCanDelete(SheetCountsByStatus.NONE)).not.toThrow();
-		expect(() => second26.assertCanDelete(SheetCountsByStatus.NONE)).toThrow(
-			"実施中の評価期間は削除できません。",
-		);
-		expect(() => first26.assertCanDelete(SheetCountsByStatus.from({ finalized: 1 }))).toThrow(
-			"「26期 上期」には評価シートが 1 件あるため、削除できません。",
-		);
+		expect(first26.deletable(SheetCountsByStatus.NONE)).toEqual({ ok: true, value: undefined });
+		expect(quarters27[0].deletable(SheetCountsByStatus.NONE)).toEqual({
+			ok: true,
+			value: undefined,
+		});
+		expect(second26.deletable(SheetCountsByStatus.NONE)).toEqual({
+			ok: false,
+			error: { kind: "activeCannotBeDeleted" },
+		});
+		expect(first26.deletable(SheetCountsByStatus.from({ finalized: 1 }))).toEqual({
+			ok: false,
+			error: { kind: "hasSheets", periodName: "26期 上期", count: 1 },
+		});
 	});
 
 	it("lets unfinalized sheets be exported only after a period that allows it is closed", () => {
@@ -151,8 +178,8 @@ describe("evaluation period", () => {
 
 	it("keeps which part it is when its term name, dates or closing rule change", () => {
 		const plan = second26.replan({
-			term: TermName.from("第26期"),
-			range: DateRange.of(CalendarDate.parse("2026-10-01"), CalendarDate.parse("2027-03-20")),
+			term: termName("第26期"),
+			range: range("2026-10-01", "2027-03-20"),
 			allowUnfinalizedClose: true,
 		});
 		expect([plan.periodName, plan.part.equals(second26.part), plan.allowUnfinalizedClose]).toEqual([
@@ -179,8 +206,8 @@ describe("evaluation calendar", () => {
 		expect(calendar.find(-1)).toBeNull();
 	});
 
-	it("treats every divided period of the active term as the current term, each on its own", () => {
-		expect(names(calendar.currentTerm())).toEqual(["26期 上期", "26期 下期"]);
+	it("groups the divided periods of a term", () => {
+		expect(names(calendar.termOf(second26))).toEqual(["26期 上期", "26期 下期"]);
 		expect(names(calendar.termOf(quarters27[0]))).toEqual([
 			"27期 第1四半期",
 			"27期 第2四半期",
@@ -188,7 +215,6 @@ describe("evaluation calendar", () => {
 			"27期 第4四半期",
 		]);
 		expect(names(calendar.termOf(term25))).toEqual(["25期"]);
-		expect(new EvaluationCalendar([term25, first26]).currentTerm()).toEqual([]);
 	});
 
 	it.each([
@@ -200,14 +226,9 @@ describe("evaluation calendar", () => {
 		expect(calendar.previousOf(current)?.periodName).toBe(previous);
 	});
 
-	it("has nothing in progress, no current term and no previous period when there are no periods", () => {
+	it("has nothing in progress and no previous period when there are no periods", () => {
 		const empty = new EvaluationCalendar([]);
-		expect([empty.all(), empty.active(), empty.currentTerm(), empty.find(1)]).toEqual([
-			[],
-			null,
-			[],
-			null,
-		]);
+		expect([empty.all(), empty.active(), empty.find(1)]).toEqual([[], null, null]);
 		expect(empty.hasPeriodNamed("26期")).toBe(false);
 	});
 

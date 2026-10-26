@@ -70,7 +70,6 @@ import { UpdateOverallCommentInteractor } from "./application/usecases/UpdateOve
 import { UpdateSmtpSettingsInteractor } from "./application/usecases/UpdateSmtpSettingsInteractor";
 import { UpsertCommonEvaluationInteractor } from "./application/usecases/UpsertCommonEvaluationInteractor";
 import type { AuthSession } from "./domain/repositories/AuthRepository";
-import { EvaluationScoreUpdateService } from "./domain/services/EvaluationScoreUpdateService";
 import { SupabaseAuthRepository } from "./infrastructure/auth/SupabaseAuthRepository";
 import { SupabaseCommonEvaluationRepository } from "./infrastructure/repositories/SupabaseCommonEvaluationRepository";
 import { SupabaseEmailNotificationRepository } from "./infrastructure/repositories/SupabaseEmailNotificationRepository";
@@ -162,11 +161,6 @@ const smtpSettingsController = new SmtpSettingsController(
 	new UpdateSmtpSettingsInteractor(emailNotificationRepository, employeeMasterRepository),
 	new UpdateNotificationChannelInteractor(workspaceSettingsRepository, employeeMasterRepository),
 );
-const evaluationScoreUpdateService = new EvaluationScoreUpdateService(
-	evaluationSheetRepository,
-	milestoneRepository,
-	commonEvaluationRepository,
-);
 
 const fetchCategorizedSheetsUseCase = new FetchCategorizedSheetsInteractor(
 	employeeRepository,
@@ -183,12 +177,11 @@ const createEvaluationSheetUseCase = new CreateEvaluationSheetInteractor(
 );
 const upsertCommonEvaluationUseCase = new UpsertCommonEvaluationInteractor(
 	evaluationSheetRepository,
-	evaluationScoreUpdateService,
+	commonEvaluationRepository,
 );
 const updateMilestoneUseCase = new UpdateMilestoneInteractor(
 	milestoneRepository,
 	evaluationSheetRepository,
-	evaluationScoreUpdateService,
 );
 const updateOverallCommentUseCase = new UpdateOverallCommentInteractor(
 	evaluationSheetRepository,

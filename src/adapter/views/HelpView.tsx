@@ -38,7 +38,7 @@ const IMAGES = {
 	goal: { src: goalImage, caption: "目標の入力と保存", width: 1216, height: 926 },
 	submit: {
 		src: submitImage,
-		caption: "提出の確認",
+		caption: "目標送信の確認",
 		width: 1280,
 		height: 800,
 		preview: { x: 404, y: 251, width: 472, height: 298 },
@@ -163,7 +163,7 @@ const GUIDES = {
 const QUESTIONS = {
 	self: [
 		[
-			"提出内容の修正",
+			"送信した内容の修正",
 			"チャレンジ目標・期中目標の修正が必要な場合は、送信済みの段階で一次評価者に要修正として下書きへ戻してもらいます。達成状況は、目標の確認中も目標確定後も「達成状況を入力」から書き直せます。「一次評価を依頼する」を押して一次評価待ちになると、本人による修正はできません。",
 		],
 		[
@@ -186,7 +186,7 @@ const QUESTIONS = {
 	reviewer: [
 		[
 			"評価を入力できる時期",
-			"一次評価は本人の提出後から、二次評価は一次評価の確定後から入力できます。実施中の期間の下書きは評価者に表示されません。締め済みの期間は閲覧のみです。",
+			"一次評価は本人が一次評価を依頼した後から、二次評価は一次評価の確定後から入力できます。目標は送信された時点から読めます。実施中の期間の下書きは評価者に表示されません。締め済みの期間は閲覧のみです。",
 		],
 		[
 			"確定に必要な入力",
@@ -237,7 +237,7 @@ const COMMON_QUESTIONS = [
 		items: [
 			[
 				"評価の依頼の知らせ方",
-				"提出すると一次評価者へ、一次評価を確定すると二次評価者へ知らせます。最終評価の確定では知らせません。知らせ方は管理者が設定で選びます。アプリ内通知（既定）では画面上部のベルに届き、メールでは新規登録のときに確認したメールアドレスへ送ります。",
+				"目標の送信・一次評価の依頼は一次評価者へ、目標の確定・要修正は本人へ、一次評価の確定は二次評価者へ知らせます。最終評価の確定では知らせません。知らせ方は管理者が設定で選びます。アプリ内通知（既定）では画面上部のベルに届き、メールでは新規登録のときに確認したメールアドレスへ送ります。",
 			],
 			[
 				"ベルの未読",
@@ -245,7 +245,7 @@ const COMMON_QUESTIONS = [
 			],
 			[
 				"メールの送信失敗と再送",
-				"通知の方法がメールのときの案内です。送信に失敗しても提出・確定は完了しています。一次評価待ちでは本人、二次評価待ちでは一次評価者が、シート上部の「通知を再送」を使えます。待機時間や回数制限が表示された場合は、画面の案内に従ってください。",
+				"通知の方法がメールのときの案内です。送信に失敗しても、状態の変更は完了しています。送信済み・一次評価待ちでは本人、目標確定・二次評価待ちでは一次評価者が、シート上部の「通知を再送」を使えます。待機時間や回数制限が表示された場合は、画面の案内に従ってください。",
 			],
 			[
 				"テストメールが送れない（HandshakeFailure と出る）",
@@ -317,7 +317,7 @@ const HelpView: Component = () => {
 		<div class="help-guide">
 			<header class="help-guide__hero">
 				<h1>ヘルプ</h1>
-				<p>評価シートの記入・提出、評価、登録・管理の操作手順です。</p>
+				<p>評価シートの記入・送信、評価、登録・管理の操作手順です。</p>
 			</header>
 			<fieldset class="help-guide__choices">
 				<legend class="visually-hidden">説明の対象</legend>
@@ -358,7 +358,7 @@ const HelpView: Component = () => {
 			</fieldset>
 			<section id="help-guide-content" aria-labelledby="help-guide-title">
 				<div class="help-guide__heading">
-					<h2 id="help-guide-title">{isSelf() ? "記入・提出の手順" : "評価・確定の手順"}</h2>
+					<h2 id="help-guide-title">{isSelf() ? "記入・送信の手順" : "評価・確定の手順"}</h2>
 					<A href={isSelf() ? "/" : "/review"} class="help-guide__start">
 						{isSelf() ? "評価シート一覧へ" : "部下の評価へ"}
 						<ArrowRight size={18} aria-hidden="true" />
@@ -382,7 +382,7 @@ const HelpView: Component = () => {
 			</section>
 			<section class="help-guide__faq" aria-labelledby="help-faq-title">
 				<h2 id="help-faq-title">操作の確認</h2>
-				<h3>{isSelf() ? "シートの記入・提出" : "評価・確定"}</h3>
+				<h3>{isSelf() ? "シートの記入・送信" : "評価・確定"}</h3>
 				<For each={QUESTIONS[audience()]}>
 					{([question, answer]) => (
 						<details>

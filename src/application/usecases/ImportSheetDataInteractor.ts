@@ -1,3 +1,4 @@
+import { Milestone } from "../../domain/entities/Milestone";
 import type {
 	CommonImportRow,
 	GoalImportRow,
@@ -113,31 +114,11 @@ export class ImportSheetDataInteractor
 			return;
 		}
 
-		const goalRows: GoalImportRow[] = goals.rows.map(
-			(
-				[
-					employeeNo,
-					name,
-					goalNumber,
-					challengeGoal,
-					description,
-					achievement,
-					firstScore,
-					secondScore,
-				],
-				i,
-			) => ({
-				line: goals.lines[i],
-				employeeNo,
-				name,
-				goalNumber,
-				challengeGoal,
-				periodGoals: description.trim() ? [{ description, achievement }] : [],
-				achievement: description.trim() ? "" : achievement,
-				firstScore,
-				secondScore,
-			}),
-		);
+		const merged = mergeGoalRows(goals.rows, goals.lines);
+		if ("errors" in merged) {
+			outputPort.present({ errors: merged.errors, summary: null, applied: false });
+			return;
+		}
 		const commonRows: CommonImportRow[] = common.rows.map(
 			([employeeNo, name, itemId, itemTitle, firstScore, secondScore, comment], i) => ({
 				line: common.lines[i],
@@ -150,6 +131,94 @@ export class ImportSheetDataInteractor
 				comment,
 			}),
 		);
-		outputPort.present(await this.repository.importRows(goalRows, commonRows, request.apply));
+		outputPort.present(await this.repository.importRows(merged.rows, commonRows, request.apply));
+	}
+}
+
+/**
+ * 目標の行を、チャレンジ目標ごとにまとめる。同じ社員番号・目標番号の行は同じチャレンジ目標で、
+ * 1行ごとに期中目標を1件ずつ足す(ファイルの順)。チャレンジ目標・氏名・点数は最初の行に書き、続きの行では
+ * 空欄か同じ内容にする。期中目標の無い行の達成状況は、チャレンジ目標の達成状況。
+ * 期中目標の件数と達成状況の置き場所は Milestone が確かめ、決まりを破った行を示す。
+ */
+export function mergeGoalRows(
+	rows: readonly string[][],
+	lines: readonly number[],
+): { rows: GoalImportRow[] } | { errors: SheetImportError[] } {
+	const merged = new Map<string, GoalImportRow>();
+	const broken = new Set<string>();
+	const errors: SheetImportError[] = [];
+	const fail = (key: string, line: number, message: string) => {
+		broken.add(key);
+		errors.push({ file: "goals", line, message });
+	};
+	rows.forEach(
+		([employeeNo, name, goalNumber, challengeGoal, description, achievement, first, second], i) => {
+			const line = lines[i];
+			const key = `${employeeNo.trim()}|${goalNumber}`;
+			if (broken.has(key)) {
+				return;
+			}
+			const hasTask = description.trim() !== "";
+			const head = merged.get(key);
+			if (!head) {
+				const row: GoalImportRow = {
+					line,
+					employeeNo,
+					name,
+					goalNumber,
+					challengeGoal,
+					periodGoals: hasTask ? [{ description, achievement }] : [],
+					achievement: hasTask ? "" : achievement,
+					firstScore: first,
+					secondScore: second,
+				};
+				const invalid = milestoneError(row);
+				return invalid ? fail(key, line, invalid) : void merged.set(key, row);
+			}
+			if (!hasTask) {
+				return fail(
+					key,
+					line,
+					`期中目標が空欄です。同じ目標番号の${head.line}行目に続く行には、期中目標を1件ずつ書いてください。`,
+				);
+			}
+			const conflict = (
+				[
+					["氏名", name, head.name],
+					["チャレンジ目標", challengeGoal, head.challengeGoal],
+					["一次評価点", first, head.firstScore],
+					["二次評価点", second, head.secondScore],
+				] as const
+			).find(([, value, headValue]) => value.trim() !== "" && value !== headValue);
+			if (conflict) {
+				return fail(
+					key,
+					line,
+					`${conflict[0]}が、同じ目標の${head.line}行目と違います。続きの行では空欄にするか、同じ内容にしてください。`,
+				);
+			}
+			const next = { ...head, periodGoals: [...head.periodGoals, { description, achievement }] };
+			const invalid = milestoneError(next);
+			return invalid ? fail(key, line, invalid) : void merged.set(key, next);
+		},
+	);
+	return errors.length > 0 ? { errors } : { rows: [...merged.values()] };
+}
+
+/** 期中目標の件数と達成状況の置き場所が、チャレンジ目標の決まりに合わなければ、その理由。 */
+function milestoneError(row: GoalImportRow): string | null {
+	try {
+		Milestone.restore({
+			id: 0,
+			sheetId: 0,
+			goalNumber: 1,
+			challengeGoal: row.challengeGoal,
+			periodGoals: row.periodGoals,
+			achievement: row.achievement,
+		});
+		return null;
+	} catch (error) {
+		return error instanceof Error ? error.message : "目標の内容が不正です。";
 	}
 }

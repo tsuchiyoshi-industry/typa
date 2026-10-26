@@ -1,3 +1,4 @@
+import { err, ok, type Result } from "../Result";
 import { EvaluationAllocatedScores } from "../valueObjects/EvaluationAllocatedScores";
 import { EvaluationAllocation } from "../valueObjects/EvaluationAllocation";
 import { EvaluationRank } from "../valueObjects/EvaluationRank";
@@ -8,6 +9,7 @@ import type { Employee } from "./Employee";
 import type { EvaluationPeriod } from "./EvaluationPeriod";
 import type { Milestone } from "./Milestone";
 import type { SheetCorrection } from "./SheetCorrection";
+import type { SheetTransitionError } from "./SheetTransitionError";
 
 /** DB に保存された集計値と配点。点数を保存したときの項目・満点・配点で計算したもの。 */
 export interface StoredSheetScores {
@@ -226,7 +228,7 @@ export class EvaluationSheet {
 		return this.subject.primaryIsFinalEvaluator();
 	}
 
-	/** 提出・確定にはテーマが必要。期中目標は0〜4件で、達成状況の記入は求めない。 */
+	/** 送信・確定にはテーマが必要。期中目標は0〜4件で、達成状況の記入は求めない。 */
 	pendingObjectiveFields(): string[] {
 		if (this.objectives.length < 1 || this.objectives.length > this.maxObjectives) {
 			return [`チャレンジ目標は1〜${this.maxObjectives}件必要です。`];
@@ -234,6 +236,29 @@ export class EvaluationSheet {
 		return this.objectives
 			.filter((objective) => !objective.challengeGoal.trim())
 			.map((objective) => `目標 ${objective.goalNumber}：チャレンジ目標`);
+	}
+
+	/**
+	 * その状態へ進める前に、中身がそろっているか。足りなければ、足りないものを挙げて返す。
+	 * 送信・目標確定・一次評価の依頼にはすべてのチャレンジ目標が、確定には確定する評価者自身の全項目の点数が要る。
+	 * 下書きへ戻すときは問わない。DB のトリガー check_evaluation_completion も同じ検査をする。
+	 */
+	readinessFor(status: EvaluationStatus): Result<void, SheetTransitionError> {
+		if (!status.isSentToEvaluators()) {
+			return ok(undefined);
+		}
+		const missing = this.pendingObjectiveFields();
+		if (missing.length > 0) {
+			return err({ kind: "objectivesIncomplete", missing });
+		}
+		if (status.isFirstEvaluationConfirmed()) {
+			const stage = this.confirmingStage(status);
+			const pending = this.pendingEvaluationItems(stage);
+			if (pending.length > 0) {
+				return err({ kind: "evaluationIncomplete", stage, pending });
+			}
+		}
+		return ok(undefined);
 	}
 
 	/** その状態への変更で評価を確定するのはどちらの評価者か。二次評価者「なし」なら一次が最終を兼ねる。 */
@@ -291,10 +316,6 @@ export class EvaluationSheet {
 				EvaluationAllocation.TOTAL,
 			)
 		);
-	}
-
-	isEditable(): boolean {
-		return this.status.isDraft();
 	}
 
 	/** 状態だけを変えた写し。保存は DB が行い、ここでは変更後の判断(通知など)に使う。 */

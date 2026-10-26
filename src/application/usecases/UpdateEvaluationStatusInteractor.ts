@@ -1,4 +1,9 @@
 import type { EvaluationSheet } from "../../domain/entities/EvaluationSheet";
+import {
+	describeSheetTransitionError,
+	type SheetTransitionError,
+} from "../../domain/entities/SheetTransitionError";
+import { err, ok, type Result } from "../../domain/Result";
 import type {
 	EmailNotificationRepository,
 	NotificationDelivery,
@@ -7,6 +12,10 @@ import type {
 import type { EmployeeRepository } from "../../domain/repositories/EmployeeRepository";
 import type { EvaluationSheetRepository } from "../../domain/repositories/EvaluationSheetRepository";
 import { EvaluationSheetAccessPolicy } from "../../domain/services/EvaluationSheetAccessPolicy";
+import {
+	describeSheetAccessError,
+	type SheetAccessError,
+} from "../../domain/services/SheetAccessError";
 import type {
 	EvaluationStatus,
 	EvaluationStatusValue,
@@ -15,13 +24,13 @@ import type {
 import type { EvaluationSheetDto } from "../dtos/EvaluationSheetDto";
 import { toEvaluationSheetDto } from "../dtos/EvaluationSheetMapper";
 import type { OutputPort } from "../ports/OutputPort";
-import type { UseCase } from "../ports/UseCase";
+import type { FallibleUseCase } from "../ports/UseCase";
 
 export interface UpdateEvaluationStatusRequest {
 	sheetId: number;
 	/**
 	 * 進める先の状態。下書き: 一次評価者が要修正として戻す / 送信済み: 本人が目標を送信 /
-	 * 目標確定: 一次評価者が承認 / 一次評価待ち: 本人が達成状況を提出 /
+	 * 目標確定: 一次評価者が承認 / 一次評価待ち: 本人が一次評価を依頼 /
 	 * 一次評価済み: 一次評価者が一次評価を確定する / 評価確定: 最終評価者が評価を確定する。
 	 */
 	status: EvaluationStatus;
@@ -40,6 +49,31 @@ export interface UpdateEvaluationStatusOutputPort
 	presentNotificationDelivery?(delivery: NotificationDelivery): void;
 }
 
+export type UpdateEvaluationStatusError =
+	| SheetAccessError
+	| SheetTransitionError
+	| { kind: "sheetNotFound" };
+
+export type ResendNotificationError = Extract<SheetAccessError, { kind: "forbidden" }>;
+
+export function describeUpdateEvaluationStatusError(error: UpdateEvaluationStatusError): string {
+	switch (error.kind) {
+		case "sheetNotFound":
+			return "評価シートが見つかりません。";
+		case "periodClosed":
+		case "forbidden":
+		case "transitionForbidden":
+			return describeSheetAccessError(error);
+		case "objectivesIncomplete":
+		case "evaluationIncomplete":
+			return describeSheetTransitionError(error);
+	}
+}
+
+export function describeResendNotificationError(error: ResendNotificationError): string {
+	return describeSheetAccessError(error);
+}
+
 const RECIPIENT_LABELS: Record<SheetActor, string> = {
 	subject: "本人",
 	primary: "一次評価者",
@@ -47,7 +81,12 @@ const RECIPIENT_LABELS: Record<SheetActor, string> = {
 };
 
 export class UpdateEvaluationStatusInteractor
-	implements UseCase<UpdateEvaluationStatusRequest, UpdateEvaluationStatusOutputPort>
+	implements
+		FallibleUseCase<
+			UpdateEvaluationStatusRequest,
+			UpdateEvaluationStatusOutputPort,
+			UpdateEvaluationStatusError
+		>
 {
 	constructor(
 		private readonly evaluationSheetRepository: EvaluationSheetRepository,
@@ -58,32 +97,26 @@ export class UpdateEvaluationStatusInteractor
 	async execute(
 		request: UpdateEvaluationStatusRequest,
 		outputPort: UpdateEvaluationStatusOutputPort,
-	): Promise<void> {
+	): Promise<Result<void, UpdateEvaluationStatusError>> {
 		const sheet = await this.evaluationSheetRepository.findById(request.sheetId);
 		if (!sheet) {
-			throw new Error("評価シートが見つかりません。");
+			return err({ kind: "sheetNotFound" });
 		}
 
 		const policy = EvaluationSheetAccessPolicy.for(request.currentEmployeeId, sheet);
-		policy.assertPeriodOpen();
-
-		const newStatus = this.resolveNewStatus(request, policy);
-		if (newStatus.isSentToEvaluators() || newStatus.isFirstEvaluationConfirmed()) {
-			const missing = sheet.pendingObjectiveFields();
-			if (missing.length) {
-				throw new Error(
-					`チャレンジ目標が空欄の目標は提出・確定できません。入力して保存するか、不要なタブを削除してください。\n${missing.map((item) => `・${item}`).join("\n")}`,
-				);
-			}
+		const open = policy.periodOpen();
+		if (!open.ok) {
+			return open;
 		}
-		if (newStatus.isFirstEvaluationConfirmed()) {
-			const stage = sheet.confirmingStage(newStatus);
-			const pending = sheet.pendingEvaluationItems(stage);
-			if (pending.length > 0) {
-				throw new Error(
-					`${stage === "first" ? "一次" : "二次"}評価に未設定の項目が ${pending.length} 件あります。すべての評価を 1〜4 で設定して保存してください。\n${pending.map((item) => `・${item}`).join("\n")}`,
-				);
-			}
+
+		const resolved = this.resolveNewStatus(request, policy);
+		if (!resolved.ok) {
+			return resolved;
+		}
+		const newStatus = resolved.value;
+		const readiness = sheet.readinessFor(newStatus);
+		if (!readiness.ok) {
+			return readiness;
 		}
 		// 評価ランクは確定した時点の点数で決まる。以後は保存値を使い、配点の見直しなどに左右されないようにする。
 		const updated = await this.evaluationSheetRepository.updateStatus(request.sheetId, newStatus, {
@@ -105,27 +138,29 @@ export class UpdateEvaluationStatusInteractor
 		if (request.notify !== false) {
 			void this.notify(saved, (delivery) => outputPort.presentNotificationDelivery?.(delivery));
 		}
+		return ok(undefined);
 	}
 
 	async resendNotification(
 		sheetId: number,
 		currentEmployeeId: number,
 		report: ReportDelivery,
-	): Promise<void> {
+	): Promise<Result<void, ResendNotificationError>> {
 		const sheet = await this.evaluationSheetRepository.findById(sheetId);
 		if (
 			!sheet ||
 			!EvaluationSheetAccessPolicy.for(currentEmployeeId, sheet).canResendNotification()
 		) {
-			throw new Error("この評価シートの通知を送る権限がありません。");
+			return err({ kind: "forbidden", action: "resendNotification" });
 		}
 		await this.notify(sheet, report);
+		return ok(undefined);
 	}
 
 	/**
 	 * いまの状態へシートを受け取った人(EvaluationStatus.handoff の to)へメールで知らせる。
 	 * 宛先のアドレスと文面はサーバーが状態から決める。評価の確定は、次に動く人がいないので知らせない。
-	 * 送信の失敗で提出・確定は取り消さない。
+	 * 送信の失敗で状態の変更は取り消さない。
 	 */
 	private async notify(sheet: EvaluationSheet, report: ReportDelivery): Promise<void> {
 		const repository = this.emailNotificationRepository;
@@ -160,38 +195,18 @@ export class UpdateEvaluationStatusInteractor
 	private resolveNewStatus(
 		request: UpdateEvaluationStatusRequest,
 		policy: EvaluationSheetAccessPolicy,
-	): EvaluationStatus {
-		const rules: Record<EvaluationStatusValue, { allowed: boolean; denied: string }> = {
-			draft: {
-				allowed: policy.canReturnGoalsToDraft(),
-				denied: "一次評価者のみ、送信済みの目標を要修正として下書きに戻せます。",
-			},
-			submitted: {
-				allowed: policy.canRequestFirstEvaluation(),
-				denied: "目標確定後に本人が達成状況を提出してください。",
-			},
-			goals_submitted: {
-				allowed: policy.canSubmitGoals(),
-				denied: "自分の下書きの目標のみ送信できます。",
-			},
-			goals_confirmed: {
-				allowed: policy.canConfirmGoals(),
-				denied: "一次評価者のみ、送信済みの目標を確定できます。",
-			},
-			first_evaluated: {
-				allowed: policy.canConfirmFirstEvaluation(),
-				denied: "一次評価者のみ、提出済みのシートの一次評価を確定できます。",
-			},
-			finalized: {
-				allowed: policy.canFinalizeEvaluation(),
-				denied:
-					"最終評価者(二次評価者。「なし」の場合は一次評価者)のみ、一次評価が確定したシートを確定できます。二次評価者が未設定の場合は、先に社員マスタで設定してください。",
-			},
+	): Result<EvaluationStatus, UpdateEvaluationStatusError> {
+		const allowed: Record<EvaluationStatusValue, boolean> = {
+			draft: policy.canReturnGoalsToDraft(),
+			submitted: policy.canRequestFirstEvaluation(),
+			goals_submitted: policy.canSubmitGoals(),
+			goals_confirmed: policy.canConfirmGoals(),
+			first_evaluated: policy.canConfirmFirstEvaluation(),
+			finalized: policy.canFinalizeEvaluation(),
 		};
-		const rule = rules[request.status.toString()];
-		if (!rule.allowed) {
-			throw new Error(rule.denied);
+		if (!allowed[request.status.toString()]) {
+			return err({ kind: "transitionForbidden", to: request.status.toString() });
 		}
-		return request.status;
+		return ok(request.status);
 	}
 }

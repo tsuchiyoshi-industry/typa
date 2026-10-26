@@ -248,7 +248,7 @@ FUNCTION audit_employee_change() definer=true anon=false authenticated=false ser
 FUNCTION audit_sheet_transition() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=9836b834da7683a13eed239142597e4f
 FUNCTION begin_registration(text,text) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=7521c063d5d6060717f3e4d725b6ee26
 FUNCTION can_transition_sheet(evaluation_sheets,text,integer) definer=false anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=9e15f131325486bb7a5dc1b7a8a36bfc
-FUNCTION carry_over_goal(bigint,bigint) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=a915ab803caef129594ecec4b6d4349a
+FUNCTION carry_over_goal(bigint,bigint) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=a3159a0b8d0a7129ec97955f03f78d7f
 FUNCTION changed_columns(jsonb,jsonb) definer=false anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=5a3f7369be904b9ff458a6e5b80bc6f2
 FUNCTION check_challenge_goal_number() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=8508db91753240b9a1c1a9e5ce7d55af
 FUNCTION check_evaluation_completion() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=621cc2d0d8726c80cb2b665363ea5713

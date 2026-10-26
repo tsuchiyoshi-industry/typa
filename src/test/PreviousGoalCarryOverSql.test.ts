@@ -42,7 +42,10 @@ beforeAll(async () => {
 		      (101,100,2,'後進を育てる','[]','2人が独り立ち'),
 		      (200,200,1,'別の人の目標','[]','');
 		set session_replication_role=origin;`);
-	await applyMigrations(db, (file) => file.startsWith("202610230007_"));
+	await applyMigrations(
+		db,
+		(file) => file.startsWith("202610230007_") || file.startsWith("202610260003_"),
+	);
 }, 60_000);
 beforeEach(async () => {
 	await db.exec("reset role; delete from public.evaluation_sheets where period_id=1");
@@ -78,29 +81,50 @@ it("copies only the challenge wording, keeps the link, and leaves this period's 
 	]);
 });
 
-it("fills an empty goal first, and revising the wording keeps the link", async () => {
+it("keeps the previous goal number, whichever goal is carried first, and revising the wording keeps the link", async () => {
 	const id = await draft();
+	// 新しいシートには、何も書いていない目標 1 がある
 	await query(
 		"insert into public.milestones(sheet_id,goal_number,challenge_goal) values($1,1,''),($1,3,'今期の新しい目標')",
 		[id],
 	);
-	expect(await carry(id, 101)).toBe(1);
-	expect(await carry(id, 100)).toBe(2);
+	// 前期の目標 2 を先に引き継いでも、空の目標 1 には入らず目標 2 のまま
+	expect(await carry(id, 101)).toBe(2);
+	expect(await carry(id, 100)).toBe(1);
 	await actAs(db, 4);
 	await query(
-		"update public.milestones set challenge_goal='後進を育て、任せる' where sheet_id=$1 and goal_number=1",
+		"update public.milestones set challenge_goal='受注の手戻りを、今期は半分に' where sheet_id=$1 and goal_number=1",
 		[id],
 	);
 	expect((await goals(id)).map((goal) => [goal.goal_number, goal.carried_from_id])).toEqual([
-		[1, 101],
-		[2, 100],
+		[1, 100],
+		[2, 101],
 		[3, null],
 	]);
 	// 引き継いだ目標を消すと、また選べる
 	await actAs(db, 4);
 	await query("delete from public.milestones where sheet_id=$1 and goal_number=2", [id]);
-	expect((await previousGoals(id))?.goals.map((goal) => goal.carriedInto)).toEqual([null, 1]);
-	expect(await carry(id, 100)).toBe(2);
+	expect((await previousGoals(id))?.goals.map((goal) => goal.carriedInto)).toEqual([1, null]);
+	expect(await carry(id, 101)).toBe(2);
+});
+
+it("uses an empty goal, then the smallest free number, only when the same number is taken", async () => {
+	const id = await draft();
+	await actAs(db, 4);
+	await query(
+		"insert into public.milestones(sheet_id,goal_number,challenge_goal) values($1,1,'今期の目標A'),($1,2,'今期の目標B'),($1,4,'')",
+		[id],
+	);
+	// 目標 1 は今期の目標で埋まっているので、何も書いていない目標 4 へ
+	expect(await carry(id, 100)).toBe(4);
+	// 目標 2 も埋まっていて、空の目標も無いので、空いている番号 3 へ
+	expect(await carry(id, 101)).toBe(3);
+	expect((await goals(id)).map((goal) => [goal.goal_number, goal.carried_from_id])).toEqual([
+		[1, null],
+		[2, null],
+		[3, 101],
+		[4, 100],
+	]);
 });
 
 it("refuses a second carry, someone else's goal, a full sheet, and anyone but the subject's draft", async () => {

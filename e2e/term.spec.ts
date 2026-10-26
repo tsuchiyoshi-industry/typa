@@ -227,38 +227,45 @@ test("a term is divided, its first half closed with goals only, and its challeng
 		await expect(previous).toHaveAttribute("open", "");
 		await expect(previous).toContainText(`${FIRST}・2件(今期へ引き継ぎ 0件)`);
 
+		// 前期の目標 2 を先に据え置いても、今期の目標 1 には入らず、目標 2 のまま
 		await previous
-			.getByRole("group", { name: "前期の目標 1 をどうするか" })
+			.getByRole("group", { name: "前期の目標 2 をどうするか" })
 			.getByRole("button", { name: "据え置く" })
 			.click();
-		await expect(page.getByText("前期の目標を、目標 1 に据え置きました")).toBeVisible();
+		await expect(page.getByText("前期の目標を、目標 2 に据え置きました")).toBeVisible();
+		await expect(page.getByRole("tab", { name: /目標 2/ })).toHaveAttribute(
+			"aria-selected",
+			"true",
+		);
 		const panel = page.getByRole("tabpanel");
 		// 据え置いた目標は、今期の計画(期中目標)を書くところから始まる。達成状況は写さない
-		await expect(panel.getByRole("textbox", { name: /チャレンジ目標/ })).toHaveValue("上期の目標A");
+		await expect(panel.getByRole("textbox", { name: /チャレンジ目標/ })).toHaveValue("上期の目標B");
 		await expect(panel.getByText("前期から据え置き")).toBeVisible();
 		await expect(panel.getByRole("textbox", { name: "達成状況" })).toHaveValue("");
 		await panel.getByRole("button", { name: "期中目標を追加" }).click();
 		await panel.getByLabel("期中目標 1", { exact: true }).fill("下期の手順を試す");
 		await panel.getByRole("button", { name: "目標を保存" }).click();
-		await expect(page.getByText("目標 1 を保存しました")).toBeVisible();
+		await expect(page.getByText("目標 2 を保存しました")).toBeVisible();
 
+		// 後から前期の目標 1 を見直すと、今期の目標 1 になり、書き換えれば「更新」になる
 		await previous
-			.getByRole("group", { name: "前期の目標 2 をどうするか" })
+			.getByRole("group", { name: "前期の目標 1 をどうするか" })
 			.getByRole("button", { name: "見直して更新" })
 			.click();
-		await expect(page.getByRole("tab", { name: /目標 2/ })).toHaveAttribute(
+		await expect(page.getByRole("tab", { name: /目標 1/ })).toHaveAttribute(
 			"aria-selected",
 			"true",
 		);
 		const challenge = panel.getByRole("textbox", { name: /チャレンジ目標/ });
 		await expect(challenge).toBeFocused();
-		await challenge.fill("上期の目標Bを、下期は後輩と進める");
+		await expect(challenge).toHaveValue("上期の目標A");
+		await challenge.fill("上期の目標Aを、下期は後輩と進める");
 		await expect(panel.getByText("前期から更新")).toBeVisible();
 		await panel.getByRole("button", { name: "目標を保存" }).click();
-		await expect(panel.locator(".continuity-note")).toContainText("上期の目標B");
+		await expect(panel.locator(".continuity-note")).toContainText("上期の目標A");
 
-		await expect(previous).toContainText("目標 1 に据え置き");
-		await expect(previous).toContainText("目標 2 で更新");
+		await expect(previous).toContainText("目標 1 で更新");
+		await expect(previous).toContainText("目標 2 に据え置き");
 		await expect(previous.getByRole("button", { name: "据え置く" })).toHaveCount(0);
 		// 同じ目標をもう一度引き継ぐことは、API から頼んでも断る
 		const subject = await restAs(4);

@@ -449,7 +449,7 @@ const inline = (text: string) => {
 		.replace(
 			/!\[(.*?)\]\((.*?)\)/g,
 			(_, alt, src) =>
-				`<img alt="${alt}" src="data:image/png;base64,${readFileSync(`docs/manual/${src}`).toString("base64")}">`,
+				`<img alt="${alt}" src="data:image/${src.endsWith(".svg") ? "svg+xml" : "png"};base64,${readFileSync(`docs/manual/${src}`).toString("base64")}">`,
 		)
 		.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
 		.replace(/\[(.+?)\]\(.+?\)/g, "$1")

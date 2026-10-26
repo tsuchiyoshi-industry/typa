@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="740" height="300" viewBox="0 0 740 300" font-family="'Segoe UI','Hiragino Sans','Noto Sans JP',sans-serif">
+  <title>目標の組み立て</title>
+  <rect width="740" height="300" fill="#ffffff"/>
+
+  <!-- 目標 1 のタブ -->
+  <path d="M24 44V30a6 6 0 0 1 6-6h84a6 6 0 0 1 6 6v14" fill="#ffffff" stroke="#9aa5b1"/>
+  <text x="72" y="40" font-size="12.5" text-anchor="middle" fill="#1b262d" font-weight="600">目標 1</text>
+  <text x="132" y="40" font-size="12" fill="#4d5b64">目標 2 …(1〜4件。目標ごとにタブ)</text>
+  <rect x="24" y="44" width="440" height="236" rx="8" fill="#ffffff" stroke="#9aa5b1"/>
+
+  <!-- チャレンジ目標 -->
+  <text x="44" y="74" font-size="12" fill="#4d5b64">チャレンジ目標</text>
+  <text x="44" y="96" font-size="14" fill="#1b262d">受注処理の手戻りを、半年で月20件から10件に減らす</text>
+
+  <!-- 期中目標と達成状況 -->
+  <rect x="44" y="114" width="400" height="148" rx="6" fill="#f6f7f8" stroke="#d6dbe0"/>
+  <text x="60" y="138" font-size="12" fill="#4d5b64">期中目標 1</text>
+  <text x="60" y="158" font-size="13" fill="#1b262d">12月末までに手戻りの原因を分類し、対策を決める</text>
+  <text x="76" y="182" font-size="12" fill="#4d5b64">達成状況</text>
+  <text x="76" y="201" font-size="13" fill="#1b262d">入力チェック表を作って運用した。月9件になった</text>
+  <line x1="60" y1="218" x2="428" y2="218" stroke="#d6dbe0"/>
+  <text x="60" y="240" font-size="12" fill="#4d5b64">期中目標 2 …(0〜4件。それぞれに達成状況)</text>
+
+  <!-- 説明 -->
+  <g stroke="#9aa5b1" fill="none">
+    <path d="M464 90H496"/>
+    <path d="M444 150H496"/>
+    <path d="M444 195H496"/>
+  </g>
+  <g font-size="13" fill="#1b262d">
+    <text x="504" y="86" font-weight="600">何を達成するか</text>
+    <text x="504" y="104" font-size="11.5" fill="#4d5b64">期をまたいで続けられる。前期から</text>
+    <text x="504" y="119" font-size="11.5" fill="#4d5b64">引き継げる(据え置く・見直して更新)</text>
+
+    <text x="504" y="146" font-weight="600">この期にやること</text>
+    <text x="504" y="164" font-size="11.5" fill="#4d5b64">今期の計画。毎期書き直す</text>
+
+    <text x="504" y="191" font-weight="600">やった結果</text>
+    <text x="504" y="209" font-size="11.5" fill="#4d5b64">一次評価を依頼するまで書き直せる</text>
+    <text x="504" y="224" font-size="11.5" fill="#4d5b64">期中目標が0件なら、チャレンジ目標</text>
+    <text x="504" y="239" font-size="11.5" fill="#4d5b64">に対して書く</text>
+  </g>
+</svg>

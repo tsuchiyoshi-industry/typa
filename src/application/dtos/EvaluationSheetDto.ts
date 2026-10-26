@@ -44,8 +44,12 @@ export interface SheetPermissionsDto {
 	canEditMilestoneGoal: boolean;
 	canViewCommonEvaluation: boolean;
 	canViewSecondEvaluation: boolean;
-	canSubmitOwnSheet: boolean;
-	canRevertOwnSheetToDraft: boolean;
+	canEditMilestoneAchievement: boolean;
+	canCarryOverGoal: boolean;
+	canConfirmGoals: boolean;
+	canRequestFirstEvaluation: boolean;
+	canSubmitGoals: boolean;
+	canReturnGoalsToDraft: boolean;
 	canConfirmFirstEvaluation: boolean;
 	canFinalizeEvaluation: boolean;
 }
@@ -58,8 +62,12 @@ export const NO_SHEET_PERMISSIONS: SheetPermissionsDto = {
 	canEditMilestoneGoal: false,
 	canViewCommonEvaluation: false,
 	canViewSecondEvaluation: false,
-	canSubmitOwnSheet: false,
-	canRevertOwnSheetToDraft: false,
+	canEditMilestoneAchievement: false,
+	canCarryOverGoal: false,
+	canConfirmGoals: false,
+	canRequestFirstEvaluation: false,
+	canSubmitGoals: false,
+	canReturnGoalsToDraft: false,
 	canConfirmFirstEvaluation: false,
 	canFinalizeEvaluation: false,
 };

@@ -32,9 +32,11 @@ it("opens the matching manual image and returns focus when closed", async () => 
 
 it("uses topic images and the selected audience's screenshots", async () => {
 	const view = show();
-	fireEvent.click(view.getByText("前の評価期間の目標", { exact: true }));
-	fireEvent.click(view.getByRole("button", { name: "前の評価期間の目標の引き継ぎを拡大" }));
-	const previous = await view.findByRole("dialog", { name: "前の評価期間の目標の引き継ぎ" });
+	fireEvent.click(
+		view.getByText("前期のチャレンジ目標", { exact: true, selector: "summary, summary *" }),
+	);
+	fireEvent.click(view.getByRole("button", { name: "前期のチャレンジ目標を拡大" }));
+	const previous = await view.findByRole("dialog", { name: "前期のチャレンジ目標" });
 	fireEvent.click(within(previous).getByRole("button", { name: "閉じる" }));
 	await waitFor(() => expect(view.queryByRole("dialog")).toBeNull());
 	fireEvent.click(view.getByRole("button", { name: /評価方法/ }));

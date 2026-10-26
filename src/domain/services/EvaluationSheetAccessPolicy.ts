@@ -7,7 +7,7 @@ import { isPrimaryEvaluator, isSecondaryEvaluator, isSubject } from "./Evaluator
  * 最終評価者は二次評価者。二次評価者を「なし」と明示した社員は、一次評価者が最終評価者を兼ねる
  * (二次評価の入力はなく、一次評価がそのまま最終評価になる)。
  * 二次評価者が未設定なだけの社員には最終評価者がおらず、設定されるまで確定できない。
- * 評価は「提出済み → 一次評価(一次評価者が確定) → 二次評価(最終評価者が確定)」の順に進み、
+ * 運用は「目標送信 → 目標確定 → 本人の一次評価依頼 → 一次評価 → 二次評価」の順に進み、
  * 下書き中のシートは評価者に見せない。一次評価は確定すると変更できない。
  * 記入・評価・状態の変更ができるのは、シートの評価期間が実施中の間だけ。締めた期間のシートは、
  * 閲覧と確定済みシートの出力だけになる。締めた期間のシートはもう変わらないので、下書きのままでも
@@ -41,7 +41,7 @@ export class EvaluationSheetAccessPolicy {
 		this.viewerIsEvaluatorOfSubmittedSheet =
 			!viewerIsSubject &&
 			(viewerIsPrimaryEvaluator || viewerIsSecondaryEvaluator) &&
-			(sheet.status.isSubmitted() || !this.periodIsOpen);
+			(sheet.status.isSentToEvaluators() || !this.periodIsOpen);
 	}
 
 	static for(
@@ -67,15 +67,20 @@ export class EvaluationSheetAccessPolicy {
 		return this.viewerIsSubject;
 	}
 
-	/** アプリ内通知は状態の変更と同時に届くので、再送するのはメールのときだけ。 */
+	/**
+	 * アプリ内通知は状態の変更と同時に届くので、再送するのはメールのときだけ。
+	 * 再送できるのは、いまの状態へシートを渡した人(EvaluationStatus.handoff の from)で、シートを見られる人。
+	 * 要修正で下書きに戻した評価者は、もう見られないので再送できない。
+	 */
 	canResendNotification(): boolean {
+		const from = this.sheet.status.handoff()?.from;
 		return (
 			this.sheet.notifiesByMail &&
 			this.periodIsOpen &&
-			((this.viewerIsSubject && this.sheet.status.isAwaitingFirstEvaluation()) ||
-				(!this.viewerIsSubject &&
-					this.viewerIsPrimaryEvaluator &&
-					this.sheet.status.isAwaitingSecondEvaluation()))
+			this.canViewSheet() &&
+			(from === "subject"
+				? this.viewerIsSubject
+				: from === "primary" && !this.viewerIsSubject && this.viewerIsPrimaryEvaluator)
 		);
 	}
 
@@ -94,7 +99,7 @@ export class EvaluationSheetAccessPolicy {
 
 	// --- チャレンジ目標(Milestone) ---
 
-	/** 目標文言(チャレンジ目標・中間目標・達成状況)を編集できるのは本人のみ。 */
+	/** 目標の文言(チャレンジ目標・期中目標)を編集できるのは、下書きの間の本人だけ。 */
 	canEditMilestoneGoal(): boolean {
 		return this.periodIsOpen && this.viewerIsSubject && this.sheet.isEditable();
 	}
@@ -161,6 +166,11 @@ export class EvaluationSheetAccessPolicy {
 			: this.canEditCommonEvaluationSecond();
 	}
 
+	/** 評価ランクを出すか。目標の確認中は採点が始まっていないので出さない。 */
+	canViewEvaluationRanks(): boolean {
+		return this.sheet.status.isEvaluationStarted();
+	}
+
 	/** 評価点・最終評価ランクなど、最終評価の結果を見られるのは最終評価者のみ。 */
 	canViewFinalEvaluation(): boolean {
 		return (!this.viewerIsSubject && this.viewerIsFinalEvaluator) || this.viewerReadsRecord;
@@ -168,16 +178,42 @@ export class EvaluationSheetAccessPolicy {
 
 	// --- シートロック(提出・確定) ---
 
-	/** 本人は自分の下書きを提出できる。 */
-	canSubmitOwnSheet(): boolean {
+	/** 本人は自分の下書きの目標を、一次評価者へ送信できる。 */
+	canSubmitGoals(): boolean {
 		return this.periodIsOpen && this.viewerIsSubject && this.sheet.status.isDraft();
 	}
 
-	/** 本人は一次評価が確定するまで、提出済みを下書きに戻せる。 */
-	canRevertOwnSheetToDraft(): boolean {
+	/** 一次評価者は送信済みの目標を要修正として下書きに戻せる。 */
+	canReturnGoalsToDraft(): boolean {
+		return this.canConfirmGoals();
+	}
+
+	/** 一次評価者が送信済みの目標を承認する。まだ採点は始めない。 */
+	canConfirmGoals(): boolean {
 		return (
-			this.periodIsOpen && this.viewerIsSubject && this.sheet.status.isAwaitingFirstEvaluation()
+			this.periodIsOpen &&
+			!this.viewerIsSubject &&
+			this.viewerIsPrimaryEvaluator &&
+			this.sheet.status.isGoalsSubmitted()
 		);
+	}
+
+	/** 本人が達成状況を提出して、一次評価の依頼に進める。 */
+	canRequestFirstEvaluation(): boolean {
+		return this.periodIsOpen && this.viewerIsSubject && this.sheet.status.isGoalsConfirmed();
+	}
+
+	/**
+	 * 達成状況は本人の自由な振り返りで、一次評価を依頼するまで(下書き・目標の確認中・目標確定後)
+	 * いつでも書き直せる。期中目標の本文は目標確定で固定され、要修正で戻ると直せる。
+	 */
+	canEditMilestoneAchievement(): boolean {
+		return this.periodIsOpen && this.viewerIsSubject && !this.sheet.status.isEvaluationStarted();
+	}
+
+	/** 前期のチャレンジ目標を据え置く・見直して引き継ぐのは、目標を書ける下書きの間の本人だけ。 */
+	canCarryOverGoal(): boolean {
+		return this.canEditMilestoneGoal();
 	}
 
 	/**

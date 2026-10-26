@@ -10,6 +10,8 @@ import { statusLabel } from "../format";
 /** 色だけに頼らず、形でも状態を見分けられるようにする。 */
 const STATUS_ICONS: Record<EvaluationStatusValue, typeof PencilLine> = {
 	draft: PencilLine,
+	goals_submitted: Send,
+	goals_confirmed: BadgeCheck,
 	submitted: Send,
 	first_evaluated: Hourglass,
 	finalized: BadgeCheck,

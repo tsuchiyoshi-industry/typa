@@ -217,7 +217,7 @@ describe("EvaluationSheetAccessPolicy", () => {
 			EvaluationSheetAccessPolicy.for(id, buildSheet(status));
 
 		it("本人は下書きを提出できるが、評価者はまだ何も確定できない", () => {
-			expect(can(SUBJECT_ID, EvaluationStatus.DRAFT).canSubmitOwnSheet()).toBe(true);
+			expect(can(SUBJECT_ID, EvaluationStatus.DRAFT).canSubmitGoals()).toBe(true);
 			expect(can(PRIMARY_EVALUATOR_ID, EvaluationStatus.DRAFT).canConfirmFirstEvaluation()).toBe(
 				false,
 			);
@@ -226,9 +226,9 @@ describe("EvaluationSheetAccessPolicy", () => {
 			);
 		});
 
-		it("提出済みは本人が下書きに戻せ、一次評価者だけが一次評価を確定できる", () => {
+		it("一次評価待ちは本人が下書きに戻せず、一次評価者だけが一次評価を確定できる", () => {
 			const status = EvaluationStatus.SUBMITTED;
-			expect(can(SUBJECT_ID, status).canRevertOwnSheetToDraft()).toBe(true);
+			expect(can(SUBJECT_ID, status).canReturnGoalsToDraft()).toBe(false);
 			expect(can(PRIMARY_EVALUATOR_ID, status).canConfirmFirstEvaluation()).toBe(true);
 			expect(can(SECONDARY_EVALUATOR_ID, status).canConfirmFirstEvaluation()).toBe(false);
 			expect(can(SUBJECT_ID, status).canConfirmFirstEvaluation()).toBe(false);
@@ -238,7 +238,7 @@ describe("EvaluationSheetAccessPolicy", () => {
 
 		it("一次評価済みは本人も一次評価者も戻せず、二次評価者だけが評価を確定できる", () => {
 			const status = EvaluationStatus.FIRST_EVALUATED;
-			expect(can(SUBJECT_ID, status).canRevertOwnSheetToDraft()).toBe(false);
+			expect(can(SUBJECT_ID, status).canReturnGoalsToDraft()).toBe(false);
 			expect(can(PRIMARY_EVALUATOR_ID, status).canConfirmFirstEvaluation()).toBe(false);
 			expect(can(PRIMARY_EVALUATOR_ID, status).canFinalizeEvaluation()).toBe(false);
 			expect(can(SECONDARY_EVALUATOR_ID, status).canFinalizeEvaluation()).toBe(true);
@@ -246,8 +246,8 @@ describe("EvaluationSheetAccessPolicy", () => {
 
 		it("確定済みシートは誰も戻せず、再確定・再提出もできない", () => {
 			const status = EvaluationStatus.FINALIZED;
-			expect(can(SUBJECT_ID, status).canRevertOwnSheetToDraft()).toBe(false);
-			expect(can(SUBJECT_ID, status).canSubmitOwnSheet()).toBe(false);
+			expect(can(SUBJECT_ID, status).canReturnGoalsToDraft()).toBe(false);
+			expect(can(SUBJECT_ID, status).canSubmitGoals()).toBe(false);
 			expect(can(PRIMARY_EVALUATOR_ID, status).canConfirmFirstEvaluation()).toBe(false);
 			expect(can(SECONDARY_EVALUATOR_ID, status).canFinalizeEvaluation()).toBe(false);
 		});

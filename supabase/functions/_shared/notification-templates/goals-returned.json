@@ -1,0 +1,10 @@
+{
+	"label": "目標の差し戻し（修正依頼）",
+	"subject": "【TYPA】目標の修正をお願いします（{{employeeName}} / {{periodName}}）",
+	"body": [
+		"{{employeeName}}（{{employeeNo}}）の目標が要修正として下書きに戻されました。目標を修正して再送信してください。",
+		"",
+		"評価期間: {{periodName}}",
+		"シートID: {{sheetId}}"
+	]
+}

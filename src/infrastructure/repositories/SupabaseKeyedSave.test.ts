@@ -54,20 +54,32 @@ it("propagates a refused common evaluation save", async () => {
 
 it("saves a goal by its sheet and goal number", async () => {
 	single.mockResolvedValue({ data: { id: 12 }, error: null });
-	await new SupabaseMilestoneRepository().upsertText(100, 2, "目標", "中間", "達成");
+	await new SupabaseMilestoneRepository().upsertText(
+		100,
+		2,
+		"目標",
+		[{ description: "タスク", achievement: "達成" }],
+		"",
+	);
 	expect(milestoneUpsert).toHaveBeenCalledExactlyOnceWith(
 		{
 			sheet_id: 100,
 			goal_number: 2,
 			challenge_goal: "目標",
-			midterm_goal: "中間",
-			achievement: "達成",
+			period_goals: [{ description: "タスク", achievement: "達成" }],
+			achievement: "",
 		},
 		{ onConflict: "sheet_id,goal_number" },
 	);
 
 	single.mockResolvedValue({ data: null, error: new Error("write denied") });
 	await expect(
-		new SupabaseMilestoneRepository().upsertText(100, 2, "目標", "中間", "達成"),
+		new SupabaseMilestoneRepository().upsertText(
+			100,
+			2,
+			"目標",
+			[{ description: "タスク", achievement: "達成" }],
+			"",
+		),
 	).rejects.toThrow("write denied");
 });

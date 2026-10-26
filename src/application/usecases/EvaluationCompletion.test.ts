@@ -69,8 +69,7 @@ function setup(testCase: (typeof cases)[number], goalScore = 4, commonScore = 4)
 	const sheets = sheetRepository();
 	sheets.findById.mockResolvedValue(current);
 	const notifications = {
-		notifySheetSubmitted: vi.fn(),
-		notifyFirstEvaluationConfirmed: vi.fn(),
+		notifySheetStatusChanged: vi.fn(),
 	};
 	const request = { sheetId: 100, currentEmployeeId: testCase.employeeId, status: testCase.next };
 	const useCase = new UpdateEvaluationStatusInteractor(sheets, employeeRepository(), notifications);
@@ -88,7 +87,7 @@ describe.each(cases)("$label", (testCase) => {
 			await expect(useCase.execute(request, out)).rejects.toThrow(missing);
 			expect(sheets.updateScoreTotals).not.toHaveBeenCalled();
 			expect(sheets.updateStatus).not.toHaveBeenCalled();
-			expect(notifications.notifyFirstEvaluationConfirmed).not.toHaveBeenCalled();
+			expect(notifications.notifySheetStatusChanged).not.toHaveBeenCalled();
 			expect(out.present).not.toHaveBeenCalled();
 		},
 	);
@@ -134,8 +133,7 @@ it("checks every saved goal including the second one", () => {
 				sheetId: 100,
 				goalNumber: 2,
 				challengeGoal: "2つ目の目標",
-				midtermGoal: "",
-				achievement: "",
+				periodGoals: [{ description: "", achievement: "" }],
 				firstScore: 0,
 			}),
 		],
@@ -145,17 +143,16 @@ it("checks every saved goal including the second one", () => {
 	expect(twoGoals.pendingEvaluationItems("first")).toEqual(["チャレンジ目標 2"]);
 });
 
-it("does not require evaluations when the subject submits or reverts the sheet", async () => {
-	for (const next of [EvaluationStatus.SUBMITTED, EvaluationStatus.DRAFT]) {
+it("does not require scores for goal review, confirmation or the subject's evaluation request", async () => {
+	for (const [initial, next, actor] of [
+		[EvaluationStatus.DRAFT, EvaluationStatus.GOALS_SUBMITTED, 1],
+		[EvaluationStatus.GOALS_SUBMITTED, EvaluationStatus.DRAFT, 2],
+		[EvaluationStatus.GOALS_SUBMITTED, EvaluationStatus.GOALS_CONFIRMED, 2],
+		[EvaluationStatus.GOALS_CONFIRMED, EvaluationStatus.SUBMITTED, 1],
+	] as const) {
 		const { current, sheets, useCase, out } = setup(cases[0], 0, 0);
-		sheets.findById.mockResolvedValue(
-			EvaluationSheet.create({
-				...current,
-				status:
-					next === EvaluationStatus.SUBMITTED ? EvaluationStatus.DRAFT : EvaluationStatus.SUBMITTED,
-			}),
-		);
-		await useCase.execute({ sheetId: 100, currentEmployeeId: 1, status: next }, out);
+		sheets.findById.mockResolvedValue(EvaluationSheet.create({ ...current, status: initial }));
+		await useCase.execute({ sheetId: 100, currentEmployeeId: actor, status: next }, out);
 		expect(sheets.updateStatus).toHaveBeenCalled();
 	}
 });

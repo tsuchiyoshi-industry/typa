@@ -15,6 +15,7 @@ import { EvaluationAllocation } from "../../domain/valueObjects/EvaluationAlloca
 import { EvaluationRank } from "../../domain/valueObjects/EvaluationRank";
 import type { EvaluationScoreTotals } from "../../domain/valueObjects/EvaluationScoreTotals";
 import { EvaluationStatus } from "../../domain/valueObjects/EvaluationStatus";
+import type { PeriodGoal } from "../../domain/valueObjects/PeriodGoal";
 import { supabase } from "../db/supabase";
 
 /**
@@ -63,7 +64,7 @@ export interface SheetRpcRow {
 		id: number;
 		goalNumber: number;
 		challengeGoal: string;
-		midtermGoal: string;
+		periodGoals: PeriodGoal[];
 		achievement: string;
 		firstScore: number;
 		secondScore: number;
@@ -357,7 +358,7 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 		sheetId: number,
 		status: EvaluationStatus,
 		_ranks: { first?: EvaluationRank; final?: EvaluationRank } = {},
-	): Promise<EvaluationSheet> {
+	): Promise<EvaluationSheet | null> {
 		// The DB locks the sheet, checks the transition and computes all final values.
 		const { data, error } = await supabase.rpc("transition_evaluation_sheet", {
 			p_sheet_id: sheetId,
@@ -365,6 +366,9 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 		});
 		if (error) {
 			throw error;
+		}
+		if (status.isDraft() && data === null) {
+			return null;
 		}
 		if (!data) {
 			throw new Error("Failed to load updated evaluation sheet.");

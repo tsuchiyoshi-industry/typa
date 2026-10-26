@@ -1,5 +1,5 @@
 import { DomainError } from "../DomainError";
-import { CorrectionField } from "../valueObjects/CorrectionField";
+import { CorrectionField, parsePeriodGoals } from "../valueObjects/CorrectionField";
 import { CorrectionReason } from "../valueObjects/CorrectionReason";
 import type { EvaluationSheet } from "./EvaluationSheet";
 import { describeCorrected } from "./SheetCorrection";
@@ -77,6 +77,7 @@ export class RetroactiveCorrection {
 		if (new Set(keys).size !== keys.length) {
 			throw new DomainError("同じ項目を一度に2回直すことはできません。");
 		}
+		assertCorrectedGoalsValid(sheet, changes);
 		return new RetroactiveCorrection(sheet.sheetId, why, changes);
 	}
 }
@@ -96,7 +97,7 @@ function plan(
 			}
 			const before = {
 				challenge_goal: goal.challengeGoal,
-				midterm_goal: goal.midtermGoal,
+				period_goals: JSON.stringify(goal.periodGoals),
 				achievement: goal.achievement,
 				first_score: String(goal.firstScore.toNumber()),
 				second_score: String(goal.secondScore.toNumber()),
@@ -121,6 +122,27 @@ function plan(
 					? sheet.firstOverallComment
 					: sheet.secondOverallComment;
 			return new PlannedCorrection(field, null, null, null, before, after);
+		}
+	}
+}
+
+/** 直した後の目標も、目標として正しいか(期中目標があるなら、チャレンジ目標の達成状況は空)。 */
+function assertCorrectedGoalsValid(
+	sheet: EvaluationSheet,
+	changes: readonly PlannedCorrection[],
+): void {
+	for (const goal of sheet.objectives) {
+		const mine = changes.filter(
+			(change) => change.field.target === "goal" && change.targetId === goal.id,
+		);
+		const after = (field: string) => mine.find((change) => change.field.value === field)?.after;
+		const periodGoals = after("period_goals");
+		const achievement = after("achievement");
+		if (periodGoals !== undefined || achievement !== undefined) {
+			goal.withTextUpdates({
+				periodGoals: periodGoals === undefined ? undefined : (parsePeriodGoals(periodGoals) ?? []),
+				achievement,
+			});
 		}
 	}
 }

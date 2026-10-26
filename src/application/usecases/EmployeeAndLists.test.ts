@@ -521,7 +521,7 @@ describe("sheet creation orchestration", () => {
 			expect.objectContaining({
 				permissions: expect.objectContaining({
 					canEditMilestoneGoal: true,
-					canSubmitOwnSheet: true,
+					canSubmitGoals: true,
 				}),
 			}),
 		);

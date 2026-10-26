@@ -1,3 +1,5 @@
+import type { PeriodGoal } from "../valueObjects/PeriodGoal";
+
 /** 前の評価期間のシートの目標(文言だけ。点数は含まない)。 */
 export interface PreviousGoals {
 	periodName: string;
@@ -5,10 +7,10 @@ export interface PreviousGoals {
 		id: number;
 		goalNumber: number;
 		challengeGoal: string;
-		midtermGoal: string;
+		periodGoals: readonly PeriodGoal[];
 		achievement: string;
-		/** このシートに引き継いだ。引き継いでいない目標は「済み」として扱う。 */
-		carried: boolean;
+		/** このシートへ引き継いだ先の目標番号。引き継いでいなければ null。 */
+		carriedInto: number | null;
 	}[];
 }
 
@@ -18,19 +20,23 @@ export interface MilestoneRepository {
 	updateText(
 		milestoneId: number,
 		challengeGoal: string,
-		midtermGoal: string,
+		periodGoals: readonly PeriodGoal[],
 		achievement: string,
 	): Promise<void>;
 	upsertText(
 		sheetId: number,
 		goalNumber: number,
 		challengeGoal: string,
-		midtermGoal: string,
+		periodGoals: readonly PeriodGoal[],
 		achievement: string,
 	): Promise<void>;
 	updateScore(milestoneId: number, firstScore?: number, secondScore?: number): Promise<void>;
 	/** 同じ社員の、前の評価期間(EvaluationCalendar.previousOf)のシートの目標。そのシートが無い、または見られないときは null。 */
 	findPreviousGoals(sheetId: number): Promise<PreviousGoals | null>;
-	/** 前の評価期間の目標を、このシート(本人の下書き)に引き継ぐ。チャレンジ目標の文言だけを写す。 */
-	carryOver(sheetId: number, goalId: number): Promise<void>;
+	/**
+	 * 前期のチャレンジ目標を、このシート(本人の下書き)へ引き継ぐ。写すのはチャレンジ目標の文言だけで、
+	 * 期中目標と達成状況は今期の分を書く。空の目標があればそこへ、無ければ空いている番号に入れる。
+	 * 入れた先の目標番号を返す。
+	 */
+	carryOver(sheetId: number, previousGoalId: number): Promise<number>;
 }

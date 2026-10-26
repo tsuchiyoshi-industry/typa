@@ -55,8 +55,7 @@ export const milestone = () =>
 		sheetId: 100,
 		goalNumber: 1,
 		challengeGoal: "目標",
-		midtermGoal: "中間",
-		achievement: "達成",
+		periodGoals: [{ description: "手順を見直す", achievement: "達成" }],
 		firstScore: 2,
 		secondScore: 4,
 	});
@@ -140,7 +139,7 @@ export function milestoneRepository() {
 		upsertText: vi.fn<MilestoneRepository["upsertText"]>().mockResolvedValue(undefined),
 		updateScore: vi.fn<MilestoneRepository["updateScore"]>().mockResolvedValue(undefined),
 		findPreviousGoals: vi.fn<MilestoneRepository["findPreviousGoals"]>().mockResolvedValue(null),
-		carryOver: vi.fn<MilestoneRepository["carryOver"]>().mockResolvedValue(undefined),
+		carryOver: vi.fn<MilestoneRepository["carryOver"]>().mockResolvedValue(2),
 	} satisfies MilestoneRepository;
 }
 export function commonRepository() {

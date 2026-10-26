@@ -7,9 +7,10 @@ const db = vi.hoisted(() => {
 	const update = vi.fn(() => ({ eq }));
 	const remove = vi.fn(() => ({ eq }));
 	const from = vi.fn(() => ({ update, delete: remove }));
-	return { from, update, remove, eq, select, single };
+	const rpc = vi.fn();
+	return { from, update, remove, eq, select, single, rpc };
 });
-vi.mock("../db/supabase", () => ({ supabase: { from: db.from } }));
+vi.mock("../db/supabase", () => ({ supabase: { from: db.from, rpc: db.rpc } }));
 
 import { SupabaseMilestoneRepository } from "./SupabaseMilestoneRepository";
 
@@ -33,7 +34,8 @@ it.each([
 	["updateScore", (repository: SupabaseMilestoneRepository) => repository.updateScore(11, 3)],
 	[
 		"updateText",
-		(repository: SupabaseMilestoneRepository) => repository.updateText(11, "a", "b", "c"),
+		(repository: SupabaseMilestoneRepository) =>
+			repository.updateText(11, "a", [{ description: "task", achievement: "c" }], ""),
 	],
 	["delete", (repository: SupabaseMilestoneRepository) => repository.delete(11)],
 ] as const)("fails %s when the database refused the write", async (_name, write) => {
@@ -42,4 +44,21 @@ it.each([
 	// 権限で拒否された書き込みは、エラーではなく 0 件で返ることがある
 	db.single.mockResolvedValueOnce({ data: null, error: null });
 	await expect(write(new SupabaseMilestoneRepository())).rejects.toThrow();
+});
+
+it("carries a previous goal through the database function and returns where it went", async () => {
+	db.rpc.mockResolvedValueOnce({ data: 2, error: null });
+	expect(await new SupabaseMilestoneRepository().carryOver(100, 7)).toBe(2);
+	expect(db.rpc).toHaveBeenCalledWith("carry_over_goal", { p_sheet_id: 100, p_goal_id: 7 });
+});
+
+it.each([
+	[
+		{ data: null, error: { message: "この目標はすでに引き継いでいます。" } },
+		"すでに引き継いでいます",
+	],
+	[{ data: null, error: null }, "番号を読めませんでした"],
+])("fails a carry the database refused or did not answer", async (result, message) => {
+	db.rpc.mockResolvedValueOnce(result);
+	await expect(new SupabaseMilestoneRepository().carryOver(100, 7)).rejects.toThrow(message);
 });

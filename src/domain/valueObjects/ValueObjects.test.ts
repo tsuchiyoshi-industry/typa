@@ -33,7 +33,7 @@ describe("value objects and immutable entities", () => {
 	);
 	it("keeps statuses to the known values in the order a sheet moves through them", () => {
 		expect(EvaluationStatus.ALL.map(String)).toEqual([...EVALUATION_STATUS_VALUES]);
-		expect(EvaluationStatus.ALL.map((status) => status.order())).toEqual([0, 1, 2, 3]);
+		expect(EvaluationStatus.ALL.map((status) => status.order())).toEqual([0, 1, 2, 3, 4, 5]);
 		// 同じ値は同じインスタンス。比較は === でできる
 		expect(EvaluationStatus.from("finalized")).toBe(EvaluationStatus.FINALIZED);
 		expect(EvaluationStatus.find("first_evaluated")).toBe(EvaluationStatus.FIRST_EVALUATED);
@@ -45,22 +45,19 @@ describe("value objects and immutable entities", () => {
 		expect(Comment.from("  <script>x</script>  ").value).toBe("<script>x</script>");
 		expect(Comment.from(" x ").equals(Comment.from("x"))).toBe(true);
 	});
-	it.each(["draft", "submitted", "first_evaluated", "finalized"])(
-		"round trips status %s",
-		(value) => {
-			const status = EvaluationStatus.from(value);
-			expect(status.toString()).toBe(value);
-			expect(status.isDraft()).toBe(value === "draft");
-			expect(status.isSubmitted()).toBe(value !== "draft");
-			expect(status.isAwaitingFirstEvaluation()).toBe(value === "submitted");
-			expect(status.isAwaitingSecondEvaluation()).toBe(value === "first_evaluated");
-			expect(status.isFirstEvaluationConfirmed()).toBe(
-				value === "first_evaluated" || value === "finalized",
-			);
-			expect(status.isFinalized()).toBe(value === "finalized");
-			expect(status.equals(EvaluationStatus.from(value))).toBe(true);
-		},
-	);
+	it.each([...EVALUATION_STATUS_VALUES])("round trips status %s", (value) => {
+		const status = EvaluationStatus.from(value);
+		expect(status.toString()).toBe(value);
+		expect(status.isDraft()).toBe(value === "draft");
+		expect(status.isSentToEvaluators()).toBe(value !== "draft");
+		expect(status.isAwaitingFirstEvaluation()).toBe(value === "submitted");
+		expect(status.isAwaitingSecondEvaluation()).toBe(value === "first_evaluated");
+		expect(status.isFirstEvaluationConfirmed()).toBe(
+			value === "first_evaluated" || value === "finalized",
+		);
+		expect(status.isFinalized()).toBe(value === "finalized");
+		expect(status.equals(EvaluationStatus.from(value))).toBe(true);
+	});
 	it.each([
 		[100, "S"],
 		[95, "S"],
@@ -217,8 +214,10 @@ describe("value objects and immutable entities", () => {
 		expect(original.firstScore.value).toBe(2);
 		expect(changed.secondScore.value).toBe(4);
 		expect(
-			changed.withTextUpdates({ challengeGoal: "new", midtermGoal: "mid", achievement: "done" })
-				.firstScore.value,
+			changed.withTextUpdates({
+				challengeGoal: "new",
+				periodGoals: [{ description: "task", achievement: "done" }],
+			}).firstScore.value,
 		).toBe(3);
 		expect(original.withScoreUpdates({ secondScore: 1 }).firstScore.value).toBe(2);
 	});

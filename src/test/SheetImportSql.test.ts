@@ -24,7 +24,7 @@ const goal = (line: number, employeeNo: string, goalNumber: string, extra: objec
 	name: "",
 	goalNumber,
 	challengeGoal: `目標${line}`,
-	midtermGoal: "",
+	periodGoals: [],
 	achievement: "",
 	firstScore: "",
 	secondScore: "",
@@ -119,7 +119,7 @@ it("creates draft sheets with goals, scores and comments, and replaces them on a
 	await actAs(db, 1);
 	const goals = [
 		goal(2, "E4", "1", { name: "社員4", firstScore: "4", secondScore: "3" }),
-		goal(3, "E4", "02", { midtermGoal: "中間", achievement: "達成" }),
+		goal(3, "E4", "02", { periodGoals: [{ description: "手順を見直す", achievement: "達成" }] }),
 	];
 	const checked = await runImport(goals, [common(2, "E4", "2")], false);
 	expect(checked).toEqual({
@@ -143,23 +143,21 @@ it("creates draft sheets with goals, scores and comments, and replaces them on a
 		),
 	).toEqual([{ status: "draft", primary_evaluator_id: 2, secondary_evaluator_id: 3 }]);
 	expect(
-		await query(`select goal_number, challenge_goal, midterm_goal, achievement, first_score, second_score
+		await query(`select goal_number, challenge_goal, period_goals, first_score, second_score
 			from public.milestones m join public.evaluation_sheets s on s.id = m.sheet_id
 			where s.employee_id = 4 order by goal_number`),
 	).toEqual([
 		{
 			goal_number: 1,
 			challenge_goal: "目標2",
-			midterm_goal: "",
-			achievement: "",
+			period_goals: [],
 			first_score: 4,
 			second_score: 3,
 		},
 		{
 			goal_number: 2,
 			challenge_goal: "目標3",
-			midterm_goal: "中間",
-			achievement: "達成",
+			period_goals: [{ description: "手順を見直す", achievement: "達成" }],
 			first_score: 0,
 			second_score: 0,
 		},
@@ -242,4 +240,18 @@ it("refuses to import or hand out a template while no period is in progress", as
 	});
 	await expect(runImport([goal(2, "E4", "1")], [])).rejects.toMatchObject({ code: "P0002" });
 	await db.exec("reset role; update public.evaluation_periods set is_active = true where id = 1");
+});
+
+it("imports achievement directly on a challenge with zero period goals", async () => {
+	await actAs(db, 1);
+	expect(
+		(await runImport([goal(2, "E6", "1", { achievement: "テーマへの実績" })], [])).applied,
+	).toBe(true);
+	await actAs(db, 6);
+	const [{ value }] = await query<{
+		value: { objectives: { achievement: string; periodGoals: unknown[] }[] };
+	}>(
+		"select public.get_sheet(id) as value from public.evaluation_sheets where period_id=1 and employee_id=6",
+	);
+	expect(value.objectives[0]).toMatchObject({ achievement: "テーマへの実績", periodGoals: [] });
 });

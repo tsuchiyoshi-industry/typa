@@ -96,7 +96,7 @@ export function reviewerEditorFixture(
 		objectives: row.objectives.map((goal) => ({
 			...goal,
 			sheetId: row.sheetId as number,
-			midtermGoal: "中間面談で達成状況を確認",
+			periodGoals: goal.periodGoals,
 		})),
 		maxObjectives: 4,
 		objectiveScoreTotals: {
@@ -132,8 +132,12 @@ export function reviewerEditorFixture(
 			canEditMilestoneGoal: false,
 			canViewCommonEvaluation: true,
 			canViewSecondEvaluation: row.canViewSecond,
-			canSubmitOwnSheet: false,
-			canRevertOwnSheetToDraft: false,
+			canEditMilestoneAchievement: false,
+			canCarryOverGoal: false,
+			canConfirmGoals: row.isPrimary && row.status === "goals_submitted",
+			canRequestFirstEvaluation: false,
+			canSubmitGoals: false,
+			canReturnGoalsToDraft: false,
 			canConfirmFirstEvaluation: canConfirmFirst(row),
 			canFinalizeEvaluation: canFinalize(row),
 		},

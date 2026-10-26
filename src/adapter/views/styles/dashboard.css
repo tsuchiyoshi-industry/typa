@@ -1145,6 +1145,8 @@
 
 .status-track__steps {
 	display: flex;
+	flex-wrap: wrap;
+	row-gap: 0.5rem;
 	align-items: center;
 	margin: 0;
 	padding: 0;
@@ -2327,7 +2329,7 @@
 	white-space: pre-line;
 }
 
-/* 前の期の目標: 続ける目標を今期に引き継ぎ、続けない目標は「済み」 */
+/* 前期のチャレンジ目標: 目標ごとに、据え置くか見直して更新するかを選ぶ。期中目標は前期の記録として読むだけ */
 .previous-goals > summary {
 	display: block;
 	cursor: pointer;
@@ -2362,15 +2364,15 @@
 	padding: 0.5rem 1.25rem 1rem;
 	list-style: none;
 }
-.previous-goals__list li {
+.previous-goals__list > li {
 	display: grid;
-	grid-template-columns: 1.75rem minmax(0, 1fr) auto;
+	grid-template-columns: 1.75rem minmax(0, 1fr);
 	align-items: start;
 	gap: 0.75rem;
 	padding: 0.75rem 0;
 	border-bottom: 1px solid var(--hr-border);
 }
-.previous-goals__list li:last-child {
+.previous-goals__list > li:last-child {
 	border-bottom: 0;
 }
 .previous-goals__number {
@@ -2400,29 +2402,220 @@
 	margin-right: 0.5rem;
 	font-weight: 600;
 }
-.previous-goals__state {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	justify-content: flex-end;
-	gap: 0.5rem;
+/* チャレンジ目標の配下に並ぶタスクと、その自由記入の振り返り。 */
+.period-goals {
+	margin: 0.5rem 0;
+	padding-left: 1.5rem;
 }
-.previous-goals__done {
+.period-goals > li {
+	padding: 0.5rem 0;
+}
+.period-goals > li > p {
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	margin: 0;
+}
+.period-goals > li > p.period-goals__achievement {
+	margin-top: 0.5rem;
+}
+.period-goals__label {
+	display: block;
+	font-size: 0.8125rem;
+	color: var(--hr-text-muted);
+}
+.period-goals-editor {
+	min-width: 0;
+	border: 0;
+	margin: 0;
+	padding: 0.75rem 0 0 1rem;
+	border-left: 2px solid var(--hr-border);
+}
+.period-goals-editor legend {
+	font-weight: 600;
+}
+.period-goals--editing > li {
+	padding: 0.75rem 0;
+}
+.period-goal-field {
+	display: flex;
+	flex-direction: column;
+	gap: 0.4rem;
+	margin-bottom: 0.5rem;
+}
+.period-goals--editing textarea {
+	width: 100%;
+	box-sizing: border-box;
+}
+
+/* 前期の目標1件。番号・本文・選択の3列。引き継いだ目標は番号を墨で塗り、今期とのつながりをそこだけで示す */
+.previous-goals__list > li.previous-goal {
+	grid-template-columns: 1.75rem minmax(0, 1fr) auto;
+	gap: 0.75rem 1rem;
+}
+.previous-goal--kept .previous-goals__number,
+.previous-goal--revised .previous-goals__number {
+	border-color: var(--hr-accent);
+	background: var(--hr-accent);
+	color: var(--hr-on-accent);
+}
+.previous-goal__body {
+	min-width: 0;
+}
+.previous-goal__record {
+	margin-top: 0.35rem;
+	color: var(--hr-text-muted);
+	font-size: 0.8125rem;
+}
+.previous-goal__record-toggle {
+	width: fit-content;
+	cursor: pointer;
+	color: var(--hr-text-muted);
+}
+.previous-goal__record-toggle:hover {
+	color: var(--hr-text);
+}
+.previous-goal__record .period-goals {
+	margin: 0.35rem 0 0;
+}
+.previous-goal__choice {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
+	gap: 0.35rem;
+}
+.previous-goal__left {
 	color: var(--hr-text-muted);
 	font-size: 0.8125rem;
 	white-space: nowrap;
 }
-.previous-goals__state .secondary-action {
-	min-height: 2.25rem;
-	padding: 0.35rem 0.8rem;
-	font-size: 0.8125rem;
+.previous-goals__full {
+	color: var(--hr-warning-text);
 }
 @media (max-width: 640px) {
-	.previous-goals__list li {
+	.previous-goals__list > li.previous-goal {
 		grid-template-columns: 1.75rem minmax(0, 1fr);
 	}
-	.previous-goals__state {
+	.previous-goal__choice {
 		grid-column: 2;
-		justify-content: flex-start;
+		align-items: flex-start;
 	}
+}
+
+/* 据え置く / 見直して更新 の二択。一続きの枠に並べ、選ぶまでは静かに置く */
+.continuity-choice {
+	display: inline-flex;
+	min-width: 0;
+	margin: 0;
+	padding: 0;
+	border: 1px solid var(--hr-border-input);
+	border-radius: var(--hr-radius-sm);
+	overflow: hidden;
+}
+.continuity-choice > button {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4rem;
+	min-height: 2.25rem;
+	padding: 0.35rem 0.85rem;
+	font-size: 0.875rem;
+	font-weight: 600;
+	color: var(--hr-text);
+	background: transparent;
+	white-space: nowrap;
+	transition:
+		background 0.15s ease,
+		color 0.15s ease;
+}
+.continuity-choice > button + button {
+	border-left: 1px solid var(--hr-border-input);
+}
+.continuity-choice > button:hover:not(:disabled) {
+	background: var(--hr-accent-muted);
+	color: var(--hr-accent-hover);
+}
+.continuity-choice > button:focus-visible {
+	outline: 2px solid var(--hr-accent);
+	outline-offset: -2px;
+}
+.continuity-choice > button:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+/* 前期とのつながりの札。据え置きは淡い墨の面、更新は線だけ */
+.continuity-badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.3rem;
+	padding: 0.15rem 0.6rem;
+	border: 1px solid transparent;
+	border-radius: 999px;
+	background: var(--hr-accent-muted);
+	color: var(--hr-text);
+	font-size: 0.8125rem;
+	font-weight: 600;
+	letter-spacing: 0;
+	text-transform: none;
+	white-space: nowrap;
+}
+.continuity-badge.revised {
+	background: transparent;
+	border-color: var(--hr-border-strong);
+}
+.continuity-badge .action-icon {
+	width: 0.875rem;
+	height: 0.875rem;
+	color: var(--hr-accent);
+}
+.challenge-tab__origin {
+	display: inline-flex;
+	color: var(--hr-accent);
+}
+.challenge-tab__origin .action-icon {
+	width: 0.875rem;
+	height: 0.875rem;
+}
+.objective-field__head {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.5rem;
+	margin-bottom: 0.35rem;
+}
+.objective-field__head > .objective-field__label {
+	margin-bottom: 0;
+}
+/* 更新した目標の、前期の文言。本文の下に細い罫で添える */
+.continuity-note {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 0.25rem 0.6rem;
+	margin: 0.5rem 0 0;
+	padding-left: 0.75rem;
+	border-left: 2px solid var(--hr-border-strong);
+	color: var(--hr-text-muted);
+	font-size: 0.8125rem;
+	line-height: 1.6;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+.continuity-note__period {
+	font-weight: 600;
+}
+.continuity-note > small {
+	flex-basis: 100%;
+	font-size: 0.75rem;
+}
+.continuity-note > .link-button {
+	font-size: 0.8125rem;
+}
+
+.status-chip.goals_submitted {
+	color: var(--hr-text);
+	background: var(--hr-accent-muted);
+}
+.status-chip.goals_confirmed {
+	color: var(--hr-text);
+	background: var(--hr-bg-elevated);
 }

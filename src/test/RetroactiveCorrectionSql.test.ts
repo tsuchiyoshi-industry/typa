@@ -27,7 +27,7 @@ const correctionsSeenBy = async (employee: number, sheet: number) => {
 let goal100: number;
 let goal300: number;
 beforeAll(async () => {
-	db = await createProdLikeDb();
+	db = await createProdLikeDb("202610230004_z");
 	await db.exec(`
 		reset role;
 		set session_replication_role = replica;
@@ -38,9 +38,9 @@ beforeAll(async () => {
 		values (100, 2, 4, 'finalized', 2, 3, false, 1, 20, 80, 75, 'B', 'none', '二次の総評'),
 		       (300, 2, 6, 'draft', 2, null, true, 1, null, null, null, null, null, ''),
 		       (200, 1, 4, 'draft', 2, 3, false, 1, null, null, null, null, null, '');
-		insert into public.milestones (sheet_id, goal_number, challenge_goal, achievement, first_score, second_score)
-		values (100, 1, '受注の手戻りを減らす', '半減した', 3, 3), (300, 1, '問い合わせを早く返す', '', 0, 0),
-		       (200, 1, '今期の目標', '', 0, 0);
+		insert into public.milestones (sheet_id, goal_number, challenge_goal, period_goals, first_score, second_score)
+		values (100, 1, '受注の手戻りを減らす', '[{"description":"手順を改善","achievement":"半減した"}]', 3, 3), (300, 1, '問い合わせを早く返す', '[{"description":"返答手順を改善","achievement":""}]', 0, 0),
+		       (200, 1, '今期の目標', '[{"description":"今期のタスク","achievement":""}]', 0, 0);
 		insert into public.common_evaluation_results (sheet_id, item_id, first_score, second_score)
 		values (100, 1, 3, 3), (100, 2, 3, 3);
 		set session_replication_role = origin;
@@ -56,7 +56,7 @@ const unchanged = async () => {
 	await db.exec("reset role");
 	expect(
 		await query(
-			"select first_score, second_score, achievement from public.milestones where sheet_id = 100",
+			"select first_score, second_score, period_goals->0->>'achievement' as achievement from public.milestones where sheet_id = 100",
 		),
 	).toEqual([{ first_score: 3, second_score: 3, achievement: "半減した" }]);
 	expect(await one("select count(*)::int as v from public.sheet_corrections")).toBe(0);
@@ -265,7 +265,9 @@ it("records each correction and recalculates the finalized result with the alloc
 it("still keeps every other write away from a closed sheet", async () => {
 	await db.exec("reset role");
 	await expect(
-		query(`update public.milestones set achievement = '書き換え' where sheet_id = 100`),
+		query(
+			`update public.milestones set period_goals = '[{"description":"書き換え","achievement":""}]' where sheet_id = 100`,
+		),
 	).rejects.toThrow("締められた評価期間の評価シートは変更できません。");
 	await expect(
 		query(

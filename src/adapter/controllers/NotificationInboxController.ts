@@ -19,6 +19,12 @@ export interface Inbox {
 }
 
 const WORDING: Record<InAppNotification["kind"], { done: string; next: string }> = {
+	goals_submitted: { done: "目標が送信されました", next: "目標を確認してください" },
+	goals_confirmed: { done: "目標が確定しました", next: "達成状況を記入してください" },
+	goals_returned: {
+		done: "目標が要修正として戻されました",
+		next: "目標を修正して再送信してください",
+	},
 	submitted: { done: "評価シートが提出されました", next: "一次評価をお願いします" },
 	first_evaluated: { done: "一次評価が確定しました", next: "二次評価をお願いします" },
 };

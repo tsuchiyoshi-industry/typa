@@ -10,7 +10,7 @@ export const CSV_HEADERS: Record<SheetImportFile, readonly string[]> = {
 		"氏名",
 		"目標番号",
 		"チャレンジ目標",
-		"中間目標",
+		"期中目標",
 		"達成状況",
 		"一次評価点",
 		"二次評価点",

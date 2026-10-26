@@ -1,9 +1,11 @@
+import type { PeriodGoal } from "../../domain/valueObjects/PeriodGoal";
+
 export interface MilestoneDto {
 	id: number;
 	sheetId: number;
 	goalNumber: number;
 	challengeGoal: string;
-	midtermGoal: string;
+	periodGoals: readonly PeriodGoal[];
 	achievement: string;
 	/** 本人からは評価が確定するまで伏せられるため null になり得る。 */
 	firstScore: number | null;

@@ -21,6 +21,10 @@ const goals = async (employee: number) => {
 		"insert into public.milestones(sheet_id,goal_number,challenge_goal) values($1,1,'目標')",
 		[id],
 	);
+	await transition(id, "goals_submitted");
+	await actAs(db, 2);
+	await transition(id, "goals_confirmed");
+	await actAs(db, employee);
 	await transition(id, "submitted");
 	await actAs(db, 2);
 	await query("update public.milestones set first_score=4 where sheet_id=$1", [id]);

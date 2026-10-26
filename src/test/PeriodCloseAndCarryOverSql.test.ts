@@ -9,13 +9,17 @@ const one = async <T>(sql: string, params: unknown[] = []) =>
 	(await query<{ v: T }>(sql, params))[0].v;
 type Previous = {
 	periodName: string;
-	goals: { id: number; goalNumber: number; challengeGoal: string; carried: boolean }[];
+	goals: {
+		id: number;
+		goalNumber: number;
+		challengeGoal: string;
+		periodGoals: { description: string; achievement: string }[];
+	}[];
 } | null;
 const previousGoals = (sheet: number) =>
 	one<Previous>("select public.get_previous_goals($1) as v", [sheet]);
 
 // 社員 4(一次 2・二次 3): 締めた期間 2 に下書きのまま締めたシート 100(目標2件)、実施中の期間 1 に下書き 200
-let previousIds: number[] = [];
 beforeAll(async () => {
 	db = await createProdLikeDb();
 	await db.exec(`
@@ -23,82 +27,39 @@ beforeAll(async () => {
 		set session_replication_role = replica;
 		insert into public.evaluation_sheets (id, period_id, employee_id, status, primary_evaluator_id, secondary_evaluator_id)
 		values (100, 2, 4, 'draft', 2, 3), (200, 1, 4, 'draft', 2, 3);
-		insert into public.milestones (sheet_id, goal_number, challenge_goal, achievement)
-		values (100, 1, '前期の目標1', '達成した'), (100, 2, '前期の目標2', '');
+		insert into public.milestones (sheet_id, goal_number, challenge_goal, period_goals)
+		values (100, 1, '前期の目標1', '[{"description":"前期のタスク","achievement":"達成した"}]'), (100, 2, '前期の目標2', '[{"description":"他のタスク","achievement":""}]');
 		set session_replication_role = origin;
 	`);
-	previousIds = (
-		await query<{ id: number }>(
-			"select id from public.milestones where sheet_id = 100 order by goal_number",
-		)
-	).map((row) => row.id);
 }, 60_000);
 afterAll(async () => {
 	await db?.close();
 });
 
-it("shows the subject the goals of the previous period and carries one over into the draft", async () => {
+it("returns previous challenges and their tasks, and reading them carries nothing into the draft", async () => {
 	await actAs(db, 4);
 	expect(await previousGoals(200)).toMatchObject({
 		periodName: "締め済み",
 		goals: [
-			{ goalNumber: 1, challengeGoal: "前期の目標1", carried: false },
-			{ goalNumber: 2, challengeGoal: "前期の目標2", carried: false },
+			{
+				goalNumber: 1,
+				challengeGoal: "前期の目標1",
+				periodGoals: [{ description: "前期のタスク", achievement: "達成した" }],
+				carriedInto: null,
+			},
+			{ goalNumber: 2, challengeGoal: "前期の目標2", carriedInto: null },
 		],
 	});
-
-	await query("select public.carry_over_goal(200, $1)", [previousIds[0]]);
-	await db.exec("reset role");
-	expect(
-		await query(
-			"select goal_number, challenge_goal, midterm_goal, carried_from_id from public.milestones where sheet_id = 200",
-		),
-	).toEqual([
-		{
-			goal_number: 1,
-			challenge_goal: "前期の目標1",
-			midterm_goal: "",
-			carried_from_id: previousIds[0],
-		},
-	]);
-
-	await actAs(db, 4);
-	expect((await previousGoals(200))?.goals.map((goal) => goal.carried)).toEqual([true, false]);
-	await expect(
-		query("select public.carry_over_goal(200, $1)", [previousIds[0]]),
-	).rejects.toMatchObject({
-		code: "23505",
-	});
-	// 前の期のシートの目標でなければ引き継げない
-	await expect(query("select public.carry_over_goal(200, 999999)")).rejects.toMatchObject({
-		code: "P0002",
-	});
+	await previousGoals(200);
+	// 引き継ぐのは本人が選んだときだけ(PreviousGoalCarryOverSql.test.ts)
+	expect(await query("select id from public.milestones where sheet_id = 200")).toEqual([]);
 });
 
-it("stops carrying over once the draft holds the most goals allowed", async () => {
-	await db.exec(
-		"reset role; insert into public.milestones (sheet_id, goal_number, challenge_goal) values (200, 2, 'a'), (200, 3, 'b'), (200, 4, 'c')",
-	);
-	await actAs(db, 4);
-	await expect(query("select public.carry_over_goal(200, $1)", [previousIds[1]])).rejects.toThrow(
-		"チャレンジ目標は 4 件まで",
-	);
-	await db.exec(
-		"reset role; delete from public.milestones where sheet_id = 200 and goal_number > 1",
-	);
-});
-
-it("keeps the previous goals from people who cannot see the sheet yet", async () => {
-	// 今期のシートは下書きなので、評価者にもまだ見せない
-	await actAs(db, 2);
-	expect(await previousGoals(200)).toBeNull();
-	await expect(
-		query("select public.carry_over_goal(200, $1)", [previousIds[1]]),
-	).rejects.toMatchObject({
-		code: "42501",
-	});
-	await actAs(db, 5);
-	expect(await previousGoals(200)).toBeNull();
+it("keeps previous goals from people who cannot read the draft", async () => {
+	for (const employee of [2, 5]) {
+		await actAs(db, employee);
+		expect(await previousGoals(200)).toBeNull();
+	}
 });
 
 it("takes the previous period, not an older sheet, when the employee had no sheet just before", async () => {
@@ -271,25 +232,7 @@ it("refuses periods the app could not read, so one bad row never hides the whole
 	await db.exec("delete from public.evaluation_periods where period_name = '壊れた期間'");
 });
 
-it("carries nothing into a sheet that is no longer a draft, into a closed period, or from nowhere", async () => {
+it("returns nothing when there is no sheet", async () => {
 	await actAs(db, 4);
 	expect(await previousGoals(999999)).toBeNull();
-	// 期間 1 は締めたので、下書きのままでも引き継げない
-	await expect(
-		query("select public.carry_over_goal(200, $1)", [previousIds[1]]),
-	).rejects.toMatchObject({
-		code: "23514",
-	});
-	await db.exec(
-		"reset role; set session_replication_role = replica; update public.evaluation_sheets set status = 'submitted' where id = 200; set session_replication_role = origin",
-	);
-	await actAs(db, 4);
-	await expect(
-		query("select public.carry_over_goal(200, $1)", [previousIds[1]]),
-	).rejects.toMatchObject({
-		code: "42501",
-	});
-	await db.exec(
-		"reset role; set session_replication_role = replica; update public.evaluation_sheets set status = 'draft' where id = 200; set session_replication_role = origin",
-	);
 });

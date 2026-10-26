@@ -3,8 +3,10 @@ import { type Component, createResource, createSignal, For, Show } from "solid-j
 import type { CorrectableSheetDto } from "../../application/dtos/SheetCorrectionDto";
 import { messageOf } from "../../application/errorMessage";
 import type { RequestedChange } from "../../domain/entities/RetroactiveCorrection";
+import { parsePeriodGoals } from "../../domain/valueObjects/CorrectionField";
 import type { EvaluationStatusValue } from "../../domain/valueObjects/EvaluationStatus";
 import type { RetroactiveCorrectionController } from "../controllers/RetroactiveCorrectionController";
+import { PeriodGoalsEditor } from "./components/PeriodGoals";
 import SheetCorrectionsNotice from "./components/SheetCorrectionsNotice";
 import { confirmAction, showToast } from "./feedback";
 import { statusLabel } from "./format";
@@ -19,8 +21,8 @@ function originalValues(sheet: CorrectableSheetDto): Map<string, string> {
 		const set = (field: string, value: string | number) =>
 			values.set(keyOf({ target: "goal", targetId: goal.id, field }), String(value));
 		set("challenge_goal", goal.challengeGoal);
-		set("midterm_goal", goal.midtermGoal);
 		set("achievement", goal.achievement);
+		set("period_goals", JSON.stringify(goal.periodGoals));
 		set("first_score", goal.firstScore);
 		set("second_score", goal.secondScore);
 	}
@@ -281,14 +283,36 @@ const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionCo
 										{ target: "goal", targetId: goal.id, field: "challenge_goal" },
 										"チャレンジ目標",
 									)}
-									{textArea(
-										{ target: "goal", targetId: goal.id, field: "midterm_goal" },
-										"中間目標",
-									)}
-									{textArea(
-										{ target: "goal", targetId: goal.id, field: "achievement" },
-										"達成状況",
-									)}
+
+									{(() => {
+										const tasks: Field = {
+											target: "goal",
+											targetId: goal.id,
+											field: "period_goals",
+										};
+										const achievement: Field = {
+											target: "goal",
+											targetId: goal.id,
+											field: "achievement",
+										};
+										return (
+											<div classList={{ "correction-field--changed": changed(tasks) }}>
+												<PeriodGoalsEditor
+													goals={parsePeriodGoals(draftValue(tasks)) ?? []}
+													achievement={draftValue(achievement)}
+													disabled={busy()}
+													achievementClassList={{
+														"correction-field": true,
+														"correction-field--changed": changed(achievement),
+													}}
+													onChange={(next) => {
+														edit(tasks, JSON.stringify(next.periodGoals));
+														edit(achievement, next.achievement);
+													}}
+												/>
+											</div>
+										);
+									})()}
 									<div class="correction-scores">
 										{scoreSelect(
 											{ target: "goal", targetId: goal.id, field: "first_score" },

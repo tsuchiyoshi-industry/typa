@@ -57,12 +57,15 @@ export interface EvaluationSheetRepository {
 		target: "first" | "second",
 		comment: string,
 	): Promise<EvaluationSheet>;
-	/** ranks: 状態と同時に保存する、確定した評価ランク(一次評価の確定・評価の確定のとき)。 */
+	/**
+	 * ranks: 状態と同時に保存する、確定した評価ランク(一次評価の確定・評価の確定のとき)。
+	 * 変更後のシートを返す。評価者が要修正で下書きに戻したときは、もう読めないので null。
+	 */
 	updateStatus(
 		sheetId: number,
 		status: EvaluationStatus,
 		ranks?: { first?: EvaluationRank; final?: EvaluationRank },
-	): Promise<EvaluationSheet>;
+	): Promise<EvaluationSheet | null>;
 	findByOwner(employeeId: number): Promise<EvaluationSheetSummary[]>;
 	/** シートの評価者(一次・二次)がその社員であるシート。本人のシートは含まない。 */
 	findByEvaluator(employeeId: number): Promise<EvaluationSheetSummary[]>;

@@ -64,13 +64,14 @@ async function menu(page: Page, name: string) {
 /** 本人がシートを作り、目標を書いて提出する。 */
 async function writeSheet(
 	page: Page,
-	goal: { challenge: string; midterm: string; achievement: string },
+	goal: { challenge: string; task: string; achievement: string },
 	beforeSave?: () => Promise<unknown>,
 ) {
 	await page.getByRole("button", { name: "目標を編集" }).click();
 	await page.getByRole("textbox", { name: "チャレンジ目標" }).fill(goal.challenge);
-	await page.getByRole("textbox", { name: "中間目標" }).fill(goal.midterm);
-	await page.getByRole("textbox", { name: "達成状況" }).fill(goal.achievement);
+	await page.getByRole("button", { name: "期中目標を追加" }).click();
+	await page.getByRole("textbox", { name: "期中目標 1" }).fill(goal.task);
+	await page.getByRole("textbox", { name: "達成状況 1" }).fill(goal.achievement);
 	await beforeSave?.();
 	await page.getByRole("button", { name: "目標を保存" }).click();
 	await expect(page.getByRole("button", { name: "目標を編集" })).toBeVisible();
@@ -147,11 +148,11 @@ test("manual screenshots", async ({ page }) => {
 		await page.getByRole("button", { name: "評価シートを作成" }).click();
 		await writeSheet(page, {
 			challenge: "問い合わせ対応の手順書を作り、平均対応時間を15分から10分にする",
-			midterm: "12月末までによくある問い合わせを整理し、手順書の案を作る",
+			task: "12月末までによくある問い合わせを整理し、手順書の案を作る",
 			achievement: "手順書を作成してチームに共有した。平均対応時間は11分になった",
 		});
-		await page.getByRole("button", { name: "提出する" }).click();
-		await confirm(page, "評価シートを提出しますか？", "提出する");
+		await page.getByRole("button", { name: "目標を送信する" }).click();
+		await confirm(page, "目標を送信しますか？", "目標を送信する");
 		await signOut(page);
 	});
 
@@ -170,18 +171,53 @@ test("manual screenshots", async ({ page }) => {
 			page,
 			{
 				challenge: "受注処理の手戻りを、半年で月20件から10件に減らす",
-				midterm: "12月末までに手戻りの原因を分類し、上位3つの対策を決める",
+				task: "12月末までに手戻りの原因を分類し、上位3つの対策を決める",
 				achievement: "入力チェック表を作って運用した。3月の手戻りは月9件になった",
 			},
 			() => shot(page.locator(".challenge-card"), "user", "07-goal"),
 		);
-		await page.getByRole("button", { name: "提出する" }).click();
-		await expect(page.getByRole("dialog", { name: "評価シートを提出しますか？" })).toBeVisible();
+		await page.getByRole("button", { name: "目標を送信する" }).click();
+		await expect(page.getByRole("dialog", { name: "目標を送信しますか？" })).toBeVisible();
 		await shot(page, "user", "08-submit");
-		await confirm(page, "評価シートを提出しますか？", "提出する");
-		await expect(page.getByText("一次評価者の評価を待っています。")).toBeVisible();
+		await confirm(page, "目標を送信しますか？", "目標を送信する");
+		await expect(page.getByText(/一次評価者による目標の確認を待っています。/)).toBeVisible();
 		await shot(page, "user", "09-submitted");
 		await signOut(page);
+	});
+
+	await test.step("目標の確定と、本人による達成状況の記入・一次評価依頼", async () => {
+		await signIn(page, "RELEASE002");
+		await nav(page, "部下の評価");
+		const sheet = await openReview(page, "佐藤 三郎", "RELEASE004");
+		await expect(sheet.getByRole("button", { name: "目標を確定する" })).toBeVisible();
+		await expect(sheet.getByText("評価ランク", { exact: true })).toHaveCount(0);
+		await shot(page, "evaluator", "14-goal-review");
+		await sheet.getByRole("button", { name: "目標を確定する" }).click();
+		await confirm(page, "目標を確定しますか？", "目標を確定する");
+		const next = page.getByRole("dialog", { name: "伊藤 さくら さんの評価シート" });
+		await next.getByRole("button", { name: "目標を確定する" }).click();
+		await confirm(page, "目標を確定しますか？", "目標を確定する");
+		await expect(next).toBeHidden();
+		await signOut(page);
+		for (const employeeNo of ["RELEASE006", "RELEASE004"]) {
+			await signIn(page, employeeNo);
+			await page
+				.getByRole("link", { name: /一般職/ })
+				.first()
+				.click();
+			await page.getByRole("button", { name: "達成状況を入力" }).click();
+			if (employeeNo === "RELEASE004") {
+				await expect(page.getByRole("textbox", { name: "達成状況 1", exact: true })).toBeVisible();
+				await shot(page.locator(".challenge-card"), "user", "17-achievement");
+			}
+			await page.getByRole("button", { name: "キャンセル", exact: true }).click();
+			await page.getByRole("button", { name: "一次評価を依頼する" }).click();
+			if (employeeNo === "RELEASE004") {
+				await shot(page, "user", "18-request-evaluation");
+			}
+			await confirm(page, "一次評価を依頼しますか？", "一次評価を依頼する");
+			await signOut(page);
+		}
 	});
 
 	await test.step("一次評価者", async () => {
@@ -379,12 +415,15 @@ test("manual screenshots", async ({ page }) => {
 		await signOut(page);
 	});
 
-	await test.step("利用者: 前の評価期間の目標と締め後修正", async () => {
+	await test.step("利用者: 前期のチャレンジ目標の引き継ぎと締め後修正", async () => {
 		await signIn(page, "RELEASE004");
 		await page.getByRole("link", { name: "新規作成" }).click();
 		await page.getByRole("button", { name: "評価シートを作成" }).click();
+		// 本人の下書きでは開いていて、目標ごとに据え置く・見直して更新を選べる
 		const previous = page.locator("details.previous-goals");
+		await expect(previous).toHaveAttribute("open", "");
 		await expect(previous).toContainText("受注処理の手戻り");
+		await expect(previous.getByRole("button", { name: "据え置く" }).first()).toBeVisible();
 		await shot(previous, "user", "15-previous-goals");
 		await page.getByRole("link", { name: "TYPA 評価シート一覧へ" }).click();
 		await page

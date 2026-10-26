@@ -2,6 +2,7 @@ import type {
 	MilestoneRepository,
 	PreviousGoals,
 } from "../../domain/repositories/MilestoneRepository";
+import type { PeriodGoal } from "../../domain/valueObjects/PeriodGoal";
 import { supabase } from "../db/supabase";
 
 /** 書き込めた行が無い(DB の権限で拒否された)ときは、エラーとして扱う。 */
@@ -22,13 +23,13 @@ export class SupabaseMilestoneRepository implements MilestoneRepository {
 	async updateText(
 		milestoneId: number,
 		challengeGoal: string,
-		midtermGoal: string,
+		periodGoals: readonly PeriodGoal[],
 		achievement: string,
 	): Promise<void> {
 		requireSaved(
 			await supabase
 				.from("milestones")
-				.update({ challenge_goal: challengeGoal, midterm_goal: midtermGoal, achievement })
+				.update({ challenge_goal: challengeGoal, period_goals: periodGoals, achievement })
 				.eq("id", milestoneId)
 				.select("id")
 				.single(),
@@ -40,7 +41,7 @@ export class SupabaseMilestoneRepository implements MilestoneRepository {
 		sheetId: number,
 		goalNumber: number,
 		challengeGoal: string,
-		midtermGoal: string,
+		periodGoals: readonly PeriodGoal[],
 		achievement: string,
 	): Promise<void> {
 		// (sheet_id, goal_number) の一意制約で、あれば更新・なければ追加する
@@ -52,7 +53,7 @@ export class SupabaseMilestoneRepository implements MilestoneRepository {
 						sheet_id: sheetId,
 						goal_number: goalNumber,
 						challenge_goal: challengeGoal,
-						midterm_goal: midtermGoal,
+						period_goals: periodGoals,
 						achievement,
 					},
 					{ onConflict: "sheet_id,goal_number" },
@@ -86,14 +87,18 @@ export class SupabaseMilestoneRepository implements MilestoneRepository {
 		return (data as PreviousGoals | null) ?? null;
 	}
 
-	async carryOver(sheetId: number, goalId: number): Promise<void> {
-		// 本人の下書きか、前の評価期間の目標か、上限を越えないかは DB 関数が確かめる
-		const { error } = await supabase.rpc("carry_over_goal", {
+	async carryOver(sheetId: number, previousGoalId: number): Promise<number> {
+		// 本人の下書きか、前期の目標か、引き継ぎ済みでないか、上限を越えないかは DB 関数が確かめる
+		const { data, error } = await supabase.rpc("carry_over_goal", {
 			p_sheet_id: sheetId,
-			p_goal_id: goalId,
+			p_goal_id: previousGoalId,
 		});
 		if (error) {
 			throw new Error(error.message);
 		}
+		if (typeof data !== "number") {
+			throw new Error("引き継いだ目標の番号を読めませんでした。");
+		}
+		return data;
 	}
 }

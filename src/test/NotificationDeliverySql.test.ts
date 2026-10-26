@@ -11,7 +11,7 @@ beforeAll(async () => {
 		"insert into public.evaluation_sheets(id,period_id,employee_id) values(900,1,4); insert into public.milestones(sheet_id,goal_number,challenge_goal) values(900,1,'Goal');",
 	);
 	await actAs(db, 4);
-	await value("public.transition_evaluation_sheet(900,'submitted')");
+	await value("public.transition_evaluation_sheet(900,'goals_submitted')");
 }, 60_000);
 afterAll(async () => {
 	await db?.close();
@@ -48,8 +48,10 @@ it("deduplicates requests, cools down failures, rotates claim tokens and never r
 });
 it("treats a later resubmission as a new event", async () => {
 	await actAs(db, 4);
+	await actAs(db, 2);
 	await value("public.transition_evaluation_sheet(900,'draft')");
-	await value("public.transition_evaluation_sheet(900,'submitted')");
+	await actAs(db, 4);
+	await value("public.transition_evaluation_sheet(900,'goals_submitted')");
 	await db.exec("reset role; set role service_role");
 	expect(await value("public.claim_sheet_notification(900,$1)->>'claimId'", [uid(4)])).toBeTypeOf(
 		"string",
@@ -60,8 +62,10 @@ it("limits delivery attempts across repeated resubmissions of the same sheet", a
 		"reset role; update public.sheet_notification_deliveries set attempts=5, attempted_at=now()",
 	);
 	await actAs(db, 4);
+	await actAs(db, 2);
 	await value("public.transition_evaluation_sheet(900,'draft')");
-	await value("public.transition_evaluation_sheet(900,'submitted')");
+	await actAs(db, 4);
+	await value("public.transition_evaluation_sheet(900,'goals_submitted')");
 	await db.exec("reset role; set role service_role");
 	expect(await value("public.claim_sheet_notification(900,$1)->>'skipped'", [uid(4)])).toBe(
 		"rate_limit",

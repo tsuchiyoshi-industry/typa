@@ -8,13 +8,13 @@ import {
 
 /** What the database function get_sheet_notification returns. */
 export interface SheetNotification {
-	status: "submitted" | "first_evaluated";
+	status: NotificationTemplateId;
 	sheetId: number;
 	employeeName: string;
 	employeeNo: string;
 	periodName: string;
 	/** email: the mailbox verified at sign-up; null when the evaluator is unassigned or not registered. */
-	recipients: { role: "primary" | "secondary"; name: string; email: string | null }[];
+	recipients: { role: "subject" | "primary" | "secondary"; name: string; email: string | null }[];
 }
 
 /** The result for one recipient, as the app shows it. recipient: e.g. 山田 太郎（二次評価者） */
@@ -30,7 +30,7 @@ export interface Mail {
 	text: string;
 }
 
-const ROLE_LABELS = { primary: "一次評価者", secondary: "二次評価者" };
+const ROLE_LABELS = { subject: "本人", primary: "一次評価者", secondary: "二次評価者" };
 const NO_ADDRESS = "認証済みの登録メールがありません。";
 
 /** 実データを参照せず、通常通知と同じテンプレートでテスト用メールを作る。 */

@@ -202,7 +202,7 @@ describe("help", () => {
 		expect(view.getByRole("heading", { name: "記入・提出の手順" })).toBeTruthy();
 		expect(
 			view.getByText(
-				"保存は目標ごとに行います。提出には、すべてのタブのチャレンジ目標が必要です。中間目標と達成状況は任意です。",
+				"保存はチャレンジ目標ごとに行います。期中目標は各チャレンジ目標に0〜4件。0件の場合はチャレンジ目標に達成状況を記入します。",
 			),
 		).toBeTruthy();
 		expect(view.getByRole("button", { name: "目標の入力と保存を拡大" })).toBeTruthy();

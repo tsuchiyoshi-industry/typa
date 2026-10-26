@@ -34,6 +34,7 @@ import LoadingView from "./adapter/views/components/LoadingView";
 import { NotFound } from "./adapter/views/components/NotFound";
 import DashboardLayout from "./adapter/views/DashboardLayout";
 import LoginView from "./adapter/views/LoginView";
+import { CarryOverGoalInteractor } from "./application/usecases/CarryOverGoalInteractor";
 import { CloseEvaluationPeriodInteractor } from "./application/usecases/CloseEvaluationPeriodInteractor";
 import { CorrectClosedSheetInteractor } from "./application/usecases/CorrectClosedSheetInteractor";
 import { CreateEvaluationSheetInteractor } from "./application/usecases/CreateEvaluationSheetInteractor";
@@ -256,6 +257,7 @@ const challengeEvaluationController = new ChallengeEvaluationController(
 	challengeEvaluationPresenter.presentUpdateError,
 	employeeRepository,
 	milestoneRepository,
+	new CarryOverGoalInteractor(evaluationSheetRepository, milestoneRepository),
 );
 const accountController = new AccountController(
 	new SignInEmployeeInteractor(authRepository, employeeRepository),

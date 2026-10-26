@@ -1,0 +1,10 @@
+{
+	"label": "目標送信（目標の確認依頼）",
+	"subject": "【TYPA】目標確認のお願い（{{employeeName}} / {{periodName}}）",
+	"body": [
+		"{{employeeName}}（{{employeeNo}}）の目標を送信しました。目標を確認し、確定するか要修正として差し戻してください。",
+		"",
+		"評価期間: {{periodName}}",
+		"シートID: {{sheetId}}"
+	]
+}

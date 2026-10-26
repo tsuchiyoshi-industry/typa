@@ -1,3 +1,5 @@
+import type { PeriodGoal } from "../valueObjects/PeriodGoal";
+
 /** 取込テンプレートに並べる、実施中の評価期間にまだ取り込める社員と、その等級の共通評価項目。 */
 export interface SheetImportTemplate {
 	periodName: string;
@@ -12,7 +14,7 @@ export interface GoalImportRow {
 	name: string;
 	goalNumber: string;
 	challengeGoal: string;
-	midtermGoal: string;
+	periodGoals: PeriodGoal[];
 	achievement: string;
 	firstScore: string;
 	secondScore: string;

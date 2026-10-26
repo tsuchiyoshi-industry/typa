@@ -1,8 +1,18 @@
 import type {
 	InAppNotification,
+	InAppNotificationKind,
 	NotificationInboxRepository,
 } from "../../domain/repositories/NotificationInboxRepository";
 import { supabase } from "../db/supabase";
+
+/** DB の kind は、通知を作った時点のシートの状態。要修正は「下書きに戻った」こと。 */
+const KINDS = new Map<string, InAppNotificationKind>([
+	["goals_submitted", "goals_submitted"],
+	["goals_confirmed", "goals_confirmed"],
+	["draft", "goals_returned"],
+	["submitted", "submitted"],
+	["first_evaluated", "first_evaluated"],
+]);
 
 /** 一覧に出す件数。古い通知は、評価シートの一覧から辿れる。 */
 const LIMIT = 50;
@@ -10,7 +20,7 @@ const LIMIT = 50;
 interface NotificationRow {
 	id: number;
 	sheet_id: number;
-	kind: InAppNotification["kind"];
+	kind: string;
 	employee_name: string;
 	period_name: string;
 	created_at: string;
@@ -27,15 +37,23 @@ export class SupabaseNotificationInboxRepository implements NotificationInboxRep
 		if (error) {
 			throw error;
 		}
-		return ((data ?? []) as NotificationRow[]).map((row) => ({
-			id: row.id,
-			sheetId: row.sheet_id,
-			kind: row.kind,
-			employeeName: row.employee_name,
-			periodName: row.period_name,
-			createdAt: row.created_at,
-			read: row.read_at !== null,
-		}));
+		// 知らない種類(新しい DB と古いアプリの組み合わせ)は出さない
+		return ((data ?? []) as NotificationRow[]).flatMap((row) => {
+			const kind = KINDS.get(row.kind);
+			return kind
+				? [
+						{
+							id: row.id,
+							sheetId: row.sheet_id,
+							kind,
+							employeeName: row.employee_name,
+							periodName: row.period_name,
+							createdAt: row.created_at,
+							read: row.read_at !== null,
+						},
+					]
+				: [];
+		});
 	}
 
 	async markRead(ids: readonly number[]): Promise<void> {

@@ -7,6 +7,7 @@ import { CorrectionReason } from "../valueObjects/CorrectionReason";
 import { EvaluationStatus } from "../valueObjects/EvaluationStatus";
 import { Employee } from "./Employee";
 import { EvaluationSheet } from "./EvaluationSheet";
+import { Milestone } from "./Milestone";
 import { type RequestedChange, RetroactiveCorrection } from "./RetroactiveCorrection";
 import { SheetCorrection } from "./SheetCorrection";
 
@@ -51,6 +52,69 @@ describe("correction field and reason", () => {
 
 	it.each(["", "   ", "理".repeat(501)])("needs a reason of 1 to 500 characters (%j)", (value) => {
 		expect(() => CorrectionReason.from(value)).toThrow(DomainError);
+	});
+});
+
+describe("period goal corrections", () => {
+	const tasks = (achievement = "達成") =>
+		JSON.stringify([{ description: "手順を見直す", achievement }]);
+	const noTasks = () =>
+		EvaluationSheet.create({
+			...closed(),
+			objectives: [
+				Milestone.create({
+					id: 11,
+					sheetId: 100,
+					goalNumber: 1,
+					challengeGoal: "目標",
+					achievement: "テーマの実績",
+				}),
+			],
+		});
+
+	it("knows no field for the misused name 中間目標; the task list is the only way to correct period goals", () => {
+		for (const field of ["midterm_goal", "period_goal_description"]) {
+			expect(() => CorrectionField.of("goal", field)).toThrow("遡及処理で直せない項目です。");
+			expect(() => propose([{ target: "goal", targetId: 11, field, value: "新" }])).toThrow(
+				"遡及処理で直せない項目です。",
+			);
+		}
+	});
+
+	it("corrects a task's achievement through the task list", () => {
+		const correction = propose([
+			{ target: "goal", targetId: 11, field: "period_goals", value: tasks("訂正") },
+		]);
+		expect(correction.changes[0].afterText).toBe("1. 手順を見直す（達成状況: 訂正）");
+	});
+
+	it("keeps the challenge achievement only while there are no tasks", () => {
+		expect(() =>
+			propose([{ target: "goal", targetId: 11, field: "achievement", value: "テーマの実績" }]),
+		).toThrow("期中目標があるときは");
+		expect(() =>
+			propose(
+				[{ target: "goal", targetId: 11, field: "period_goals", value: tasks() }],
+				"訂正",
+				noTasks(),
+			),
+		).toThrow("期中目標があるときは");
+		const moved = propose(
+			[
+				{ target: "goal", targetId: 11, field: "period_goals", value: tasks("テーマの実績") },
+				{ target: "goal", targetId: 11, field: "achievement", value: "" },
+			],
+			"訂正",
+			noTasks(),
+		);
+		expect(moved.changes.map((change) => change.field.value)).toEqual([
+			"period_goals",
+			"achievement",
+		]);
+	});
+
+	it("shows a broken stored task list as it is instead of failing", () => {
+		expect(CorrectionField.of("goal", "period_goals").display("{broken")).toBe("{broken");
 	});
 });
 
@@ -106,7 +170,7 @@ describe("retroactive correction", () => {
 		],
 		[
 			"the value it already has",
-			[{ target: "goal", targetId: 11, field: "achievement", value: "達成" }],
+			[{ target: "goal", targetId: 11, field: "achievement", value: "" }],
 			"今と同じ内容には修正できません。",
 		],
 		[

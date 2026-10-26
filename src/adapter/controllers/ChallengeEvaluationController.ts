@@ -1,4 +1,5 @@
 import { messageOf } from "../../application/errorMessage";
+import type { CarryOverGoalInteractor } from "../../application/usecases/CarryOverGoalInteractor";
 import type {
 	UpdateMilestoneInteractor,
 	UpdateMilestoneOutputPort,
@@ -8,6 +9,7 @@ import type {
 	MilestoneRepository,
 	PreviousGoals,
 } from "../../domain/repositories/MilestoneRepository";
+import type { PeriodGoal } from "../../domain/valueObjects/PeriodGoal";
 import { requireCurrentEmployeeId } from "./currentEmployee";
 
 export class ChallengeEvaluationController {
@@ -16,11 +18,33 @@ export class ChallengeEvaluationController {
 		private readonly outputPort: UpdateMilestoneOutputPort,
 		private readonly presentUpdateError: (message: string) => void,
 		private readonly employeeRepository: EmployeeRepository,
-		private readonly previousGoalsRepository: Pick<
-			MilestoneRepository,
-			"findPreviousGoals" | "carryOver"
-		>,
+		private readonly previousGoalsRepository: Pick<MilestoneRepository, "findPreviousGoals">,
+		private readonly carryOverGoalUseCase: Pick<CarryOverGoalInteractor, "execute">,
 	) {}
+
+	/**
+	 * 前期のチャレンジ目標を、今期の下書きへ引き継ぐ(据え置く・見直す)。
+	 * 入れた先の目標番号か、引き継げなかった理由を返す。
+	 */
+	async carryOver(
+		sheetId: number,
+		previousGoalId: number,
+	): Promise<{ goalNumber: number } | { error: string }> {
+		const currentEmployeeId = await this.requireCurrentEmployeeId();
+		if (currentEmployeeId === null) {
+			return { error: "ログインが必要です。" };
+		}
+		let goalNumber: number | null = null;
+		try {
+			await this.carryOverGoalUseCase.execute(
+				{ sheetId, currentEmployeeId, previousGoalId },
+				{ present: (response) => (goalNumber = response.goalNumber) },
+			);
+		} catch (error) {
+			return { error: messageOf(error, "前期の目標を引き継げませんでした。") };
+		}
+		return goalNumber === null ? { error: "前期の目標を引き継げませんでした。" } : { goalNumber };
+	}
 
 	/** 前の評価期間の目標。前の評価期間のシートが無い、または読めなければ null(画面には何も出さない)。 */
 	async loadPreviousGoals(sheetId: number): Promise<PreviousGoals | null> {
@@ -32,16 +56,6 @@ export class ChallengeEvaluationController {
 		}
 	}
 
-	/** 前の評価期間の目標を、この評価期間の下書きに引き継ぐ。引き継げなければ、その理由。 */
-	async carryOver(sheetId: number, goalId: number): Promise<string | null> {
-		try {
-			await this.previousGoalsRepository.carryOver(sheetId, goalId);
-			return null;
-		} catch (error) {
-			return messageOf(error, "目標を引き継げませんでした。");
-		}
-	}
-
 	private requireCurrentEmployeeId(): Promise<number | null> {
 		return requireCurrentEmployeeId(this.employeeRepository, this.presentUpdateError);
 	}
@@ -50,7 +64,7 @@ export class ChallengeEvaluationController {
 		sheetId: number,
 		milestoneId: number,
 		challengeGoal: string,
-		midtermGoal: string,
+		periodGoals: readonly PeriodGoal[],
 		achievement: string,
 	): Promise<boolean> {
 		const currentEmployeeId = await this.requireCurrentEmployeeId();
@@ -65,7 +79,7 @@ export class ChallengeEvaluationController {
 					currentEmployeeId,
 					milestoneId,
 					challengeGoal,
-					midtermGoal,
+					periodGoals,
 					achievement,
 				},
 				this.outputPort,
@@ -81,7 +95,7 @@ export class ChallengeEvaluationController {
 		sheetId: number,
 		goalNumber: number,
 		challengeGoal: string,
-		midtermGoal: string,
+		periodGoals: readonly PeriodGoal[],
 		achievement: string,
 	): Promise<boolean> {
 		if (sheetId <= 0) {
@@ -101,7 +115,7 @@ export class ChallengeEvaluationController {
 					currentEmployeeId,
 					goalNumber,
 					challengeGoal,
-					midtermGoal,
+					periodGoals,
 					achievement,
 				},
 				this.outputPort,

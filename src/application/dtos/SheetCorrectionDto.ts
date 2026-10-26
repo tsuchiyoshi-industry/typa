@@ -1,4 +1,5 @@
 import type { EvaluationSheet } from "../../domain/entities/EvaluationSheet";
+import type { PeriodGoal } from "../../domain/valueObjects/PeriodGoal";
 import type { SheetCorrectionDto } from "./EvaluationSheetDto";
 import { toSheetCorrectionDto } from "./EvaluationSheetMapper";
 
@@ -15,7 +16,7 @@ export interface CorrectableSheetDto {
 		id: number;
 		goalNumber: number;
 		challengeGoal: string;
-		midtermGoal: string;
+		periodGoals: readonly PeriodGoal[];
 		achievement: string;
 		firstScore: number;
 		secondScore: number;
@@ -44,7 +45,7 @@ export const toCorrectableSheetDto = (sheet: EvaluationSheet): CorrectableSheetD
 		id: goal.id,
 		goalNumber: goal.goalNumber,
 		challengeGoal: goal.challengeGoal,
-		midtermGoal: goal.midtermGoal,
+		periodGoals: goal.periodGoals,
 		achievement: goal.achievement,
 		firstScore: goal.firstScore.toNumber(),
 		secondScore: goal.secondScore.toNumber(),

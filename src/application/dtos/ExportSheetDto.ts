@@ -1,4 +1,5 @@
 import type { EvaluationStatusValue } from "../../domain/valueObjects/EvaluationStatus";
+import type { PeriodGoal } from "../../domain/valueObjects/PeriodGoal";
 export interface ExportSheetRequestDto {
 	sheetId: number;
 	employeeId: number;
@@ -72,7 +73,7 @@ export interface SheetExportDataDto {
 		id: number;
 		goalNumber: number;
 		challengeGoal: string;
-		midtermGoal: string;
+		periodGoals: readonly PeriodGoal[];
 		achievement: string;
 		/** 一次評価の点数。 */
 		firstScore: number | null;

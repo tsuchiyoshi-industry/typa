@@ -125,6 +125,7 @@ it("counts only the stages the reviewer takes part in", () => {
 	const firstOnly = [reviewerRow(1, { ...submittedToPrimary, canViewSecond: false })];
 	expect(reviewStats(firstOnly).map(([key]) => key)).toEqual([
 		"all",
+		"goals",
 		"first",
 		"waiting",
 		"finalized",

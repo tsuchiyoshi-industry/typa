@@ -3,6 +3,8 @@ import { EvaluationStatus, type EvaluationStatusValue } from "./EvaluationStatus
 /** 確定していない状態の呼び方(締められない理由に使う)。 */
 const UNFINISHED_LABELS: readonly [EvaluationStatus, string][] = [
 	[EvaluationStatus.DRAFT, "下書き"],
+	[EvaluationStatus.GOALS_SUBMITTED, "送信済み"],
+	[EvaluationStatus.GOALS_CONFIRMED, "目標確定"],
 	[EvaluationStatus.SUBMITTED, "一次評価待ち"],
 	[EvaluationStatus.FIRST_EVALUATED, "二次評価待ち"],
 ];

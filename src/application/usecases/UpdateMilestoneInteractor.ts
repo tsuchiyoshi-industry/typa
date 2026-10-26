@@ -1,9 +1,10 @@
 import type { EvaluationSheet } from "../../domain/entities/EvaluationSheet";
-import type { Milestone } from "../../domain/entities/Milestone";
+import { Milestone } from "../../domain/entities/Milestone";
 import type { EvaluationSheetRepository } from "../../domain/repositories/EvaluationSheetRepository";
 import type { MilestoneRepository } from "../../domain/repositories/MilestoneRepository";
 import type { EvaluationScoreUpdateService } from "../../domain/services/EvaluationScoreUpdateService";
 import { EvaluationSheetAccessPolicy } from "../../domain/services/EvaluationSheetAccessPolicy";
+import type { PeriodGoal } from "../../domain/valueObjects/PeriodGoal";
 import type { MilestoneDto } from "../dtos/MilestoneDto";
 import type { OutputPort } from "../ports/OutputPort";
 import type { UseCase } from "../ports/UseCase";
@@ -15,7 +16,7 @@ export interface UpdateMilestoneRequest {
 	delete?: boolean;
 	goalNumber?: number;
 	challengeGoal?: string;
-	midtermGoal?: string;
+	periodGoals?: readonly PeriodGoal[];
 	achievement?: string;
 	firstScore?: number;
 	secondScore?: number;
@@ -113,7 +114,7 @@ export class UpdateMilestoneInteractor
 			if (
 				[
 					request.challengeGoal,
-					request.midtermGoal,
+					request.periodGoals,
 					request.achievement,
 					request.firstScore,
 					request.secondScore,
@@ -134,18 +135,37 @@ export class UpdateMilestoneInteractor
 
 		if (
 			request.challengeGoal !== undefined ||
-			request.midtermGoal !== undefined ||
+			request.periodGoals !== undefined ||
 			request.achievement !== undefined
 		) {
-			if (!policy.canEditMilestoneGoal()) {
-				throw new Error("自分の評価シートの目標のみ編集できます。");
+			const changes = {
+				challengeGoal: request.challengeGoal,
+				periodGoals: request.periodGoals,
+				achievement: request.achievement,
+			};
+			// 書いてよい欄と、書いた後の目標が正しいかは Milestone が確かめる
+			let next: Milestone;
+			if (policy.canEditMilestoneGoal()) {
+				next = (
+					currentObjective ??
+					Milestone.create({
+						id: 0,
+						sheetId: sheet.sheetId,
+						goalNumber: request.goalNumber ?? 0,
+						challengeGoal: "",
+					})
+				).withTextUpdates(changes);
+			} else if (
+				policy.canEditMilestoneAchievement() &&
+				currentObjective &&
+				request.milestoneId !== undefined
+			) {
+				next = currentObjective.withAchievementUpdates(changes);
+			} else {
+				throw new Error("この状態では目標・達成状況を編集できません。");
 			}
 
-			const text = [
-				request.challengeGoal ?? currentObjective?.challengeGoal ?? "",
-				request.midtermGoal ?? currentObjective?.midtermGoal ?? "",
-				request.achievement ?? currentObjective?.achievement ?? "",
-			] as const;
+			const text = [next.challengeGoal, next.periodGoals, next.achievement] as const;
 			if (request.milestoneId !== undefined) {
 				await this.milestoneRepository.updateText(request.milestoneId, ...text);
 			} else if (request.goalNumber !== undefined) {
@@ -179,7 +199,7 @@ export class UpdateMilestoneInteractor
 				sheetId: updated.sheetId,
 				goalNumber: updated.goalNumber,
 				challengeGoal: updated.challengeGoal,
-				midtermGoal: updated.midtermGoal,
+				periodGoals: updated.periodGoals,
 				achievement: updated.achievement,
 				firstScore: policy.canViewMilestoneFirstScore() ? updated.firstScore.toNumber() : null,
 				secondScore: canViewSecondScore ? updated.secondScore.toNumber() : null,

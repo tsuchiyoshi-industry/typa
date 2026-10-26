@@ -154,9 +154,9 @@
     title-cell(text(size: 4.7pt)[【二次評価者】 #linebreak() 修正後評価]),
     ..inputs.objectives.map(obj => (
       fixed-center-cell(obj.goal_number, 13mm),
-      fixed-green-cell(obj.challenge_goal, 13mm),
-      fixed-green-cell(obj.midterm_goal, 13mm),
-      fixed-green-cell(obj.achievement, 13mm),
+      fixed-green-cell(obj.challenge_goal, auto),
+      fixed-green-cell(obj.period_goals, auto),
+      fixed-green-cell(obj.achievements, auto),
       fixed-center-cell(1, 13mm),
       fixed-green-score(obj.first_score, 13mm),
       fixed-green-score(obj.second_score, 13mm),

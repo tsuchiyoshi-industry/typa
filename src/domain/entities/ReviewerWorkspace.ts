@@ -1,12 +1,14 @@
 import { EvaluationAllocation } from "../valueObjects/EvaluationAllocation";
 import { EvaluationRank } from "../valueObjects/EvaluationRank";
 import { EvaluationStatus, type EvaluationStatusValue } from "../valueObjects/EvaluationStatus";
+import type { PeriodGoal } from "../valueObjects/PeriodGoal";
 import { Score } from "../valueObjects/Score";
 
 export interface ReviewObjective {
 	id: number;
 	goalNumber: number;
 	challengeGoal: string;
+	periodGoals: readonly PeriodGoal[];
 	achievement: string;
 	firstScore: number;
 	secondScore: number | null;
@@ -59,7 +61,7 @@ export interface ReviewerRow {
 }
 
 /** いま誰の番か。first / second は自分が評価して確定する番、waiting は本人か相手の評価者の番。 */
-export type ReviewTask = "first" | "second" | "waiting" | "finalized";
+export type ReviewTask = "goals" | "first" | "second" | "waiting" | "finalized";
 
 /** シートの状態。この期間のシートがまだ無ければ undefined。 */
 export const sheetStatus = (row: ReviewerRow): EvaluationStatus | undefined =>
@@ -69,6 +71,9 @@ export function reviewTask(row: ReviewerRow): ReviewTask {
 	const status = sheetStatus(row);
 	if (status?.isFinalized()) {
 		return "finalized";
+	}
+	if (status?.isGoalsSubmitted() && row.isPrimary) {
+		return "goals";
 	}
 	if (status?.isAwaitingFirstEvaluation() && row.isPrimary) {
 		return "first";
@@ -80,26 +85,20 @@ export function reviewTask(row: ReviewerRow): ReviewTask {
 }
 
 export const isMyTurn = (row: ReviewerRow): boolean =>
-	reviewTask(row) === "first" || reviewTask(row) === "second";
+	reviewTask(row) === "goals" || reviewTask(row) === "first" || reviewTask(row) === "second";
 
 /** 評価者は提出済みのシートだけを開ける。下書きは内容が届かない。 */
 export const canOpen = (row: ReviewerRow): boolean =>
-	row.sheetId !== null && !!sheetStatus(row)?.isSubmitted();
+	row.sheetId !== null && !!sheetStatus(row)?.isSentToEvaluators();
 
 /**
- * 進み具合。段階は「本人の提出 → 一次評価 → 二次評価」で、二次評価者なしの社員は2段階。
+ * 進み具合。段階は「目標送信 → 目標確定 → 一次評価依頼 → 一次評価 → 二次評価」。二次評価者なしの社員は4段階。
  * done は済んだ段階の数。
  */
 export function reviewProgress(row: ReviewerRow): { steps: number; done: number } {
-	const steps = row.primaryIsFinal ? 2 : 3;
-	const status = sheetStatus(row);
-	if (!status?.isSubmitted()) {
-		return { steps, done: 0 };
-	}
-	return {
-		steps,
-		done: status.isFinalized() ? steps : status.isFirstEvaluationConfirmed() ? 2 : 1,
-	};
+	const steps = row.primaryIsFinal ? 4 : 5;
+	// 状態の進行順の位置が、そのまま済んだ段階の数になる(下書き 0 … 二次評価待ち 4、確定で全段階)
+	return { steps, done: Math.min(sheetStatus(row)?.order() ?? 0, steps) };
 }
 
 /** 最終評価(二次評価。「なし」の社員は一次評価)が始まっているか。始まる前の点数は意味を持たない。 */
@@ -115,6 +114,7 @@ const finalEvaluationStarted = (row: ReviewerRow): boolean => {
 export function reviewScore(row: ReviewerRow, stage: "first" | "second"): number | null {
 	if (
 		!canOpen(row) ||
+		!sheetStatus(row)?.isEvaluationStarted() ||
 		(stage === "second" && !(row.canViewSecond && finalEvaluationStarted(row)))
 	) {
 		return null;

@@ -1,7 +1,16 @@
 import firstEvaluated from "./notification-templates/first-evaluated.json" with { type: "json" };
+import goalsConfirmed from "./notification-templates/goals-confirmed.json" with { type: "json" };
+import goalsReturned from "./notification-templates/goals-returned.json" with { type: "json" };
+import goalsSubmitted from "./notification-templates/goals-submitted.json" with { type: "json" };
 import submitted from "./notification-templates/submitted.json" with { type: "json" };
 
-const TEMPLATES = { submitted, first_evaluated: firstEvaluated };
+const TEMPLATES = {
+	goals_submitted: goalsSubmitted,
+	goals_confirmed: goalsConfirmed,
+	draft: goalsReturned,
+	submitted,
+	first_evaluated: firstEvaluated,
+};
 export type NotificationTemplateId = keyof typeof TEMPLATES;
 
 export interface NotificationTemplateData {

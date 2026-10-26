@@ -65,9 +65,17 @@ const sheet = Number(
 sql(
 	as(
 		4,
-		`insert into public.milestones(sheet_id,goal_number,challenge_goal) values(${sheet},1,'Release goal'); select public.transition_evaluation_sheet(${sheet},'submitted');`,
+		`insert into public.milestones(sheet_id,goal_number,challenge_goal) values(${sheet},1,'Release goal'); select public.transition_evaluation_sheet(${sheet},'goals_submitted');`,
 	),
 );
+sql(as(2, `select public.transition_evaluation_sheet(${sheet},'goals_confirmed');`));
+sql(
+	as(
+		4,
+		`update public.milestones set achievement='Challenge achievement' where sheet_id=${sheet}; select public.transition_evaluation_sheet(${sheet},'submitted');`,
+	),
+);
+
 sql(
 	as(
 		2,

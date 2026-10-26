@@ -13,7 +13,7 @@ struct SheetOverviewRowData {
     employee_no: String,
     employee_name: String,
     grade_name: String,
-    // draft / submitted / first_evaluated / finalized。表示名はテンプレートが持つ。
+    // draft / goals_submitted / goals_confirmed / submitted / first_evaluated / finalized。表示名はテンプレートが持つ。
     status: String,
     primary_evaluator: String,
     secondary_evaluator: String,
@@ -102,6 +102,8 @@ mod tests {
             // 知らない状態が来ても、帳票の生成は止めない
             [
                 "draft",
+                "goals_submitted",
+                "goals_confirmed",
                 "submitted",
                 "first_evaluated",
                 "finalized",
@@ -124,6 +126,13 @@ mod tests {
             .iter()
             .map(|data| {
                 let result = compile_template(TEMPLATE, to_dict(data), &path);
+                if let Ok(preview_dir) = std::env::var("TYPA_PDF_PREVIEW_DIR") {
+                    if result.is_ok() && !data.rows.is_empty() {
+                        let preview_dir = std::path::PathBuf::from(preview_dir);
+                        fs::create_dir_all(&preview_dir).unwrap();
+                        fs::copy(&path, preview_dir.join("overview.pdf")).unwrap();
+                    }
+                }
                 let header = result.as_ref().ok().map(|_| fs::read(&path).unwrap());
                 if path.exists() {
                     fs::remove_file(&path).unwrap();

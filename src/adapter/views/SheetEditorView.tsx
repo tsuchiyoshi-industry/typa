@@ -9,6 +9,7 @@ import {
 	type Component,
 	createEffect,
 	createMemo,
+	createResource,
 	createSignal,
 	For,
 	on,
@@ -30,12 +31,12 @@ import type { ChallengeEvaluationViewModel } from "../presenters/ChallengeEvalua
 import type { CommonEvaluationViewModel } from "../presenters/CommonEvaluationPresenter";
 import type { SheetEditorViewModel } from "../presenters/SheetEditorPresenter";
 import { commonEvaluationRadar } from "../viewmodels/commonEvaluationRadar";
-import ChallengeEvaluationView from "./components/ChallengeEvaluationView";
+import ChallengeEvaluationView, { type GoalFocus } from "./components/ChallengeEvaluationView";
 import CommonEvaluationView from "./components/CommonEvaluationView";
 import OverallCommentSection, {
 	type OverallCommentTarget,
 } from "./components/OverallCommentSectionView";
-import PreviousGoalsView from "./components/PreviousGoalsView";
+import PreviousGoalsView, { type CarryMode } from "./components/PreviousGoalsView";
 import RadarChart from "./components/RadarChart";
 import SearchableEvaluatorSelect from "./components/SearchableEvaluatorSelect";
 import SheetCorrectionsNotice from "./components/SheetCorrectionsNotice";
@@ -96,6 +97,59 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 		null,
 	);
 	const [savingChallenge, setSavingChallenge] = createSignal(false);
+
+	// 前期の目標。今期の目標が増減するたびに読み直す(引き継いだ目標を消すと、また選べる)
+	const [previousGoals] = createResource(
+		() => {
+			const id = sheetId();
+			const revision = (sheet()?.objectives ?? []).map((goal) => `${goal.id}:${goal.goalNumber}`);
+			return id ? { id, revision: revision.join(",") } : false;
+		},
+		({ id }) => props.challengeEvaluationController.loadPreviousGoals(id),
+	);
+	const [goalFocus, setGoalFocus] = createSignal<GoalFocus | null>(null);
+	const [carrying, setCarrying] = createSignal<number | null>(null);
+	/** 今期の目標に、引き継ぐ空きがあるか。何も書いていない目標は、引き継ぎで埋まる。 */
+	const hasRoomForGoal = () => {
+		const goals = sheet()?.objectives ?? [];
+		return (
+			goals.length < (sheet()?.maxObjectives ?? 0) ||
+			goals.some(
+				(goal) => !goal.challengeGoal.trim() && goal.periodGoals.length === 0 && !goal.achievement,
+			)
+		);
+	};
+	const carryOver = async (previousGoalId: number, mode: CarryMode) => {
+		const id = sheetId();
+		if (!id || carrying() !== null || !ensureNothingUnsaved()) {
+			return;
+		}
+		setCarrying(previousGoalId);
+		try {
+			const result = await props.challengeEvaluationController.carryOver(id, previousGoalId);
+			if ("error" in result) {
+				showToast("error", "前期の目標を引き継げませんでした", result.error);
+				return;
+			}
+			await reloadCurrentSheetFromRoute();
+			setGoalFocus({
+				goalNumber: result.goalNumber,
+				edit: mode === "revise" ? "challenge" : "plan",
+				seq: Date.now(),
+			});
+			showToast(
+				"success",
+				mode === "keep"
+					? `前期の目標を、目標 ${result.goalNumber} に据え置きました`
+					: `前期の目標を、目標 ${result.goalNumber} に引き継ぎました`,
+				mode === "keep"
+					? "今期の期中目標(この期の計画)を書きましょう。"
+					: "今期に合わせて、チャレンジ目標を書き直してください。",
+			);
+		} finally {
+			setCarrying(null);
+		}
+	};
 	const [savingCommon, setSavingCommon] = createSignal(false);
 	const saving = () =>
 		savingChallenge() ||
@@ -292,9 +346,9 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 		}
 		let notify = true;
 		const confirmed = await confirmAction({
-			title: "評価シートを提出しますか？",
+			title: "目標を送信しますか？",
 			message:
-				"提出すると目標は編集できなくなり、評価者に表示されて一次評価が始まります。一次評価が確定するまでは、下書きに戻して編集し直せます。",
+				"目標を一次評価者へ送信します。一次評価者が要修正として戻すか、目標を確定します。この時点では評価は始まりません。",
 			// アプリ内通知は、確定と同時に必ず届く。選べるのはメールのときだけ
 			checkbox: sheet()?.notifiesByMail
 				? {
@@ -304,10 +358,10 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 						},
 					}
 				: undefined,
-			confirmLabel: "提出する",
+			confirmLabel: "目標を送信する",
 		});
 		if (confirmed) {
-			await changeStatus(EvaluationStatus.SUBMITTED, "評価シートを提出しました", notify);
+			await changeStatus(EvaluationStatus.GOALS_SUBMITTED, "目標を送信しました", notify);
 		}
 	};
 
@@ -316,13 +370,51 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 			return;
 		}
 		const confirmed = await confirmAction({
-			title: "下書きに戻しますか？",
-			message:
-				"下書きに戻すと目標を編集できるようになり、評価者には表示されなくなります。編集後はもう一度提出してください。",
-			confirmLabel: "下書きに戻す",
+			title: "目標を要修正として戻しますか？",
+			message: "本人が目標を修正できる下書きへ戻します。本人は修正後にもう一度目標を送信します。",
+			confirmLabel: "要修正として戻す",
 		});
 		if (confirmed) {
-			await changeStatus(EvaluationStatus.DRAFT, "下書きに戻しました");
+			if (await changeStatus(EvaluationStatus.DRAFT, "下書きに戻しました")) {
+				if (props.embedded) {
+					props.onStageCompleted?.();
+				} else {
+					navigate("/review");
+				}
+			}
+		}
+	};
+
+	const handleConfirmGoals = async () => {
+		if (!ensureObjectiveFieldsComplete() || !ensureNothingUnsaved()) {
+			return;
+		}
+		if (
+			await confirmAction({
+				title: "目標を確定しますか？",
+				message:
+					"目標の内容を固定し、本人が達成状況だけを記入できる状態にします。一次評価はまだ始まりません。",
+				confirmLabel: "目標を確定する",
+			})
+		) {
+			if (await changeStatus(EvaluationStatus.GOALS_CONFIRMED, "目標を確定しました")) {
+				props.onStageCompleted?.();
+			}
+		}
+	};
+	const handleRequestFirst = async () => {
+		if (!ensureNothingUnsaved()) {
+			return;
+		}
+		if (
+			await confirmAction({
+				title: "一次評価を依頼しますか？",
+				message:
+					"保存した達成状況を提出します。依頼後は本人による目標・達成状況の修正はできません。",
+				confirmLabel: "一次評価を依頼する",
+			})
+		) {
+			await changeStatus(EvaluationStatus.SUBMITTED, "一次評価を依頼しました");
 		}
 	};
 
@@ -629,8 +721,10 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 					<SheetStatusTrack
 						status={sheet()?.status ?? EvaluationStatus.DRAFT.toString()}
 						primaryIsFinal={sheet()?.primaryIsFinalEvaluator ?? false}
-						canSubmit={viewModel().canSubmitOwnSheet}
-						canRevert={viewModel().canRevertOwnSheetToDraft}
+						canSubmit={viewModel().canSubmitGoals}
+						canRevert={viewModel().canReturnGoalsToDraft}
+						canConfirmGoals={viewModel().canConfirmGoals}
+						canRequestFirst={viewModel().canRequestFirstEvaluation}
 						// 受け持ち画面では、評価の確定は入力を終えた先(末尾のバー)に置く
 						canConfirmFirst={!props.embedded && viewModel().canConfirmFirstEvaluation}
 						canFinalize={!props.embedded && viewModel().canFinalizeEvaluation}
@@ -639,6 +733,8 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 						notice={viewModel().statusUpdateError}
 						onSubmit={() => void handleSubmitSheet()}
 						onRevert={() => void handleRevertSheet()}
+						onConfirmGoals={() => void handleConfirmGoals()}
+						onRequestFirst={() => void handleRequestFirst()}
 						onConfirmFirst={() => void handleConfirmFirst()}
 						onFinalize={() => void handleFinalize()}
 					/>
@@ -720,14 +816,18 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 									</div>
 								</Show>
 								<SheetCorrectionsNotice corrections={sheet()?.corrections ?? []} />
-								<Show when={sheetId()}>
-									{(id) => (
+								<Show when={previousGoals()?.goals.length ? previousGoals() : null}>
+									{(previous) => (
 										<PreviousGoalsView
-											sheetId={id()}
-											revision={(sheet()?.objectives ?? []).map((goal) => goal.id).join(",")}
-											canCarry={viewModel().canEditMilestoneGoal}
-											controller={props.challengeEvaluationController}
-											onCarried={reloadCurrentSheetFromRoute}
+											previous={previous()}
+											objectives={sheet()?.objectives ?? []}
+											canCarry={viewModel().canCarryOverGoal}
+											hasRoom={hasRoomForGoal()}
+											carrying={carrying()}
+											onCarry={(goalId, mode) => void carryOver(goalId, mode)}
+											onOpen={(goalNumber) =>
+												setGoalFocus({ goalNumber, edit: null, seq: Date.now() })
+											}
 										/>
 									)}
 								</Show>
@@ -739,6 +839,9 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 									canEditFirst={canEditFirst()}
 									canEditSecond={canEditSecond()}
 									canEditMilestoneGoal={viewModel().canEditMilestoneGoal}
+									canEditMilestoneAchievement={viewModel().canEditMilestoneAchievement}
+									previousGoals={previousGoals()}
+									focus={goalFocus()}
 									canViewSecondEvaluation={viewModel().canViewSecondEvaluation}
 									controller={props.challengeEvaluationController}
 									viewModel={props.challengeEvaluationViewModel}

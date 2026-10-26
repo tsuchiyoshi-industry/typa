@@ -71,7 +71,7 @@ it("sends the rows with their Excel line numbers, skipping empty rows and normal
 				name: "社員1",
 				goalNumber: "1",
 				challengeGoal: " 目標 ",
-				midtermGoal: "",
+				periodGoals: [],
 				achievement: "",
 				firstScore: "3",
 				secondScore: "",

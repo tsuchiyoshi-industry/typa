@@ -25,8 +25,8 @@ const loaded = (primaryIsFinalEvaluator = false): CorrectableSheetDto => ({
 			id: 11,
 			goalNumber: 1,
 			challengeGoal: "目標",
-			midtermGoal: "",
-			achievement: "達成",
+			achievement: "",
+			periodGoals: [{ description: "", achievement: "達成" }],
 			firstScore: 3,
 			secondScore: 3,
 		},
@@ -77,9 +77,11 @@ it("asks for a change and a reason before anything can be checked", async () => 
 	const { view } = setup();
 	await openSheet(view);
 	expect(confirmButton(view).disabled).toBe(true);
-	fireEvent.input(field(view, "達成状況"), { target: { value: "訂正" } });
+	fireEvent.input(field(view, "達成状況 1"), { target: { value: "訂正" } });
 	expect(
-		field(view, "達成状況").closest("label")?.classList.contains("correction-field--changed"),
+		field(view, "達成状況 1")
+			.closest(".correction-field--changed")
+			?.classList.contains("correction-field--changed"),
 	).toBe(true);
 	expect(confirmButton(view).disabled).toBe(true);
 	fireEvent.input(view.getByLabelText(/修正の理由/), { target: { value: "   " } });
@@ -88,14 +90,14 @@ it("asks for a change and a reason before anything can be checked", async () => 
 	expect(confirmButton(view).disabled).toBe(false);
 	expect(confirmButton(view).textContent).toContain("1件");
 	// 元の値に戻せば、直すものは無い
-	fireEvent.input(field(view, "達成状況"), { target: { value: "達成" } });
+	fireEvent.input(field(view, "達成状況 1"), { target: { value: "達成" } });
 	expect(confirmButton(view).disabled).toBe(true);
 });
 
 it("records nothing when the confirmation is declined, and records after it is accepted", async () => {
 	const { controller, view } = setup();
 	await openSheet(view);
-	fireEvent.input(field(view, "達成状況"), { target: { value: "訂正" } });
+	fireEvent.input(field(view, "達成状況 1"), { target: { value: "訂正" } });
 	fireEvent.input(view.getByLabelText(/修正の理由/), { target: { value: "評価会議での訂正" } });
 
 	vi.mocked(confirmAction).mockResolvedValueOnce(false);
@@ -108,7 +110,14 @@ it("records nothing when the confirmation is declined, and records after it is a
 	});
 	expect(controller.correct).toHaveBeenCalledExactlyOnceWith({
 		sheetId: 100,
-		changes: [{ target: "goal", targetId: 11, field: "achievement", value: "訂正" }],
+		changes: [
+			{
+				target: "goal",
+				targetId: 11,
+				field: "period_goals",
+				value: JSON.stringify([{ description: "", achievement: "訂正" }]),
+			},
+		],
 		reason: "評価会議での訂正",
 		confirmed: false,
 	});
@@ -134,7 +143,7 @@ it("keeps what was typed when the correction is refused", async () => {
 	);
 	vi.mocked(confirmAction).mockResolvedValue(true);
 	await openSheet(view);
-	fireEvent.input(field(view, "達成状況"), { target: { value: "訂正" } });
+	fireEvent.input(field(view, "達成状況 1"), { target: { value: "訂正" } });
 	fireEvent.input(view.getByLabelText(/修正の理由/), { target: { value: "訂正の理由" } });
 	fireEvent.click(confirmButton(view));
 	await waitFor(() =>
@@ -144,7 +153,7 @@ it("keeps what was typed when the correction is refused", async () => {
 			"遡及処理で修正できるのは、締め済みの評価期間のシートだけです。",
 		),
 	);
-	expect(field(view, "達成状況").value).toBe("訂正");
+	expect(field(view, "達成状況 1").value).toBe("訂正");
 	expect((view.getByLabelText(/修正の理由/) as HTMLTextAreaElement).value).toBe("訂正の理由");
 });
 
@@ -155,7 +164,7 @@ it("stops before confirming when the check finds a problem", async () => {
 		message: "今と同じ内容には修正できません。",
 	} as never);
 	await openSheet(view);
-	fireEvent.input(field(view, "達成状況"), { target: { value: "訂正" } });
+	fireEvent.input(field(view, "達成状況 1"), { target: { value: "訂正" } });
 	fireEvent.input(view.getByLabelText(/修正の理由/), { target: { value: "理由" } });
 	fireEvent.click(confirmButton(view));
 	await waitFor(() =>
@@ -204,4 +213,27 @@ it("shows nothing when a sheet has no corrections, and every correction in red w
 	expect(notice.classList.contains("correction-notice")).toBe(true);
 	expect(notice.textContent).toContain("チャレンジ目標 1・二次評価4 → 3");
 	expect(notice.textContent).toContain("理由: 転記ミス");
+});
+
+it("moves the theme's achievement into a first added task as two recorded changes", async () => {
+	const sheet = loaded();
+	sheet.goals[0] = { ...sheet.goals[0], achievement: "テーマの実績", periodGoals: [] };
+	const { controller, view } = setup({ sheet });
+	await openSheet(view);
+	fireEvent.click(view.getByRole("button", { name: "期中目標を追加" }));
+	expect(view.queryByLabelText("達成状況")).toBeNull();
+	expect(field(view, "達成状況 1").value).toBe("テーマの実績");
+	fireEvent.input(view.getByLabelText(/修正の理由/), { target: { value: "評価会議での訂正" } });
+	vi.mocked(confirmAction).mockResolvedValueOnce(false);
+	fireEvent.click(confirmButton(view));
+	await waitFor(() => expect(controller.correct).toHaveBeenCalledOnce());
+	expect(vi.mocked(controller.correct).mock.calls[0][0]).toMatchObject({
+		changes: [
+			{
+				field: "period_goals",
+				value: JSON.stringify([{ description: "", achievement: "テーマの実績" }]),
+			},
+			{ field: "achievement", value: "" },
+		],
+	});
 });

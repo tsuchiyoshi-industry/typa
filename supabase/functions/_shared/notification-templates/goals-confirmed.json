@@ -1,0 +1,10 @@
+{
+	"label": "目標確定（達成状況の記入依頼）",
+	"subject": "【TYPA】目標が確定しました（{{employeeName}} / {{periodName}}）",
+	"body": [
+		"{{employeeName}}（{{employeeNo}}）の目標が確定しました。達成状況を記入して、本人から一次評価を依頼してください。",
+		"",
+		"評価期間: {{periodName}}",
+		"シートID: {{sheetId}}"
+	]
+}

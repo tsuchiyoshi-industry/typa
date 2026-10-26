@@ -109,3 +109,13 @@ it.each([null, "", "not an address", "a@b.jp, c@d.jp", "<a@b.jp>"])(
 		]);
 	},
 );
+
+it.each(["draft", "goals_confirmed"] as const)("sends %s instructions to the subject", (status) => {
+	const { mails } = composeMails(
+		notification(status, [{ role: "subject", name: "本人", email: "subject@example.jp" }]),
+	);
+	expect(mails[0]).toMatchObject({ recipient: "本人（本人）", to: "subject@example.jp" });
+	expect(mails[0].text).toContain(
+		status === "draft" ? "目標を修正して再送信" : "本人から一次評価を依頼",
+	);
+});

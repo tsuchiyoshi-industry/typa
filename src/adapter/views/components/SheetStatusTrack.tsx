@@ -17,6 +17,8 @@ interface SheetStatusTrackProps {
 	canRevert: boolean;
 	canConfirmFirst: boolean;
 	canFinalize: boolean;
+	canConfirmGoals?: boolean;
+	canRequestFirst?: boolean;
 	updating: boolean;
 	/** 目標・評価・総評の保存中。保存後の読み直しが済むまで、古い内容で判定させない */
 	busy?: boolean;
@@ -25,9 +27,11 @@ interface SheetStatusTrackProps {
 	onRevert: () => void;
 	onConfirmFirst: () => void;
 	onFinalize: () => void;
+	onConfirmGoals?: () => void;
+	onRequestFirst?: () => void;
 }
 
-/** 下書き → 一次評価待ち → 二次評価待ち → 最終評価済み の進行と、いま自分ができる次の操作を示す。 */
+/** 下書き → 送信済み → 目標確定 → 一次評価待ち → 二次評価待ち → 最終評価済み の進行と、いま自分ができる次の操作を示す。 */
 const SheetStatusTrack: Component<SheetStatusTrackProps> = (props) => {
 	const current = () => EvaluationStatus.from(props.status);
 	const steps = () =>
@@ -70,7 +74,7 @@ const SheetStatusTrack: Component<SheetStatusTrackProps> = (props) => {
 						disabled={props.updating || props.busy}
 					>
 						<FileCheck class="action-icon" />
-						{props.updating ? "提出中..." : "提出する"}
+						{props.updating ? "送信中..." : "目標を送信する"}
 					</button>
 				</Show>
 				<Show when={props.canRevert}>
@@ -81,7 +85,27 @@ const SheetStatusTrack: Component<SheetStatusTrackProps> = (props) => {
 						disabled={props.updating || props.busy}
 					>
 						<Undo2 class="action-icon" />
-						{props.updating ? "処理中..." : "下書きに戻す"}
+						{props.updating ? "処理中..." : "要修正として下書きに戻す"}
+					</button>
+				</Show>
+				<Show when={props.canConfirmGoals}>
+					<button
+						type="button"
+						class="primary-action"
+						onClick={props.onConfirmGoals}
+						disabled={props.updating || props.busy}
+					>
+						目標を確定する
+					</button>
+				</Show>
+				<Show when={props.canRequestFirst}>
+					<button
+						type="button"
+						class="primary-action"
+						onClick={props.onRequestFirst}
+						disabled={props.updating || props.busy}
+					>
+						一次評価を依頼する
 					</button>
 				</Show>
 				<Show when={props.canConfirmFirst}>

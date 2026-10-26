@@ -157,7 +157,7 @@ export function createSheetEditorPresenter(): {
 			setViewModel((prev) => ({
 				...prev,
 				sheet: response.sheet,
-				...response.sheet.permissions,
+				...(response.sheet?.permissions ?? NO_SHEET_PERMISSIONS),
 				updatingStatus: false,
 				statusUpdateError: null,
 			}));

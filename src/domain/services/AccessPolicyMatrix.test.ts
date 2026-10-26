@@ -9,6 +9,8 @@ import { EvaluationSheetAccessPolicy } from "./EvaluationSheetAccessPolicy";
 describe("authorization matrix", () => {
 	const statuses = [
 		EvaluationStatus.DRAFT,
+		EvaluationStatus.GOALS_SUBMITTED,
+		EvaluationStatus.GOALS_CONFIRMED,
 		EvaluationStatus.SUBMITTED,
 		EvaluationStatus.FIRST_EVALUATED,
 		EvaluationStatus.FINALIZED,
@@ -33,11 +35,21 @@ describe("authorization matrix", () => {
 				expect(policy.canEditCommonEvaluationSecond()).toBe(id === 3 && secondStage);
 				expect(policy.canEditOverallComment("first")).toBe(id === 2 && firstStage);
 				expect(policy.canEditOverallComment("second")).toBe(id === 3 && secondStage);
-				expect(policy.canSubmitOwnSheet()).toBe(id === 1 && draft);
+				expect(policy.canSubmitGoals()).toBe(id === 1 && draft);
+				// 再送できるのは、いまの状態へシートを渡した人。要修正で戻した下書きは、評価者にはもう見えない
 				expect(policy.canResendNotification()).toBe(
-					(id === 1 && firstStage) || (id === 2 && secondStage),
+					(id === 1 && (firstStage || status.isGoalsSubmitted())) ||
+						(id === 2 && (secondStage || status.isGoalsConfirmed())),
 				);
-				expect(policy.canRevertOwnSheetToDraft()).toBe(id === 1 && firstStage);
+				expect(policy.canReturnGoalsToDraft()).toBe(id === 2 && status.isGoalsSubmitted());
+				expect(policy.canConfirmGoals()).toBe(id === 2 && status.isGoalsSubmitted());
+				expect(policy.canRequestFirstEvaluation()).toBe(id === 1 && status.isGoalsConfirmed());
+				// 達成状況は、一次評価を依頼するまで本人が自由に書き直せる(目標の確認中も)
+				expect(policy.canEditMilestoneAchievement()).toBe(
+					id === 1 && !status.isEvaluationStarted(),
+				);
+				// 前期のチャレンジ目標を据え置く・見直すのは、目標を書ける下書きの間だけ
+				expect(policy.canCarryOverGoal()).toBe(id === 1 && draft);
 				expect(policy.canConfirmFirstEvaluation()).toBe(id === 2 && firstStage);
 				expect(policy.canFinalizeEvaluation()).toBe(id === 3 && secondStage);
 				// 出力できるのは評価が確定したシートだけ。本人も出力できる
@@ -61,14 +73,16 @@ describe("authorization matrix", () => {
 				const open = EvaluationSheetAccessPolicy.for(id, sheet(status));
 				const closed = EvaluationSheetAccessPolicy.for(id, sheet(status, undefined, true));
 				expect(closed.canEditMilestoneGoal()).toBe(false);
+				expect(closed.canEditMilestoneAchievement()).toBe(false);
+				expect(closed.canCarryOverGoal()).toBe(false);
 				expect(closed.canEditMilestoneFirstScore()).toBe(false);
 				expect(closed.canEditMilestoneSecondScore()).toBe(false);
 				expect(closed.canEditCommonEvaluationFirst()).toBe(false);
 				expect(closed.canEditCommonEvaluationSecond()).toBe(false);
 				expect(closed.canEditOverallComment("first")).toBe(false);
 				expect(closed.canEditOverallComment("second")).toBe(false);
-				expect(closed.canSubmitOwnSheet()).toBe(false);
-				expect(closed.canRevertOwnSheetToDraft()).toBe(false);
+				expect(closed.canSubmitGoals()).toBe(false);
+				expect(closed.canReturnGoalsToDraft()).toBe(false);
 				expect(closed.canConfirmFirstEvaluation()).toBe(false);
 				expect(closed.canFinalizeEvaluation()).toBe(false);
 				expect(() => closed.assertPeriodOpen()).toThrow("この評価期間は締められているため");
@@ -134,8 +148,12 @@ describe("authorization matrix", () => {
 					const dto = toEvaluationSheetDto(withoutSecondary, "等級", policy);
 					expect(dto.allocatedScores.totalEvaluationScore).toBe(id === 2 ? 70 : null);
 					// 評価ランクは評価者にだけ見せる。本人には渡さない
-					expect(dto.finalEvaluationRank?.displayText).toBe(id === 2 ? "B" : undefined);
-					expect(dto.firstEvaluationRank?.displayText).toBe(id === 2 ? "B" : undefined);
+					expect(dto.finalEvaluationRank?.displayText).toBe(
+						id === 2 && !status.isGoalsSubmitted() && !status.isGoalsConfirmed() ? "B" : undefined,
+					);
+					expect(dto.firstEvaluationRank?.displayText).toBe(
+						id === 2 && !status.isGoalsSubmitted() && !status.isGoalsConfirmed() ? "B" : undefined,
+					);
 				}
 			},
 		);

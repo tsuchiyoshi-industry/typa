@@ -19,6 +19,12 @@ export const reviewLabel = (row: ReviewerRowDto): string => {
 	if (status.isDraft()) {
 		return "提出待ち";
 	}
+	if (status.isGoalsSubmitted()) {
+		return row.isPrimary ? "目標を確認する" : "目標確認待ち";
+	}
+	if (status.isGoalsConfirmed()) {
+		return "本人の達成状況入力待ち";
+	}
 	if (status.isAwaitingFirstEvaluation()) {
 		return row.isPrimary ? (row.primaryIsFinal ? "評価する" : "一次評価する") : "一次評価待ち";
 	}
@@ -61,6 +67,7 @@ export function reviewStats(rows: ReviewerRowDto[]): [ReviewFilter, string, numb
 	const count = (task: ReviewTask) => rows.filter((row) => reviewTask(row) === task).length;
 	const stats: [ReviewFilter, string, number, boolean][] = [
 		["all", "全員", rows.length, true],
+		["goals", "目標を確認する", count("goals"), rows.some((row) => row.isPrimary)],
 		["first", "一次評価する", count("first"), rows.some((row) => row.isPrimary)],
 		["second", "二次評価する", count("second"), rows.some((row) => row.canViewSecond)],
 		["waiting", "提出・相手の評価待ち", count("waiting"), true],
@@ -78,7 +85,13 @@ export function groupByGrade(rows: ReviewerRowDto[]): ReviewerRowDto[][] {
 	return [...grouped.values()];
 }
 
-const TASK_PRIORITY: Record<ReviewTask, number> = { first: 0, second: 1, waiting: 2, finalized: 3 };
+const TASK_PRIORITY: Record<ReviewTask, number> = {
+	goals: 0,
+	first: 1,
+	second: 2,
+	waiting: 3,
+	finalized: 4,
+};
 
 export function filterReviewRows(
 	rows: ReviewerRowDto[],

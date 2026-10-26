@@ -230,11 +230,14 @@ Deno.serve({hostname:"127.0.0.1",port:56423},createNotificationHandler(createNot
 		common = new SupabaseCommonEvaluationRepository();
 	const status = new UpdateEvaluationStatusInteractor(sheets, employees);
 	const id = await sheets.createOrGetSheet(900001, 900008);
-	await goals.upsertText(id, 1, "Synthetic API goal", "", "");
-	await status.execute(
-		{ sheetId: id, status: EvaluationStatus.SUBMITTED, currentEmployeeId: 900008 },
-		{ present: () => {} },
+	await goals.upsertText(
+		id,
+		1,
+		"Synthetic API goal",
+		[{ description: "Verify API", achievement: "" }],
+		"",
 	);
+
 	const evaluatorSession = async (n: number) => {
 		const email = evaluatorEmails.get(n);
 		assert.ok(email);
@@ -245,6 +248,27 @@ Deno.serve({hostname:"127.0.0.1",port:56423},createNotificationHandler(createNot
 			}),
 		);
 	};
+	await status.execute(
+		{ sheetId: id, status: EvaluationStatus.GOALS_SUBMITTED, currentEmployeeId: 900008 },
+		{ present: () => {} },
+	);
+	const subjectSession = required(await supabase.auth.getSession()).session;
+	assert.ok(subjectSession);
+	await evaluatorSession(2);
+	await status.execute(
+		{ sheetId: id, status: EvaluationStatus.GOALS_CONFIRMED, currentEmployeeId: 900002 },
+		{ present: () => {} },
+	);
+	required(
+		await supabase.auth.setSession({
+			access_token: subjectSession.access_token,
+			refresh_token: subjectSession.refresh_token,
+		}),
+	);
+	await status.execute(
+		{ sheetId: id, status: EvaluationStatus.SUBMITTED, currentEmployeeId: 900008 },
+		{ present: () => {} },
+	);
 	const session = required(await supabase.auth.getSession()).session;
 	assert.ok(session);
 	assert.equal((await testNotice(session.access_token)).status, 403);
@@ -263,7 +287,9 @@ Deno.serve({hostname:"127.0.0.1",port:56423},createNotificationHandler(createNot
 	assert.deepEqual(await inApp.json(), { deliveries: [] });
 	assert.equal(deliveries(), recorded);
 	// 本人にはアプリ内通知は見えない
-	assert.deepEqual(required(await supabase.from("notifications").select("id")), []);
+	assert.deepEqual(required(await supabase.from("notifications").select("kind")), [
+		{ kind: "goals_confirmed" },
+	]);
 	// メールのとき: 未設定の SMTP は記録して失敗し、続けての依頼は待たせる
 	sql("update public.workspace_settings set smtp_verified_at=now(), notification_channel='email'");
 	try {
@@ -282,7 +308,11 @@ Deno.serve({hostname:"127.0.0.1",port:56423},createNotificationHandler(createNot
 	assert.equal((await testNotice(reviewerSession.access_token)).status, 403);
 	// 一次評価者には、提出と同時にアプリ内通知が届いている。既読にできる
 	const waiting = required(
-		await supabase.from("notifications").select("id,sheet_id,kind,read_at").eq("sheet_id", id),
+		await supabase
+			.from("notifications")
+			.select("id,sheet_id,kind,read_at")
+			.eq("sheet_id", id)
+			.eq("kind", "submitted"),
 	) as { id: number; sheet_id: number; kind: string; read_at: string | null }[];
 	assert.deepEqual(
 		waiting.map(({ sheet_id, kind, read_at }) => ({ sheet_id, kind, read_at })),

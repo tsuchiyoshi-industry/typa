@@ -37,7 +37,7 @@ it("sends a test mail with the entered settings and saves them in one step", asy
 	fireEvent.input(view.getByRole("textbox", { name: "宛先メールアドレス" }), {
 		target: { value: "test@example.jp" },
 	});
-	expect(view.getAllByRole("option")).toHaveLength(2);
+	expect(view.getAllByRole("option")).toHaveLength(5);
 	fireEvent.change(view.getByRole("combobox", { name: "通知パターン" }), {
 		target: { value: "first_evaluated" },
 	});

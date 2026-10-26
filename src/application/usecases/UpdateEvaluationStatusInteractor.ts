@@ -10,6 +10,7 @@ import { EvaluationSheetAccessPolicy } from "../../domain/services/EvaluationShe
 import type {
 	EvaluationStatus,
 	EvaluationStatusValue,
+	SheetActor,
 } from "../../domain/valueObjects/EvaluationStatus";
 import type { EvaluationSheetDto } from "../dtos/EvaluationSheetDto";
 import { toEvaluationSheetDto } from "../dtos/EvaluationSheetMapper";
@@ -19,7 +20,8 @@ import type { UseCase } from "../ports/UseCase";
 export interface UpdateEvaluationStatusRequest {
 	sheetId: number;
 	/**
-	 * 進める先の状態。下書き: 本人が下書きに戻す / 提出済み: 本人が提出する /
+	 * 進める先の状態。下書き: 一次評価者が要修正として戻す / 送信済み: 本人が目標を送信 /
+	 * 目標確定: 一次評価者が承認 / 一次評価待ち: 本人が達成状況を提出 /
 	 * 一次評価済み: 一次評価者が一次評価を確定する / 評価確定: 最終評価者が評価を確定する。
 	 */
 	status: EvaluationStatus;
@@ -29,7 +31,7 @@ export interface UpdateEvaluationStatusRequest {
 }
 
 export interface UpdateEvaluationStatusResponse {
-	sheet: EvaluationSheetDto;
+	sheet: EvaluationSheetDto | null;
 }
 
 export interface UpdateEvaluationStatusOutputPort
@@ -37,6 +39,12 @@ export interface UpdateEvaluationStatusOutputPort
 	/** 通知メールの宛先ごとの送信結果。確定を present した後、送信が終わるたびに届く。 */
 	presentNotificationDelivery?(delivery: NotificationDelivery): void;
 }
+
+const RECIPIENT_LABELS: Record<SheetActor, string> = {
+	subject: "本人",
+	primary: "一次評価者",
+	secondary: "二次評価者",
+};
 
 export class UpdateEvaluationStatusInteractor
 	implements UseCase<UpdateEvaluationStatusRequest, UpdateEvaluationStatusOutputPort>
@@ -60,7 +68,7 @@ export class UpdateEvaluationStatusInteractor
 		policy.assertPeriodOpen();
 
 		const newStatus = this.resolveNewStatus(request, policy);
-		if (newStatus.isSubmitted() || newStatus.isFirstEvaluationConfirmed()) {
+		if (newStatus.isSentToEvaluators() || newStatus.isFirstEvaluationConfirmed()) {
 			const missing = sheet.pendingObjectiveFields();
 			if (missing.length) {
 				throw new Error(
@@ -85,20 +93,17 @@ export class UpdateEvaluationStatusInteractor
 				: {}),
 			...(newStatus.isFinalized() ? { final: sheet.resolveFinalEvaluationRank() } : {}),
 		});
-		const gradeName = await this.employeeRepository.findGradeName(updated.gradeId);
-
-		// 変更後のシートで判定し直す(提出・確定で、できることが変わる)
-		outputPort.present({
-			sheet: toEvaluationSheetDto(
-				updated,
-				gradeName,
-				EvaluationSheetAccessPolicy.for(request.currentEmployeeId, updated),
-			),
-		});
-
-		// 送信の完了は待たない。確定は済んでおり、結果は宛先ごとに後から知らせる
+		// 要修正で下書きに戻すと、戻した評価者はもう読めない。その人には本文を返さない
+		const saved = updated ?? sheet.withStatus(newStatus);
+		const viewer = EvaluationSheetAccessPolicy.for(request.currentEmployeeId, saved);
+		if (updated && viewer.canViewSheet()) {
+			const gradeName = await this.employeeRepository.findGradeName(updated.gradeId);
+			outputPort.present({ sheet: toEvaluationSheetDto(updated, gradeName, viewer) });
+		} else {
+			outputPort.present({ sheet: null });
+		}
 		if (request.notify !== false) {
-			void this.notify(updated, (delivery) => outputPort.presentNotificationDelivery?.(delivery));
+			void this.notify(saved, (delivery) => outputPort.presentNotificationDelivery?.(delivery));
 		}
 	}
 
@@ -118,16 +123,15 @@ export class UpdateEvaluationStatusInteractor
 	}
 
 	/**
-	 * 次に評価する人へメールで知らせる。提出は一次評価者へ、一次評価の確定は二次評価者へ。
-	 * 評価の確定は、次に動く人がいないので知らせない。下書きに戻したときも知らせない。
+	 * いまの状態へシートを受け取った人(EvaluationStatus.handoff の to)へメールで知らせる。
+	 * 宛先のアドレスと文面はサーバーが状態から決める。評価の確定は、次に動く人がいないので知らせない。
 	 * 送信の失敗で提出・確定は取り消さない。
 	 */
 	private async notify(sheet: EvaluationSheet, report: ReportDelivery): Promise<void> {
 		const repository = this.emailNotificationRepository;
-		const submitted = sheet.status.isAwaitingFirstEvaluation();
-		const firstConfirmed = sheet.status.isAwaitingSecondEvaluation();
+		const handoff = sheet.status.handoff();
 		// アプリ内通知は、状態の変更と同時に DB が作っている
-		if (!repository || !sheet.notifiesByMail || !(submitted || firstConfirmed)) {
+		if (!repository || !sheet.notifiesByMail || !handoff) {
 			return;
 		}
 
@@ -140,15 +144,13 @@ export class UpdateEvaluationStatusInteractor
 			secondaryEvaluatorName: sheet.secondaryEvaluatorName,
 		};
 		try {
-			await (submitted
-				? repository.notifySheetSubmitted(notification, report)
-				: repository.notifyFirstEvaluationConfirmed(notification, report));
+			await repository.notifySheetStatusChanged(notification, report);
 		} catch (error) {
 			// 宛先や SMTP 設定を読めず、誰にも送れなかった
 			console.error("評価の通知メールの送信に失敗しました:", error);
 			const message = (error as { message?: unknown } | null)?.message;
 			report({
-				recipient: submitted ? "一次評価者" : "二次評価者",
+				recipient: RECIPIENT_LABELS[handoff.to],
 				error: typeof message === "string" ? message : "通知メールを送信できませんでした。",
 			});
 		}
@@ -161,12 +163,20 @@ export class UpdateEvaluationStatusInteractor
 	): EvaluationStatus {
 		const rules: Record<EvaluationStatusValue, { allowed: boolean; denied: string }> = {
 			draft: {
-				allowed: policy.canRevertOwnSheetToDraft(),
-				denied: "この評価シートを下書きに戻す権限がありません。一次評価の確定後は戻せません。",
+				allowed: policy.canReturnGoalsToDraft(),
+				denied: "一次評価者のみ、送信済みの目標を要修正として下書きに戻せます。",
 			},
 			submitted: {
-				allowed: policy.canSubmitOwnSheet(),
-				denied: "自分の評価シートのみ提出できます。",
+				allowed: policy.canRequestFirstEvaluation(),
+				denied: "目標確定後に本人が達成状況を提出してください。",
+			},
+			goals_submitted: {
+				allowed: policy.canSubmitGoals(),
+				denied: "自分の下書きの目標のみ送信できます。",
+			},
+			goals_confirmed: {
+				allowed: policy.canConfirmGoals(),
+				denied: "一次評価者のみ、送信済みの目標を確定できます。",
 			},
 			first_evaluated: {
 				allowed: policy.canConfirmFirstEvaluation(),

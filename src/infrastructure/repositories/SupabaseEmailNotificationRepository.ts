@@ -50,14 +50,7 @@ export class SupabaseEmailNotificationRepository
 		}
 	}
 
-	notifySheetSubmitted(notification: SheetNotification, report: ReportDelivery): Promise<void> {
-		return this.notify(notification, report);
-	}
-
-	notifyFirstEvaluationConfirmed(
-		notification: SheetNotification,
-		report: ReportDelivery,
-	): Promise<void> {
+	notifySheetStatusChanged(notification: SheetNotification, report: ReportDelivery): Promise<void> {
 		return this.notify(notification, report);
 	}
 }

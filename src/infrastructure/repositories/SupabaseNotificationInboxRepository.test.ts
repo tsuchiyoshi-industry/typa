@@ -51,6 +51,22 @@ it("reads the newest notices first, as the app names them", async () => {
 	expect(calls.find(([name]) => name === "limit")?.[1][0]).toBeGreaterThan(0);
 });
 
+it("names a return to draft as returned goals, and skips kinds it does not know", async () => {
+	const row = (id: number, kind: string) => ({
+		id,
+		sheet_id: 100,
+		kind,
+		employee_name: "山田 太郎",
+		period_name: "2026年度 上期",
+		created_at: "2026-10-23T05:00:00Z",
+		read_at: null,
+	});
+	query({ data: [row(1, "draft"), row(2, "finalized"), row(3, "constructor")], error: null });
+	expect(
+		(await new SupabaseNotificationInboxRepository().findMine()).map((notice) => notice.kind),
+	).toEqual(["goals_returned"]);
+});
+
 it("does not mistake a failed read for an empty inbox", async () => {
 	query({ data: null, error: new Error("offline") });
 	await expect(new SupabaseNotificationInboxRepository().findMine()).rejects.toThrow("offline");

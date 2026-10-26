@@ -51,7 +51,7 @@ export function toSheetExportDataDto(
 			id: objective.id,
 			goalNumber: objective.goalNumber,
 			challengeGoal: objective.challengeGoal,
-			midtermGoal: objective.midtermGoal,
+			periodGoals: objective.periodGoals,
 			achievement: objective.achievement,
 			firstScore: objective.firstScore.toNumber(),
 			secondScore: formatScore(primaryIsFinal ? null : objective.secondScore.toNumber()),

@@ -69,15 +69,17 @@ it("tells whose turn it is from the stage and the reviewer's role", () => {
 		expect(reviewTask(row)).toBe(task);
 	}
 });
-it("counts the finished stages; a subject without a secondary evaluator has two", () => {
+it("counts the finished stages; a subject without a secondary evaluator has four", () => {
 	const cases = [
-		[reviewerRow(1, { sheetId: null, status: "missing" }), 3, 0],
-		[reviewerRow(1, { status: "draft" }), 3, 0],
-		[reviewerRow(1, { status: "submitted" }), 3, 1],
-		[reviewerRow(1), 3, 2],
-		[reviewerRow(1, { status: "finalized" }), 3, 3],
-		[reviewerRow(1, { ...submittedToPrimary, primaryIsFinal: true }), 2, 1],
-		[reviewerRow(1, { status: "finalized", primaryIsFinal: true }), 2, 2],
+		[reviewerRow(1, { sheetId: null, status: "missing" }), 5, 0],
+		[reviewerRow(1, { status: "draft" }), 5, 0],
+		[reviewerRow(1, { status: "goals_submitted" }), 5, 1],
+		[reviewerRow(1, { status: "goals_confirmed" }), 5, 2],
+		[reviewerRow(1, { status: "submitted" }), 5, 3],
+		[reviewerRow(1), 5, 4],
+		[reviewerRow(1, { status: "finalized" }), 5, 5],
+		[reviewerRow(1, { ...submittedToPrimary, primaryIsFinal: true }), 4, 3],
+		[reviewerRow(1, { status: "finalized", primaryIsFinal: true }), 4, 4],
 	] as const;
 	for (const [row, steps, done] of cases) {
 		expect(reviewProgress(row)).toEqual({ steps, done });

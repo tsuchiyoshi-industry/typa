@@ -41,6 +41,7 @@ import {
 	reviewLabel,
 	reviewStats,
 } from "../viewmodels/reviewerWorkspace";
+import { PeriodGoalsList } from "./components/PeriodGoals";
 import SheetWindow from "./components/SheetWindow";
 import { clearUnsavedChanges, confirmDiscard, showToast } from "./feedback";
 import { formatDateTime } from "./format";
@@ -319,6 +320,15 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 			setParams({ sheet: target.sheetId }, { scroll: false });
 			showToast("info", `${target.employeeName} さんの評価に進みました`);
 		} else {
+			const completed = loaded.find((row) => row.employeeId === finished);
+			// 本人へ戻した(要修正・目標確定)シートは、もう評価者が開いておく理由がないので閉じる
+			if (
+				!completed ||
+				!canOpen(completed) ||
+				sheetStatus(completed)?.handoff()?.to === "subject"
+			) {
+				setParams({ sheet: undefined }, { scroll: false });
+			}
 			showToast("success", "この一覧で自分の番のシートはすべて確定しました");
 		}
 	};
@@ -651,9 +661,10 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 												return (
 													<td>
 														<p class="review-evidence">{goal()?.challengeGoal || "—"}</p>
-														<p class="review-evidence muted">
-															{goal()?.achievement || "達成状況の記載なし"}
-														</p>
+														<PeriodGoalsList
+															goals={goal()?.periodGoals ?? []}
+															achievement={goal()?.achievement}
+														/>
 														<small>
 															一次 {goal()?.firstScore ?? "—"} / 二次 {goal()?.secondScore ?? "—"} /
 															配点 4

@@ -71,13 +71,67 @@ test("a sheet goes from the employee through both evaluators to a final rank", a
 		await page.getByRole("button", { name: "評価シートを作成" }).click();
 		await page.getByRole("button", { name: "目標を編集" }).click();
 		await page.getByRole("textbox", { name: "チャレンジ目標" }).fill(GOAL);
+		await page.getByRole("button", { name: "期中目標を追加" }).click();
+		await page.getByRole("textbox", { name: "期中目標 1", exact: true }).fill("手順を見直す");
+		await page.getByRole("button", { name: "期中目標を追加" }).click();
+		await page.getByRole("textbox", { name: "期中目標 2", exact: true }).fill("研修を開く");
+		await page.getByRole("textbox", { name: "達成状況 2", exact: true }).fill("参加者に案内した");
+		await page.screenshot({
+			path: test.info().outputPath("period-goals-editor.png"),
+			fullPage: true,
+		});
+
 		await page.getByRole("button", { name: "目標を保存" }).click();
 		// 保存直後に押しても、保存後の読み直しが済むまで提出は待たされる(空欄扱いにならない)
-		await page.getByRole("button", { name: "提出する" }).click();
-		await confirm(page, "評価シートを提出しますか？", "提出する");
-		await expect(page.getByText("一次評価者の評価を待っています。")).toBeVisible();
+		await page.getByRole("button", { name: "目標を送信する" }).click();
+		await confirm(page, "目標を送信しますか？", "目標を送信する");
+		await expect(page.getByText(/一次評価者による目標の確認を待っています。/)).toBeVisible();
+		await expect(page.getByRole("tabpanel")).toContainText("手順を見直す");
+		await expect(page.getByRole("tabpanel")).toContainText("研修を開く");
+		await expect(page.getByRole("tabpanel")).toContainText("参加者に案内した");
+
 		// 提出後は目標を書き換えられない
 		await expect(page.getByRole("button", { name: "目標を編集" })).toHaveCount(0);
+		await signOut(page);
+	});
+
+	await test.step("一次評価者が目標を要修正へ戻し、再送後に確定する", async () => {
+		await signIn(page, "RELEASE002");
+		let sheet = await openSubordinate(page);
+		await expect(sheet.getByRole("button", { name: "評価を入力" })).toHaveCount(0);
+		await sheet.getByRole("button", { name: "要修正として下書きに戻す" }).click();
+		await confirm(page, "目標を要修正として戻しますか？", "要修正として戻す");
+		await expect(sheet).toBeHidden();
+		await signOut(page);
+		await signIn(page, "RELEASE004");
+		await openOwnSheet(page);
+		await expect(page.getByRole("button", { name: "目標を編集" })).toBeVisible();
+		await page.getByRole("button", { name: "目標を送信する" }).click();
+		await confirm(page, "目標を送信しますか？", "目標を送信する");
+		await signOut(page);
+		await signIn(page, "RELEASE002");
+		sheet = await openSubordinate(page);
+		await sheet.getByRole("button", { name: "目標を確定する" }).click();
+		await confirm(page, "目標を確定しますか？", "目標を確定する");
+		await expect(sheet).toBeHidden();
+		await signOut(page);
+	});
+
+	await test.step("本人が確定した目標の達成状況だけを記入し、一次評価を依頼する", async () => {
+		await signIn(page, "RELEASE004");
+		await openOwnSheet(page);
+		await expect(page.getByRole("button", { name: "目標を編集" })).toHaveCount(0);
+		await page.getByRole("button", { name: "達成状況を入力" }).click();
+		await expect(page.getByRole("textbox", { name: "チャレンジ目標" })).toHaveCount(0);
+		await expect(page.getByRole("button", { name: "期中目標を追加" })).toHaveCount(0);
+		await page
+			.getByRole("textbox", { name: "達成状況 1", exact: true })
+			.fill("手順を試行して改善した");
+		await page.getByRole("button", { name: "達成状況を保存" }).click();
+		await page.getByRole("button", { name: "一次評価を依頼する" }).click();
+		await confirm(page, "一次評価を依頼しますか？", "一次評価を依頼する");
+		await expect(page.getByText("一次評価者の評価を待っています。")).toBeVisible();
+		await expect(page.getByRole("button", { name: "達成状況を入力" })).toHaveCount(0);
 		await signOut(page);
 	});
 
@@ -192,4 +246,55 @@ test("a sheet goes from the employee through both evaluators to a final rank", a
 		await expect(goal).toContainText(/一次評価\s*4\s*\/\s*4/);
 		await expect(page.getByText("75")).toHaveCount(0);
 	});
+});
+
+test("zero period goals records achievement on the challenge and primary evaluation can finalize it", async ({
+	page,
+}) => {
+	await signIn(page, "RELEASE006");
+	await page.getByRole("link", { name: "新規作成" }).click();
+	await page.getByRole("button", { name: "評価シートを作成" }).click();
+	await page.getByRole("button", { name: "目標を編集" }).click();
+	await page.getByRole("textbox", { name: "チャレンジ目標" }).fill("期中目標なしのテーマ");
+	await expect(page.getByRole("textbox", { name: "期中目標 1", exact: true })).toHaveCount(0);
+	await page.getByRole("button", { name: "目標を保存" }).click();
+	await page.getByRole("button", { name: "目標を送信する" }).click();
+	await confirm(page, "目標を送信しますか？", "目標を送信する");
+	await signOut(page);
+	await signIn(page, "RELEASE002");
+	await page
+		.getByRole("navigation", { name: "メインナビゲーション" })
+		.getByRole("link", { name: "部下の評価" })
+		.click();
+	await page.getByRole("button", { name: "Release test 6 RELEASE006" }).click();
+	let sheet = page.getByRole("dialog", { name: "Release test 6 さんの評価シート" });
+	await sheet.getByRole("button", { name: "目標を確定する" }).click();
+	await confirm(page, "目標を確定しますか？", "目標を確定する");
+	await expect(sheet).toBeHidden();
+	await signOut(page);
+	await signIn(page, "RELEASE006");
+	await page
+		.getByRole("link", { name: /Release verification/ })
+		.first()
+		.click();
+	await page.getByRole("button", { name: "達成状況を入力" }).click();
+	await page
+		.getByRole("textbox", { name: "達成状況", exact: true })
+		.fill("テーマに対する実績を記入した");
+	await page.getByRole("button", { name: "達成状況を保存" }).click();
+	await expect(page.getByRole("tabpanel")).toContainText("テーマに対する実績を記入した");
+	await page.getByRole("button", { name: "一次評価を依頼する" }).click();
+	await confirm(page, "一次評価を依頼しますか？", "一次評価を依頼する");
+	await signOut(page);
+	await signIn(page, "RELEASE002");
+	await page
+		.getByRole("navigation", { name: "メインナビゲーション" })
+		.getByRole("link", { name: "部下の評価" })
+		.click();
+	await page.getByRole("button", { name: "Release test 6 RELEASE006" }).click();
+	sheet = page.getByRole("dialog", { name: "Release test 6 さんの評価シート" });
+	await score(sheet, "一次評価", 3);
+	await sheet.getByRole("button", { name: "評価を確定する" }).click();
+	await confirm(page, "評価を確定しますか？", "評価を確定する");
+	await expect(sheet.getByText("最終評価済みです。内容は変更できません。")).toBeVisible();
 });

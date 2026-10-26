@@ -1,10 +1,11 @@
 import { DomainError } from "../DomainError";
+import { assertPeriodGoals, type PeriodGoal } from "./PeriodGoal";
 
 /** 何を直すか。目標(goal)・共通評価の項目(common)・シート全体(sheet)。 */
 export type CorrectionTarget = "goal" | "common" | "sheet";
 export const CORRECTION_FIELD_VALUES = [
 	"challenge_goal",
-	"midterm_goal",
+	"period_goals",
 	"achievement",
 	"first_score",
 	"second_score",
@@ -25,7 +26,7 @@ const FIELDS: Record<
 > = {
 	goal: {
 		challenge_goal: { label: "チャレンジ目標", stage: "content" },
-		midterm_goal: { label: "中間目標", stage: "content" },
+		period_goals: { label: "期中目標と達成状況", stage: "content" },
 		achievement: { label: "達成状況", stage: "content" },
 		first_score: { label: "一次評価", stage: "first" },
 		second_score: { label: "二次評価", stage: "second" },
@@ -71,21 +72,48 @@ export class CorrectionField {
 		return this.value === "first_score" || this.value === "second_score";
 	}
 
-	/** 直した後の値として正しいか。点数は 1〜4(未評価には戻さない)、文章は 2000 文字まで。 */
+	/**
+	 * 直した後の値として正しいか。点数は 1〜4(未評価には戻さない)、文章は 2000 文字まで。
+	 * 期中目標は JSON の一覧で、タスクごとの文章も 2000 文字まで。
+	 */
 	assertValid(value: string): void {
+		if (this.value === "period_goals") {
+			const goals = parsePeriodGoals(value);
+			if (!goals) {
+				throw new DomainError("期中目標の形式が不正です。");
+			}
+			for (const goal of goals) {
+				assertTextLength(goal.description);
+				assertTextLength(goal.achievement);
+			}
+			return;
+		}
 		if (this.isScore) {
 			if (!/^[1-4]$/.test(value)) {
 				throw new DomainError("点数は 1〜4 で入力してください。");
 			}
-		} else if (value.length > CorrectionField.MAX_TEXT_LENGTH) {
-			throw new DomainError(
-				`文章は ${CorrectionField.MAX_TEXT_LENGTH} 文字以内で入力してください。`,
-			);
+		} else {
+			assertTextLength(value);
 		}
 	}
 
 	/** 画面に出す値。点数の 0 は「未評価」、空の文章は「(空欄)」。 */
 	display(value: string): string {
+		if (this.value === "period_goals") {
+			// 記録が壊れていても、履歴は読めるようにそのまま出す
+			const goals = parsePeriodGoals(value);
+			if (!goals) {
+				return value;
+			}
+			return goals.length === 0
+				? "(期中目標なし)"
+				: goals
+						.map(
+							(goal, i) =>
+								`${i + 1}. ${goal.description || "(空欄)"}（達成状況: ${goal.achievement || "(空欄)"}）`,
+						)
+						.join("\n");
+		}
 		if (this.isScore) {
 			return value === "0" || value === "" ? "未評価" : value;
 		}
@@ -94,5 +122,22 @@ export class CorrectionField {
 
 	equals(other: CorrectionField): boolean {
 		return this.target === other.target && this.value === other.value;
+	}
+}
+
+/** JSON の期中目標の一覧。形が違えば null。 */
+export function parsePeriodGoals(value: string): readonly PeriodGoal[] | null {
+	try {
+		const goals: unknown = JSON.parse(value);
+		assertPeriodGoals(goals);
+		return goals;
+	} catch {
+		return null;
+	}
+}
+
+function assertTextLength(value: string): void {
+	if (value.length > CorrectionField.MAX_TEXT_LENGTH) {
+		throw new DomainError(`文章は ${CorrectionField.MAX_TEXT_LENGTH} 文字以内で入力してください。`);
 	}
 }

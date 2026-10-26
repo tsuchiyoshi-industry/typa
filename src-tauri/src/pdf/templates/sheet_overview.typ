@@ -12,6 +12,8 @@
 // 進行順。表示名は画面と同じ言葉にする
 #let stages = (
   (key: "draft", label: "下書き", shade: luma(205)),
+  (key: "goals_submitted", label: "送信済み", shade: luma(190)),
+  (key: "goals_confirmed", label: "目標確定", shade: luma(170)),
   (key: "submitted", label: "一次評価待ち", shade: luma(150)),
   (key: "first_evaluated", label: "二次評価待ち", shade: luma(95)),
   (key: "finalized", label: "最終評価済み", shade: accent),
@@ -26,14 +28,14 @@
 #let small(body) = text(size: 7.5pt, fill: muted, body)
 #let dash(value) = if value == "" { text(fill: muted)[—] } else { value }
 
-// 4つの升目を、いまの段まで塗る。白黒で刷っても、どこまで進んだかが形で分かる
+// 6つの升目を、いまの段まで塗る。白黒で刷っても、どこまで進んだかが形で分かる
 #let pips(key) = {
   let reached = stage-of(key)
-  let tone = if reached == 3 { accent } else { ink }
+  let tone = if reached == stages.len() - 1 { accent } else { ink }
   stack(
     dir: ltr,
     spacing: 1.3pt,
-    ..range(4).map(step => rect(
+    ..range(stages.len()).map(step => rect(
       width: 4.4pt,
       height: 4.4pt,
       fill: if step <= reached { tone },
@@ -76,7 +78,7 @@
 #v(5pt)
 
 // ----- 全体の進み具合: 帯の幅が、その段にあるシートの割合 -----
-#let present = range(4).filter(index => counts.at(index) > 0)
+#let present = range(stages.len()).filter(index => counts.at(index) > 0)
 #if present.len() > 0 {
   grid(
     columns: present.map(index => counts.at(index) * 1fr),
@@ -86,9 +88,9 @@
   v(6pt)
 }
 #grid(
-  columns: (1fr, 1fr, 1fr, 1fr, auto),
+  columns: (1fr, 1fr, 1fr, 1fr, 1fr, 1fr, auto),
   align: horizon,
-  ..range(4).map(index => grid(
+  ..range(stages.len()).map(index => grid(
     columns: 3,
     column-gutter: 4.5pt,
     align: horizon,

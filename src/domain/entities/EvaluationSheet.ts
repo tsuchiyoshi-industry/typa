@@ -226,7 +226,7 @@ export class EvaluationSheet {
 		return this.subject.primaryIsFinalEvaluator();
 	}
 
-	/** 必須なのはチャレンジ目標の欄だけ。中間目標と達成状況は空欄のまま提出・確定できる。 */
+	/** 提出・確定にはテーマが必要。期中目標は0〜4件で、達成状況の記入は求めない。 */
 	pendingObjectiveFields(): string[] {
 		if (this.objectives.length < 1 || this.objectives.length > this.maxObjectives) {
 			return [`チャレンジ目標は1〜${this.maxObjectives}件必要です。`];
@@ -295,6 +295,33 @@ export class EvaluationSheet {
 
 	isEditable(): boolean {
 		return this.status.isDraft();
+	}
+
+	/** 状態だけを変えた写し。保存は DB が行い、ここでは変更後の判断(通知など)に使う。 */
+	withStatus(status: EvaluationStatus): EvaluationSheet {
+		return new EvaluationSheet(
+			this.sheetId,
+			this.subject,
+			this.evaluationPeriod,
+			this.primaryEvaluatorName,
+			this.secondaryEvaluatorName,
+			this.firstOverallComment,
+			this.secondOverallComment,
+			this.objectives,
+			this.commonEvaluationResults,
+			this.objectiveScoreTotals,
+			this.commonEvaluationScoreTotals,
+			this.allocatedScores,
+			status,
+			this.finalEvaluationRank,
+			this.firstEvaluationRank,
+			this.allocation,
+			this.gradeId,
+			this.maxObjectives,
+			this.currentEvaluatorIds,
+			this.corrections,
+			this.notifiesByMail,
+		);
 	}
 
 	equals(other: EvaluationSheet): boolean {

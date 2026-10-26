@@ -17,6 +17,7 @@ export function toEvaluationSheetDto(
 		throw new Error("評価シートを閲覧する権限がありません。");
 	}
 	const canViewCommon = policy.canViewCommonEvaluation();
+	const canViewRanks = policy.canViewEvaluationRanks();
 	const canViewSecond = canViewCommon && policy.canViewCommonEvaluationSecond();
 	const canViewFinal = canViewCommon && policy.canViewFinalEvaluation();
 	const commonTotals = EvaluationScoreTotals.fromCommonEvaluationResults(
@@ -48,7 +49,7 @@ export function toEvaluationSheetDto(
 			sheetId: objective.sheetId,
 			goalNumber: objective.goalNumber,
 			challengeGoal: objective.challengeGoal,
-			midtermGoal: objective.midtermGoal,
+			periodGoals: objective.periodGoals,
 			achievement: objective.achievement,
 			firstScore: canViewFirstMilestoneScore ? objective.firstScore.toNumber() : null,
 			secondScore: canViewSecondMilestoneScore ? objective.secondScore.toNumber() : null,
@@ -133,8 +134,12 @@ export function toEvaluationSheetDto(
 			canEditMilestoneGoal: policy.canEditMilestoneGoal(),
 			canViewCommonEvaluation: canViewCommon,
 			canViewSecondEvaluation: policy.canViewCommonEvaluationSecond(),
-			canSubmitOwnSheet: policy.canSubmitOwnSheet(),
-			canRevertOwnSheetToDraft: policy.canRevertOwnSheetToDraft(),
+			canEditMilestoneAchievement: policy.canEditMilestoneAchievement(),
+			canCarryOverGoal: policy.canCarryOverGoal(),
+			canConfirmGoals: policy.canConfirmGoals(),
+			canRequestFirstEvaluation: policy.canRequestFirstEvaluation(),
+			canSubmitGoals: policy.canSubmitGoals(),
+			canReturnGoalsToDraft: policy.canReturnGoalsToDraft(),
 			canConfirmFirstEvaluation: policy.canConfirmFirstEvaluation(),
 			canFinalizeEvaluation: policy.canFinalizeEvaluation(),
 			canResendNotification: policy.canResendNotification(),
@@ -150,20 +155,22 @@ export function toEvaluationSheetDto(
 					),
 				}
 			: {}),
-		firstEvaluationRank: canViewCommon
-			? {
-					displayText: sheet.resolveFirstEvaluationRank().toDisplayText(),
-					score: sheet.firstEvaluationScore(),
-					confirmed: sheet.status.isFirstEvaluationConfirmed(),
-				}
-			: undefined,
-		finalEvaluationRank: canViewFinal
-			? {
-					displayText: sheet.resolveFinalEvaluationRank().toDisplayText(),
-					score: sheet.allocatedScores.totalEvaluationScore,
-					confirmed: sheet.status.isFinalized(),
-				}
-			: undefined,
+		firstEvaluationRank:
+			canViewCommon && canViewRanks
+				? {
+						displayText: sheet.resolveFirstEvaluationRank().toDisplayText(),
+						score: sheet.firstEvaluationScore(),
+						confirmed: sheet.status.isFirstEvaluationConfirmed(),
+					}
+				: undefined,
+		finalEvaluationRank:
+			canViewFinal && canViewRanks
+				? {
+						displayText: sheet.resolveFinalEvaluationRank().toDisplayText(),
+						score: sheet.allocatedScores.totalEvaluationScore,
+						confirmed: sheet.status.isFinalized(),
+					}
+				: undefined,
 	};
 }
 

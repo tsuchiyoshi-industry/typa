@@ -190,7 +190,8 @@ describe("help", () => {
 	const renderHelp = () =>
 		render(() => (
 			<MemoryRouter>
-				<Route path="/" component={HelpView} />
+				{/* 画面写真は CI が撮るので、手元には無いことがある。写真の代わりを渡す */}
+				<Route path="/" component={() => <HelpView shot={(name) => `/shots/${name}.png`} />} />
 			</MemoryRouter>
 		));
 	it("guides employees without loading administrative settings", () => {

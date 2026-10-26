@@ -22,10 +22,10 @@
 	z-index: 100;
 }
 
-/* 左に「帳簿の名前と見出し」、右に「自分のこと(通知・アカウント)」 */
+/* ロゴだけ左、ナビと通知・アカウントは右に寄せる */
 .topbar-brand {
 	flex-shrink: 0;
-	margin-right: 1.5rem;
+	margin-right: auto;
 	text-decoration: none;
 }
 
@@ -54,17 +54,19 @@
 	background: var(--hr-surface-hover);
 }
 
-/* ナビは帳簿の見出し(インデックス)の札。札はトップバーの下罫に立ち、
-   現在地の札だけが下罫を切って、下の紙面(--hr-bg)とひと続きになる。
-   色の面や下線で囲まず、「その頁を開いている」ことを形で示す。 */
+/* ナビは帳簿の見出し(インデックス)の札。開いていない札は文字だけで、
+   現在地の札だけが、下の紙面(--hr-bg)が立ち上がった形になる。
+   線や色の帯で印を付けず、肩の丸みと、下罫へなだらかに広がる裾の輪郭だけで示す。 */
 .topbar-nav {
+	--tab-curve: 9px;
 	display: flex;
 	align-self: stretch;
-	gap: 0.125rem;
-	margin-right: auto;
+	gap: 0.25rem;
+	margin-right: 0.75rem;
 }
 
 .topbar-nav .nav-link {
+	position: relative;
 	display: flex;
 	align-items: center;
 	padding: 0 1.15rem;
@@ -74,20 +76,12 @@
 	letter-spacing: 0.02em;
 	color: var(--hr-text-muted);
 	text-decoration: none;
-	border: 1px solid transparent;
-	border-bottom: 0;
-	border-radius: var(--hr-radius-sm) var(--hr-radius-sm) 0 0;
-	transition:
-		color 0.15s ease,
-		background-color 0.15s ease,
-		border-color 0.15s ease;
+	border-radius: var(--tab-curve) var(--tab-curve) 0 0;
+	transition: color 0.15s ease;
 }
 
-/* 開いていない札は、触れたときだけ札の形がうっすら見える */
 .topbar-nav .nav-link:hover {
 	color: var(--hr-text);
-	background: var(--hr-surface-hover);
-	border-color: var(--hr-border);
 	text-decoration: none;
 }
 
@@ -95,15 +89,43 @@
 	outline-offset: -3px;
 }
 
-/* 現在地。上端に墨の背、左右に罫、下は紙面へ抜ける(トップバーの下罫を 1px 覆う) */
-.topbar-nav .nav-link.active,
-.topbar-nav .nav-link.active:hover {
+/* 現在地の札。下罫を 1px 覆って紙面とつながり、輪郭は札の形に沿った細い影で描く
+   (下向きの影は付けない。付けると紙面との境に線が出る) */
+.topbar-nav .nav-link.active {
 	margin-bottom: -1px;
 	color: var(--hr-text);
 	font-weight: 650;
 	background: var(--hr-bg);
-	border-color: var(--hr-border-strong);
-	box-shadow: inset 0 2px var(--hr-text);
+	filter: drop-shadow(0 -1px 0 var(--hr-border-strong)) drop-shadow(1px 0 0 var(--hr-border))
+		drop-shadow(-1px 0 0 var(--hr-border));
+}
+
+/* 札の裾。下罫に向かって外へ反る曲線を、紙面の色で左右に足す */
+.topbar-nav .nav-link.active::before,
+.topbar-nav .nav-link.active::after {
+	content: "";
+	position: absolute;
+	bottom: 0;
+	width: var(--tab-curve);
+	height: var(--tab-curve);
+}
+
+.topbar-nav .nav-link.active::before {
+	left: calc(var(--tab-curve) * -1);
+	background: radial-gradient(
+		circle at 0 0,
+		transparent calc(var(--tab-curve) - 0.5px),
+		var(--hr-bg) calc(var(--tab-curve) + 0.5px)
+	);
+}
+
+.topbar-nav .nav-link.active::after {
+	right: calc(var(--tab-curve) * -1);
+	background: radial-gradient(
+		circle at 100% 0,
+		transparent calc(var(--tab-curve) - 0.5px),
+		var(--hr-bg) calc(var(--tab-curve) + 0.5px)
+	);
 }
 
 /* ----- ベル(アプリ内通知) ----- */
@@ -234,9 +256,7 @@
 .user-menu-container {
 	position: relative;
 	flex-shrink: 0;
-	margin-left: 0.5rem;
-	padding-left: 0.75rem;
-	border-left: 1px solid var(--hr-border);
+	margin-left: 0.25rem;
 }
 
 .user-menu-trigger {
@@ -528,30 +548,26 @@
 		display: flex;
 	}
 
-	/* ナビが畳まれるので、通知とアカウントを右へ寄せる */
-	.notification-bell {
-		margin-left: auto;
-	}
-
-	/* 縦に開いたメニューでは札の形にせず、左に墨の線を引く */
+	/* 札がないので、中身を下げない */
 	.dashboard-topbar {
 		padding-top: 0;
 	}
 
-	.topbar-nav .nav-link,
-	.topbar-nav .nav-link:hover {
+	/* 縦に開いたメニューでは札の形にせず、地の色と字の太さで現在地を示す */
+	.topbar-nav .nav-link {
 		padding: 0.65rem 0.9rem;
-		border: 0;
-		border-left: 2px solid transparent;
-		border-radius: 0;
+		border-radius: var(--hr-radius-sm);
 	}
 
-	.topbar-nav .nav-link.active,
-	.topbar-nav .nav-link.active:hover {
+	.topbar-nav .nav-link.active {
 		margin-bottom: 0;
 		background: var(--hr-surface-hover);
-		box-shadow: none;
-		border-left-color: var(--hr-text);
+		filter: none;
+	}
+
+	.topbar-nav .nav-link.active::before,
+	.topbar-nav .nav-link.active::after {
+		display: none;
 	}
 }
 

@@ -30,14 +30,14 @@ it("checks unsaved work after download and never installs when the user continue
 	mocks.check.mockResolvedValue(update);
 	mocks.confirmDiscard.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
 	render(() => <AutoUpdateNotification />);
-	fireEvent.click(await screen.findByRole("button", { name: "更新して再起動" }));
+	fireEvent.click(await screen.findByRole("button", { name: "今すぐ更新" }));
 	await waitFor(() => expect(update.download).toHaveBeenCalledOnce());
 	expect(mocks.confirmDiscard).not.toHaveBeenCalled();
 	finish();
 	await waitFor(() => expect(mocks.confirmDiscard).toHaveBeenCalledOnce());
 	expect(update.install).not.toHaveBeenCalled();
 	expect(mocks.relaunch).not.toHaveBeenCalled();
-	fireEvent.click(await screen.findByRole("button", { name: "更新して再起動" }));
+	fireEvent.click(await screen.findByRole("button", { name: "今すぐ更新" }));
 	await waitFor(() => expect(update.install).toHaveBeenCalledOnce());
 	expect(update.download).toHaveBeenCalledOnce();
 	expect(mocks.confirmDiscard).toHaveBeenCalledTimes(2);

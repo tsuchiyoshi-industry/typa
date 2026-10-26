@@ -154,7 +154,7 @@ const AutoUpdateNotification: Component = () => {
 	};
 
 	const relaunchApp = async () => {
-		// 秒読み中に「今すぐ再起動」を押されても、秒読みが二重に再起動を呼ばないよう先に止める
+		// 秒読み中に「今すぐ開き直す」を押されても、秒読みが二重に再起動を呼ばないよう先に止める
 		if (restartTimer !== undefined) {
 			window.clearInterval(restartTimer);
 			restartTimer = undefined;
@@ -167,7 +167,7 @@ const AutoUpdateNotification: Component = () => {
 			await relaunch();
 		} catch (error) {
 			setStatus("error");
-			setErrorMessage(describeError(error, "アプリの再起動に失敗しました。"));
+			setErrorMessage(describeError(error, "アプリを開き直せませんでした。"));
 		}
 	};
 
@@ -262,7 +262,7 @@ const AutoUpdateNotification: Component = () => {
 							</Match>
 							<Match when={status() === "restarting"}>
 								<strong>更新をインストールしました</strong>
-								<span>{restartCountdown()}秒後に自動で再起動します。</span>
+								<span>{restartCountdown()}秒後にアプリを開き直します。</span>
 							</Match>
 							<Match when={status() === "error"}>
 								<strong>更新処理で問題が発生しました</strong>
@@ -282,7 +282,7 @@ const AutoUpdateNotification: Component = () => {
 					<Show when={status() === "available"}>
 						<button type="button" class="auto-update-primary" onClick={() => void installUpdate()}>
 							<Download size={16} />
-							<span>更新して再起動</span>
+							<span>今すぐ更新</span>
 						</button>
 						<button type="button" class="auto-update-secondary" onClick={dismiss}>
 							あとで
@@ -291,7 +291,7 @@ const AutoUpdateNotification: Component = () => {
 					<Show when={status() === "restarting"}>
 						<button type="button" class="auto-update-primary" onClick={() => void relaunchApp()}>
 							<RotateCw size={16} />
-							<span>今すぐ再起動</span>
+							<span>今すぐ開き直す</span>
 						</button>
 						<button type="button" class="auto-update-secondary" onClick={postponeRelaunch}>
 							あとで

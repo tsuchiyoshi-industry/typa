@@ -219,8 +219,6 @@ CONSTRAINT notifications notifications_pkey PRIMARY KEY (id)
 CONSTRAINT notifications notifications_recipient_employee_id_fkey FOREIGN KEY (recipient_employee_id) REFERENCES employees(id) ON DELETE CASCADE
 CONSTRAINT notifications notifications_sheet_id_fkey FOREIGN KEY (sheet_id) REFERENCES evaluation_sheets(id) ON DELETE CASCADE
 CONSTRAINT privileged_sheet_context privileged_sheet_context_pkey PRIMARY KEY (transaction_id, sheet_id)
-CONSTRAINT privileged_sheet_context privileged_sheet_context_sheet_id_not_null NOT NULL sheet_id
-CONSTRAINT privileged_sheet_context privileged_sheet_context_transaction_id_not_null NOT NULL transaction_id
 CONSTRAINT registration_tickets registration_tickets_employee_id_fkey FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
 CONSTRAINT registration_tickets registration_tickets_pkey PRIMARY KEY (employee_id)
 CONSTRAINT roles roles_pkey PRIMARY KEY (id)

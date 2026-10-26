@@ -44,6 +44,8 @@ VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 | `bun run test:rust --release` | PDF生成などのRustテスト |
 | `bun run fix` | Biomeによる整形と検査 |
 
+`test:e2e` と `docs:user-manual` はローカル Supabase が必要です。Docker Desktop を起動し、TYPA のコンテナがまだ動いていなければ、プロジェクトのルートで `bunx supabase@2.121.0 start` を実行します。Docker と PostgreSQL の起動が完了してから、`bun run docs:user-manual` を実行してください。起動前チェックで、Docker への接続、必要なコンテナ、PostgreSQL の準備状態を確認します。
+
 本番ビルドは HTTPS の接続先、公開キー、CSP の接続許可を検査します。接続先を変える場合は `src-tauri/tauri.conf.json` の `csp`・`devCsp` も合わせます。
 
 ## DBと通知

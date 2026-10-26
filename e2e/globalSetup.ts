@@ -14,7 +14,7 @@ export default async function globalSetup() {
 		shell: true,
 	});
 	if (prepared.status !== 0) {
-		throw new Error("Could not prepare the e2e database. Is local Supabase running?");
+		throw new Error("隔離DB typa_e2e の準備に失敗しました。直前に表示された起動・検証エラーを確認してください。");
 	}
 	const api = await startIsolatedApi("typa_e2e");
 	api.sql(readFileSync("security/release-fixture.sql", "utf8"));

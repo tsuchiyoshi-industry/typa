@@ -2,12 +2,14 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { assertLocalSupabaseReady } from "./localSupabase";
 
 const target = process.argv[2];
 assert.ok(
 	["typa_release_verify", "typa_release_fresh", "typa_e2e"].includes(target),
 	"Only isolated release databases may be prepared.",
 );
+assertLocalSupabaseReady();
 const docker = (args: string[], input?: string) => {
 	const r = spawnSync("docker", args, { input, encoding: "utf8" });
 	if (r.status !== 0) {

@@ -53,7 +53,9 @@ from (
   select 'CONSTRAINT ' || c.conrelid::regclass || ' ' || c.conname || ' '
          || regexp_replace(pg_get_constraintdef(c.oid), '\s+', ' ', 'g')
   from pg_constraint c join pg_namespace n on n.oid = c.connamespace
-  where n.nspname = 'public'
+  -- PostgreSQL 18 also lists NOT NULL in pg_constraint. Column nullability is
+  -- already checked by COLUMN facts above; avoid version-specific duplicates.
+  where n.nspname = 'public' and c.contype <> 'n'
   union all
   -- Platform-owned default ACLs vary by Supabase version; app migrations own postgres defaults.
   select 'SCHEMA public ' || r || ' usage=' || has_schema_privilege(r, 'public', 'usage')

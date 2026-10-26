@@ -36,4 +36,20 @@ it("ignores checkout line endings in function hashes while still detecting chang
 	const windows = await functionFact("\r\nselect 1;\r\n");
 	expect(await functionFact("\nselect 1;\n")).toBe(windows);
 	expect(await functionFact("\nselect 2;\n")).not.toBe(windows);
+
+	// PG18 で増えた NOT NULL の制約行に頼らず、PG17 と同じ列の事実で必須性を検査する。
+	await db.exec("create table public.inventory_nullability(required integer not null)");
+	const columnFacts = async () =>
+		(await db.query<{ line: string }>(inventory)).rows.map(({ line }) => line);
+	const required = await columnFacts();
+	expect(required).toContain("COLUMN inventory_nullability.required integer null=NO default=-");
+	expect(
+		required.some(
+			(line) => line.startsWith("CONSTRAINT inventory_nullability ") && line.includes("NOT NULL"),
+		),
+	).toBe(false);
+	await db.exec("alter table public.inventory_nullability alter column required drop not null");
+	expect(await columnFacts()).toContain(
+		"COLUMN inventory_nullability.required integer null=YES default=-",
+	);
 });

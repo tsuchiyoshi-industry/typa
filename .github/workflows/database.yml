@@ -35,10 +35,28 @@ jobs:
           bun scripts/prepareReleaseDb.ts typa_release_verify
           bun scripts/verifyReleaseDb.ts typa_release_verify
           bun scripts/verifyReleaseApi.ts typa_release_verify
-      - name: Exercise the UI end to end against the same platform
+      - name: Cache Playwright browsers
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+      - name: Install Chromium and Japanese fonts for screenshots
         run: |
           bunx playwright install --with-deps chromium
-          bun run test:e2e
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+      - name: Exercise the UI end to end against the same platform
+        run: bun run test:e2e
+      # E2E を通った同じ環境で、マニュアルの画面写真と PDF を一度だけ作る。リリースはこれを使い回す
+      - name: Take manual screenshots and PDFs
+        run: bun run docs:user-manual
+      - uses: actions/upload-artifact@v7
+        with:
+          name: manual
+          path: |
+            docs/manual/**/*.png
+            docs/manual/*.pdf
+          if-no-files-found: error
+          retention-days: 7
       - if: failure()
         uses: actions/upload-artifact@v7
         with:

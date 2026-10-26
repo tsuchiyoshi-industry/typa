@@ -40,7 +40,7 @@ VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 | `bun run check` | Biome の整形・lint・import 順を検査（警告も失敗扱い） |
 | `bun run test:coverage` | TypeScript・画面・SQLのテストとカバレッジ |
 | `bun run test:e2e` | 画面のE2E（Playwright）。ローカル Supabase を起動しておく。検証用DB `typa_e2e` を作り直して使い、開発用DBには触れない |
-| `bun run docs:user-manual` | [利用者](manual/user.md)・[評価者](manual/evaluator.md)・[管理者](manual/admin.md)のマニュアルの画面写真を、それぞれの権限でログインして撮り直し、`docs/manual/*.pdf` を作る。E2E と同じ `typa_e2e` を使う |
+| `bun run docs:user-manual` | [利用者](manual/user.md)・[評価者](manual/evaluator.md)・[管理者](manual/admin.md)のマニュアルの画面写真を、それぞれの権限でログインして撮り直し、`docs/manual/*.pdf` を作る。E2E と同じ `typa_e2e` を使う。写真と PDF は git に置かず、CI が E2E の後に作ってリリースに添える（写真はアプリのヘルプにも入る）。手元で確かめたいときだけ実行する。撮っていなくても、アプリはヘルプの写真なしでビルド・テストできる |
 | `bun run test:rust --release` | PDF生成などのRustテスト |
 | `bun run fix` | Biomeによる整形と検査 |
 

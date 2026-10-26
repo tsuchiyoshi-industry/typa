@@ -36,7 +36,15 @@ export default async function globalSetup() {
 	// Workers inherit these; tests use them only for what a person would read from email.
 	process.env.E2E_API_URL = api.base;
 	process.env.E2E_SERVICE_KEY = api.jwt("service_role");
-	const vite = await createServer({ server: { port: E2E_PORT, strictPort: true } });
+	// ログイン後の画面は数百のモジュール(多くはアイコン)を初めて変換するので、混んだ PC では
+	// 最初のテストが待ちきれない。起動と同時に変換を済ませておく
+	const vite = await createServer({
+		server: {
+			port: E2E_PORT,
+			strictPort: true,
+			warmup: { clientFiles: ["./src/**/*.tsx", "!./src/**/*.test.tsx"] },
+		},
+	});
 	await vite.listen();
 
 	// CI では、起動直後の Vite で最初に開いたページだけがログイン画面を出さないまま戻らない

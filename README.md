@@ -43,7 +43,7 @@
 
 ## 導入・保守の資料
 
-- マニュアル（画面つき・PDFあり）：[利用者](docs/manual/user.md)・[評価者](docs/manual/evaluator.md)・[管理者](docs/manual/admin.md)
+- マニュアル（画面写真入りの PDF は各リリースに添付）：[利用者](docs/manual/user.md)・[評価者](docs/manual/evaluator.md)・[管理者](docs/manual/admin.md)
 - [環境の初期構築と運用手順](docs/supabase-setup.md)
 - [リリース・更新手順と検証結果](docs/release-readiness.md)
 - [開発・ビルド・PDFの変更](docs/development.md)

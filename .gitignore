@@ -9,3 +9,7 @@ playwright-report
 .env.*.local
 
 tables.md
+
+# マニュアルの画面写真と PDF は CI が撮って作る(手描きの図 *.svg は管理する)
+docs/manual/**/*.png
+docs/manual/*.pdf

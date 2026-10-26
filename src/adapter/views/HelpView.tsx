@@ -7,20 +7,12 @@ import PencilLine from "lucide-solid/icons/pencil-line";
 import X from "lucide-solid/icons/x";
 import ZoomIn from "lucide-solid/icons/zoom-in";
 import { type Component, createSignal, For, Show } from "solid-js";
-import reviewerListImage from "../../../docs/manual/evaluator/01-workspace.png";
-import scoreImage from "../../../docs/manual/evaluator/03-goal-score.png";
-import confirmImage from "../../../docs/manual/evaluator/06-confirm-first.png";
-import registrationImage from "../../../docs/manual/user/03-register-code.png";
-import createSheetImage from "../../../docs/manual/user/05-new-sheet.png";
-import goalImage from "../../../docs/manual/user/07-goal.png";
-import submitImage from "../../../docs/manual/user/08-submit.png";
-import resultImage from "../../../docs/manual/user/10-sheet-list-final.png";
-import previousGoalsImage from "../../../docs/manual/user/15-previous-goals.png";
-import correctionsImage from "../../../docs/manual/user/16-corrections.png";
+import { helpShot } from "./helpShots";
 import "./styles/help.css";
 
 interface HelpImage {
-	src: string;
+	/** マニュアルの画面写真の名前。写真が無ければ表示しない(helpShots)。 */
+	shot: string;
 	caption: string;
 	width: number;
 	height: number;
@@ -29,32 +21,52 @@ interface HelpImage {
 
 const IMAGES = {
 	create: {
-		src: createSheetImage,
+		shot: "user/05-new-sheet",
 		caption: "評価期間の選択・シート作成",
 		width: 1280,
 		height: 800,
 		preview: { x: 24, y: 156, width: 536, height: 278 },
 	},
-	goal: { src: goalImage, caption: "目標の入力と保存", width: 1216, height: 926 },
+	goal: { shot: "user/07-goal", caption: "目標の入力と保存", width: 1216, height: 926 },
 	submit: {
-		src: submitImage,
+		shot: "user/08-submit",
 		caption: "目標送信の確認",
 		width: 1280,
 		height: 800,
 		preview: { x: 404, y: 251, width: 472, height: 298 },
 	},
-	review: { src: reviewerListImage, caption: "評価対象の一覧", width: 1280, height: 800 },
-	score: { src: scoreImage, caption: "目標の採点", width: 1280, height: 800 },
-	confirm: { src: confirmImage, caption: "一次評価の確定", width: 1280, height: 800 },
-	registration: { src: registrationImage, caption: "新規登録の入力項目", width: 1280, height: 800 },
-	result: { src: resultImage, caption: "評価結果のPDF出力", width: 1280, height: 800 },
+	review: { shot: "evaluator/01-workspace", caption: "評価対象の一覧", width: 1280, height: 800 },
+	score: { shot: "evaluator/03-goal-score", caption: "目標の採点", width: 1280, height: 800 },
+	confirm: {
+		shot: "evaluator/06-confirm-first",
+		caption: "一次評価の確定",
+		width: 1280,
+		height: 800,
+	},
+	registration: {
+		shot: "user/03-register-code",
+		caption: "新規登録の入力項目",
+		width: 1280,
+		height: 800,
+	},
+	result: {
+		shot: "user/10-sheet-list-final",
+		caption: "評価結果のPDF出力",
+		width: 1280,
+		height: 800,
+	},
 	previous: {
-		src: previousGoalsImage,
+		shot: "user/15-previous-goals",
 		caption: "前期のチャレンジ目標",
 		width: 1216,
 		height: 274,
 	},
-	corrections: { src: correctionsImage, caption: "締め後修正の記録", width: 1216, height: 243 },
+	corrections: {
+		shot: "user/16-corrections",
+		caption: "締め後修正の記録",
+		width: 1216,
+		height: 243,
+	},
 } satisfies Record<string, HelpImage>;
 
 const TOPIC_IMAGES: Record<string, HelpImage | undefined> = {
@@ -80,36 +92,40 @@ const previewStyle = (image: HelpImage) => {
 const HelpScreenshot: Component<{ image: HelpImage; onOpen: (image: HelpImage) => void }> = (
 	props,
 ) => (
-	<figure class="help-guide__screenshot">
-		<button
-			type="button"
-			class="help-guide__image-button"
-			aria-label={`${props.image.caption}を拡大`}
-			aria-haspopup="dialog"
-			aria-controls="help-image-viewer"
-			onClick={() => props.onOpen(props.image)}
-		>
-			<div
-				class="help-guide__preview"
-				classList={{ "help-guide__preview--cropped": !!props.image.preview }}
-				style={previewStyle(props.image)}
-			>
-				<img
-					src={props.image.src}
-					alt={props.image.caption}
-					width={props.image.width}
-					height={props.image.height}
-					loading="lazy"
-					decoding="async"
-				/>
-			</div>
-			<span>
-				<ZoomIn size={16} aria-hidden="true" />
-				拡大
-			</span>
-		</button>
-		<figcaption>{props.image.caption}</figcaption>
-	</figure>
+	<Show when={helpShot(props.image.shot)}>
+		{(src) => (
+			<figure class="help-guide__screenshot">
+				<button
+					type="button"
+					class="help-guide__image-button"
+					aria-label={`${props.image.caption}を拡大`}
+					aria-haspopup="dialog"
+					aria-controls="help-image-viewer"
+					onClick={() => props.onOpen(props.image)}
+				>
+					<div
+						class="help-guide__preview"
+						classList={{ "help-guide__preview--cropped": !!props.image.preview }}
+						style={previewStyle(props.image)}
+					>
+						<img
+							src={src()}
+							alt={props.image.caption}
+							width={props.image.width}
+							height={props.image.height}
+							loading="lazy"
+							decoding="async"
+						/>
+					</div>
+					<span>
+						<ZoomIn size={16} aria-hidden="true" />
+						拡大
+					</span>
+				</button>
+				<figcaption>{props.image.caption}</figcaption>
+			</figure>
+		)}
+	</Show>
 );
 
 const GUIDES = {
@@ -438,7 +454,7 @@ const HelpView: Component = () => {
 							</header>
 							<div class="help-image-viewer__body">
 								<img
-									src={image().src}
+									src={helpShot(image().shot)}
 									alt={image().caption}
 									width={image().width}
 									height={image().height}

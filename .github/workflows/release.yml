@@ -102,6 +102,13 @@ jobs:
         shell: bash
         run: bun install --frozen-lockfile
 
+      # checks が撮ったマニュアルの写真と PDF。写真はアプリのヘルプに入り、PDF はリリースに添える
+      - name: Download manual
+        uses: actions/download-artifact@v8
+        with:
+          name: manual
+          path: docs/manual
+
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
@@ -142,6 +149,16 @@ jobs:
             echo "No bundle artifacts found"
             exit 1
           fi
+
+      # リリースの一覧で何の PDF か分かる名前で添える
+      - name: Name manual PDFs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p manual
+          cp docs/manual/user.pdf manual/TYPA利用者向けユーザガイド.pdf
+          cp docs/manual/evaluator.pdf manual/TYPA評価者向けユーザガイド.pdf
+          cp docs/manual/admin.pdf manual/TYPA管理者向けユーザガイド.pdf
 
       - name: Generate release notes
         shell: bash
@@ -249,3 +266,4 @@ jobs:
             src-tauri/target/release/bundle/**/*.AppImage
             src-tauri/target/release/bundle/**/*.AppImage.sig
             latest.json
+            manual/*.pdf

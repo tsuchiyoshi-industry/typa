@@ -30,7 +30,7 @@ const ThemeMenuItem: Component = () => {
 	return (
 		<button type="button" class="user-menu-item" onClick={toggle}>
 			{isDark() ? <Sun size={18} /> : <Moon size={18} />}
-			<span>{isDark() ? "ライトテーマにする" : "ダークテーマにする"}</span>
+			<span>{isDark() ? "明るくする" : "暗くする"}</span>
 		</button>
 	);
 };

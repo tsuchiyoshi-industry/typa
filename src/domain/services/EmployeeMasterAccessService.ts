@@ -37,6 +37,9 @@ export const canRunSetup = adminOnly;
 /** 遡及処理(締めた評価期間のシートを、開き直さずに直す)は Admin だけが行える。 */
 export const canCorrectClosedSheets = adminOnly;
 
+/** 通常の承認・期間の制約を越えたシートの操作。必ず DB が監査記録を残す。 */
+export const canRunPrivilegedOperations = adminOnly;
+
 /**
  * 全社員の評価シートを一覧で見て、PDF に出せるのは Admin だけ。一覧には進み具合と評価者、
  * 確定した結果が、PDF にはさらに段ごとのランクと総評が載る。

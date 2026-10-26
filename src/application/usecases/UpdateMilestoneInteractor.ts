@@ -1,9 +1,9 @@
 import type { EvaluationSheet } from "../../domain/entities/EvaluationSheet";
 import { Milestone } from "../../domain/entities/Milestone";
 import type { MilestoneError } from "../../domain/entities/MilestoneError";
+import { err, ok, type Result } from "../../domain/Result";
 import type { EvaluationSheetRepository } from "../../domain/repositories/EvaluationSheetRepository";
 import type { MilestoneRepository } from "../../domain/repositories/MilestoneRepository";
-import { err, ok, type Result } from "../../domain/Result";
 import { EvaluationSheetAccessPolicy } from "../../domain/services/EvaluationSheetAccessPolicy";
 import type { SheetAccessError } from "../../domain/services/SheetAccessError";
 import type { PeriodGoal } from "../../domain/valueObjects/PeriodGoal";
@@ -57,7 +57,8 @@ type Outcome<T> = Result<T, UpdateMilestoneError>;
 
 /** 書き込む前に、対象・権限・値をすべて確かめる。見せてよい点数は、保存後に読み直したシートで決める。 */
 export class UpdateMilestoneInteractor
-	implements FallibleUseCase<UpdateMilestoneRequest, UpdateMilestoneOutputPort, UpdateMilestoneError>
+	implements
+		FallibleUseCase<UpdateMilestoneRequest, UpdateMilestoneOutputPort, UpdateMilestoneError>
 {
 	constructor(
 		private readonly milestoneRepository: MilestoneRepository,
@@ -191,7 +192,11 @@ export class UpdateMilestoneInteractor
 			return next;
 		}
 
-		const text = [next.value.challengeGoal, next.value.periodGoals, next.value.achievement] as const;
+		const text = [
+			next.value.challengeGoal,
+			next.value.periodGoals,
+			next.value.achievement,
+		] as const;
 		if (changes.action === "text") {
 			await this.milestoneRepository.updateText(current.id, ...text);
 			return ok(await this.reload(sheet, (objective) => objective.id === current.id));

@@ -8,7 +8,9 @@ export default defineConfig({
 	plugins: [solid({ hot: false })],
 	resolve: { conditions: ["development", "browser"] },
 	test: {
-		pool: "threads",
+		// PGlite の WASM と happy-dom を、ファイルごとにプロセスごと破棄する。
+		// threads は Windows/Node で初期化・終了が滞り、次の worker の起動までタイムアウトした。
+		pool: "forks",
 		maxWorkers: 2,
 		clearMocks: true,
 		restoreMocks: true,

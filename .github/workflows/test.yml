@@ -26,6 +26,7 @@ jobs:
           bun-version: latest
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
+      - run: bun run check
       - run: bunx playwright install chromium
       - run: bun run test:coverage
       - run: bun audit

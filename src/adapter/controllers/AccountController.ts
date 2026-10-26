@@ -13,6 +13,7 @@ import type { WorkspaceSettingsRepository } from "../../domain/repositories/Work
 import {
 	canCorrectClosedSheets,
 	canEditSettings,
+	canRunPrivilegedOperations,
 	canRunSetup,
 } from "../../domain/services/EmployeeMasterAccessService";
 
@@ -24,6 +25,7 @@ export interface CurrentUserDto {
 	canViewSettings: boolean;
 	canRunSetup: boolean;
 	canCorrectClosedSheets: boolean;
+	canRunPrivilegedOperations: boolean;
 }
 
 /** ログイン画面の操作。ログインと登録の手順は use case が持ち、画面は結果に応じた表示だけをする。 */
@@ -55,6 +57,7 @@ export class AccountController {
 				canViewSettings: canEditSettings(person.role),
 				canRunSetup: canRunSetup(person.role),
 				canCorrectClosedSheets: canCorrectClosedSheets(person.role),
+				canRunPrivilegedOperations: canRunPrivilegedOperations(person.role),
 			}
 		);
 	}

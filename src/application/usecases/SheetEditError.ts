@@ -25,7 +25,11 @@ export type SheetRequestError =
 	| { kind: "commonItemInvalid" };
 
 /** 評価シートを扱うユースケースが返し得る失敗のすべて。各ユースケースは、このうち起こり得るものだけを返す。 */
-export type SheetEditError = SheetRequestError | SheetAccessError | MilestoneError | SheetTransitionError;
+export type SheetEditError =
+	| SheetRequestError
+	| SheetAccessError
+	| MilestoneError
+	| SheetTransitionError;
 
 /** SheetRequestError のうち、kinds の失敗だけ。 */
 export type RequestErrorOf<K extends SheetRequestError["kind"]> = Extract<

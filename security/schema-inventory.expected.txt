@@ -118,6 +118,8 @@ COLUMN notifications.period_name text null=NO default=-
 COLUMN notifications.read_at timestamp with time zone null=YES default=-
 COLUMN notifications.recipient_employee_id integer null=NO default=-
 COLUMN notifications.sheet_id bigint null=NO default=-
+COLUMN privileged_sheet_context.sheet_id bigint null=NO default=-
+COLUMN privileged_sheet_context.transaction_id bigint null=NO default=-
 COLUMN registration_tickets.contact_email text null=NO default=-
 COLUMN registration_tickets.employee_id integer null=NO default=-
 COLUMN registration_tickets.expires_at timestamp with time zone null=NO default=-
@@ -216,6 +218,9 @@ CONSTRAINT notifications notifications_kind_check CHECK ((kind = ANY (ARRAY['goa
 CONSTRAINT notifications notifications_pkey PRIMARY KEY (id)
 CONSTRAINT notifications notifications_recipient_employee_id_fkey FOREIGN KEY (recipient_employee_id) REFERENCES employees(id) ON DELETE CASCADE
 CONSTRAINT notifications notifications_sheet_id_fkey FOREIGN KEY (sheet_id) REFERENCES evaluation_sheets(id) ON DELETE CASCADE
+CONSTRAINT privileged_sheet_context privileged_sheet_context_pkey PRIMARY KEY (transaction_id, sheet_id)
+CONSTRAINT privileged_sheet_context privileged_sheet_context_sheet_id_not_null NOT NULL sheet_id
+CONSTRAINT privileged_sheet_context privileged_sheet_context_transaction_id_not_null NOT NULL transaction_id
 CONSTRAINT registration_tickets registration_tickets_employee_id_fkey FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
 CONSTRAINT registration_tickets registration_tickets_pkey PRIMARY KEY (employee_id)
 CONSTRAINT roles roles_pkey PRIMARY KEY (id)
@@ -248,7 +253,7 @@ FUNCTION can_transition_sheet(evaluation_sheets,text,integer) definer=false anon
 FUNCTION carry_over_goal(bigint,bigint) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=a915ab803caef129594ecec4b6d4349a
 FUNCTION changed_columns(jsonb,jsonb) definer=false anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=5a3f7369be904b9ff458a6e5b80bc6f2
 FUNCTION check_challenge_goal_number() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=8508db91753240b9a1c1a9e5ce7d55af
-FUNCTION check_evaluation_completion() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=ff43729b43c583d1f126ffbceb624caf
+FUNCTION check_evaluation_completion() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=621cc2d0d8726c80cb2b665363ea5713
 FUNCTION check_milestone_achievement_placement() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=b191362f9bd785b62a624c107bd5bab0
 FUNCTION check_user_limit() definer=true anon=false authenticated=false service_role=true auth_admin=false config=- md5=71d1ea349152ed5ab2cd3514f88b5681
 FUNCTION claim_sheet_notification(bigint,uuid) definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=c842799d2bdf95306f531fe83bdceafa
@@ -281,19 +286,21 @@ FUNCTION guard_milestone_write() definer=false anon=false authenticated=true ser
 FUNCTION hook_before_user_created(jsonb) definer=true anon=false authenticated=false service_role=true auth_admin=true config={"search_path=\"\""} md5=168993d16d5254dfefe8634a2eecf7e9
 FUNCTION import_sheet_data(jsonb,jsonb,boolean) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=d39a21e7a5b2520c984db109a3b3a627
 FUNCTION is_current_evaluator_of(integer) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=ec3da46d3c72021039e51b463f8163e0
+FUNCTION is_privileged_sheet_operation(bigint) definer=true anon=false authenticated=false service_role=false auth_admin=false config={"search_path=\"\""} md5=2684172ec92dca68e28bfdf073fa6eb2
 FUNCTION issue_employee_invitation(text) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=5a0a8587d455f8934e6013a5add1c487
 FUNCTION issue_pending_employee_invitations() definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=587e00f4bd6ce2ab6354cb5b48c7db02
 FUNCTION lock_employee_administration() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=ca0590d5aedbe55640c261bb9f8cd068
 FUNCTION lock_evaluation_sheet(bigint) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=ee701b7ab71476d24a520441d88c9e5b
 FUNCTION lock_sheet_content_write() definer=false anon=true authenticated=true service_role=true auth_admin=true config={"search_path=\"\""} md5=da9c80c007a4d8b63ce9bc5537e33579
 FUNCTION next_evaluator_of(evaluation_sheets) definer=false anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=4f72eac31123b01f3e9259692372d001
-FUNCTION notify_next_evaluator() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=458a9be527c1fe1d042d3da912101196
+FUNCTION notify_next_evaluator() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=ed7fa5b2098f40a5e9e8de80d064417c
 FUNCTION pre_register_employee(text,text,smallint,text,text,text,boolean) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=a0740d9a885fbba877b743feb5bca6b5
 FUNCTION previous_evaluation_period(bigint) definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=7aeaaf43cfa45f1bd1ffefd3322e2af6
 FUNCTION previous_evaluation_sheet(bigint) definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=c2111e15a539aa409c4bbdc1caca02ee
+FUNCTION privileged_sheet_operation(bigint,text,text,text,text) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=45ea790324810f1f301903e00f11d5f9
 FUNCTION recalculate_corrected_sheet(bigint) definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=f01f3e51d5cfefac66ffb2378997fc9c
 FUNCTION refresh_notification_revision() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=0bd00eeda7c59397006c3b29195cb63c
-FUNCTION require_active_evaluation_period() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=1334b74b37137af832397c07a940b17e
+FUNCTION require_active_evaluation_period() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=799392a6920f4469a92b10fdb8d4b15e
 FUNCTION require_another_usable_admin(integer) definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=42f190502c34f2fea973ddcbf49677a2
 FUNCTION reset_employee_registration(text) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=757797c046bd01bfd0d07f1c09873733
 FUNCTION reviewer_sheet_snapshot(bigint,text) definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=009d363a56657e1947e6ac962bd10310
@@ -368,6 +375,7 @@ INDEX CREATE UNIQUE INDEX milestones_pkey ON public.milestones USING btree (id)
 INDEX CREATE UNIQUE INDEX milestones_sheet_carried_from_key ON public.milestones USING btree (sheet_id, carried_from_id) WHERE (carried_from_id IS NOT NULL)
 INDEX CREATE UNIQUE INDEX milestones_sheet_id_goal_number_key ON public.milestones USING btree (sheet_id, goal_number)
 INDEX CREATE UNIQUE INDEX notifications_pkey ON public.notifications USING btree (id)
+INDEX CREATE UNIQUE INDEX privileged_sheet_context_pkey ON public.privileged_sheet_context USING btree (transaction_id, sheet_id)
 INDEX CREATE UNIQUE INDEX registration_tickets_pkey ON public.registration_tickets USING btree (employee_id)
 INDEX CREATE UNIQUE INDEX roles_pkey ON public.roles USING btree (id)
 INDEX CREATE UNIQUE INDEX roles_role_name_key ON public.roles USING btree (role_name)
@@ -427,6 +435,7 @@ TABLE evaluation_settings rls=true
 TABLE evaluation_sheets rls=true
 TABLE milestones rls=true
 TABLE notifications rls=true
+TABLE privileged_sheet_context rls=true
 TABLE registration_tickets rls=true
 TABLE roles rls=true
 TABLE security_audit_log rls=true

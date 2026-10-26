@@ -7,6 +7,7 @@ import Menu from "lucide-solid/icons/menu";
 import PackageOpen from "lucide-solid/icons/package-open";
 // "lucide-solid/icons/menu";
 import Settings from "lucide-solid/icons/settings";
+import ShieldAlert from "lucide-solid/icons/shield-alert";
 import User from "lucide-solid/icons/user";
 import X from "lucide-solid/icons/x";
 import { type Component, createSignal, type JSX, onCleanup, onMount, Show } from "solid-js";
@@ -147,6 +148,12 @@ const DashboardLayout: Component<{
 								>
 									<FilePenLine size={18} />
 									<span>遡及処理</span>
+								</A>
+							</Show>
+							<Show when={user()?.canRunPrivilegedOperations}>
+								<A href="/privileged" class="user-menu-item" onClick={() => setUserMenuOpen(false)}>
+									<ShieldAlert size={18} />
+									<span>特権操作</span>
 								</A>
 							</Show>
 							<A href="/help" class="user-menu-item" onClick={() => setUserMenuOpen(false)}>

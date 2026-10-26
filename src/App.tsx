@@ -15,6 +15,7 @@ import { CommonEvaluationController } from "./adapter/controllers/CommonEvaluati
 import { EmployeeMasterController } from "./adapter/controllers/EmployeeMasterController";
 import { EvaluationPeriodController } from "./adapter/controllers/EvaluationPeriodController";
 import { NotificationInboxController } from "./adapter/controllers/NotificationInboxController";
+import { PrivilegedOperationsController } from "./adapter/controllers/PrivilegedOperationsController";
 import { RetroactiveCorrectionController } from "./adapter/controllers/RetroactiveCorrectionController";
 import { ReviewerWorkspaceController } from "./adapter/controllers/ReviewerWorkspaceController";
 import { SettingsController } from "./adapter/controllers/SettingsController";
@@ -52,6 +53,7 @@ import {
 } from "./application/usecases/IssueEmployeeInvitationInteractor";
 import { LoadEmployeeMasterInteractor } from "./application/usecases/LoadEmployeeMasterInteractor";
 import { PreRegisterEmployeeInteractor } from "./application/usecases/PreRegisterEmployeeInteractor";
+import { PrivilegedSheetOperationInteractor } from "./application/usecases/PrivilegedSheetOperationInteractor";
 import { RegisterEmployeeAccountInteractor } from "./application/usecases/RegisterEmployeeAccountInteractor";
 import { ResetEmployeeRegistrationInteractor } from "./application/usecases/ResetEmployeeRegistrationInteractor";
 import { SaveEvaluationPeriodInteractor } from "./application/usecases/SaveEvaluationPeriodInteractor";
@@ -80,6 +82,7 @@ import { SupabaseEvaluationSettingsRepository } from "./infrastructure/repositor
 import { SupabaseEvaluationSheetRepository } from "./infrastructure/repositories/SupabaseEvaluationSheetRepository";
 import { SupabaseMilestoneRepository } from "./infrastructure/repositories/SupabaseMilestoneRepository";
 import { SupabaseNotificationInboxRepository } from "./infrastructure/repositories/SupabaseNotificationInboxRepository";
+import { SupabasePrivilegedSheetRepository } from "./infrastructure/repositories/SupabasePrivilegedSheetRepository";
 import { SupabaseReviewerWorkspaceRepository } from "./infrastructure/repositories/SupabaseReviewerWorkspaceRepository";
 import { SupabaseSheetCorrectionRepository } from "./infrastructure/repositories/SupabaseSheetCorrectionRepository";
 import { SupabaseSheetImportRepository } from "./infrastructure/repositories/SupabaseSheetImportRepository";
@@ -98,6 +101,7 @@ const ReviewerWorkspaceView = lazy(() => import("./adapter/views/ReviewerWorkspa
 const SettingsView = lazy(() => import("./adapter/views/SettingsView"));
 const SheetImportView = lazy(() => import("./adapter/views/SheetImportView"));
 const RetroactiveCorrectionView = lazy(() => import("./adapter/views/RetroactiveCorrectionView"));
+const PrivilegedOperationsView = lazy(() => import("./adapter/views/PrivilegedOperationsView"));
 const SetupView = lazy(() => import("./adapter/views/SetupView"));
 const SheetEditorView = lazy(() => import("./adapter/views/SheetEditorView"));
 const SheetListView = lazy(() => import("./adapter/views/SheetListView"));
@@ -110,6 +114,7 @@ const protectedViews = [
 	SetupView,
 	SheetImportView,
 	RetroactiveCorrectionView,
+	PrivilegedOperationsView,
 	SheetEditorView,
 	SheetListView,
 ];
@@ -133,6 +138,15 @@ const reviewerWorkspaceController = new ReviewerWorkspaceController(
 );
 const milestoneRepository = new SupabaseMilestoneRepository();
 const employeeMasterRepository = new SupabaseEmployeeMasterRepository();
+const privilegedOperationsController = new PrivilegedOperationsController(
+	employeeMasterRepository,
+	evaluationPeriodRepository,
+	evaluationSheetRepository,
+	new PrivilegedSheetOperationInteractor(
+		new SupabasePrivilegedSheetRepository(),
+		employeeMasterRepository,
+	),
+);
 const sheetCorrectionRepository = new SupabaseSheetCorrectionRepository();
 const retroactiveCorrectionController = new RetroactiveCorrectionController(
 	evaluationPeriodRepository,
@@ -438,6 +452,12 @@ const App: Component = () => {
 						path="/retroactive"
 						component={() => (
 							<RetroactiveCorrectionView controller={retroactiveCorrectionController} />
+						)}
+					/>
+					<Route
+						path="/privileged"
+						component={() => (
+							<PrivilegedOperationsView controller={privilegedOperationsController} />
 						)}
 					/>
 					<Route path="/help" component={HelpView} />

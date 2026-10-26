@@ -37,6 +37,7 @@ VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 | `bun run build` | フロントエンドのビルド |
 | `bun run tauri build` | デスクトップ配布物のビルド |
 | `bun run typecheck` | 型検査 |
+| `bun run check` | Biome の整形・lint・import 順を検査（警告も失敗扱い） |
 | `bun run test:coverage` | TypeScript・画面・SQLのテストとカバレッジ |
 | `bun run test:e2e` | 画面のE2E（Playwright）。ローカル Supabase を起動しておく。検証用DB `typa_e2e` を作り直して使い、開発用DBには触れない |
 | `bun run docs:user-manual` | [利用者](manual/user.md)・[評価者](manual/evaluator.md)・[管理者](manual/admin.md)のマニュアルの画面写真を、それぞれの権限でログインして撮り直し、`docs/manual/*.pdf` を作る。E2E と同じ `typa_e2e` を使う |
@@ -52,6 +53,22 @@ VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 - 各 SQL の目的と互換性の経緯は [マイグレーションの変更経緯](migration-history.md) に移しました。
 - 通知の方法は Admin が設定画面で選びます（アプリ内通知が既定）。アプリ内通知は、状態の変更と同じトランザクションで DB のトリガーが `notifications` に作り、画面上部のベルで読みます。
 - メールのときは `supabase/functions/notify-sheet` が送信します。アプリは関数名とシートIDを渡し、サーバーが認可・宛先の決定・重複防止を行います。メールアドレスとSMTP認証情報はアプリに返しません。SMTP 設定も、この関数が送信テストに成功したときだけ保存します。
+
+## テストの実行環境
+
+Vitest の Node 側は `forks`、最大2ワーカー、ファイルごとの分離を使います。Windows / Node 26 の `threads` では、PGlite の WASM と happy-dom を含む全体実行で、ワーカー初期化・終了の遅延と次のワーカーの起動タイムアウトが発生しました。ファイルごとに独立したプロセスを終了させ、後続のテストに処理系の状態を持ち越さないようにしています。
+
+PGlite の初期化は `beforeAll`、終了は `afterAll` に置きます。`SchemaInventorySql.test.ts` は初期化まで5秒のテスト本体に含めていたため、起動時間だけで失敗していました。他のDBテストと同じ60秒のセットアップ枠へ移し、テスト本体の5秒制限は維持しています。全体のタイムアウト延長やリトライで失敗を隠す設定は入れません。
+
+## 特権操作の保守
+
+Admin のユーザーメニュー「遡及処理」の直下に「特権操作」があります。実施中・締め済みを含む全評価期間のシートを対象に、削除または6状態の任意の状態へ変更できます。状態変更では入力済みの本文・点数を保持し、確定値を解除します。最終評価済みに変更したときはDBで再集計します。評価期間は開き直しません。
+
+処理は `PrivilegedSheetOperationInteractor` → `SupabasePrivilegedSheetRepository` → `privileged_sheet_operation` の順です。RPC が有効な Admin、操作、理由（1〜500文字）、確認した時点の状態を検証し、対象行をロックします。操作・未読依頼の取り下げ・監査記録は同じトランザクションで行い、アプリ内通知もメールも送信しません。
+
+`security_audit_log` の `sheet.privileged_status` / `sheet.privileged_delete` に操作者、対象、期間、前後の状態、理由を記録します。削除時はシート・目標・共通評価・遡及修正履歴の削除前データも残します。監査に失敗した場合、操作全体をロールバックします。特権を認める文脈は、クライアントが書けないテーブルでトランザクションと対象シートに限定し、トリガーを全体的に無効化しません。
+
+配布前に `202610260002_privileged_sheet_operations.sql` を適用してください。アプリのビルド・更新だけでは RPC は追加されません。
 
 ## PDFの変更
 

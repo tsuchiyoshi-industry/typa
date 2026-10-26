@@ -681,3 +681,11 @@ a.setup-task-link:hover {
 .correction-editor .correction-notice {
 	margin-top: 1.4rem;
 }
+
+.privileged-operation-form {
+	display: grid;
+	gap: 1rem;
+}
+.privileged-operation-form .primary-action {
+	justify-self: start;
+}

@@ -152,57 +152,68 @@ export function mergeGoalRows(
 		broken.add(key);
 		errors.push({ file: "goals", line, message });
 	};
-	rows.forEach(
-		([employeeNo, name, goalNumber, challengeGoal, description, achievement, first, second], i) => {
-			const line = lines[i];
-			const key = `${employeeNo.trim()}|${goalNumber}`;
-			if (broken.has(key)) {
-				return;
+	for (const [i, cells] of rows.entries()) {
+		const [employeeNo, name, goalNumber, challengeGoal, description, achievement, first, second] =
+			cells;
+		const line = lines[i];
+		const key = `${employeeNo.trim()}|${goalNumber}`;
+		if (broken.has(key)) {
+			continue;
+		}
+		const hasTask = description.trim() !== "";
+		const head = merged.get(key);
+		if (!head) {
+			const row: GoalImportRow = {
+				line,
+				employeeNo,
+				name,
+				goalNumber,
+				challengeGoal,
+				periodGoals: hasTask ? [{ description, achievement }] : [],
+				achievement: hasTask ? "" : achievement,
+				firstScore: first,
+				secondScore: second,
+			};
+			const invalid = milestoneError(row);
+			if (invalid) {
+				fail(key, line, invalid);
+			} else {
+				merged.set(key, row);
 			}
-			const hasTask = description.trim() !== "";
-			const head = merged.get(key);
-			if (!head) {
-				const row: GoalImportRow = {
-					line,
-					employeeNo,
-					name,
-					goalNumber,
-					challengeGoal,
-					periodGoals: hasTask ? [{ description, achievement }] : [],
-					achievement: hasTask ? "" : achievement,
-					firstScore: first,
-					secondScore: second,
-				};
-				const invalid = milestoneError(row);
-				return invalid ? fail(key, line, invalid) : void merged.set(key, row);
-			}
-			if (!hasTask) {
-				return fail(
-					key,
-					line,
-					`期中目標が空欄です。同じ目標番号の${head.line}行目に続く行には、期中目標を1件ずつ書いてください。`,
-				);
-			}
-			const conflict = (
-				[
-					["氏名", name, head.name],
-					["チャレンジ目標", challengeGoal, head.challengeGoal],
-					["一次評価点", first, head.firstScore],
-					["二次評価点", second, head.secondScore],
-				] as const
-			).find(([, value, headValue]) => value.trim() !== "" && value !== headValue);
-			if (conflict) {
-				return fail(
-					key,
-					line,
-					`${conflict[0]}が、同じ目標の${head.line}行目と違います。続きの行では空欄にするか、同じ内容にしてください。`,
-				);
-			}
-			const next = { ...head, periodGoals: [...head.periodGoals, { description, achievement }] };
-			const invalid = milestoneError(next);
-			return invalid ? fail(key, line, invalid) : void merged.set(key, next);
-		},
-	);
+			continue;
+		}
+		if (!hasTask) {
+			fail(
+				key,
+				line,
+				`期中目標が空欄です。同じ目標番号の${head.line}行目に続く行には、期中目標を1件ずつ書いてください。`,
+			);
+			continue;
+		}
+		const conflict = (
+			[
+				["氏名", name, head.name],
+				["チャレンジ目標", challengeGoal, head.challengeGoal],
+				["一次評価点", first, head.firstScore],
+				["二次評価点", second, head.secondScore],
+			] as const
+		).find(([, value, headValue]) => value.trim() !== "" && value !== headValue);
+		if (conflict) {
+			fail(
+				key,
+				line,
+				`${conflict[0]}が、同じ目標の${head.line}行目と違います。続きの行では空欄にするか、同じ内容にしてください。`,
+			);
+			continue;
+		}
+		const next = { ...head, periodGoals: [...head.periodGoals, { description, achievement }] };
+		const invalid = milestoneError(next);
+		if (invalid) {
+			fail(key, line, invalid);
+		} else {
+			merged.set(key, next);
+		}
+	}
 	return errors.length > 0 ? { errors } : { rows: [...merged.values()] };
 }
 

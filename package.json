@@ -10,6 +10,7 @@
 		"serve": "vite preview",
 		"tauri": "tauri",
 		"fix": "biome check --write .",
+		"check": "biome check . --error-on-warnings",
 		"test": "vitest run",
 		"test:watch": "vitest",
 		"test:coverage": "vitest run --coverage",

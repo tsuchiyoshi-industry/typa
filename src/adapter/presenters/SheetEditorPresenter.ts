@@ -46,6 +46,25 @@ export interface SheetEditorViewModel extends SheetPermissionsDto {
 	fetchError: string | null;
 }
 
+/** 新規作成で選べる評価期間。実施中で、自分のシートがまだないものだけ。 */
+export const creatablePeriods = (
+	viewModel: Pick<SheetEditorViewModel, "periods" | "accessibleSheets">,
+): EvaluationPeriodDto[] => {
+	const taken = new Set(viewModel.accessibleSheets.mySheets.map((sheet) => sheet.periodId));
+	return viewModel.periods.filter((period) => !taken.has(period.id));
+};
+
+/** 選んでいる期間が選べなくなったら(作成済みと分かったら)、選べる最初の期間に移す。 */
+const settleSelectedPeriod = (viewModel: SheetEditorViewModel): SheetEditorViewModel => {
+	const options = creatablePeriods(viewModel);
+	return {
+		...viewModel,
+		selectedPeriodId: options.some((period) => period.id === viewModel.selectedPeriodId)
+			? viewModel.selectedPeriodId
+			: (options[0]?.id ?? null),
+	};
+};
+
 export function createSheetEditorPresenter(): {
 	viewModel: () => SheetEditorViewModel;
 	outputPort: {
@@ -60,6 +79,7 @@ export function createSheetEditorPresenter(): {
 	beginAccessibleSheetsLoad: () => void;
 	prepareNewSheet: () => void;
 	setSelectedPeriodId: (id: number | null) => void;
+	beginCreate: () => void;
 	presentSheetError: (message: string) => void;
 	presentAccessibleSheetsError: (message: string) => void;
 	presentPeriodsError: (message: string) => void;
@@ -106,26 +126,28 @@ export function createSheetEditorPresenter(): {
 
 	const accessibleSheetsOutputPort: FetchCategorizedSheetsOutputPort = {
 		present(response) {
-			setViewModel((prev) => ({
-				...prev,
-				loadingAccessibleSheets: false,
-				accessibleSheets: {
-					mySheets: response.mySheets,
-					subordinateSheets: response.subordinateSheets,
-				},
-			}));
+			setViewModel((prev) =>
+				settleSelectedPeriod({
+					...prev,
+					loadingAccessibleSheets: false,
+					accessibleSheets: {
+						mySheets: response.mySheets,
+						subordinateSheets: response.subordinateSheets,
+					},
+				}),
+			);
 		},
 	};
 
 	const periodsOutputPort: FetchDistinctPeriodsOutputPort = {
 		present(response: FetchDistinctPeriodsResponse) {
-			setViewModel((prev) => ({
-				...prev,
-				// 評価シートを作成できるのは、実施中の評価期間だけ
-				periods: response.periods.filter((period) => period.isActive),
-				selectedPeriodId:
-					prev.selectedPeriodId ?? response.periods.find((period) => period.isActive)?.id ?? null,
-			}));
+			setViewModel((prev) =>
+				settleSelectedPeriod({
+					...prev,
+					// 評価シートを作成できるのは、実施中の評価期間だけ
+					periods: response.periods.filter((period) => period.isActive),
+				}),
+			);
 		},
 	};
 
@@ -235,6 +257,10 @@ export function createSheetEditorPresenter(): {
 		setViewModel((prev) => ({ ...prev, selectedPeriodId: id }));
 	};
 
+	const beginCreate = () => {
+		setViewModel((prev) => ({ ...prev, creating: true, createError: null }));
+	};
+
 	/** silent: 保存後の再取得。表示中のシートを残したまま裏で読み直す(画面を消さない)。 */
 	const beginSheetLoad = (silent = false) => {
 		setViewModel((prev) => ({
@@ -285,6 +311,7 @@ export function createSheetEditorPresenter(): {
 		beginAccessibleSheetsLoad,
 		prepareNewSheet,
 		setSelectedPeriodId,
+		beginCreate,
 		presentSheetError,
 		presentAccessibleSheetsError,
 		presentPeriodsError,

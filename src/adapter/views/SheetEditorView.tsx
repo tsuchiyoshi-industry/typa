@@ -29,7 +29,7 @@ import type { CommonEvaluationController } from "../controllers/CommonEvaluation
 import type { SheetEditorController } from "../controllers/SheetEditorController";
 import type { ChallengeEvaluationViewModel } from "../presenters/ChallengeEvaluationPresenter";
 import type { CommonEvaluationViewModel } from "../presenters/CommonEvaluationPresenter";
-import type { SheetEditorViewModel } from "../presenters/SheetEditorPresenter";
+import { creatablePeriods, type SheetEditorViewModel } from "../presenters/SheetEditorPresenter";
 import { commonEvaluationRadar } from "../viewmodels/commonEvaluationRadar";
 import ChallengeEvaluationView, { type GoalFocus } from "./components/ChallengeEvaluationView";
 import CommonEvaluationView from "./components/CommonEvaluationView";
@@ -207,6 +207,8 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 		if (isNew()) {
 			props.controller.prepareNewSheet();
 			void props.controller.loadPeriods();
+			// 作成済みの期間を選べないよう、自分のシートも読む
+			void props.controller.loadAccessibleSheets();
 			return;
 		}
 
@@ -676,6 +678,15 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 		</Show>
 	);
 
+	/** 実施中の期間のシートがすべて作成済みなら、そのシート(いちばん新しい期間のもの)。 */
+	const alreadyCreated = createMemo(() => {
+		const vm = viewModel();
+		if (vm.loadingAccessibleSheets || vm.periods.length === 0 || creatablePeriods(vm).length > 0) {
+			return null;
+		}
+		return vm.accessibleSheets.mySheets.find((mine) => mine.periodId === vm.periods[0]?.id) ?? null;
+	});
+
 	const NewSheetSetup = () => (
 		<div class="new-sheet-setup">
 			<h2>評価期間を選んで作成</h2>
@@ -683,6 +694,14 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 				<p class="error-message" role="alert">
 					{viewModel().fetchError}
 				</p>
+			</Show>
+			<Show when={alreadyCreated()}>
+				{(existing) => (
+					<p class="page-note" role="status">
+						実施中の評価期間の評価シートは作成済みです。
+						<A href={`/sheet/${existing().id}`}>作成済みのシートを開く</A>
+					</p>
+				)}
 			</Show>
 			<div class="period-picker">
 				<label for="period-select">
@@ -699,7 +718,7 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 					<option value="" disabled>
 						期間を選択してください
 					</option>
-					<For each={viewModel().periods}>
+					<For each={creatablePeriods(viewModel())}>
 						{(period) => <option value={period.id}>{period.periodName}</option>}
 					</For>
 				</select>
@@ -708,7 +727,11 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 				type="button"
 				class="create-sheet-button"
 				onClick={handleCreateSheet}
-				disabled={viewModel().creating || viewModel().selectedPeriodId == null}
+				disabled={
+					viewModel().creating ||
+					viewModel().loadingAccessibleSheets ||
+					viewModel().selectedPeriodId == null
+				}
 			>
 				{viewModel().creating ? "作成中..." : "評価シートを作成"}
 			</button>

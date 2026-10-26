@@ -351,6 +351,26 @@ const SheetListView: Component<SheetListViewProps> = (props) => {
 		overviewSheets().some((sheet) => sheet.status === overviewStage()) ? overviewStage() : null,
 	);
 
+	/**
+	 * 新規作成を押せない理由。押せるときは null、確かめている最中は ""(理由は出さずに押せなくする)。
+	 * 実施中の評価期間すべてに自分のシートがあれば、作るものはない。
+	 * 期間が読めなかったときは押せるままにし、作成画面がもう一度確かめる。
+	 */
+	const createBlocked = createMemo(() => {
+		const { loading, activePeriodIds, mySheets } = props.viewModel();
+		if (loading || activePeriodIds === undefined) {
+			return "";
+		}
+		if (activePeriodIds === null) {
+			return null;
+		}
+		if (activePeriodIds.length === 0) {
+			return "実施中の評価期間がありません";
+		}
+		const mine = new Set(mySheets.map((sheet) => sheet.periodId));
+		return activePeriodIds.every((id) => mine.has(id)) ? "今期の評価シートは作成済みです" : null;
+	});
+
 	const handleExportOverview = async () => {
 		const id = periodId();
 		if (id === undefined) {
@@ -377,10 +397,30 @@ const SheetListView: Component<SheetListViewProps> = (props) => {
 		<div class="sheet-list-page">
 			<header class="sheet-list-header">
 				<h1>評価シート一覧</h1>
-				<A href="/sheet/new" class="create-sheet-button">
-					<Plus size={20} />
-					<span>新規作成</span>
-				</A>
+				<Show
+					when={createBlocked() === null}
+					fallback={
+						<div class="create-sheet-blocked">
+							<Show when={createBlocked()}>
+								<span id="create-sheet-reason">{createBlocked()}</span>
+							</Show>
+							<button
+								type="button"
+								class="create-sheet-button"
+								disabled
+								aria-describedby={createBlocked() ? "create-sheet-reason" : undefined}
+							>
+								<Plus size={20} />
+								<span>新規作成</span>
+							</button>
+						</div>
+					}
+				>
+					<A href="/sheet/new" class="create-sheet-button">
+						<Plus size={20} />
+						<span>新規作成</span>
+					</A>
+				</Show>
 			</header>
 			{/* 自分のシートも部下のシートも、選んだ評価期間のものだけを下に出す。
 			    下の表まで送っても切り替えられるよう、見出しの外に置いて画面の上に残す */}

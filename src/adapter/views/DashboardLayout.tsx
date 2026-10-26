@@ -5,12 +5,10 @@ import FilePenLine from "lucide-solid/icons/file-pen-line";
 import LogOut from "lucide-solid/icons/log-out";
 import Menu from "lucide-solid/icons/menu";
 import PackageOpen from "lucide-solid/icons/package-open";
-// "lucide-solid/icons/menu";
 import Settings from "lucide-solid/icons/settings";
 import ShieldAlert from "lucide-solid/icons/shield-alert";
-import User from "lucide-solid/icons/user";
 import X from "lucide-solid/icons/x";
-import { type Component, createSignal, type JSX, onCleanup, onMount, Show } from "solid-js";
+import { type Component, createSignal, For, type JSX, onCleanup, onMount, Show } from "solid-js";
 import type { AccountController, CurrentUserDto } from "../controllers/AccountController";
 import type { NotificationInboxController } from "../controllers/NotificationInboxController";
 import NotificationBell from "./components/NotificationBell";
@@ -60,8 +58,20 @@ const DashboardLayout: Component<{
 		document.removeEventListener("keydown", handleKeyDown);
 	});
 
-	// シートの画面は一覧から開くので、一覧を現在地として扱う
-	const onSheetPage = () => location.pathname === "/" || location.pathname.startsWith("/sheet/");
+	// ナビの項目と、その項目を現在地とするパス。シートの画面は一覧から開くので、一覧を現在地として扱う
+	const sections = [
+		{
+			href: "/",
+			label: "評価シート",
+			matches: (path: string) => path === "/" || path.startsWith("/sheet/"),
+		},
+		{ href: "/review", label: "部下の評価", matches: (path: string) => path === "/review" },
+		{
+			href: "/employee-master",
+			label: "社員マスタ",
+			matches: (path: string) => path === "/employee-master",
+		},
+	];
 
 	const handleLogout = async () => {
 		setUserMenuOpen(false);
@@ -84,21 +94,21 @@ const DashboardLayout: Component<{
 					aria-label="メインナビゲーション"
 					classList={{ "nav-open": menuOpen() }}
 				>
-					<A
-						href="/"
-						end
-						class="nav-link"
-						classList={{ active: onSheetPage() }}
-						onClick={() => setMenuOpen(false)}
-					>
-						評価シート
-					</A>
-					<A href="/review" class="nav-link" onClick={() => setMenuOpen(false)}>
-						部下の評価
-					</A>
-					<A href="/employee-master" class="nav-link" onClick={() => setMenuOpen(false)}>
-						社員マスタ
-					</A>
+					{/* 現在地は見た目(class)と読み上げ(aria-current)を同じ判定で付ける。
+					    A は完全一致のときしか aria-current を付けないので素の a にする(遷移はルーターが拾う) */}
+					<For each={sections}>
+						{(section) => (
+							<a
+								href={section.href}
+								class="nav-link"
+								classList={{ active: section.matches(location.pathname) }}
+								aria-current={section.matches(location.pathname) ? "page" : undefined}
+								onClick={() => setMenuOpen(false)}
+							>
+								{section.label}
+							</a>
+						)}
+					</For>
 				</nav>
 				<NotificationBell controller={props.inbox} />
 				<div class="user-menu-container">
@@ -110,7 +120,6 @@ const DashboardLayout: Component<{
 						aria-controls="user-menu"
 						aria-expanded={userMenuOpen()}
 					>
-						<User size={18} />
 						<span class="user-name">{user()?.name}</span>
 						<ChevronDown size={14} class="user-menu-caret" />
 					</button>

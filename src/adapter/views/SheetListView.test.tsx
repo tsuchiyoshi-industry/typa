@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { MemoryRouter, Route } from "@solidjs/router";
 import { cleanup, fireEvent, render, within } from "@solidjs/testing-library";
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SheetSummaryDto } from "../../application/dtos/SheetListDto";
 import type { SheetListController } from "../controllers/SheetListController";
 import type { SheetListViewModel } from "../presenters/SheetListPresenter";
@@ -25,14 +25,19 @@ const sheet = (id: number, period: 25 | 26, employeeName: string): SheetSummaryD
 	gradeName: "総合Ⅱ級",
 });
 
-const setup = (overviewSheets: SheetListViewModel["overviewSheets"]) => {
+const setup = (
+	overviewSheets: SheetListViewModel["overviewSheets"],
+	overrides: Partial<SheetListViewModel> = {},
+) => {
 	const viewModel: SheetListViewModel = {
 		loading: false,
+		activePeriodIds: [26],
 		mySheets: [sheet(1, 25, "自分"), sheet(2, 26, "自分")],
 		subordinateSheets: [sheet(3, 25, "社員A"), sheet(4, 26, "社員B"), sheet(5, 26, "社員C")],
 		overviewSheets,
 		errorMessage: null,
 		exportStatus: { isExporting: false, message: null, success: null, fileName: null },
+		...overrides,
 	};
 	const controller = { load: vi.fn(), exportSheet: vi.fn(), exportOverview: vi.fn() };
 	const view = render(() => (
@@ -130,4 +135,61 @@ it("adds the company-wide overview for an Admin below the two tables, as a table
 
 	fireEvent.click(within(overview).getByRole("button", { name: "一覧をPDF出力" }));
 	expect(view.controller.exportOverview).toHaveBeenCalledExactlyOnceWith(26);
+});
+
+describe("新規作成", () => {
+	const createButton = (view: ReturnType<typeof setup>) =>
+		view.getByRole("banner").querySelector(".create-sheet-button") as HTMLElement;
+	const isDisabled = (element: HTMLElement) =>
+		element instanceof HTMLButtonElement ? element.disabled : element.tagName !== "A";
+
+	it("opens the create page while an active period has no sheet of mine", () => {
+		const view = setup(null, { activePeriodIds: [27], mySheets: [sheet(2, 26, "自分")] });
+		const create = view.getByRole("link", { name: "新規作成" });
+		expect(create.getAttribute("href")).toBe("/sheet/new");
+		expect(view.queryByText("今期の評価シートは作成済みです")).toBeNull();
+	});
+
+	it("is greyed out with the reason once my sheet for the active period exists", () => {
+		const view = setup(null);
+		expect(view.queryByRole("link", { name: "新規作成" })).toBeNull();
+		const create = view.getByRole("button", { name: /新規作成/ }) as HTMLButtonElement;
+		expect(create.disabled).toBe(true);
+		// 理由はツールチップに頼らず、ボタンの説明として読み上げ、画面にも出す
+		const reason = view.getByText("今期の評価シートは作成済みです");
+		expect(create.getAttribute("aria-describedby")).toBe(reason.id);
+		// 押しても何も起きない(既存のシートへ飛んで「作成しました」と出さない)
+		fireEvent.click(create);
+		expect(isDisabled(createButton(view))).toBe(true);
+	});
+
+	it("stays greyed out while any doubt remains: loading, or no active period", () => {
+		const loading = setup(null, { loading: true, activePeriodIds: undefined });
+		expect((loading.getByRole("button", { name: /新規作成/ }) as HTMLButtonElement).disabled).toBe(
+			true,
+		);
+		cleanup();
+		const none = setup(null, { activePeriodIds: [] });
+		expect((none.getByRole("button", { name: /新規作成/ }) as HTMLButtonElement).disabled).toBe(
+			true,
+		);
+		expect(none.getByText("実施中の評価期間がありません")).toBeTruthy();
+	});
+
+	it("checks every active period, not just the one shown in the tabs", () => {
+		// 26期は作成済みでも、27期(まだシートがないので期間のタブにも出ない)は作れる
+		const view = setup(null, { activePeriodIds: [26, 27] });
+		expect(view.getByRole("link", { name: "新規作成" })).toBeTruthy();
+	});
+
+	it("leaves creation to the create page when the active periods could not be read", () => {
+		// 期間が読めないだけで作れなくすると、だれもシートを作れない。作成画面がもう一度確かめる
+		const view = setup(null, { activePeriodIds: null });
+		expect(view.getByRole("link", { name: "新規作成" })).toBeTruthy();
+	});
+
+	it("does not count subordinates' sheets as mine", () => {
+		const view = setup(null, { mySheets: [], subordinateSheets: [sheet(4, 26, "社員B")] });
+		expect(view.getByRole("link", { name: "新規作成" })).toBeTruthy();
+	});
 });

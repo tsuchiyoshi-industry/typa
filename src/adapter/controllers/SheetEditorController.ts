@@ -56,6 +56,7 @@ export class SheetEditorController {
 			beginAccessibleSheetsLoad: () => void;
 			prepareNewSheet: () => void;
 			setSelectedPeriodId: (id: number | null) => void;
+			beginCreate: () => void;
 			presentSheetError: (message: string) => void;
 			presentAccessibleSheetsError: (message: string) => void;
 			presentPeriodsError: (message: string) => void;
@@ -227,16 +228,27 @@ export class SheetEditorController {
 	}
 
 	async createSheet(): Promise<number | null> {
+		const viewModel = this.presenter.viewModel();
+		// 作成中にもう一度押されても、二枚目を頼まない
+		if (viewModel.creating) {
+			return null;
+		}
+		const selectedPeriodId = viewModel.selectedPeriodId;
+		if (!selectedPeriodId) {
+			this.presenter.presentCreateError("評価期間を選択してください。");
+			return null;
+		}
+		// 作成済みの期間で「作成」すると既存のシートが返り、作ったように見えてしまう
+		if (viewModel.accessibleSheets.mySheets.some((sheet) => sheet.periodId === selectedPeriodId)) {
+			this.presenter.presentCreateError("この評価期間の評価シートは作成済みです。");
+			return null;
+		}
+
+		this.presenter.beginCreate();
 		const currentEmployeeId = await this.requireCurrentEmployeeId(
 			this.presenter.presentCreateError,
 		);
 		if (currentEmployeeId === null) {
-			return null;
-		}
-
-		const selectedPeriodId = this.presenter.viewModel().selectedPeriodId;
-		if (!selectedPeriodId) {
-			this.presenter.presentCreateError("評価期間を選択してください。");
 			return null;
 		}
 

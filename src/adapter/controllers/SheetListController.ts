@@ -8,11 +8,13 @@ import type {
 	FetchCategorizedSheetsInteractor,
 	FetchCategorizedSheetsOutputPort,
 } from "../../application/usecases/FetchCategorizedSheetsInteractor";
+import type { FetchDistinctPeriodsInteractor } from "../../application/usecases/FetchDistinctPeriodsInteractor";
 import type {
 	FetchSheetOverviewInteractor,
 	FetchSheetOverviewOutputPort,
 } from "../../application/usecases/FetchSheetOverviewInteractor";
 import type { EmployeeRepository } from "../../domain/repositories/EmployeeRepository";
+import type { SheetListPeriodsOutputPort } from "../presenters/SheetListPresenter";
 import { requireCurrentEmployeeId } from "./currentEmployee";
 
 export class SheetListController {
@@ -26,6 +28,8 @@ export class SheetListController {
 		private readonly fetchOverviewUseCase: FetchSheetOverviewInteractor,
 		private readonly overviewOutputPort: FetchSheetOverviewOutputPort,
 		private readonly exportOverviewUseCase: ExportSheetOverviewInteractor,
+		private readonly fetchPeriodsUseCase: FetchDistinctPeriodsInteractor,
+		private readonly periodsOutputPort: SheetListPeriodsOutputPort,
 	) {}
 
 	async load(): Promise<void> {
@@ -39,6 +43,10 @@ export class SheetListController {
 				() => this.fetchOverviewUseCase.execute({}, this.overviewOutputPort),
 				"全社の評価シートの取得に失敗しました",
 			),
+			// 新規作成を押せるかを決めるためだけに読む。読めなくても一覧の邪魔はしない
+			this.fetchPeriodsUseCase
+				.execute({}, this.periodsOutputPort)
+				.catch(() => this.periodsOutputPort.presentUnavailable()),
 		]);
 	}
 

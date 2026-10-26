@@ -242,6 +242,8 @@ const sheetListController = new SheetListController(
 		evaluationSheetRepository,
 		sheetPdfGateway,
 	),
+	fetchDistinctPeriodsUseCase,
+	sheetListPresenter.periodsOutputPort,
 );
 const sheetEditorController = new SheetEditorController(
 	fetchEvaluationSheetUseCase,

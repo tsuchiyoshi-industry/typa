@@ -130,18 +130,17 @@ a:hover {
 	min-height: 100vh;
 }
 
+/* 幅は絞らない。トップバーは画面の端から端まで、本文の幅は各画面(.dashboard-main など)で絞る */
 .app-frame {
 	width: 100%;
-	max-width: 1440px;
-	margin: 0 auto;
 	min-height: 100vh;
 }
 
 /* 見出しや小さな面の端だけに、石目を控えめに混ぜる。
    独立した積層で装飾を文字の後ろに置き、操作や表・入力欄には重ねない。 */
+/* トップバーには置かない(見出しの札の後ろで筋が濁る) */
 :where(
 	.auth-card,
-	.dashboard-topbar,
 	.sheet-section-header,
 	.challenge-card__title,
 	.common-evaluation-card__header,
@@ -158,7 +157,6 @@ a:hover {
 
 :where(
 	.auth-card,
-	.dashboard-topbar,
 	.sheet-section-header,
 	.challenge-card__title,
 	.common-evaluation-card__header,
@@ -188,11 +186,6 @@ a:hover {
 }
 
 /* 面ごとに縮尺と切り取り位置を変える。反転は --hr-veins の濃淡の向きまで裏返すので使わない。 */
-:where(.dashboard-topbar) {
-	--hr-marble-size: 980px 610px;
-	--hr-marble-position: -180px -240px;
-}
-
 :where(.auth-card) {
 	--hr-marble-size: 640px 400px;
 	--hr-marble-position: -210px -95px;
@@ -237,7 +230,6 @@ a:hover {
 @media (forced-colors: active), (prefers-contrast: more) {
 	:where(
 		.auth-card,
-		.dashboard-topbar,
 		.sheet-section-header,
 		.challenge-card__title,
 		.common-evaluation-card__header,

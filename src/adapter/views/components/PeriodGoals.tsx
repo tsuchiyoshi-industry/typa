@@ -22,21 +22,26 @@ export const PeriodGoalsList: Component<{ goals: readonly PeriodGoal[]; achievem
 			</>
 		}
 	>
-		<ul class="period-goals" aria-label="期中目標">
+		<ol class="period-goals" aria-label="期中目標">
 			<For each={props.goals}>
-				{(goal) => (
+				{(goal, index) => (
 					<li>
-						<p classList={{ empty: !goal.description }}>{goal.description || "未入力"}</p>
-						<Show when={goal.achievement}>
-							<p class="period-goals__achievement">
-								<span class="period-goals__label">達成状況</span>
-								{goal.achievement}
-							</p>
-						</Show>
+						<span class="period-goals__number" aria-hidden="true">
+							{index() + 1}
+						</span>
+						<div>
+							<p classList={{ empty: !goal.description }}>{goal.description || "未入力"}</p>
+							<Show when={goal.achievement}>
+								<p class="period-goals__achievement">
+									<span class="period-goals__label">達成状況</span>
+									{goal.achievement}
+								</p>
+							</Show>
+						</div>
 					</li>
 				)}
 			</For>
-		</ul>
+		</ol>
 	</Show>
 );
 
@@ -62,51 +67,84 @@ export const PeriodGoalsEditor: Component<{
 		change(props.goals.map((goal, i) => (i === index ? { ...goal, [field]: value } : goal)));
 	return (
 		<>
+			{/* チャレンジ目標の下にぶら下がる計画。1件ずつ、目標とその達成状況を一枚の札にまとめる */}
 			<fieldset class="period-goals-editor" disabled={props.disabled}>
-				<legend>期中目標</legend>
+				<legend>
+					期中目標
+					<span class="period-goals-editor__count">
+						{props.goals.length} / {MAX_PERIOD_GOALS} 件
+					</span>
+				</legend>
 				<p class="field-hint">
 					{editsGoals()
-						? `今期の計画です。チャレンジ目標に向けて、この期に取り組むことを0〜${MAX_PERIOD_GOALS}件書きます(期ごとに書き直します)。0件のときは、チャレンジ目標に達成状況を書きます。`
+						? "チャレンジ目標に向けて、この期に取り組むこと(期ごとに書き直します)。0件のときは、チャレンジ目標に達成状況を書きます。"
 						: "期中目標は目標の送信後は変えられません(要修正で戻ると直せます)。達成状況は、一次評価を依頼するまで書き直せます。"}
 				</p>
-				<ul class="period-goals period-goals--editing">
-					<Index each={props.goals}>
-						{(goal, index) => (
-							<li>
-								<Show when={editsGoals()} fallback={<p>{goal().description || "未入力"}</p>}>
-									<label class="period-goal-field">
-										<span>期中目標 {index + 1}</span>
-										<textarea
-											value={goal().description}
-											onInput={(e) => update(index, "description", e.currentTarget.value)}
-										/>
-									</label>
-								</Show>
-								<label class="period-goal-field">
-									<span>達成状況 {index + 1}</span>
-									<textarea
-										value={goal().achievement}
-										onInput={(e) => update(index, "achievement", e.currentTarget.value)}
-									/>
-								</label>
-								<Show when={editsGoals()}>
-									<button
-										type="button"
-										class="secondary-action"
-										aria-label={`期中目標 ${index + 1} を削除`}
-										onClick={() => change(props.goals.filter((_, i) => i !== index))}
-									>
-										削除
-									</button>
-								</Show>
-							</li>
-						)}
-					</Index>
-				</ul>
+				<Show when={props.goals.length > 0}>
+					<ol class="period-goal-cards">
+						<Index each={props.goals}>
+							{(goal, index) => (
+								<li>
+									<fieldset class="period-goal-card">
+										<legend class="visually-hidden">期中目標 {index + 1}</legend>
+										<span class="period-goal-card__number" aria-hidden="true">
+											{index + 1}
+										</span>
+										<div class="period-goal-card__goal">
+											<Show
+												when={editsGoals()}
+												fallback={
+													<>
+														<span class="period-goal-card__label">期中目標</span>
+														<p
+															class="period-goal-card__text"
+															classList={{ empty: !goal().description }}
+														>
+															{goal().description || "未入力"}
+														</p>
+													</>
+												}
+											>
+												<label class="period-goal-field">
+													<span class="period-goal-card__label">
+														期中目標<span class="visually-hidden"> {index + 1}</span>
+													</span>
+													<textarea
+														value={goal().description}
+														onInput={(e) => update(index, "description", e.currentTarget.value)}
+													/>
+												</label>
+											</Show>
+										</div>
+										<label class="period-goal-field period-goal-card__achievement">
+											<span class="period-goal-card__label">
+												達成状況<span class="visually-hidden"> {index + 1}</span>
+											</span>
+											<textarea
+												value={goal().achievement}
+												onInput={(e) => update(index, "achievement", e.currentTarget.value)}
+											/>
+										</label>
+										<Show when={editsGoals()}>
+											<button
+												type="button"
+												class="link-button period-goal-card__remove"
+												aria-label={`期中目標 ${index + 1} を削除`}
+												onClick={() => change(props.goals.filter((_, i) => i !== index))}
+											>
+												削除
+											</button>
+										</Show>
+									</fieldset>
+								</li>
+							)}
+						</Index>
+					</ol>
+				</Show>
 				<Show when={editsGoals()}>
 					<button
 						type="button"
-						class="secondary-action"
+						class="secondary-action period-goals-editor__add"
 						disabled={props.goals.length >= MAX_PERIOD_GOALS}
 						onClick={() => {
 							// 上限ではボタンを押せないので、失敗するのは画面の状態が古いときだけ。そのときは何もしない

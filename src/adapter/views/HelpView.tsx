@@ -89,10 +89,14 @@ const previewStyle = (image: HelpImage) => {
 		: undefined;
 };
 
-const HelpScreenshot: Component<{ image: HelpImage; onOpen: (image: HelpImage) => void }> = (
-	props,
-) => (
-	<Show when={helpShot(props.image.shot)}>
+type ShotSource = (name: string) => string | undefined;
+
+const HelpScreenshot: Component<{
+	image: HelpImage;
+	shot: ShotSource;
+	onOpen: (image: HelpImage) => void;
+}> = (props) => (
+	<Show when={props.shot(props.image.shot)}>
 		{(src) => (
 			<figure class="help-guide__screenshot">
 				<button
@@ -320,7 +324,9 @@ const COMMON_QUESTIONS = [
 		],
 	},
 ];
-const HelpView: Component = () => {
+/** shot: 画面写真の探し方。テストでは撮っていない写真の代わりを渡す。 */
+const HelpView: Component<{ shot?: ShotSource }> = (props) => {
+	const shot: ShotSource = (name) => (props.shot ?? helpShot)(name);
 	const [audience, setAudience] = createSignal<"self" | "reviewer">("self");
 	const [selectedImage, setSelectedImage] = createSignal<HelpImage | null>(null);
 	let imageDialog: HTMLDialogElement | undefined;
@@ -390,7 +396,7 @@ const HelpView: Component = () => {
 								<h3>{step.title}</h3>
 								<p>{step.description}</p>
 								<p class="help-guide__tip">{step.tip}</p>
-								<HelpScreenshot image={step.image} onOpen={openImage} />
+								<HelpScreenshot image={step.image} shot={shot} onOpen={openImage} />
 							</li>
 						)}
 					</For>
@@ -408,7 +414,7 @@ const HelpView: Component = () => {
 							</summary>
 							<p>{answer}</p>
 							<Show when={TOPIC_IMAGES[question]}>
-								{(image) => <HelpScreenshot image={image()} onOpen={openImage} />}
+								{(image) => <HelpScreenshot image={image()} shot={shot} onOpen={openImage} />}
 							</Show>
 						</details>
 					)}
@@ -426,7 +432,7 @@ const HelpView: Component = () => {
 										</summary>
 										<p>{answer}</p>
 										<Show when={TOPIC_IMAGES[question]}>
-											{(image) => <HelpScreenshot image={image()} onOpen={openImage} />}
+											{(image) => <HelpScreenshot image={image()} shot={shot} onOpen={openImage} />}
 										</Show>
 									</details>
 								)}
@@ -454,7 +460,7 @@ const HelpView: Component = () => {
 							</header>
 							<div class="help-image-viewer__body">
 								<img
-									src={helpShot(image().shot)}
+									src={shot(image().shot)}
 									alt={image().caption}
 									width={image().width}
 									height={image().height}

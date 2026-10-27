@@ -31,7 +31,8 @@ jobs:
         with:
           path: ~\AppData\Local\ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('node_modules/playwright-core/package.json') }}
-      - run: bunx playwright install chromium
+      # どのテストもヘッドレス。使わない通常版 Chrome(191MB)は取らない
+      - run: bunx playwright install --only-shell chromium
       - run: bun run test:coverage
       - run: bun audit
       - uses: actions/upload-artifact@v7

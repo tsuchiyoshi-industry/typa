@@ -56,13 +56,33 @@ jobs:
           path: ~/.cache/ms-playwright
           # 依存のどれかが変わるたびに取り直さないよう、Playwright の版だけで決める
           key: playwright-${{ runner.os }}-${{ hashFiles('node_modules/playwright-core/package.json') }}
-      # apt のミラーが詰まると、時間切れなしで待ち続ける(普段は 20 秒)。詰まったら切って取り直す
-      - name: Install Chromium and Japanese fonts for screenshots
-        timeout-minutes: 8
+      # apt は使わない。Ubuntu の Azure ミラーは、ときどき途中で詰まったまま戻らない。
+      # Chromium の動作に要るライブラリはランナーに揃っている(--with-deps が入れていたのは使わないフォントだけ)。
+      # 画面写真の和文は Noto Sans CJK JP(fonts-noto-cjk と同じ Regular / Bold)を GitHub から版を固定して取る
+      - name: Cache Japanese fonts
+        id: fonts
+        uses: actions/cache@v6
+        with:
+          path: ~/.local/share/fonts/noto-cjk
+          key: noto-sans-cjk-jp-Sans2.004
+      - name: Download Japanese fonts
+        if: steps.fonts.outputs.cache-hit != 'true'
+        timeout-minutes: 3
         run: |
-          echo 'Acquire::http::Timeout "30"; Acquire::Retries "5";' | sudo tee /etc/apt/apt.conf.d/99ci-network
-          bunx playwright install --with-deps chromium
-          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+          mkdir -p ~/.local/share/fonts/noto-cjk
+          cd ~/.local/share/fonts/noto-cjk
+          base=https://raw.githubusercontent.com/notofonts/noto-cjk/Sans2.004/Sans/OTF/Japanese
+          curl -fsSL --retry 5 --max-time 60 -O "$base/NotoSansCJKjp-Regular.otf" -O "$base/NotoSansCJKjp-Bold.otf"
+          sha256sum -c - <<'EOF'
+          68a3fc98800b2a27b371f2fb79991daf3633bd89309d4ffaa6946fd587f375b5  NotoSansCJKjp-Regular.otf
+          e53dcb0dcb2922e45d01aae1ebd2f382bb81d4229b18b6b883bd170678af1f76  NotoSansCJKjp-Bold.otf
+          EOF
+      - name: Install Chromium for end-to-end tests and screenshots
+        timeout-minutes: 5
+        run: |
+          fc-cache -f ~/.local/share/fonts
+          fc-list | grep -q "Noto Sans CJK JP"
+          bunx playwright install --only-shell chromium
       - name: Exercise the UI end to end against the same platform
         run: bun run test:e2e
       # E2E を通った同じ環境で、マニュアルの画面写真と PDF を一度だけ作る。リリースはこれを使い回す

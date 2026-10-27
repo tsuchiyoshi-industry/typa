@@ -138,12 +138,7 @@ jobs:
             -name "*.msi" -o \
             -name "*.msi.sig" -o \
             -name "*.exe" -o \
-            -name "*.exe.sig" -o \
-            -name "*.zip" -o \
-            -name "*.dmg" -o \
-            -name "*.deb" -o \
-            -name "*.AppImage" -o \
-            -name "*.AppImage.sig" \) > release-assets.txt
+            -name "*.exe.sig" \) > release-assets.txt
 
           if [[ ! -s release-assets.txt ]]; then
             echo "No bundle artifacts found"
@@ -195,27 +190,18 @@ jobs:
           BASE_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/download/${TAG}"
           PUB_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-          # Read .sig files for each installer
+          # 自動更新は NSIS のインストーラーだけを配る
           NSIS_SIG=""
-          MSI_SIG=""
           NSIS_SIG_FILE=$(find src-tauri/target/release/bundle -name "*-setup.exe.sig" | head -1)
-          MSI_SIG_FILE=$(find src-tauri/target/release/bundle -name "*.msi.sig" | head -1)
           NSIS_FILE=$(find src-tauri/target/release/bundle -name "*-setup.exe" ! -name "*.sig" | head -1)
-          MSI_FILE=$(find src-tauri/target/release/bundle -name "*.msi" ! -name "*.sig" | head -1)
-
           if [[ -n "$NSIS_SIG_FILE" ]]; then
             NSIS_SIG=$(cat "$NSIS_SIG_FILE")
           fi
-          if [[ -n "$MSI_SIG_FILE" ]]; then
-            MSI_SIG=$(cat "$MSI_SIG_FILE")
-          fi
-
           if [[ -z "$NSIS_SIG" || -z "$NSIS_FILE" ]]; then
             echo "Signed NSIS updater assets are required"
             exit 1
           fi
           NSIS_NAME=$(basename "$NSIS_FILE")
-          MSI_NAME=$(basename "$MSI_FILE")
 
           cat > latest.json << EOF
           {
@@ -261,10 +247,5 @@ jobs:
             src-tauri/target/release/bundle/**/*.msi.sig
             src-tauri/target/release/bundle/**/*.exe
             src-tauri/target/release/bundle/**/*.exe.sig
-            src-tauri/target/release/bundle/**/*.zip
-            src-tauri/target/release/bundle/**/*.dmg
-            src-tauri/target/release/bundle/**/*.deb
-            src-tauri/target/release/bundle/**/*.AppImage
-            src-tauri/target/release/bundle/**/*.AppImage.sig
             latest.json
             manual/*.pdf

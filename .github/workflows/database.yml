@@ -54,7 +54,8 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          # 依存のどれかが変わるたびに取り直さないよう、Playwright の版だけで決める
+          key: playwright-${{ runner.os }}-${{ hashFiles('node_modules/playwright-core/package.json') }}
       # apt のミラーが詰まると、時間切れなしで待ち続ける(普段は 20 秒)。詰まったら切って取り直す
       - name: Install Chromium and Japanese fonts for screenshots
         timeout-minutes: 8

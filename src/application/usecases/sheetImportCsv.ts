@@ -98,9 +98,14 @@ const BOM = String.fromCharCode(0xfeff);
 const quote = (value: string) =>
 	/[",\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
 
+// CSV の引用符はセルの区切りを守るだけで、Excel の式は止めない。
+// 信頼しない文字列は先頭に ' を置いて文字列にする。数値は数値のまま出力する。
+const spreadsheetText = (value: string): string =>
+	/^[\t\r\n\0]/.test(value) || /^\s*[=+\-@]/.test(value) ? `'${value}` : value;
+
 /** Excel で開いても文字化けしないよう、BOM付きUTF-8・CRLF で書く。 */
 export const toCsv = (rows: readonly (readonly (string | number)[])[]): string =>
-	`${BOM}${rows.map((row) => row.map((cell) => quote(String(cell))).join(",")).join("\r\n")}\r\n`;
+	`${BOM}${rows.map((row) => row.map((cell) => quote(typeof cell === "string" ? spreadsheetText(cell) : String(cell))).join(",")).join("\r\n")}\r\n`;
 
 /** 社員ごとに目標番号 1〜上限、共通評価は等級の項目を並べ、記入する列だけを空けておく。 */
 export const buildTemplate = (file: SheetImportFile, template: SheetImportTemplate): string =>

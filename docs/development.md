@@ -39,6 +39,7 @@ VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 | `bun run typecheck` | 型検査 |
 | `bun run check` | Biome の整形・lint・import 順を検査（警告も失敗扱い） |
 | `bun run test:coverage` | TypeScript・画面・SQLのテストとカバレッジ |
+| `bun run test:security` | 攻撃入力・認可・通知API・CSV・Tauri設定の回帰テスト。範囲と未検証項目は [セキュリティ検証](security-verification.md) を参照 |
 | `bun run test:e2e` | 画面のE2E（Playwright）。ローカル Supabase を起動しておく。検証用DB `typa_e2e` を作り直して使い、開発用DBには触れない |
 | `bun run docs:user-manual` | [利用者](manual/user.md)・[評価者](manual/evaluator.md)・[管理者](manual/admin.md)のマニュアルの画面写真を、それぞれの権限でログインして撮り直し、`docs/manual/*.pdf` を作る。E2E と同じ `typa_e2e` を使う。写真と PDF は git に置かず、CI が E2E の後に作ってリリースに添える（写真はアプリのヘルプにも入る）。手元で確かめたいときだけ実行する。撮っていなくても、アプリはヘルプの写真なしでビルド・テストできる |
 | `bun run test:rust --release` | PDF生成などのRustテスト |
@@ -52,6 +53,7 @@ VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 
 - 新しい環境の構築、Auth、SMTP、Edge Function の配置は [Supabase 環境の構築手順](supabase-setup.md) を参照してください。
 - 既存環境への SQL 適用順とリリースの検証コマンドは [リリース前検証](release-readiness.md) を参照してください。アプリのビルド・配布だけでは本番 DB と Edge Function は更新されません。
+- CIのDB検証ジョブは、新規構築・移行後の両DBで実Auth/APIの13項目とZAP Automation Frameworkを必須実行します。[要件と証跡](security-verification.md#ciの必須セキュリティ要件)を参照してください。MFAや本番設定などの未検証範囲は、合格した要件と区別して記録します。
 - 各 SQL の目的と互換性の経緯は [マイグレーションの変更経緯](migration-history.md) に移しました。
 - 通知の方法は Admin が設定画面で選びます（アプリ内通知が既定）。アプリ内通知は、状態の変更と同じトランザクションで DB のトリガーが `notifications` に作り、画面上部のベルで読みます。
 - メールのときは `supabase/functions/notify-sheet` が送信します。アプリは関数名とシートIDを渡し、サーバーが認可・宛先の決定・重複防止を行います。メールアドレスとSMTP認証情報はアプリに返しません。SMTP 設定も、この関数が送信テストに成功したときだけ保存します。

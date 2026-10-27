@@ -1,4 +1,4 @@
-name: Real database release checks
+name: Database and security verification
 on:
   workflow_call:
 permissions:
@@ -6,7 +6,7 @@ permissions:
 jobs:
   database:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v6
       - uses: supabase/setup-cli@v2
@@ -35,6 +35,21 @@ jobs:
           bun scripts/prepareReleaseDb.ts typa_release_verify
           bun scripts/verifyReleaseDb.ts typa_release_verify
           bun scripts/verifyReleaseApi.ts typa_release_verify
+      # Both clean installation and upgrade must satisfy the same mandatory ASVS-derived checks.
+      # Each command starts real Auth/PostgREST and a digest-pinned ZAP Automation Framework
+      # against its isolated database. Missing evidence or a scanner failure fails this job.
+      - name: Verify security requirements on the fresh database
+        run: bun scripts/verifySecurity.ts typa_release_fresh
+      - name: Verify security requirements on the upgraded database
+        run: bun scripts/verifySecurity.ts typa_release_verify
+      - name: Preserve redacted security evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: security-evidence
+          path: supabase/.temp/security-evidence/
+          if-no-files-found: error
+          retention-days: 14
       - name: Cache Playwright browsers
         uses: actions/cache@v6
         with:
@@ -66,4 +81,6 @@ jobs:
             test-results
           retention-days: 7
       - if: always()
-        run: supabase stop --no-backup
+        run: |
+          docker rm -f typa_security_zap typa_release_auth typa_release_rest 2>/dev/null || true
+          supabase stop --no-backup

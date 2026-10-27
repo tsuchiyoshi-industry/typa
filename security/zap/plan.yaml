@@ -1,0 +1,138 @@
+# Fixed target: only the disposable PostgREST container, never a hosted Supabase URL.
+# ZAP_AUTH_HEADER_VALUE is obtained by real password login, not service_role or a forged JWT.
+env:
+  contexts:
+    - name: typa-api
+      urls:
+        - http://typa_release_rest:3000
+      includePaths:
+        - 'http://typa_release_rest:3000/(rpc/(get_sheet|current_employee_id|get_previous_goals)|milestones)'
+      authentication:
+        method: manual
+  parameters:
+    failOnError: true
+    failOnWarning: true
+    continueOnFailure: false
+    progressToStdout: true
+jobs:
+  - type: requestor
+    name: authenticated-before
+    requests:
+      - url: 'http://typa_release_rest:3000/rpc/get_sheet?p_sheet_id=${ZAP_SHEET_ID}'
+        method: GET
+        headers: ['Content-Type: application/json']
+        responseCode: 200
+      - url: http://typa_release_rest:3000/rpc/current_employee_id
+        method: GET
+        headers: ['Content-Type: application/json']
+        responseCode: 200
+      - url: 'http://typa_release_rest:3000/rpc/get_previous_goals?p_sheet_id=${ZAP_SHEET_ID}'
+        method: GET
+        headers: ['Content-Type: application/json']
+        responseCode: 200
+      - url: 'http://typa_release_rest:3000/milestones?id=eq.${ZAP_GOAL_ID}'
+        method: PATCH
+        headers: ['Content-Type: application/json', 'Prefer: return=minimal']
+        data: '{"challenge_goal":"Synthetic DAST input"}'
+        responseCode: 204
+    tests:
+      - name: Protected document contains the owner's marker
+        type: url
+        url: 'http://typa_release_rest:3000/rpc/get_sheet?p_sheet_id=${ZAP_SHEET_ID}'
+        responseBodyRegex: 'SECURITY_OWNER_MARKER'
+        operator: or
+        onFail: error
+      - name: Session is linked to the expected employee
+        type: url
+        url: http://typa_release_rest:3000/rpc/current_employee_id
+        responseBodyRegex: '^990004$'
+        operator: or
+        onFail: error
+  - type: activeScan
+    parameters:
+      context: typa-api
+      threadPerHost: 2
+    # This is a bounded policy, not a claim that every ZAP rule or API is covered.
+    # No per-rule/scan time cutoff: the outer runner fails if the full plan exceeds 10 minutes.
+    policyDefinition:
+      defaultStrength: Low
+      defaultThreshold: 'Off'
+      rules:
+        - id: 40018
+          threshold: Medium
+        - id: 40022
+          threshold: Medium
+        - id: 40003
+          threshold: Medium
+        - id: 6
+          threshold: Medium
+        - id: 90019
+          threshold: Medium
+    tests:
+      - name: General SQL injection attacks were sent
+        type: stats
+        statistic: stats.ascan.40018.urls
+        operator: '>='
+        value: 1
+        onFail: error
+      - name: PostgreSQL injection attacks were sent
+        type: stats
+        statistic: stats.ascan.40022.urls
+        operator: '>='
+        value: 1
+        onFail: error
+      - name: CRLF injection attacks were sent
+        type: stats
+        statistic: stats.ascan.40003.urls
+        operator: '>='
+        value: 1
+        onFail: error
+      - name: Path traversal attacks were sent
+        type: stats
+        statistic: stats.ascan.6.urls
+        operator: '>='
+        value: 1
+        onFail: error
+      - name: Server code injection attacks were sent
+        type: stats
+        statistic: stats.ascan.90019.urls
+        operator: '>='
+        value: 1
+        onFail: error
+      - name: The active scanner finished without being stopped
+        type: stats
+        statistic: stats.ascan.stopped
+        operator: '=='
+        value: 0
+        onFail: error
+  - type: requestor
+    name: authenticated-after
+    requests:
+      - url: 'http://typa_release_rest:3000/rpc/get_sheet?p_sheet_id=${ZAP_SHEET_ID}'
+        method: GET
+        headers: ['Content-Type: application/json']
+        responseCode: 200
+    tests:
+      - name: Protected document remains accessible after attacks
+        type: url
+        url: 'http://typa_release_rest:3000/rpc/get_sheet?p_sheet_id=${ZAP_SHEET_ID}'
+        responseBodyRegex: 'SECURITY_OWNER_MARKER'
+        operator: or
+        onFail: error
+  - type: passiveScan-wait
+    parameters:
+      maxDuration: 3
+  - type: report
+    alwaysRun: true
+    parameters:
+      template: traditional-json
+      reportDir: /zap/wrk/reports
+      reportFile: zap-report
+      reportTitle: TYPA isolated API security scan
+  - type: exitStatus
+    alwaysRun: true
+    parameters:
+      errorLevel: Medium
+      okExitValue: 0
+      errorExitValue: 1
+      warnExitValue: 2

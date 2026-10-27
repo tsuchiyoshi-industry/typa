@@ -214,7 +214,10 @@ export function createNotificationHandler(backend: NotificationBackend) {
 		if (request.method !== "POST") {
 			return respond({ error: "POST で送信してください。" }, 405);
 		}
-		const token = request.headers.get("Authorization")?.replace(/^Bearer /i, "") ?? "";
+		const token = request.headers.get("Authorization")?.match(/^Bearer ([^\s]+)$/i)?.[1];
+		if (!token) {
+			return respond({ error: "ログインが必要です。" }, 401);
+		}
 		const actor = await backend.authenticate(token).catch(() => null);
 		if (!actor) {
 			return respond({ error: "ログインが必要です。" }, 401);

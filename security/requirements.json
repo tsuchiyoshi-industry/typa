@@ -1,0 +1,89 @@
+{
+	"standard": "OWASP ASVS 5.0.0",
+	"scope": "Isolated GoTrue, PostgREST and application RPCs; selected requirements, not ASVS level certification",
+	"required": [
+		{
+			"id": "AUTH-LOGIN",
+			"asvs": ["V8.3.1"],
+			"condition": "Real password login identifies the linked employee; protected RPC returns the owner's synthetic marker"
+		},
+		{
+			"id": "AUTH-ANON",
+			"asvs": ["V8.2.1"],
+			"condition": "Anonymous requests cannot read sheets or invoke administrative RPCs"
+		},
+		{
+			"id": "AUTH-JWT",
+			"asvs": ["V9.1.1", "V9.1.2", "V9.2.1"],
+			"condition": "Tampered, unsigned, expired and not-yet-valid tokens are rejected by PostgREST"
+		},
+		{
+			"id": "AUTH-UNLINKED",
+			"asvs": ["V8.2.1"],
+			"condition": "An authenticated but unlinked Auth user cannot read sheets or invoke administrative RPCs"
+		},
+		{
+			"id": "ACCESS-BOLA",
+			"asvs": ["V8.2.2"],
+			"condition": "Another employee's real token cannot read, edit or transition the owner's sheet; stored data remains unchanged"
+		},
+		{
+			"id": "ACCESS-BFLA",
+			"asvs": ["V8.2.1"],
+			"condition": "Employee and Reviewer cannot change roles, issue invitations or execute privileged sheet operations"
+		},
+		{
+			"id": "ACCESS-FIELDS",
+			"asvs": ["V8.2.3"],
+			"condition": "A valid goal edit mixed with a forbidden score is rejected atomically; normal owner edits still work"
+		},
+		{
+			"id": "ACCESS-SUSPEND",
+			"asvs": ["V8.3.2"],
+			"condition": "Suspension removes access using the exact same previously accepted access token"
+		},
+		{
+			"id": "FLOW-APPROVAL",
+			"asvs": ["V2.3.1"],
+			"condition": "The owner cannot skip goal approval or replay submission; state and notification counts obey the workflow"
+		},
+		{
+			"id": "DATA-SECRET",
+			"asvs": ["V8.2.3"],
+			"condition": "Neither Admin nor ordinary employees can read the SMTP password through PostgREST"
+		},
+		{
+			"id": "AUDIT-ATOMIC",
+			"asvs": ["V2.3.3", "V16.4.2", "V16.5.3"],
+			"condition": "Audit writes cannot be forged through the API; audit storage failure rolls back an Admin's privileged operation"
+		},
+		{
+			"id": "AUTH-RATE",
+			"asvs": ["V6.3.1"],
+			"condition": "Direct password-grant attempts from one source receive 429 within 80 attempts; no failed response contains a session and valid login recovers within 20 seconds; IP-only scope"
+		},
+		{
+			"id": "DAST-AUTHENTICATED",
+			"asvs": ["V1.2.4", "V8.3.1"],
+			"condition": "The same pinned ZAP plan fails with an invalid token and succeeds with real authentication before/after scanning; all five active rules send requests, the scanner is not stopped, all AF tests succeed and there are no Medium or High alerts"
+		}
+	],
+	"pending": [
+		{
+			"asvs": ["V6.3.1"],
+			"reason": "Distributed password spraying, per-account controls and credential-stuffing detection are not covered by the single-source rate test"
+		},
+		{
+			"asvs": ["V6.3.3", "V6.3.4"],
+			"reason": "MFA enforcement and alternate authentication/recovery-path strength are not implemented as required gates"
+		},
+		{
+			"asvs": ["V9.2.2", "V9.2.3"],
+			"reason": "Token type, issuer and audience policy require a separate hosted-gateway contract"
+		},
+		{
+			"asvs": ["V1.3.6", "V12"],
+			"reason": "SMTP SSRF, hosted TLS/CORS, Tauri IPC, production Auth drift and endpoint-wide DAST coverage require separate verification"
+		}
+	]
+}

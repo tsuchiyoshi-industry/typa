@@ -12,6 +12,7 @@
 		"fix": "biome check --write .",
 		"check": "biome check . --error-on-warnings",
 		"test": "vitest run",
+		"test:security": "vitest run src/test/security",
 		"test:watch": "vitest",
 		"test:coverage": "vitest run --coverage",
 		"typecheck": "tsc --noEmit && tsc --project tsconfig.node.json --noEmit",

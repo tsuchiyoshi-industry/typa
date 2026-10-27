@@ -66,9 +66,9 @@ export async function startIsolatedApi(database: string) {
 	if (!secret) {
 		throw new Error("Local JWT signing configuration is required.");
 	}
-	const jwt = (role: string, sub?: string) => {
+	const jwt = (role: string, sub?: string, claims: Record<string, unknown> = {}) => {
 		const encoded = (value: unknown) => Buffer.from(JSON.stringify(value)).toString("base64url");
-		const body = `${encoded({ alg: "HS256", typ: "JWT" })}.${encoded({ role, aud: "authenticated", sub, iss: "supabase", iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 3600 })}`;
+		const body = `${encoded({ alg: "HS256", typ: "JWT" })}.${encoded({ role, aud: "authenticated", sub, iss: "supabase", iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + 3600, ...claims })}`;
 		return `${body}.${createHmac("sha256", secret).update(body).digest("base64url")}`;
 	};
 	const network = Object.keys(authTemplate.NetworkSettings.Networks)[0];
@@ -105,6 +105,12 @@ export async function startIsolatedApi(database: string) {
 				if (value && name !== "host" && name !== "content-length") {
 					headers.set(name, Array.isArray(value) ? value.join(",") : value);
 				}
+			}
+			if (auth) {
+				// GoTrue's IP limiter requires a trusted gateway header. Never let a caller
+				// choose that value (or the alternative Supabase forwarding header).
+				headers.set("X-Forwarded-For", request.socket.remoteAddress ?? "127.0.0.1");
+				headers.delete("Sb-Forwarded-For");
 			}
 			const result = await fetch(`http://127.0.0.1:${auth ? 56422 : 56421}${path}`, {
 				method: request.method,
@@ -185,6 +191,7 @@ export async function startIsolatedApi(database: string) {
 	try {
 		start(restTemplate, "typa_release_rest", 56421, "PGRST_DB_URI");
 		start(authTemplate, "typa_release_auth", 56422, "GOTRUE_DB_DATABASE_URL", {
+			GOTRUE_RATE_LIMIT_HEADER: "X-Forwarded-For",
 			GOTRUE_HOOK_BEFORE_USER_CREATED_ENABLED: "true",
 			GOTRUE_HOOK_BEFORE_USER_CREATED_URI:
 				"pg-functions://postgres/public/hook_before_user_created",
@@ -213,5 +220,23 @@ export async function startIsolatedApi(database: string) {
 		await stop();
 		throw error;
 	}
-	return { base, jwt, sql: (statement: string) => isolatedSql(database, statement), stop };
+	return {
+		base,
+		jwt,
+		sql: (statement: string) => isolatedSql(database, statement),
+		stop,
+		network,
+		images: { auth: authTemplate.Config.Image, rest: restTemplate.Config.Image },
+		// 証跡に出せる設定だけを列挙する。SMTPやJWTの秘密は返さない。
+		authSettings: Object.fromEntries(
+			Object.entries({
+				...envOf(authTemplate),
+				GOTRUE_RATE_LIMIT_HEADER: "X-Forwarded-For",
+			}).filter(([name]) =>
+				/^GOTRUE_(RATE_LIMIT_|PASSWORD_MIN_LENGTH$|PASSWORD_REQUIRED_CHARACTERS$|SECURITY_CAPTCHA_ENABLED$|MFA_TOTP_(ENROLL|VERIFY)_ENABLED$)/.test(
+					name,
+				),
+			),
+		),
+	};
 }

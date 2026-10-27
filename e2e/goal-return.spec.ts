@@ -63,6 +63,12 @@ test.beforeAll(() => {
 		"update public.employees set primary_evaluator_id=900002,secondary_evaluator_id=900003 where id=900005",
 	);
 });
+// 後のシナリオ(term.spec.ts)は、評価期間のシートがすべて確定済みであることを前提に期間を締める。
+// 途中で失敗しても、確定していないシートと評価者の設定を残さない
+test.afterAll(() => {
+	sql(`delete from public.evaluation_sheets where employee_id=900005;
+		update public.employees set primary_evaluator_id=null,secondary_evaluator_id=null where id=900005`);
+});
 
 test("an evaluator sends goals back with a reason that only the subject reads, as written", async ({
 	page,

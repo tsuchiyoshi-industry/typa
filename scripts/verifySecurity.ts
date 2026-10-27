@@ -156,8 +156,12 @@ try {
 		);
 	const sheetArgs = { p_sheet_id: sheetId };
 	const readSheet = (token: string | null) => rpc("get_sheet", token, sheetArgs);
-	const transition = (token: string, status: string) =>
-		rpc("transition_evaluation_sheet", token, { ...sheetArgs, p_status: status });
+	const transition = (token: string, status: string, reason?: string) =>
+		rpc("transition_evaluation_sheet", token, {
+			...sheetArgs,
+			p_status: status,
+			...(reason === undefined ? {} : { p_reason: reason }),
+		});
 	const assertDocument = (response: { status: number; body: unknown }) => {
 		assert.equal(response.status, 200);
 		assert.ok(JSON.stringify(response.body).includes(marker), "Protected document was not reached");
@@ -288,7 +292,13 @@ try {
 		assert.equal(count, "1");
 		assert.equal((await transition(owner.token, "goals_submitted")).status, 403);
 		assert.equal(notices(), count);
-		assert.equal((await transition(primary.token, "draft")).status, 200);
+		// 差し戻しには理由が要る。理由のない・空白だけの差し戻しは、状態を変えずに断る
+		const submitted = sheetSnapshot();
+		for (const reason of [undefined, " 　"]) {
+			assert.equal((await transition(primary.token, "draft", reason)).status, 400);
+		}
+		assert.equal(sheetSnapshot(), submitted);
+		assert.equal((await transition(primary.token, "draft", "security check")).status, 200);
 	});
 	await check("DATA-SECRET", async () => {
 		for (const actor of [owner, admin]) {

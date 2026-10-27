@@ -357,6 +357,17 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 										onShow={showPending}
 									/>
 									<SheetCorrectionsNotice corrections={current().corrections} />
+									<Show when={current().goalReturnReason}>
+										{(reason) => (
+											<section class="return-notice" aria-labelledby="return-notice-heading">
+												<h2 id="return-notice-heading">
+													一次評価者（{current().primaryEvaluator}）から目標の修正を頼まれています
+												</h2>
+												<blockquote>{reason()}</blockquote>
+												<p>修正して保存したら、もう一度目標を送信してください。</p>
+											</section>
+										)}
+									</Show>
 									<GoalTerms
 										sheet={current()}
 										subject={loadedSheet().subject}

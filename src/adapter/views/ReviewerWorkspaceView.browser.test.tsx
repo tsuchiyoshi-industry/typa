@@ -274,7 +274,9 @@ it("finalizes after confirmation and advances to the reviewer's next turn", asyn
 	expect(dialog.textContent).toContain("確定後は、次の 社員3 さんの評価に進みます。");
 	const updateStatus = vi.spyOn(view.editor.controller, "updateStatus");
 	fireEvent.click(within(dialog).getByRole("button", { name: "評価を確定する" }));
-	await waitFor(() => expect(updateStatus).toHaveBeenCalledWith(EvaluationStatus.FINALIZED, true));
+	await waitFor(() =>
+		expect(updateStatus).toHaveBeenCalledWith(EvaluationStatus.FINALIZED, true, undefined),
+	);
 	await waitFor(() => expect(view.history.get()).toContain("sheet=103"));
 	await view.findByText("社員3 さんの評価に進みました");
 	within(
@@ -314,7 +316,7 @@ it("confirms the primary evaluation and notifies the secondary evaluator unless 
 	fireEvent.click(notify);
 	fireEvent.click(within(dialog).getByRole("button", { name: "一次評価を確定する" }));
 	await waitFor(() =>
-		expect(updateStatus).toHaveBeenCalledWith(EvaluationStatus.FIRST_EVALUATED, false),
+		expect(updateStatus).toHaveBeenCalledWith(EvaluationStatus.FIRST_EVALUATED, false, undefined),
 	);
 	await waitFor(() =>
 		within(
@@ -455,12 +457,6 @@ it("shows an error dialog for an empty objective even when all scores are saved"
 });
 it.each([
 	["目標を確定する", "目標を確定しますか？", "目標を確定する", EvaluationStatus.GOALS_CONFIRMED],
-	[
-		"要修正として下書きに戻す",
-		"目標を要修正として戻しますか？",
-		"要修正として戻す",
-		EvaluationStatus.DRAFT,
-	],
 ] as const)(
 	"lets the primary evaluator choose whether to mail the subject when pressing 「%s」",
 	async (button, title, confirm, status) => {
@@ -475,6 +471,69 @@ it.each([
 		expect(notify.checked).toBe(true);
 		fireEvent.click(notify);
 		fireEvent.click(within(dialog).getByRole("button", { name: confirm }));
-		await waitFor(() => expect(updateStatus).toHaveBeenCalledWith(status, false));
+		await waitFor(() => expect(updateStatus).toHaveBeenCalledWith(status, false, undefined));
 	},
 );
+it("never carries a half-written reason over to the next subordinate's sheet", async () => {
+	const goalsSent = { status: "goals_submitted", isPrimary: true, firstRank: null } as const;
+	const view = setup(
+		[reviewerRow(1, goalsSent), reviewerRow(2, goalsSent)],
+		"/review?period=10&sheet=101",
+	);
+	const reasonIn = async (name: string) => {
+		const sheet = within(await view.findByRole("dialog", { name: `${name} さんの評価シート` }));
+		fireEvent.click(await sheet.findByRole("button", { name: "要修正として下書きに戻す" }));
+		const dialog = await view.findByRole("dialog", { name: "目標を要修正として戻しますか？" });
+		expect(dialog.textContent).toContain(`${name} さんのシートに`);
+		return {
+			sheet,
+			dialog,
+			field: within(dialog).getByRole("textbox", { name: /差し戻しの理由/ }) as HTMLTextAreaElement,
+		};
+	};
+	const first = await reasonIn("社員1");
+	fireEvent.input(first.field, { target: { value: "社員1さんあての理由" } });
+	fireEvent.click(within(first.dialog).getByRole("button", { name: "キャンセル" }));
+	fireEvent.click(first.sheet.getByRole("button", { name: "次へ" }));
+
+	const second = await reasonIn("社員2");
+	expect(second.field.value).toBe("");
+	fireEvent.click(within(second.dialog).getByRole("button", { name: "キャンセル" }));
+});
+it("asks for a reason the subject will read before sending the goals back, and keeps it if the dialog is closed", async () => {
+	const goalsSent = { status: "goals_submitted", isPrimary: true, firstRank: null } as const;
+	const view = setup([reviewerRow(1, goalsSent)], "/review?period=10&sheet=101");
+	const updateStatus = vi.spyOn(view.editor.controller, "updateStatus");
+	const open = async () => {
+		fireEvent.click(await view.findByRole("button", { name: "要修正として下書きに戻す" }));
+		return view.findByRole("dialog", { name: "目標を要修正として戻しますか？" });
+	};
+	let dialog = await open();
+	// 書く前に、誰が読むかが見える
+	expect(dialog.textContent).toContain(
+		"この理由は 社員1 さんのシートに、書いたとおりに表示されます",
+	);
+	const send = within(dialog).getByRole("button", {
+		name: "理由を添えて戻す",
+	}) as HTMLButtonElement;
+	expect(send.disabled).toBe(true);
+	const reason = within(dialog).getByRole("textbox", { name: /差し戻しの理由/ });
+	fireEvent.input(reason, { target: { value: "あ".repeat(201) } });
+	expect(send.disabled).toBe(true);
+	fireEvent.input(reason, { target: { value: "目標2を数値で" } });
+	fireEvent.click(within(dialog).getByRole("button", { name: "キャンセル" }));
+	expect(updateStatus).not.toHaveBeenCalled();
+
+	dialog = await open();
+	const kept = within(dialog).getByRole("textbox", {
+		name: /差し戻しの理由/,
+	}) as HTMLTextAreaElement;
+	expect(kept.value).toBe("目標2を数値で");
+	fireEvent.click(
+		within(dialog).getByRole("checkbox", { name: "本人（社員1）に通知メールを送る" }),
+	);
+	fireEvent.click(within(dialog).getByRole("button", { name: "理由を添えて戻す" }));
+	await waitFor(() =>
+		expect(updateStatus).toHaveBeenCalledWith(EvaluationStatus.DRAFT, false, "目標2を数値で"),
+	);
+});

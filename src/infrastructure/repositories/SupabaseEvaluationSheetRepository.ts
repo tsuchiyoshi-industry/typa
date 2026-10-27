@@ -13,6 +13,7 @@ import type {
 import { EvaluationAllocation } from "../../domain/valueObjects/EvaluationAllocation";
 import { EvaluationRank } from "../../domain/valueObjects/EvaluationRank";
 import { EvaluationStatus } from "../../domain/valueObjects/EvaluationStatus";
+import type { GoalReturnReason } from "../../domain/valueObjects/GoalReturnReason";
 import type { PeriodGoal } from "../../domain/valueObjects/PeriodGoal";
 import { supabase } from "../db/supabase";
 
@@ -95,6 +96,8 @@ export interface SheetRpcRow {
 	maxChallengeGoals: number | null;
 	/** 通知の方法。"email" のときだけ、アプリが通知メールを頼む。 */
 	notificationChannel?: string;
+	/** 目標を差し戻した理由。下書きの間だけ値がある(古い DB では無い)。 */
+	goalReturnReason?: string | null;
 }
 
 interface PeriodJoinRow {
@@ -251,6 +254,7 @@ export function toSheet(row: SheetRpcRow): EvaluationSheet | null {
 		corrections: (row.corrections ?? []).map(SheetCorrection.restore),
 		// 分からないときはメールと見なさない(頼んでいないメールを送らない)
 		notifiesByMail: row.notificationChannel === "email",
+		goalReturnReason: row.goalReturnReason ?? "",
 	});
 }
 
@@ -310,7 +314,7 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 		sheetId: number,
 		status: EvaluationStatus,
 		_ranks: { first?: EvaluationRank; final?: EvaluationRank } = {},
-	): Promise<EvaluationSheet | null> {
+	): Promise<EvaluationSheet> {
 		// The DB locks the sheet, checks the transition and computes all final values.
 		const { data, error } = await supabase.rpc("transition_evaluation_sheet", {
 			p_sheet_id: sheetId,
@@ -318,9 +322,6 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 		});
 		if (error) {
 			throw error;
-		}
-		if (status.isDraft() && data === null) {
-			return null;
 		}
 		if (!data) {
 			throw new Error("Failed to load updated evaluation sheet.");
@@ -330,6 +331,17 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 			throw new Error("Failed to load updated evaluation sheet.");
 		}
 		return updated;
+	}
+
+	async returnGoals(sheetId: number, reason: GoalReturnReason): Promise<void> {
+		const { error } = await supabase.rpc("transition_evaluation_sheet", {
+			p_sheet_id: sheetId,
+			p_status: "draft",
+			p_reason: reason.toString(),
+		});
+		if (error) {
+			throw error;
+		}
 	}
 
 	async findByOwner(employeeId: number): Promise<EvaluationSheetSummary[]> {

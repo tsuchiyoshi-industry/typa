@@ -109,6 +109,7 @@ export function sheetRepository() {
 		updateStatus: vi
 			.fn<EvaluationSheetRepository["updateStatus"]>()
 			.mockImplementation(async (_id, status) => sheet(status)),
+		returnGoals: vi.fn<EvaluationSheetRepository["returnGoals"]>().mockResolvedValue(undefined),
 		findByOwner: vi.fn<EvaluationSheetRepository["findByOwner"]>().mockResolvedValue([]),
 		findByEvaluator: vi.fn<EvaluationSheetRepository["findByEvaluator"]>().mockResolvedValue([]),
 		findOverview: vi.fn<EvaluationSheetRepository["findOverview"]>().mockResolvedValue([]),

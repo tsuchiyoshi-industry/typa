@@ -156,7 +156,10 @@ it("does not require scores for goal review, confirmation or the subject's evalu
 	] as const) {
 		const { current, sheets, useCase, out } = setup(cases[0], 0, 0);
 		sheets.findById.mockResolvedValue(EvaluationSheet.create({ ...current, status: initial }));
-		await useCase.execute({ sheetId: 100, currentEmployeeId: actor, status: next }, out);
-		expect(sheets.updateStatus).toHaveBeenCalled();
+		await useCase.execute(
+			{ sheetId: 100, currentEmployeeId: actor, status: next, returnReason: "理由" },
+			out,
+		);
+		expect(next.isDraft() ? sheets.returnGoals : sheets.updateStatus).toHaveBeenCalled();
 	}
 });

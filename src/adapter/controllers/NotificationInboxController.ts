@@ -23,7 +23,7 @@ const WORDING: Record<InAppNotification["kind"], { done: string; next: string }>
 	goals_confirmed: { done: "目標が確定しました", next: "達成状況を記入してください" },
 	goals_returned: {
 		done: "目標が要修正として戻されました",
-		next: "目標を修正して再送信してください",
+		next: "シートで差し戻しの理由を確認し、目標を直して再送信してください",
 	},
 	submitted: { done: "一次評価の依頼が届きました", next: "一次評価をお願いします" },
 	first_evaluated: { done: "一次評価が確定しました", next: "二次評価をお願いします" },

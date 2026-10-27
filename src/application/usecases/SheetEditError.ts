@@ -72,6 +72,7 @@ export function describeSheetEditError(error: SheetEditError): string {
 			return describeMilestoneError(error);
 		case "objectivesIncomplete":
 		case "evaluationIncomplete":
+		case "returnReasonInvalid":
 			return describeSheetTransitionError(error);
 		case "periodClosed":
 		case "forbidden":

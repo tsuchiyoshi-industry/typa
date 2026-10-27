@@ -13,6 +13,8 @@ export interface SheetNotification {
 	employeeName: string;
 	employeeNo: string;
 	periodName: string;
+	/** 目標の差し戻しの理由。差し戻し以外では空(古い DB では無い)。 */
+	returnReason?: string;
 	/** email: the mailbox verified at sign-up; null when the evaluator is unassigned or not registered. */
 	recipients: { role: "subject" | "primary" | "secondary"; name: string; email: string | null }[];
 }
@@ -40,6 +42,7 @@ export function composeTestMail(templateId: NotificationTemplateId, to: string):
 		employeeNo: "TEST001",
 		periodName: "送信テスト",
 		sheetId: "サンプル",
+		returnReason: "（ここに一次評価者が書いた差し戻しの理由が入ります）",
 	});
 	return {
 		recipient: "送信テスト",
@@ -58,7 +61,10 @@ export function composeMails(notification: SheetNotification): {
 	mails: Mail[];
 	undeliverable: Delivery[];
 } {
-	const { subject, text } = renderNotificationTemplate(notification.status, notification);
+	const { subject, text } = renderNotificationTemplate(notification.status, {
+		...notification,
+		returnReason: notification.returnReason ?? "",
+	});
 
 	const targets = new Map<string, { to: string; labels: string[] }>();
 	const undeliverable: Delivery[] = [];

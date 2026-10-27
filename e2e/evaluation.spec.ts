@@ -100,11 +100,18 @@ test("a sheet goes from the employee through both evaluators to a final rank", a
 		let sheet = await openSubordinate(page);
 		await expect(sheet.getByRole("button", { name: "評価を入力" })).toHaveCount(0);
 		await sheet.getByRole("button", { name: "要修正として下書きに戻す" }).click();
-		await confirm(page, "目標を要修正として戻しますか？", "要修正として戻す");
+		await page
+			.getByRole("dialog", { name: "目標を要修正として戻しますか？" })
+			.getByRole("textbox", { name: /差し戻しの理由/ })
+			.fill("期中目標の期限を書き添えてください");
+		await confirm(page, "目標を要修正として戻しますか？", "理由を添えて戻す");
 		await expect(sheet).toBeHidden();
 		await signOut(page);
 		await signIn(page, "RELEASE004");
 		await openOwnSheet(page);
+		await expect(page.getByRole("region", { name: /目標の修正を頼まれています/ })).toContainText(
+			"期中目標の期限を書き添えてください",
+		);
 		await expect(page.getByRole("button", { name: "目標を編集" })).toBeVisible();
 		await page.getByRole("button", { name: "目標を送信する" }).click();
 		await confirm(page, "目標を送信しますか？", "目標を送信する");

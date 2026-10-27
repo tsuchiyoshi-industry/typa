@@ -1,5 +1,6 @@
 import type { EvaluationRankDto } from "../../application/dtos/EvaluationSheetDto";
 import { EvaluationStatus } from "../../domain/valueObjects/EvaluationStatus";
+import { GoalReturnReason } from "../../domain/valueObjects/GoalReturnReason";
 import type { SheetEditorController } from "../controllers/SheetEditorController";
 import type { SheetEditorViewModel } from "../presenters/SheetEditorPresenter";
 import { confirmAction, ensureNothingUnsaved, showToast } from "./feedback";
@@ -29,8 +30,13 @@ export function createSheetStatusActions(options: SheetStatusActionsOptions) {
 	const sheet = () => options.viewModel().sheet;
 
 	/** notify: 確定の通知メールを送るか。送信の結果は、宛先ごとに後からトーストで届く。 */
-	const changeStatus = async (status: EvaluationStatus, doneMessage: string, notify = true) => {
-		const success = await options.controller.updateStatus(status, notify);
+	const changeStatus = async (
+		status: EvaluationStatus,
+		doneMessage: string,
+		notify = true,
+		returnReason?: string,
+	) => {
+		const success = await options.controller.updateStatus(status, notify, returnReason);
 		if (success) {
 			showToast("success", doneMessage);
 			// 変更後のシートは保存の結果として届いているので、読み直さない
@@ -120,20 +126,48 @@ export function createSheetStatusActions(options: SheetStatusActionsOptions) {
 		}
 	};
 
+	// 閉じたり送れなかったりしても書き直さなくて済むよう、書いた理由は差し戻せるまで覚えておく。
+	// 受け持ち画面では同じ操作で別の人のシートも開くので、別の人へ持ち越さないようシートごとに持つ
+	let draftReason = { sheetId: 0, text: "" };
 	const returnGoals = async () => {
 		if (!ensureNothingUnsaved()) {
 			return;
 		}
 		const mail = mailChoice(EvaluationStatus.DRAFT);
+		const name = sheet()?.subject?.name ?? "本人";
+		const sheetId = sheet()?.sheetId ?? 0;
+		const returnReason = draftReason.sheetId === sheetId ? draftReason.text : "";
+		let reason = returnReason;
+		const confirmed = await confirmAction({
+			title: "目標を要修正として戻しますか？",
+			message: "本人が目標を修正できる下書きへ戻します。本人は修正後にもう一度目標を送信します。",
+			text: {
+				label: "差し戻しの理由（必須）",
+				audience: `この理由は ${name} さんのシートに、書いたとおりに表示されます${sheet()?.notifiesByMail ? "（通知メールを送るときは、メールの本文にも載ります）" : ""}。`,
+				placeholder: "例：目標2の達成基準を、数値で分かるように書き直してください。",
+				initial: returnReason,
+				maxLength: GoalReturnReason.MAX_LENGTH,
+				lengthOf: GoalReturnReason.lengthOf,
+				onInput: (text) => {
+					reason = text;
+				},
+			},
+			checkbox: mail.checkbox,
+			confirmLabel: "理由を添えて戻す",
+		});
+		draftReason = { sheetId, text: reason };
+		if (!confirmed) {
+			return;
+		}
 		if (
-			(await confirmAction({
-				title: "目標を要修正として戻しますか？",
-				message: "本人が目標を修正できる下書きへ戻します。本人は修正後にもう一度目標を送信します。",
-				checkbox: mail.checkbox,
-				confirmLabel: "要修正として戻す",
-			})) &&
-			(await changeStatus(EvaluationStatus.DRAFT, "下書きに戻しました", mail.notify()))
+			await changeStatus(
+				EvaluationStatus.DRAFT,
+				`${name} さんに差し戻しました`,
+				mail.notify(),
+				reason,
+			)
 		) {
+			draftReason = { sheetId: 0, text: "" };
 			if (options.backToReview) {
 				options.backToReview();
 			} else {

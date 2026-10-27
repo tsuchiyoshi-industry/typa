@@ -681,7 +681,7 @@ erDiagram
 | `issue_employee_invitation(employee_no)` | Admin | 有効・未登録の社員に7日間の招待コードを発行。再発行は旧コードと登録途中のトークンを無効にする |
 | `set_employee_enabled(employee_no, enabled)` | Admin | 利用停止・再開。最後の利用可能 Admin を保護する |
 | `get_current_employee_access_state()` | ログイン済み本人 | 自分のアカウントの利用可否だけを返す。停止時の案内に使う |
-| `transition_evaluation_sheet(sheet_id, status)` | 状態に応じた本人・評価者 | ロック・認可・確定集計・状態変更・監査を1トランザクションで行う |
+| `transition_evaluation_sheet(sheet_id, status, reason)` | 状態に応じた本人・評価者 | ロック・認可・確定集計・状態変更・監査を1トランザクションで行う。下書きへ戻すときは reason（差し戻しの理由、1〜200 文字）が必須で、`goal_return_reason` に保存する。理由は下書きを離れると消え、状態の直接の書き換えでは理由なしに戻せない（トリガー `evaluation_sheets_settle_goal_return_reason`） |
 | `claim_sheet_notification` / `complete_sheet_notification` | Edge Function（service_role）のみ | 送信の獲得、重複・回数制限、結果の記録 |
 
 0.9.8 以前のアプリ向けに残していた SMTP 設定と通知先の取得 RPC は、`202610120010_after_app_update.sql` で削除済みです。
@@ -754,7 +754,7 @@ sequenceDiagram
 | --- | --- | --- |
 | 目標の送信 | 一次評価者 | 【TYPA】目標確認のお願い（氏名 / 評価期間） |
 | 目標確定 | 本人 | 【TYPA】目標が確定しました（氏名 / 評価期間） |
-| 要修正として下書きに戻す | 本人 | 【TYPA】目標の修正をお願いします（氏名 / 評価期間） |
+| 要修正として下書きに戻す | 本人 | 【TYPA】目標の修正をお願いします（氏名 / 評価期間）。本文に差し戻しの理由 |
 | 一次評価の依頼 | 一次評価者 | 【TYPA】一次評価のお願い（氏名 / 評価期間） |
 | 一次評価の確定 | 二次評価者（「なし」なら一次評価者） | 【TYPA】二次評価のお願い（氏名 / 評価期間） |
 

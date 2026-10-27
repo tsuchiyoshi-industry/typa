@@ -117,4 +117,6 @@ export interface EvaluationSheetDto {
 	corrections: SheetCorrectionDto[];
 	/** 次に評価する人へメールで知らせるか。false ならアプリ内通知(画面に通知メールの選択肢を出さない)。 */
 	notifiesByMail: boolean;
+	/** 一次評価者が目標を差し戻した理由。下書きの間だけ。なければ空。 */
+	goalReturnReason: string;
 }

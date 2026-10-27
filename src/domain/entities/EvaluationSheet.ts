@@ -76,6 +76,8 @@ export class EvaluationSheet {
 		 * 状態の変更と同時に DB が知らせる。設定を読まずに作るシート(テストなど)は、メールで知らせる。
 		 */
 		public readonly notifiesByMail: boolean = true,
+		/** 一次評価者が目標を差し戻したときの理由。下書きの間だけあり、それ以外は空。 */
+		public readonly goalReturnReason: string = "",
 	) {}
 
 	/** 設定を読まずにシートを作るとき(テストなど)の上限。DB の初期値と同じ。 */
@@ -104,6 +106,7 @@ export class EvaluationSheet {
 		currentEvaluatorIds?: readonly number[];
 		corrections?: readonly SheetCorrection[];
 		notifiesByMail?: boolean;
+		goalReturnReason?: string;
 	}): EvaluationSheet {
 		const commonEvaluationResults = params.commonEvaluationResults ?? [];
 		const objectiveScoreTotals =
@@ -139,6 +142,7 @@ export class EvaluationSheet {
 			params.currentEvaluatorIds,
 			params.corrections,
 			params.notifiesByMail,
+			params.goalReturnReason,
 		);
 	}
 
@@ -342,6 +346,8 @@ export class EvaluationSheet {
 			this.currentEvaluatorIds,
 			this.corrections,
 			this.notifiesByMail,
+			// 下書きを離れると、DB が理由を消す
+			status.isDraft() ? this.goalReturnReason : "",
 		);
 	}
 

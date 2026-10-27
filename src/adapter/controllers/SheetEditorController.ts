@@ -169,8 +169,12 @@ export class SheetEditorController {
 		}
 	}
 
-	/** status: 進める先の状態。notify: 確定の通知メールを送るか。 */
-	async updateStatus(status: EvaluationStatus, notify = true): Promise<boolean> {
+	/** status: 進める先の状態。notify: 確定の通知メールを送るか。returnReason: 下書きへ戻す理由。 */
+	async updateStatus(
+		status: EvaluationStatus,
+		notify = true,
+		returnReason?: string,
+	): Promise<boolean> {
 		const { sheet } = this.presenter.viewModel();
 		if (!sheet?.sheetId) {
 			this.presenter.presentStatusUpdateError(
@@ -194,6 +198,7 @@ export class SheetEditorController {
 					status,
 					currentEmployeeId,
 					notify,
+					returnReason,
 				},
 				this.presenter.outputPort.status,
 			);

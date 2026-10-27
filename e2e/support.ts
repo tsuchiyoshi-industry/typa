@@ -50,9 +50,9 @@ export async function restAs(n: number) {
 	});
 	const { access_token } = (await login.json()) as { access_token: string };
 	expect(access_token).toBeTruthy();
-	return (path: string, body?: unknown) =>
+	return (path: string, body?: unknown, method = body === undefined ? "GET" : "POST") =>
 		fetch(`${base}/rest/v1/${path}`, {
-			method: body === undefined ? "GET" : "POST",
+			method,
 			headers: {
 				apikey,
 				Authorization: `Bearer ${access_token}`,

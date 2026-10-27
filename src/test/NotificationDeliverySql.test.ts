@@ -49,7 +49,7 @@ it("deduplicates requests, cools down failures, rotates claim tokens and never r
 it("treats a later resubmission as a new event", async () => {
 	await actAs(db, 4);
 	await actAs(db, 2);
-	await value("public.transition_evaluation_sheet(900,'draft')");
+	await value("public.transition_evaluation_sheet(900,'draft','再提出のお願い')");
 	await actAs(db, 4);
 	await value("public.transition_evaluation_sheet(900,'goals_submitted')");
 	await db.exec("reset role; set role service_role");
@@ -63,7 +63,7 @@ it("limits delivery attempts across repeated resubmissions of the same sheet", a
 	);
 	await actAs(db, 4);
 	await actAs(db, 2);
-	await value("public.transition_evaluation_sheet(900,'draft')");
+	await value("public.transition_evaluation_sheet(900,'draft','再提出のお願い')");
 	await actAs(db, 4);
 	await value("public.transition_evaluation_sheet(900,'goals_submitted')");
 	await db.exec("reset role; set role service_role");

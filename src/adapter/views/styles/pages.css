@@ -622,6 +622,35 @@ a.setup-task-link:hover {
 	font-size: 0.8125rem;
 	opacity: 0.85;
 }
+/* 目標の差し戻し。評価者が書いた文は、改行も含めて書いたとおりに見せる */
+.return-notice {
+	padding: 14px 18px;
+	border: 1px solid color-mix(in srgb, var(--hr-warning) 40%, transparent);
+	border-radius: var(--hr-radius-md);
+	background: color-mix(in srgb, var(--hr-warning) 8%, var(--hr-surface));
+}
+.return-notice h2 {
+	margin: 0;
+	font-size: 0.95rem;
+	font-weight: 650;
+	color: var(--hr-warning-text);
+}
+.return-notice blockquote {
+	margin: 0.6rem 0 0;
+	padding: 0.6rem 0.8rem;
+	font-size: 0.9rem;
+	line-height: 1.7;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	color: var(--hr-text);
+	background: var(--hr-surface);
+	border-radius: var(--hr-radius-sm);
+}
+.return-notice p {
+	margin: 0.5rem 0 0;
+	font-size: 0.8125rem;
+	color: var(--hr-text-muted);
+}
 .correction-editor h3 {
 	margin: 1.4rem 0 0.4rem;
 }

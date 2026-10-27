@@ -63,6 +63,7 @@ export function reviewerEditorFixture(
 	};
 	const dto = (row: ReviewerRowDto): EvaluationSheetDto => ({
 		notifiesByMail,
+		goalReturnReason: "",
 		commonEvaluation: commonEvaluation(row),
 		corrections: [],
 		sheetId: row.sheetId as number,

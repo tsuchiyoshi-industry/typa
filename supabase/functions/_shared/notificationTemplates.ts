@@ -18,6 +18,8 @@ export interface NotificationTemplateData {
 	employeeNo: string;
 	periodName: string;
 	sheetId: string | number;
+	/** 目標の差し戻しの理由。差し戻しの文面だけが使う。 */
+	returnReason?: string;
 }
 
 export const NOTIFICATION_TEMPLATES = Object.entries(TEMPLATES).map(([id, template]) => ({
@@ -37,7 +39,7 @@ export function renderNotificationTemplate(
 	const template = TEMPLATES[id];
 	const fill = (text: string) =>
 		text.replace(/\{\{(\w+)\}\}/g, (_match, key: string) => {
-			if (!Object.keys(data).includes(key)) {
+			if (data[key as keyof NotificationTemplateData] === undefined) {
 				throw new Error(`Unknown notification template field: ${key}`);
 			}
 			return String(data[key as keyof NotificationTemplateData]);

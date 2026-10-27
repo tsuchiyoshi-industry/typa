@@ -468,14 +468,23 @@ describe("comments, final rank, status and notifications", () => {
 		const { sheets, employees, out } = setup(initial);
 		const notifications = notificationRepository();
 		await new UpdateEvaluationStatusInteractor(sheets, employees, notifications).execute(
-			{ sheetId: 100, currentEmployeeId: id, status: EvaluationStatus.from(status) },
+			{
+				sheetId: 100,
+				currentEmployeeId: id,
+				status: EvaluationStatus.from(status),
+				returnReason: "理由",
+			},
 			out,
 		);
-		expect(sheets.updateStatus).toHaveBeenCalledWith(
-			100,
-			EvaluationStatus.from(status),
-			expect.anything(),
-		);
+		if (status === "draft") {
+			expect(sheets.returnGoals).toHaveBeenCalledWith(100, expect.anything());
+		} else {
+			expect(sheets.updateStatus).toHaveBeenCalledWith(
+				100,
+				EvaluationStatus.from(status),
+				expect.anything(),
+			);
+		}
 		expect(notifications.notifySheetStatusChanged).toHaveBeenCalledTimes(
 			status === "finalized" ? 0 : 1,
 		);
@@ -483,24 +492,6 @@ describe("comments, final rank, status and notifications", () => {
 		const presented = (vi.mocked(out.present).mock.calls[0][0] as { sheet: unknown }).sheet;
 		expect(presented === null).toBe(status === "draft");
 	});
-	it.each([
-		["the repository can no longer read it", null],
-		["a stale copy is still returned", "copy"],
-	] as const)(
-		"returns no body to the evaluator who sent the goals back when %s",
-		async (_, read) => {
-			const { sheets, employees, out } = setup(EvaluationStatus.GOALS_SUBMITTED);
-			sheets.updateStatus.mockResolvedValue(read && sheet(EvaluationStatus.DRAFT));
-			const notifications = notificationRepository();
-			await new UpdateEvaluationStatusInteractor(sheets, employees, notifications).execute(
-				{ sheetId: 100, currentEmployeeId: 2, status: EvaluationStatus.DRAFT },
-				out,
-			);
-			expect(out.present).toHaveBeenCalledWith({ sheet: null });
-			// 本人へ要修正を知らせる
-			expect(notifications.notifySheetStatusChanged).toHaveBeenCalledTimes(1);
-		},
-	);
 	it.each([
 		[EvaluationStatus.DRAFT, 1, "goals_submitted"],
 		[EvaluationStatus.SUBMITTED, 2, "first_evaluated"],

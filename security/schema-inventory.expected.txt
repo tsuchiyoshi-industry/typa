@@ -83,6 +83,7 @@ COLUMN evaluation_sheets.final_rank_letter text null=YES default=-
 COLUMN evaluation_sheets.final_rank_level text null=YES default=-
 COLUMN evaluation_sheets.first_overall_comment text null=YES default=''::text
 COLUMN evaluation_sheets.first_rank text null=YES default=-
+COLUMN evaluation_sheets.goal_return_reason text null=YES default=-
 COLUMN evaluation_sheets.grade_id smallint null=YES default=-
 COLUMN evaluation_sheets.id bigint null=NO default=-
 COLUMN evaluation_sheets.no_secondary_evaluator boolean null=NO default=false
@@ -201,6 +202,7 @@ CONSTRAINT evaluation_settings evaluation_settings_objective_allocation_check CH
 CONSTRAINT evaluation_settings evaluation_settings_pkey PRIMARY KEY (id)
 CONSTRAINT evaluation_sheets evaluation_sheets_employee_id_fkey FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
 CONSTRAINT evaluation_sheets evaluation_sheets_first_rank_check CHECK ((first_rank = ANY (ARRAY['S'::text, 'A'::text, 'B+'::text, 'B'::text, 'B-'::text, 'C'::text, 'D'::text])))
+CONSTRAINT evaluation_sheets evaluation_sheets_goal_return_reason_check CHECK (((char_length(goal_return_reason) >= 1) AND (char_length(goal_return_reason) <= 200)))
 CONSTRAINT evaluation_sheets evaluation_sheets_grade_id_fkey FOREIGN KEY (grade_id) REFERENCES employee_grades(id)
 CONSTRAINT evaluation_sheets evaluation_sheets_period_id_employee_id_key UNIQUE (period_id, employee_id)
 CONSTRAINT evaluation_sheets evaluation_sheets_period_id_fkey FOREIGN KEY (period_id) REFERENCES evaluation_periods(id) ON DELETE CASCADE
@@ -273,7 +275,7 @@ FUNCTION get_reviewer_workspace(bigint) definer=true anon=false authenticated=tr
 FUNCTION get_sheet(bigint) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=1817647c7831bf6fdfca58a344e20d57
 FUNCTION get_sheet_for_correction(bigint) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=939fa085b3581b9232647a2ff6fb463d
 FUNCTION get_sheet_import_template() definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=e9aa505bb31536583fde2852728272ea
-FUNCTION get_sheet_notification(bigint,uuid) definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=78878297064bee87aa673dc631e1611f
+FUNCTION get_sheet_notification(bigint,uuid) definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=0a4e1de44acf86f2860858160b9c7b3b
 FUNCTION get_sheet_overview() definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=d57bad6251bb84bedb2d8c3ceb1dec33
 FUNCTION goal_achievement_only(jsonb,jsonb) definer=false anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=17857111d0a4fd5bf7e41a5d5ccecd9c
 FUNCTION guard_common_evaluation_result_write() definer=false anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=f53fead580ae9b10a90c0f53eb7ec721
@@ -308,11 +310,12 @@ FUNCTION set_employee_enabled(text,boolean) definer=true anon=false authenticate
 FUNCTION set_employee_role(text,text) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=923cbceb73c7f62bbd02e1f62c62e359
 FUNCTION set_evaluation_sheet_evaluators() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=7aeaa81e137f9ba93289665c24d9fb31
 FUNCTION set_evaluation_sheet_grade() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=38b20da30b14521cdc7b27f2dd6d133a
+FUNCTION settle_goal_return_reason() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=378a8111694facf7f2f223f3a4aa8731
 FUNCTION sheet_access(bigint) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=ea3203fa761219b006fdeaac98b5f0fd
-FUNCTION sheet_document(bigint,boolean,boolean,boolean) definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=799f6770aba95d57172e85cb7edd8962
+FUNCTION sheet_document(bigint,boolean,boolean,boolean) definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=68bea960a22fb64168508f1d32cff8d2
 FUNCTION sheet_evaluation_score(bigint,boolean,integer,integer) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=7a7a86c9acb9982156aa271df91f60d7
 FUNCTION sync_evaluation_sheet_evaluators() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=b68013cbd63da33d78ab06a4ea4b33c6
-FUNCTION transition_evaluation_sheet(bigint,text) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=85cfe2b16a194c61b73781dedfe85d73
+FUNCTION transition_evaluation_sheet(bigint,text,text) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=827aa57fdb890faaba77a65ae9721864
 FUNCTION valid_period_goals(jsonb) definer=false anon=true authenticated=true service_role=true auth_admin=true config={"search_path=\"\""} md5=7425690d03c25e717e42fa59d2e5ca8f
 FUNCTION visible_employee_ids() definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=e436ff827b21ab080975cc93e6860fd9
 GRANT common_evaluation_item_sets service_role DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
@@ -456,6 +459,7 @@ TRIGGER evaluation_sheets evaluation_sheets_notify_next_evaluator AFTER UPDATE
 TRIGGER evaluation_sheets evaluation_sheets_require_active_period BEFORE DELETE,INSERT,UPDATE
 TRIGGER evaluation_sheets evaluation_sheets_set_evaluators BEFORE INSERT
 TRIGGER evaluation_sheets evaluation_sheets_set_grade BEFORE INSERT
+TRIGGER evaluation_sheets evaluation_sheets_settle_goal_return_reason BEFORE UPDATE
 TRIGGER evaluation_sheets z_evaluation_sheets_notification_revision BEFORE UPDATE
 TRIGGER milestones a_milestones_lock_sheet BEFORE DELETE,INSERT,UPDATE
 TRIGGER milestones milestones_achievement_placement AFTER INSERT,UPDATE

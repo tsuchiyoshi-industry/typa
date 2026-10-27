@@ -651,6 +651,60 @@ a:hover {
 	accent-color: var(--hr-accent);
 }
 
+/* 実行と一緒に書いてもらう文(差し戻しの理由など) */
+.confirm-dialog__text {
+	display: grid;
+	gap: 0.35rem;
+	margin-top: 1rem;
+}
+
+.confirm-dialog__text-label {
+	font-size: 0.875rem;
+	font-weight: 600;
+}
+
+/* 誰が読むかを、書く前に目に入る位置に置く */
+.confirm-dialog__audience {
+	display: flex;
+	align-items: flex-start;
+	gap: 0.4rem;
+	font-size: 0.8125rem;
+	line-height: 1.5;
+	color: var(--hr-text);
+}
+
+.confirm-dialog__audience svg {
+	flex-shrink: 0;
+	margin-top: 0.15rem;
+	color: var(--hr-link);
+}
+
+.confirm-dialog__text textarea {
+	width: 100%;
+	padding: 0.5rem 0.65rem;
+	font-size: 0.9rem;
+	line-height: 1.6;
+	resize: vertical;
+	background: var(--hr-bg-elevated);
+	border: 1px solid var(--hr-border-input);
+	border-radius: var(--hr-radius-sm);
+}
+
+.confirm-dialog__text textarea[aria-invalid="true"] {
+	border-color: var(--hr-danger);
+}
+
+.confirm-dialog__count {
+	justify-self: end;
+	font-size: 0.75rem;
+	font-variant-numeric: tabular-nums;
+	color: var(--hr-text-muted);
+}
+
+.confirm-dialog__count.over {
+	color: var(--hr-danger-text);
+}
+
 .confirm-dialog__actions {
 	display: flex;
 	flex-wrap: wrap;

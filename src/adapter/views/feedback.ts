@@ -61,12 +61,26 @@ export interface ConfirmRequest {
 	note?: string;
 	/** 実行と一緒に選んでもらうこと。チェックを入れた状態で出し、変えたら onChange で知らせる。 */
 	checkbox?: { label: string; onChange: (checked: boolean) => void };
+	/** 実行と一緒に書いてもらう文。lengthOf が 1〜maxLength の間だけ実行できる。 */
+	text?: ConfirmText;
 	confirmLabel: string;
 	cancelLabel?: string;
 	/** 選択肢のないお知らせは true にする。キャンセルボタンを出さない。 */
 	acknowledgeOnly?: boolean;
 	/** 取り消せない操作は danger にする。 */
 	tone?: "default" | "danger";
+}
+
+export interface ConfirmText {
+	label: string;
+	/** 書いた文を誰が読むか。入力欄のすぐ上に出し、思わぬ相手に見られないようにする。 */
+	audience: string;
+	placeholder?: string;
+	/** 開いたときに入っている文(前に書いて送れなかった文など)。 */
+	initial?: string;
+	maxLength: number;
+	lengthOf: (text: string) => number;
+	onInput: (text: string) => void;
 }
 
 type PendingConfirm = ConfirmRequest & { resolve: (confirmed: boolean) => void };

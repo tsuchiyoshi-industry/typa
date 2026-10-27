@@ -1,6 +1,7 @@
 import type { EvaluationSheet } from "../entities/EvaluationSheet";
 import type { EvaluationRank } from "../valueObjects/EvaluationRank";
 import type { EvaluationStatus } from "../valueObjects/EvaluationStatus";
+import type { GoalReturnReason } from "../valueObjects/GoalReturnReason";
 
 export interface EvaluationSheetSummary {
 	id: number;
@@ -49,13 +50,15 @@ export interface EvaluationSheetRepository {
 	): Promise<EvaluationSheet>;
 	/**
 	 * ranks: 状態と同時に保存する、確定した評価ランク(一次評価の確定・評価の確定のとき)。
-	 * 変更後のシートを返す。評価者が要修正で下書きに戻したときは、もう読めないので null。
+	 * 変更後のシートを返す。下書きへ戻すのは returnGoals を使う。
 	 */
 	updateStatus(
 		sheetId: number,
 		status: EvaluationStatus,
 		ranks?: { first?: EvaluationRank; final?: EvaluationRank },
-	): Promise<EvaluationSheet | null>;
+	): Promise<EvaluationSheet>;
+	/** 一次評価者が、送信された目標を理由を添えて下書きへ戻す。戻した人はもう読めないので、何も返さない。 */
+	returnGoals(sheetId: number, reason: GoalReturnReason): Promise<void>;
 	findByOwner(employeeId: number): Promise<EvaluationSheetSummary[]>;
 	/** シートの評価者(一次・二次)がその社員であるシート。本人のシートは含まない。 */
 	findByEvaluator(employeeId: number): Promise<EvaluationSheetSummary[]>;

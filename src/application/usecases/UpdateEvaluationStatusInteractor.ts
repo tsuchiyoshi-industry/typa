@@ -21,6 +21,7 @@ import type {
 	EvaluationStatusValue,
 	SheetActor,
 } from "../../domain/valueObjects/EvaluationStatus";
+import { GoalReturnReason } from "../../domain/valueObjects/GoalReturnReason";
 import type { EvaluationSheetDto } from "../dtos/EvaluationSheetDto";
 import { toEvaluationSheetDto } from "../dtos/EvaluationSheetMapper";
 import type { OutputPort } from "../ports/OutputPort";
@@ -37,6 +38,8 @@ export interface UpdateEvaluationStatusRequest {
 	currentEmployeeId: number;
 	/** false なら、確定しても通知メールを送らない。省略すると送る。 */
 	notify?: boolean;
+	/** 下書きへ戻すときの理由(必須、200 文字以内)。本人のシートと通知メールに出る。ほかの状態では使わない。 */
+	returnReason?: string;
 }
 
 export interface UpdateEvaluationStatusResponse {
@@ -66,6 +69,7 @@ export function describeUpdateEvaluationStatusError(error: UpdateEvaluationStatu
 			return describeSheetAccessError(error);
 		case "objectivesIncomplete":
 		case "evaluationIncomplete":
+		case "returnReasonInvalid":
 			return describeSheetTransitionError(error);
 	}
 }
@@ -118,15 +122,25 @@ export class UpdateEvaluationStatusInteractor
 		if (!readiness.ok) {
 			return readiness;
 		}
-		// 評価ランクは確定した時点の点数で決まる。以後は保存値を使い、配点の見直しなどに左右されないようにする。
-		const updated = await this.evaluationSheetRepository.updateStatus(request.sheetId, newStatus, {
-			...(newStatus.isAwaitingSecondEvaluation() ||
-			(newStatus.isFinalized() && sheet.primaryIsFinalEvaluator())
-				? { first: sheet.resolveFirstEvaluationRank() }
-				: {}),
-			...(newStatus.isFinalized() ? { final: sheet.resolveFinalEvaluationRank() } : {}),
-		});
-		// 要修正で下書きに戻すと、戻した評価者はもう読めない。その人には本文を返さない
+		let updated: EvaluationSheet | null;
+		if (newStatus.isDraft()) {
+			const reason = GoalReturnReason.from(request.returnReason ?? "");
+			if (!reason.ok) {
+				return reason;
+			}
+			await this.evaluationSheetRepository.returnGoals(request.sheetId, reason.value);
+			// 下書きに戻すと、戻した評価者はもう読めない。その人には本文を返さない
+			updated = null;
+		} else {
+			// 評価ランクは確定した時点の点数で決まる。以後は保存値を使い、配点の見直しなどに左右されないようにする。
+			updated = await this.evaluationSheetRepository.updateStatus(request.sheetId, newStatus, {
+				...(newStatus.isAwaitingSecondEvaluation() ||
+				(newStatus.isFinalized() && sheet.primaryIsFinalEvaluator())
+					? { first: sheet.resolveFirstEvaluationRank() }
+					: {}),
+				...(newStatus.isFinalized() ? { final: sheet.resolveFinalEvaluationRank() } : {}),
+			});
+		}
 		const saved = updated ?? sheet.withStatus(newStatus);
 		const viewer = EvaluationSheetAccessPolicy.for(request.currentEmployeeId, saved);
 		if (updated && viewer.canViewSheet()) {

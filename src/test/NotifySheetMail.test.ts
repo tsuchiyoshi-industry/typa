@@ -54,6 +54,7 @@ it.each(NOTIFICATION_TEMPLATES)(
 			employeeNo: "TEST001",
 			periodName: "送信テスト",
 			sheetId: "サンプル",
+			returnReason: "（ここに一次評価者が書いた差し戻しの理由が入ります）",
 		};
 		const content = renderNotificationTemplate(id, data);
 		const mail = composeTestMail(id, "test@example.jp");
@@ -118,4 +119,24 @@ it.each(["draft", "goals_confirmed"] as const)("sends %s instructions to the sub
 	expect(mails[0].text).toContain(
 		status === "draft" ? "目標を修正して再送信" : "本人から一次評価を依頼",
 	);
+});
+
+it("tells the subject why the goals came back, exactly as the evaluator wrote it", () => {
+	const subject = { role: "subject", name: "本人", email: "me@example.jp" } as const;
+	const { mails } = composeMails({
+		...notification("draft", [subject]),
+		returnReason: "目標2を数値で\n{{periodName}}",
+	});
+	expect(mails[0].text).toContain("差し戻しの理由:\n目標2を数値で\n{{periodName}}\n");
+});
+
+it("refuses to render the return mail without a reason field instead of leaving a placeholder", () => {
+	expect(() =>
+		renderNotificationTemplate("draft", {
+			employeeName: "a",
+			employeeNo: "b",
+			periodName: "c",
+			sheetId: 1,
+		}),
+	).toThrow("Unknown notification template field: returnReason");
 });

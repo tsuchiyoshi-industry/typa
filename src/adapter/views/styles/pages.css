@@ -646,7 +646,7 @@ a.setup-task-link:hover {
 	background: var(--hr-surface);
 	border-radius: var(--hr-radius-sm);
 }
-.return-notice p {
+.return-notice__next {
 	margin: 0.5rem 0 0;
 	font-size: 0.8125rem;
 	color: var(--hr-text-muted);

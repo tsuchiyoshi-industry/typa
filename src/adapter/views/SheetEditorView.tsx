@@ -364,7 +364,9 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 													一次評価者（{current().primaryEvaluator}）から目標の修正を頼まれています
 												</h2>
 												<blockquote>{reason()}</blockquote>
-												<p>修正して保存したら、もう一度目標を送信してください。</p>
+												<p class="return-notice__next">
+													修正して保存したら、もう一度目標を送信してください。
+												</p>
 											</section>
 										)}
 									</Show>

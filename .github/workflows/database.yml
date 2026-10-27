@@ -55,8 +55,11 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+      # apt のミラーが詰まると、時間切れなしで待ち続ける(普段は 20 秒)。詰まったら切って取り直す
       - name: Install Chromium and Japanese fonts for screenshots
+        timeout-minutes: 8
         run: |
+          echo 'Acquire::http::Timeout "30"; Acquire::Retries "5";' | sudo tee /etc/apt/apt.conf.d/99ci-network
           bunx playwright install --with-deps chromium
           sudo apt-get install -y --no-install-recommends fonts-noto-cjk
       - name: Exercise the UI end to end against the same platform

@@ -450,18 +450,6 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 							onClick={() => void selectTab(Number(item.goalNumber))}
 						>
 							目標 {item.goalNumber}
-							<Show when={continuityFor(item)}>
-								{(continuity) => (
-									<span class="challenge-tab__origin">
-										<Show
-											when={continuity().kind === "revised"}
-											fallback={<Pin class="action-icon" aria-label="前期から据え置き" />}
-										>
-											<PencilLine class="action-icon" aria-label="前期から更新" />
-										</Show>
-									</span>
-								)}
-							</Show>
 							<Show when={needsMyScore(item)}>
 								<span class="challenge-tab__pending">未評価</span>
 							</Show>
@@ -599,14 +587,6 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 									<p classList={{ empty: !activeObjective()?.challengeGoal }}>
 										{activeObjective()?.challengeGoal || "未入力"}
 									</p>
-									<Show when={activeContinuity()?.kind === "revised" && activeContinuity()}>
-										{(continuity) => (
-											<p class="continuity-note">
-												<span class="continuity-note__period">{continuity().periodName}の文言</span>
-												{continuity().previous.challengeGoal}
-											</p>
-										)}
-									</Show>
 								</div>
 								<div class="objective-field">
 									<span class="objective-field__label">期中目標(今期の計画)</span>
@@ -643,15 +623,13 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 										}
 									/>
 								</label>
+								{/* 前期の文言は、見たいときに開く。書いている目標の横に並べて比べさせない */}
 								<Show when={draftContinuity()}>
 									{(continuity) => (
-										<p class="continuity-note">
-											<span class="continuity-note__period">{continuity().periodName}の文言</span>
-											{continuity().previous.challengeGoal}
-											<Show
-												when={continuity().kind === "revised"}
-												fallback={<small>書き換えると「前期から更新」になります。</small>}
-											>
+										<details class="continuity-note">
+											<summary>{continuity().periodName}の文言を見る</summary>
+											<p class="continuity-note__text">{continuity().previous.challengeGoal}</p>
+											<Show when={continuity().kind === "revised"}>
 												<button
 													type="button"
 													class="link-button"
@@ -662,10 +640,10 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 														})
 													}
 												>
-													前期のまま据え置く
+													前期の文言に戻す
 												</button>
 											</Show>
-										</p>
+										</details>
 									)}
 								</Show>
 							</Show>

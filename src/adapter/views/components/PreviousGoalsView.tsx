@@ -14,9 +14,9 @@ interface PreviousGoalsViewProps {
 	previous: PreviousGoals;
 	/** 今期の目標。引き継いだ目標が据え置きか更新かを、今の文言で見分ける。 */
 	objectives: readonly MilestoneDto[];
-	/** 本人が下書きを書いている間だけ、選べる。 */
+	/** 本人が下書きを書いている間だけ、引き継げる。 */
 	canCarry: boolean;
-	/** 今期の目標に空きがあるか(上限に達していれば選べない)。 */
+	/** 今期の目標に空きがあるか(上限に達していれば引き継げない)。 */
 	hasRoom: boolean;
 	/** 引き継いでいる最中の前期の目標。 */
 	carrying: number | null;
@@ -25,31 +25,28 @@ interface PreviousGoalsViewProps {
 }
 
 /**
- * 前期のチャレンジ目標。チャレンジ目標は期をまたいで続けられるので、目標ごとに据え置くか、
- * 見直して更新するかを選ぶ。期中目標はその期の計画なので引き継がず、前期の記録として読むだけ。
+ * 前期のチャレンジ目標。「前期に何を書いたか」を見返す場所で、引き継ぐかどうかは本人の自由。
+ * 続けたい目標があれば、据え置くか、見直して更新するかで引き継げる。引き継いでいない目標には何も添えない。
+ * 期中目標はその期の計画なので引き継がず、前期の記録として読むだけ。
  */
 const PreviousGoalsView: Component<PreviousGoalsViewProps> = (props) => {
-	const carried = () => props.previous.goals.filter((goal) => goal.carriedInto !== null).length;
 	const stateOf = (goalNumber: number) => {
 		const objective = props.objectives.find((item) => item.goalNumber === goalNumber);
 		return objective && continuityOf(goalNumber, objective.challengeGoal, props.previous);
 	};
 	return (
-		<details class="challenge-card previous-goals" open={props.canCarry}>
-			<summary class="challenge-card__title">
-				<h2>前期のチャレンジ目標</h2>
+		<section class="challenge-card previous-goals">
+			<div class="challenge-card__title">
+				<h2>{props.previous.periodName}のチャレンジ目標</h2>
 				<p class="challenge-helper">
-					{props.previous.periodName}・{props.previous.goals.length}件(今期へ引き継ぎ {carried()}件)
+					{props.canCarry
+						? "前期に書いた目標です。続けたいものがあれば、今期に引き継げます。"
+						: "前期に書いた目標です。"}
 				</p>
-			</summary>
-			<p class="previous-goals__lead">
-				{props.canCarry
-					? "チャレンジ目標は期をまたいで続けられます。前期の目標ごとに、そのまま据え置くか、見直して更新するかを選んでください。期中目標は今期の計画なので、引き継がずに書き直します。"
-					: "前期のチャレンジ目標と、今期への引き継ぎです。期中目標は期ごとの計画なので引き継ぎません。"}
-			</p>
+			</div>
 			<Show when={props.canCarry && !props.hasRoom}>
-				<p class="previous-goals__lead previous-goals__full">
-					今期のチャレンジ目標が上限に達しています。引き継ぐには、今期の目標を減らしてください。
+				<p class="previous-goals__lead">
+					今期の目標が上限まで埋まっているため、いまは引き継げません。
 				</p>
 			</Show>
 			<ol class="previous-goals__list">
@@ -57,13 +54,7 @@ const PreviousGoalsView: Component<PreviousGoalsViewProps> = (props) => {
 					{(goal) => {
 						const state = () => (goal.carriedInto === null ? null : stateOf(goal.carriedInto));
 						return (
-							<li
-								class="previous-goal"
-								classList={{
-									"previous-goal--kept": state()?.kind === "kept",
-									"previous-goal--revised": state()?.kind === "revised",
-								}}
-							>
+							<li class="previous-goal">
 								<span class="previous-goals__number">{goal.goalNumber}</span>
 								<div class="previous-goal__body">
 									<p class="previous-goals__text">{goal.challengeGoal || "(チャレンジ目標なし)"}</p>
@@ -76,15 +67,10 @@ const PreviousGoalsView: Component<PreviousGoalsViewProps> = (props) => {
 									<Show
 										when={goal.carriedInto}
 										fallback={
-											<Show
-												when={props.canCarry}
-												fallback={
-													<span class="previous-goal__left">今期には引き継いでいません</span>
-												}
-											>
+											<Show when={props.canCarry}>
 												<fieldset class="continuity-choice">
 													<legend class="visually-hidden">
-														前期の目標 {goal.goalNumber} をどうするか
+														前期の目標 {goal.goalNumber} を引き継ぐ
 													</legend>
 													<button
 														type="button"
@@ -143,7 +129,7 @@ const PreviousGoalsView: Component<PreviousGoalsViewProps> = (props) => {
 					}}
 				</For>
 			</ol>
-		</details>
+		</section>
 	);
 };
 

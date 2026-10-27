@@ -301,34 +301,32 @@ const previous: PreviousGoals = {
 
 it("marks a goal kept from the previous period, and calls it revised once the wording changes", async () => {
 	const view = setup([carried("", 1), carried("品質を高める")], true, false, previous);
-	expect(
-		view
-			.getByRole("tab", { name: /目標 2/ })
-			.querySelector("[aria-label]")
-			?.getAttribute("aria-label"),
-	).toBe("前期から据え置き");
+	// 目標のタブには前期の印を付けない
+	expect(view.getByRole("tab", { name: /目標 2/ }).querySelector("[aria-label]")).toBeNull();
 	fireEvent.click(view.getByRole("tab", { name: /目標 2/ }));
 	await waitFor(() => expect(view.getByText("前期から据え置き")).toBeTruthy());
 	fireEvent.click(view.getByRole("button", { name: "目標を編集" }));
-	expect(view.getByText("書き換えると「前期から更新」になります。")).toBeTruthy();
+	// 前期の文言は閉じてある。見たいときだけ開く
+	const note = view.container.querySelector<HTMLDetailsElement>("details.continuity-note");
+	expect(note?.open).toBe(false);
+	expect(note?.querySelector("summary")?.textContent).toBe("26期 上期の文言を見る");
 	fireEvent.input(view.getByRole("textbox", { name: /チャレンジ目標/ }), {
 		target: { value: "品質を高め、手戻りを半分にする" },
 	});
 	expect(view.getByText("前期から更新")).toBeTruthy();
 	// 前期の文言に戻せば、据え置きに戻る
-	fireEvent.click(view.getByRole("button", { name: "前期のまま据え置く" }));
+	fireEvent.click(view.getByRole("button", { name: "前期の文言に戻す" }));
 	expect((view.getByRole("textbox", { name: /チャレンジ目標/ }) as HTMLTextAreaElement).value).toBe(
 		"品質を高める",
 	);
 	expect(view.getByText("前期から据え置き")).toBeTruthy();
 });
 
-it("shows the old wording beside a revised goal, and nothing for a goal new to this period", () => {
+it("does not set the old wording beside a revised goal, and marks nothing for a goal new to this period", () => {
 	const view = setup([carried("品質を高め、任せる")], false, false, previous);
 	expect(view.getByText("前期から更新")).toBeTruthy();
-	expect(view.container.querySelector(".continuity-note")?.textContent).toBe(
-		"26期 上期の文言品質を高める",
-	);
+	expect(view.container.querySelector(".continuity-note")).toBeNull();
+	expect(view.container.textContent).not.toContain("品質を高める");
 	cleanup();
 	const fresh = setup([carried("今期の新しい目標")], false, false, null);
 	expect(fresh.container.querySelector(".continuity-badge")).toBeNull();

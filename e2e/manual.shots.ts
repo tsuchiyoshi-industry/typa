@@ -419,9 +419,11 @@ test("manual screenshots", async ({ page }) => {
 		await signIn(page, "RELEASE004");
 		await page.getByRole("link", { name: "新規作成" }).click();
 		await page.getByRole("button", { name: "評価シートを作成" }).click();
-		// 本人の下書きでは開いていて、目標ごとに据え置く・見直して更新を選べる
-		const previous = page.locator("details.previous-goals");
-		await expect(previous).toHaveAttribute("open", "");
+		// 初めは当期。前期のタブで、前期に書いた目標を見返し、引き継ぐこともできる
+		const terms = page.getByRole("tablist", { name: "表示する期" });
+		await expect(terms.getByRole("tab", { name: "当期" })).toHaveAttribute("aria-selected", "true");
+		await terms.getByRole("tab", { name: /前期/ }).click();
+		const previous = page.locator("section.previous-goals");
 		await expect(previous).toContainText("受注処理の手戻り");
 		await expect(previous.getByRole("button", { name: "据え置く" }).first()).toBeVisible();
 		await shot(previous, "user", "15-previous-goals");

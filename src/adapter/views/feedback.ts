@@ -94,6 +94,15 @@ const [unsavedKeys, setUnsavedKeys] = createSignal<ReadonlySet<string>>(new Set(
 
 export const hasUnsavedChanges = () => unsavedKeys().size > 0;
 
+/** 保存やステータスの変更の前に、入力中の内容が残っていないか確かめる。残っていれば知らせて false。 */
+export const ensureNothingUnsaved = () => {
+	if (!hasUnsavedChanges()) {
+		return true;
+	}
+	showToast("info", "入力中の内容があります", "先に保存するかキャンセルしてください。");
+	return false;
+};
+
 export function clearUnsavedChanges(): void {
 	setUnsavedKeys(new Set<string>());
 }

@@ -64,8 +64,8 @@ function setup(
 
 it("offers to keep or revise each previous challenge goal while the subject drafts", () => {
 	const { view, onCarry } = setup();
-	expect((view.container.querySelector("details") as HTMLDetailsElement).open).toBe(true);
-	const first = view.getByRole("group", { name: "前期の目標 1 をどうするか" });
+	expect(view.getByRole("heading", { name: "26期 上期のチャレンジ目標" })).toBeTruthy();
+	const first = view.getByRole("group", { name: "前期の目標 1 を引き継ぐ" });
 	fireEvent.click(first.querySelector("button") as HTMLButtonElement);
 	expect(onCarry).toHaveBeenLastCalledWith(11, "keep");
 	fireEvent.click(view.getAllByRole("button", { name: /見直して更新/ })[1]);
@@ -83,7 +83,6 @@ it("tells kept from revised goals by today's wording, and opens the goal it went
 	expect(view.getByText("目標 2 に据え置き")).toBeTruthy();
 	expect(view.getByText("目標 1 で更新")).toBeTruthy();
 	expect(view.queryByRole("button", { name: /据え置く/ })).toBeNull();
-	expect(view.container.textContent).toContain("今期へ引き継ぎ 2件");
 	fireEvent.click(view.getByRole("button", { name: /目標 2 を開く/ }));
 	expect(onOpen).toHaveBeenCalledWith(2);
 	expect(onCarry).not.toHaveBeenCalled();
@@ -98,18 +97,18 @@ it.each([
 		expect((button as HTMLButtonElement).disabled).toBe(true);
 	}
 	if ("hasRoom" in props) {
-		expect(view.getByText(/上限に達しています/)).toBeTruthy();
+		expect(view.getByText(/上限まで埋まっている/)).toBeTruthy();
 	}
 });
 
-it("only shows the record to evaluators and after the goals are sent", () => {
+it("only shows the record to evaluators and after the goals are sent, without nagging about what was left", () => {
 	const { view } = setup({
 		canCarry: false,
 		previous: previous([1, null]),
 		objectives: [objective(1, "品質を高める")],
 	});
-	expect((view.container.querySelector("details") as HTMLDetailsElement).open).toBe(false);
 	expect(view.container.querySelector("fieldset")).toBeNull();
 	expect(view.getByText("目標 1 に据え置き")).toBeTruthy();
-	expect(view.getByText("今期には引き継いでいません")).toBeTruthy();
+	// 引き継がなかった目標には何も添えない。件数の集計も出さない
+	expect(view.container.textContent).not.toMatch(/引き継いでいません|選んでください|件\(/);
 });

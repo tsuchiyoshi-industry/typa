@@ -17,7 +17,7 @@ export const statusLabel = (status: EvaluationStatusValue): string => STATUS_LAB
 
 const STATUS_HINTS: Record<EvaluationStatusValue, string> = {
 	draft:
-		"本人が目標を書いています。送信するまで評価者には表示されません。前期のチャレンジ目標は、据え置くか見直して引き継げます。",
+		"本人が目標を書いています。送信するまで評価者には表示されません。前期に書いた目標は「前期」タブで見られます。",
 	goals_submitted:
 		"一次評価者による目標の確認を待っています。まだ評価は始まりません。達成状況は、この間も書き直せます。",
 	goals_confirmed:

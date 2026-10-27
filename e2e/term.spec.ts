@@ -220,24 +220,28 @@ test("a term is divided, its first half closed with goals only, and its challeng
 	await test.step("下期のシートで、上期のチャレンジ目標を据え置く・見直して更新する(期中目標は引き継がない)", async () => {
 		await page.getByRole("link", { name: "新規作成" }).click();
 		await page.getByRole("button", { name: "評価シートを作成" }).click();
-		const previous = page.locator("details", {
-			has: page.getByRole("heading", { name: "前期のチャレンジ目標" }),
-		});
-		// 本人の下書きでは、選べるように開いている
-		await expect(previous).toHaveAttribute("open", "");
-		await expect(previous).toContainText(`${FIRST}・2件(今期へ引き継ぎ 0件)`);
+		// 初めは当期。前期は「前期」タブで見返し、引き継ぐかは本人が決める
+		const terms = page.getByRole("tablist", { name: "表示する期" });
+		const showPrevious = () => terms.getByRole("tab", { name: /前期/ }).click();
+		await expect(terms.getByRole("tab", { name: "当期" })).toHaveAttribute("aria-selected", "true");
+		const previous = page.locator("section.previous-goals");
+		await expect(previous).toBeHidden();
+		await showPrevious();
+		await expect(previous.getByRole("heading", { name: `${FIRST}のチャレンジ目標` })).toBeVisible();
+		await expect(previous).not.toContainText("引き継ぎ 0件");
 
-		// 前期の目標 2 を先に据え置いても、今期の目標 1 には入らず、目標 2 のまま
+		// 前期の目標 2 を先に据え置いても、今期の目標 1 には入らず、目標 2 のまま。引き継ぐと当期に戻る
 		await previous
-			.getByRole("group", { name: "前期の目標 2 をどうするか" })
+			.getByRole("group", { name: "前期の目標 2 を引き継ぐ" })
 			.getByRole("button", { name: "据え置く" })
 			.click();
 		await expect(page.getByText("前期の目標を、目標 2 に据え置きました")).toBeVisible();
+		await expect(terms.getByRole("tab", { name: "当期" })).toHaveAttribute("aria-selected", "true");
 		await expect(page.getByRole("tab", { name: /目標 2/ })).toHaveAttribute(
 			"aria-selected",
 			"true",
 		);
-		const panel = page.getByRole("tabpanel");
+		const panel = page.locator("article.objective-block");
 		// 据え置いた目標は、今期の計画(期中目標)を書くところから始まる。達成状況は写さない
 		await expect(panel.getByRole("textbox", { name: /チャレンジ目標/ })).toHaveValue("上期の目標B");
 		await expect(panel.getByText("前期から据え置き")).toBeVisible();
@@ -248,8 +252,9 @@ test("a term is divided, its first half closed with goals only, and its challeng
 		await expect(page.getByText("目標 2 を保存しました")).toBeVisible();
 
 		// 後から前期の目標 1 を見直すと、今期の目標 1 になり、書き換えれば「更新」になる
+		await showPrevious();
 		await previous
-			.getByRole("group", { name: "前期の目標 1 をどうするか" })
+			.getByRole("group", { name: "前期の目標 1 を引き継ぐ" })
 			.getByRole("button", { name: "見直して更新" })
 			.click();
 		await expect(page.getByRole("tab", { name: /目標 1/ })).toHaveAttribute(
@@ -259,11 +264,17 @@ test("a term is divided, its first half closed with goals only, and its challeng
 		const challenge = panel.getByRole("textbox", { name: /チャレンジ目標/ });
 		await expect(challenge).toBeFocused();
 		await expect(challenge).toHaveValue("上期の目標A");
+		// 前期の文言は閉じてあり、開けば見られる
+		await expect(panel.getByText("上期の目標A", { exact: true })).toBeHidden();
 		await challenge.fill("上期の目標Aを、下期は後輩と進める");
 		await expect(panel.getByText("前期から更新")).toBeVisible();
 		await panel.getByRole("button", { name: "目標を保存" }).click();
-		await expect(panel.locator(".continuity-note")).toContainText("上期の目標A");
+		await expect(page.getByText("目標 1 を保存しました")).toBeVisible();
+		// 保存した後は、前期の文言を並べない
+		await expect(panel.getByText("前期から更新")).toBeVisible();
+		await expect(panel.locator(".continuity-note")).toHaveCount(0);
 
+		await showPrevious();
 		await expect(previous).toContainText("目標 1 で更新");
 		await expect(previous).toContainText("目標 2 に据え置き");
 		await expect(previous.getByRole("button", { name: "据え置く" })).toHaveCount(0);

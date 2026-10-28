@@ -5,7 +5,10 @@ import type { ReviewerRowDto } from "../../application/dtos/ReviewerWorkspaceDto
 import { EvaluationStatus } from "../../domain/valueObjects/EvaluationStatus";
 import { reviewerEditorFixture } from "../../test/reviewerEditorFixture";
 import { reviewerRow } from "../../test/reviewerFixture";
-import type { ReviewerWorkspaceController } from "../controllers/ReviewerWorkspaceController";
+import {
+	ReviewerOnlyError,
+	type ReviewerWorkspaceController,
+} from "../controllers/ReviewerWorkspaceController";
 import FeedbackHost from "./components/FeedbackHost";
 import { clearUnsavedChanges, settleConfirm } from "./feedback";
 import ReviewerWorkspaceView from "./ReviewerWorkspaceView";
@@ -536,4 +539,28 @@ it("asks for a reason the subject will read before sending the goals back, and k
 	await waitFor(() =>
 		expect(updateStatus).toHaveBeenCalledWith(EvaluationStatus.DRAFT, false, "目標2を数値で"),
 	);
+});
+
+it("shows only a notice, not the caseload, to someone who cannot be an evaluator", async () => {
+	const controller = {
+		loadPeriods: vi.fn().mockRejectedValue(new ReviewerOnlyError()),
+		load: vi.fn(),
+	};
+	render(() => (
+		<MemoryRouter>
+			<Route
+				path="*"
+				component={() => (
+					<ReviewerWorkspaceView
+						controller={controller as unknown as ReviewerWorkspaceController}
+						editor={reviewerEditorFixture(() => [])}
+					/>
+				)}
+			/>
+		</MemoryRouter>
+	));
+	expect(await screen.findByText(new ReviewerOnlyError().message)).toBeTruthy();
+	expect(screen.queryByRole("searchbox")).toBeNull();
+	expect(screen.queryByRole("button", { name: "部下の一覧を再読み込み" })).toBeNull();
+	expect(controller.load).not.toHaveBeenCalled();
 });

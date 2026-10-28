@@ -29,7 +29,10 @@ import {
 	reviewTask,
 	sheetStatus,
 } from "../../domain/entities/ReviewerWorkspace";
-import type { ReviewerWorkspaceController } from "../controllers/ReviewerWorkspaceController";
+import {
+	ReviewerOnlyError,
+	type ReviewerWorkspaceController,
+} from "../controllers/ReviewerWorkspaceController";
 import {
 	filterReviewRows,
 	gradeKey,
@@ -150,6 +153,8 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 	const [loading, setLoading] = createSignal(true);
 	const [refreshing, setRefreshing] = createSignal(false);
 	const [error, setError] = createSignal<string | null>(null);
+	/** 評価者になれない人が開いた(URL を直接開いたときなど)。一覧も操作も出さない。 */
+	const [denied, setDenied] = createSignal(false);
 	const [editorSaving, setEditorSaving] = createSignal(false);
 	const [query, setQuery] = createSignal("");
 	const [grade, setGrade] = createSignal("");
@@ -268,8 +273,9 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 					setLoading(false);
 				}
 			}
-		} catch {
+		} catch (reason) {
 			if (alive) {
+				setDenied(reason instanceof ReviewerOnlyError);
 				setError("評価期間を読み込めませんでした。再読み込みしてください。");
 				setLoading(false);
 			}
@@ -743,252 +749,269 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 	};
 
 	return (
-		<div class="review-workspace">
-			<header class="review-heading">
-				<div>
-					<span class="review-eyebrow">REVIEW WORKSPACE</span>
-					<h1>部下の評価</h1>
+		<Show
+			when={!denied()}
+			fallback={
+				<div class="review-workspace">
+					<header class="review-heading">
+						<div>
+							<h1>部下の評価</h1>
+						</div>
+					</header>
+					<p class="page-note">{new ReviewerOnlyError().message}</p>
 				</div>
-				<div class="review-heading-actions">
-					<label class="review-period">
-						<span>評価期間</span>
-						<select
-							aria-label="評価期間"
-							value={periodId() ?? ""}
-							onChange={(e) => void navigate({ period: e.currentTarget.value, sheet: undefined })}
-						>
-							<For each={periods()}>
-								{(period) => (
-									<option value={period.id}>
-										{period.periodName}
-										{period.isActive ? " · 実施中" : ""}
-									</option>
-								)}
-							</For>
-						</select>
-					</label>
-					<span class="review-sync" role="status">
-						{refreshing()
-							? "更新中…"
-							: syncedAt()
-								? `${formatDateTime(syncedAt() as string)} 時点`
-								: ""}
-					</span>
-					<button
-						type="button"
-						class="review-icon-button"
-						aria-label="部下の一覧を再読み込み"
-						title="再読み込み"
-						disabled={mutationBusy()}
-						onClick={() => void refresh()}
-					>
-						<RotateCw size={18} classList={{ "review-spinning": refreshing() }} />
-					</button>
-				</div>
-			</header>
-			{/* 「自分の番」ごとの件数が、そのまま一覧の絞り込みになる */}
-			<div class="review-overview">
-				<div class="review-progress">
+			}
+		>
+			<div class="review-workspace">
+				<header class="review-heading">
 					<div>
-						<Users size={18} />
-						<span>
-							部下 <strong>{rows().length}</strong> 名
-						</span>
-						<span class="review-progress-count">
-							評価確定 <strong>{finalizedCount()}</strong> / {rows().length}
-						</span>
+						<span class="review-eyebrow">REVIEW WORKSPACE</span>
+						<h1>部下の評価</h1>
 					</div>
-					<progress
-						aria-label="部下の最終評価の進捗"
-						value={finalizedCount()}
-						max={Math.max(1, rows().length)}
-					/>
-				</div>
-				<For each={stats()}>
-					{([key, label, total]) => (
+					<div class="review-heading-actions">
+						<label class="review-period">
+							<span>評価期間</span>
+							<select
+								aria-label="評価期間"
+								value={periodId() ?? ""}
+								onChange={(e) => void navigate({ period: e.currentTarget.value, sheet: undefined })}
+							>
+								<For each={periods()}>
+									{(period) => (
+										<option value={period.id}>
+											{period.periodName}
+											{period.isActive ? " · 実施中" : ""}
+										</option>
+									)}
+								</For>
+							</select>
+						</label>
+						<span class="review-sync" role="status">
+							{refreshing()
+								? "更新中…"
+								: syncedAt()
+									? `${formatDateTime(syncedAt() as string)} 時点`
+									: ""}
+						</span>
 						<button
 							type="button"
-							class="review-stat"
-							classList={{ action: (key === "first" || key === "second") && total > 0 }}
-							aria-pressed={filter() === key}
-							onClick={() => setFilter(key)}
+							class="review-icon-button"
+							aria-label="部下の一覧を再読み込み"
+							title="再読み込み"
+							disabled={mutationBusy()}
+							onClick={() => void refresh()}
 						>
-							<span>{label}</span>
-							<strong>
-								{total}
-								<small>名</small>
-							</strong>
+							<RotateCw size={18} classList={{ "review-spinning": refreshing() }} />
 						</button>
-					)}
-				</For>
-			</div>
-			<Show when={error()}>
-				<div class="inline-alert" role="alert">
-					<span>{error()}</span>
-					<button type="button" class="secondary-action" onClick={() => void refresh()}>
-						再読み込み
-					</button>
-				</div>
-			</Show>
-			<Show
-				when={!loading()}
-				fallback={
-					<div class="review-empty" role="status">
-						部下の一覧を読み込んでいます…
 					</div>
-				}
-			>
-				<Filters />
-				<Show when={primaryEvaluatorLabel()}>
-					{(label) => (
-						<div class="review-active-filter">
-							<Users size={14} />
-							<span>一次評価者</span>
-							<strong>{label().name}</strong>
-							<span>の部下を表示</span>
+				</header>
+				{/* 「自分の番」ごとの件数が、そのまま一覧の絞り込みになる */}
+				<div class="review-overview">
+					<div class="review-progress">
+						<div>
+							<Users size={18} />
+							<span>
+								部下 <strong>{rows().length}</strong> 名
+							</span>
+							<span class="review-progress-count">
+								評価確定 <strong>{finalizedCount()}</strong> / {rows().length}
+							</span>
+						</div>
+						<progress
+							aria-label="部下の最終評価の進捗"
+							value={finalizedCount()}
+							max={Math.max(1, rows().length)}
+						/>
+					</div>
+					<For each={stats()}>
+						{([key, label, total]) => (
 							<button
 								type="button"
-								aria-label="一次評価者の絞り込みを解除"
-								onClick={() => setPrimaryEvaluator("")}
+								class="review-stat"
+								classList={{ action: (key === "first" || key === "second") && total > 0 }}
+								aria-pressed={filter() === key}
+								onClick={() => setFilter(key)}
 							>
-								解除 ×
+								<span>{label}</span>
+								<strong>
+									{total}
+									<small>名</small>
+								</strong>
 							</button>
-						</div>
-					)}
+						)}
+					</For>
+				</div>
+				<Show when={error()}>
+					<div class="inline-alert" role="alert">
+						<span>{error()}</span>
+						<button type="button" class="secondary-action" onClick={() => void refresh()}>
+							再読み込み
+						</button>
+					</div>
 				</Show>
 				<Show
-					when={periods().length}
+					when={!loading()}
 					fallback={
-						<div class="review-empty">
-							<h2>評価期間がまだありません</h2>
+						<div class="review-empty" role="status">
+							部下の一覧を読み込んでいます…
 						</div>
 					}
 				>
-					<div class="review-results-header">
-						<span>{visible().length} 名を表示</span>
-						<div>
-							<button
-								type="button"
-								class="review-toggle"
-								aria-pressed={byGrade()}
-								onClick={() => setByGrade(!byGrade())}
-							>
-								等級ごとに区切る
-							</button>
-							<Show when={selected().size}>
-								<button type="button" onClick={clearSelection}>
-									選択を解除
+					<Filters />
+					<Show when={primaryEvaluatorLabel()}>
+						{(label) => (
+							<div class="review-active-filter">
+								<Users size={14} />
+								<span>一次評価者</span>
+								<strong>{label().name}</strong>
+								<span>の部下を表示</span>
+								<button
+									type="button"
+									aria-label="一次評価者の絞り込みを解除"
+									onClick={() => setPrimaryEvaluator("")}
+								>
+									解除 ×
 								</button>
-							</Show>
-							<button
-								type="button"
-								class="secondary-action"
-								disabled={!compared().length}
-								title="一覧のチェックで最大6名を選ぶと、評価の中身を横に並べて比べられます"
-								onClick={() => void navigate({ compare: "1" })}
-							>
-								<Columns3 size={16} />
-								選択して比較 {compared().length} / 6
-							</button>
-							{/* 評価者がこの画面でいちばんよくやること。絞り込んだ一覧の順に進む */}
-							<Show when={next()}>
-								{(target) => (
-									<button
-										type="button"
-										class="primary-action"
-										disabled={mutationBusy()}
-										onClick={() => open(target())}
-									>
-										自分の番を評価する（{myTurnCount()}）
-										<ArrowRight size={16} />
+							</div>
+						)}
+					</Show>
+					<Show
+						when={periods().length}
+						fallback={
+							<div class="review-empty">
+								<h2>評価期間がまだありません</h2>
+							</div>
+						}
+					>
+						<div class="review-results-header">
+							<span>{visible().length} 名を表示</span>
+							<div>
+								<button
+									type="button"
+									class="review-toggle"
+									aria-pressed={byGrade()}
+									onClick={() => setByGrade(!byGrade())}
+								>
+									等級ごとに区切る
+								</button>
+								<Show when={selected().size}>
+									<button type="button" onClick={clearSelection}>
+										選択を解除
 									</button>
-								)}
-							</Show>
+								</Show>
+								<button
+									type="button"
+									class="secondary-action"
+									disabled={!compared().length}
+									title="一覧のチェックで最大6名を選ぶと、評価の中身を横に並べて比べられます"
+									onClick={() => void navigate({ compare: "1" })}
+								>
+									<Columns3 size={16} />
+									選択して比較 {compared().length} / 6
+								</button>
+								{/* 評価者がこの画面でいちばんよくやること。絞り込んだ一覧の順に進む */}
+								<Show when={next()}>
+									{(target) => (
+										<button
+											type="button"
+											class="primary-action"
+											disabled={mutationBusy()}
+											onClick={() => open(target())}
+										>
+											自分の番を評価する（{myTurnCount()}）
+											<ArrowRight size={16} />
+										</button>
+									)}
+								</Show>
+							</div>
 						</div>
-					</div>
-					<Show when={visible().length} fallback={<Empty />}>
-						{/* 絞り込みのたびに表を作り直さない。行は同じものを使い回し、増減した行だけを描く */}
-						<Show when={byGrade()} fallback={<SummaryTable people={visible()} />}>
-							<Index each={gradeGroups()}>
-								{(people) => (
-									<section class="review-comparison-group">
-										<header>
-											<div>
-												<h2>{people()[0]?.gradeName}</h2>
-												<p>{people().length} 名</p>
-											</div>
-										</header>
-										<SummaryTable people={people()} />
-									</section>
-								)}
-							</Index>
+						<Show when={visible().length} fallback={<Empty />}>
+							{/* 絞り込みのたびに表を作り直さない。行は同じものを使い回し、増減した行だけを描く */}
+							<Show when={byGrade()} fallback={<SummaryTable people={visible()} />}>
+								<Index each={gradeGroups()}>
+									{(people) => (
+										<section class="review-comparison-group">
+											<header>
+												<div>
+													<h2>{people()[0]?.gradeName}</h2>
+													<p>{people().length} 名</p>
+												</div>
+											</header>
+											<SummaryTable people={people()} />
+										</section>
+									)}
+								</Index>
+							</Show>
 						</Show>
 					</Show>
 				</Show>
-			</Show>
-			{/* 評価シートも比較も、同じ一つの窓に出す。比較から人を開いて閉じると、比較に戻る */}
-			<Show when={current() || comparing()}>
-				<SheetWindow
-					label={current() ? `${current()?.employeeName} さんの評価シート` : "選択した対象者の比較"}
-					contentKey={currentSheetId() ?? "compare"}
-					onClose={() => void navigate(current() ? { sheet: undefined } : { compare: undefined })}
-					heading={
+				{/* 評価シートも比較も、同じ一つの窓に出す。比較から人を開いて閉じると、比較に戻る */}
+				<Show when={current() || comparing()}>
+					<SheetWindow
+						label={
+							current() ? `${current()?.employeeName} さんの評価シート` : "選択した対象者の比較"
+						}
+						contentKey={currentSheetId() ?? "compare"}
+						onClose={() => void navigate(current() ? { sheet: undefined } : { compare: undefined })}
+						heading={
+							<Show
+								when={current()}
+								fallback={
+									<div class="sheet-window__who">
+										<Columns3 size={18} />
+										<div>
+											<strong>{compared().length} 名を比較</strong>
+											<small>
+												評価点は「設定」の配点（チャレンジ目標＋共通評価で100点）で換算 ·
+												氏名を押すと評価シートを開きます
+											</small>
+										</div>
+									</div>
+								}
+							>
+								{(row) => (
+									<>
+										<div class="sheet-window__who">
+											<span class="review-avatar">{row().employeeName.slice(0, 1)}</span>
+											<div>
+												<strong>{row().employeeName}</strong>
+												<small>
+													{row().employeeNo} · {row().gradeName} · 一次評価者{" "}
+													{row().primaryEvaluator}
+												</small>
+											</div>
+											<Stage row={row()} />
+										</div>
+										<Show when={comparing()}>
+											<button
+												type="button"
+												class="secondary-action"
+												onClick={() => void navigate({ sheet: undefined })}
+											>
+												<Columns3 size={16} />
+												比較に戻る
+											</button>
+										</Show>
+										<NextButton />
+									</>
+								)}
+							</Show>
+						}
+					>
 						<Show
 							when={current()}
 							fallback={
-								<div class="sheet-window__who">
-									<Columns3 size={18} />
-									<div>
-										<strong>{compared().length} 名を比較</strong>
-										<small>
-											評価点は「設定」の配点（チャレンジ目標＋共通評価で100点）で換算 ·
-											氏名を押すと評価シートを開きます
-										</small>
-									</div>
-								</div>
+								<For each={groupByGrade(compared())}>
+									{(people) => <Comparison people={people} />}
+								</For>
 							}
 						>
-							{(row) => (
-								<>
-									<div class="sheet-window__who">
-										<span class="review-avatar">{row().employeeName.slice(0, 1)}</span>
-										<div>
-											<strong>{row().employeeName}</strong>
-											<small>
-												{row().employeeNo} · {row().gradeName} · 一次評価者 {row().primaryEvaluator}
-											</small>
-										</div>
-										<Stage row={row()} />
-									</div>
-									<Show when={comparing()}>
-										<button
-											type="button"
-											class="secondary-action"
-											onClick={() => void navigate({ sheet: undefined })}
-										>
-											<Columns3 size={16} />
-											比較に戻る
-										</button>
-									</Show>
-									<NextButton />
-								</>
-							)}
+							{(row) => <Editor row={row()} />}
 						</Show>
-					}
-				>
-					<Show
-						when={current()}
-						fallback={
-							<For each={groupByGrade(compared())}>
-								{(people) => <Comparison people={people} />}
-							</For>
-						}
-					>
-						{(row) => <Editor row={row()} />}
-					</Show>
-				</SheetWindow>
-			</Show>
-		</div>
+					</SheetWindow>
+				</Show>
+			</div>
+		</Show>
 	);
 };
 

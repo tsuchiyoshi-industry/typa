@@ -22,6 +22,8 @@ export interface CurrentUserDto {
 	name: string;
 	employeeNo: string;
 	role: string;
+	/** 「部下の評価」を出すか。評価者になれない人(Employee。役員を除く)には出さない。 */
+	canReview: boolean;
 	canViewSettings: boolean;
 	canRunSetup: boolean;
 	canCorrectClosedSheets: boolean;
@@ -54,6 +56,7 @@ export class AccountController {
 				name: person.name,
 				employeeNo: person.employeeNo,
 				role: person.role.toString(),
+				canReview: person.canBeEvaluator(),
 				canViewSettings: canEditSettings(person.role),
 				canRunSetup: canRunSetup(person.role),
 				canCorrectClosedSheets: canCorrectClosedSheets(person.role),

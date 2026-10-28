@@ -24,7 +24,7 @@ async function setup(width: number, path = "/") {
 							<DashboardLayout
 								controller={
 									{
-										currentUser: vi.fn().mockResolvedValue({ name: "山田 太郎" }),
+										currentUser: vi.fn().mockResolvedValue({ name: "山田 太郎", canReview: true }),
 									} as unknown as AccountController
 								}
 								inbox={{

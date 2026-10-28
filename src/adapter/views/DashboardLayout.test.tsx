@@ -19,7 +19,9 @@ const inbox = () => ({
 	markAllRead: vi.fn(),
 });
 
-function setup(path = "/", currentUser: () => Promise<unknown> = async () => null) {
+const reviewer = async () => ({ name: "山田", canReview: true });
+
+function setup(path = "/", currentUser: () => Promise<unknown> = reviewer) {
 	const controller = {
 		currentUser: vi.fn(currentUser),
 		signOut: vi.fn(),
@@ -78,8 +80,9 @@ it.each([
 	["/settings", []],
 	["/sheet-import", []],
 	["/no-such-page", []],
-])("marks exactly the section of %s as the current page", (path, expected) => {
+])("marks exactly the section of %s as the current page", async (path, expected) => {
 	const view = setup(path);
+	await within(view.nav()).findByRole("link", { name: "部下の評価" });
 	expect(view.current()).toEqual(expected);
 	// 見た目の現在地(class)と、読み上げの現在地(aria-current)はずれない
 	for (const link of within(view.nav()).getAllByRole("link")) {
@@ -89,7 +92,7 @@ it.each([
 
 it("moves the current mark when navigating, and does not keep two marks", async () => {
 	const view = setup("/");
-	fireEvent.click(within(view.nav()).getByRole("link", { name: "部下の評価" }));
+	fireEvent.click(await within(view.nav()).findByRole("link", { name: "部下の評価" }));
 	await waitFor(() => expect(view.current()).toEqual(["部下の評価"]));
 	view.history.set({ value: "/sheet/5" });
 	await waitFor(() => expect(view.current()).toEqual(["評価シート"]));
@@ -129,7 +132,15 @@ it("keeps the top bar usable when the current user cannot be read", async () => 
 	expect(view.getByRole("link", { name: "ヘルプ" })).toBeTruthy();
 	expect(view.queryByRole("link", { name: "設定" })).toBeNull();
 	expect(view.queryByRole("link", { name: "特権操作" })).toBeNull();
+	expect(within(view.nav()).queryByRole("link", { name: "部下の評価" })).toBeNull();
 	expect(view.current()).toEqual(["評価シート"]);
+});
+
+it("hides 部下の評価 from people who cannot be evaluators, even on /review", async () => {
+	const view = setup("/review", async () => ({ name: "社員", canReview: false }));
+	await view.findByText("社員");
+	expect(within(view.nav()).queryByRole("link", { name: "部下の評価" })).toBeNull();
+	expect(view.current()).toEqual([]);
 });
 
 it("does not sign out while the user keeps unsaved input", async () => {

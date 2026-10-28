@@ -132,12 +132,13 @@ const commonEvaluationRepository = new SupabaseCommonEvaluationRepository();
 const evaluationSettingsRepository = new SupabaseEvaluationSettingsRepository();
 const evaluationSheetRepository = new SupabaseEvaluationSheetRepository();
 const evaluationPeriodRepository = new SupabaseEvaluationPeriodRepository();
+const milestoneRepository = new SupabaseMilestoneRepository();
+const employeeMasterRepository = new SupabaseEmployeeMasterRepository();
 const reviewerWorkspaceController = new ReviewerWorkspaceController(
 	new SupabaseReviewerWorkspaceRepository(),
 	evaluationPeriodRepository,
+	employeeMasterRepository,
 );
-const milestoneRepository = new SupabaseMilestoneRepository();
-const employeeMasterRepository = new SupabaseEmployeeMasterRepository();
 const privilegedOperationsController = new PrivilegedOperationsController(
 	employeeMasterRepository,
 	evaluationPeriodRepository,

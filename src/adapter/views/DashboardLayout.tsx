@@ -58,14 +58,17 @@ const DashboardLayout: Component<{
 		document.removeEventListener("keydown", handleKeyDown);
 	});
 
-	// ナビの項目と、その項目を現在地とするパス。シートの画面は一覧から開くので、一覧を現在地として扱う
-	const sections = [
+	// ナビの項目と、その項目を現在地とするパス。シートの画面は一覧から開くので、一覧を現在地として扱う。
+	// 「部下の評価」は評価者になれる人だけ。分からない間(読み込み中・失敗)は出さない
+	const sections = () => [
 		{
 			href: "/",
 			label: "評価シート",
 			matches: (path: string) => path === "/" || path.startsWith("/sheet/"),
 		},
-		{ href: "/review", label: "部下の評価", matches: (path: string) => path === "/review" },
+		...(user()?.canReview
+			? [{ href: "/review", label: "部下の評価", matches: (path: string) => path === "/review" }]
+			: []),
 		{
 			href: "/employee-master",
 			label: "社員マスタ",
@@ -96,7 +99,7 @@ const DashboardLayout: Component<{
 				>
 					{/* 現在地は見た目(class)と読み上げ(aria-current)を同じ判定で付ける。
 					    A は完全一致のときしか aria-current を付けないので素の a にする(遷移はルーターが拾う) */}
-					<For each={sections}>
+					<For each={sections()}>
 						{(section) => (
 							<a
 								href={section.href}

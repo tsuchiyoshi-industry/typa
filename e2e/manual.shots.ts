@@ -400,7 +400,9 @@ test("manual screenshots", async ({ page }) => {
 
 		// 遡及処理: 締めた 2026年度 下期の、佐藤さんのシートを直す
 		await menu(page, "遡及処理");
-		await page.getByLabel("評価期間").selectOption({ label: "2026年度 下期(締め済み)" });
+		await page
+			.getByRole("combobox", { name: "評価期間" })
+			.selectOption({ label: "2026年度 下期(締め済み)" });
 		await page.getByRole("button", { name: "佐藤 三郎さんのシートを選ぶ" }).click();
 		const goal = page.getByRole("group", { name: "チャレンジ目標 1" });
 		await goal

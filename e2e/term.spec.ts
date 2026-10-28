@@ -72,7 +72,9 @@ test("a term is divided, its first half closed with goals only, and its challeng
 
 	await test.step("遡及処理: 締めた評価期間は開き直さず、確定済みのシートを理由つきで直す", async () => {
 		await openFromUserMenu(page, "遡及処理");
-		await page.getByLabel("評価期間").selectOption({ label: "Release verification(締め済み)" });
+		await page
+			.getByRole("combobox", { name: "評価期間" })
+			.selectOption({ label: "Release verification(締め済み)" });
 		await page.getByRole("button", { name: "Release test 4さんのシートを選ぶ" }).click();
 		const goal = page.getByRole("group", { name: "チャレンジ目標 1" });
 		await goal.getByLabel("達成状況 1", { exact: true }).fill("遡及で追記");

@@ -61,17 +61,22 @@ async function menu(page: Page, name: string) {
 	await page.getByRole("link", { name }).click();
 }
 
-/** 本人がシートを作り、目標を書いて送信する。 */
+/** 目標が確定してから、本人が書く達成状況。 */
+const ACHIEVEMENTS: Record<string, string> = {
+	RELEASE006: "手順書を作成してチームに共有した。平均対応時間は11分になった",
+	RELEASE004: "入力チェック表を作って運用した。3月の手戻りは月9件になった",
+};
+
+/** 本人が目標を書いて保存する。達成状況は目標が確定してから書く(ACHIEVEMENTS)。 */
 async function writeSheet(
 	page: Page,
-	goal: { challenge: string; task: string; achievement: string },
+	goal: { challenge: string; task: string },
 	beforeSave?: () => Promise<unknown>,
 ) {
 	await page.getByRole("button", { name: "目標を編集" }).click();
 	await page.getByRole("textbox", { name: "チャレンジ目標" }).fill(goal.challenge);
 	await page.getByRole("button", { name: "期中目標を追加" }).click();
 	await page.getByRole("textbox", { name: "期中目標 1" }).fill(goal.task);
-	await page.getByRole("textbox", { name: "達成状況 1" }).fill(goal.achievement);
 	await beforeSave?.();
 	await page.getByRole("button", { name: "目標を保存" }).click();
 	await expect(page.getByRole("button", { name: "目標を編集" })).toBeVisible();
@@ -149,7 +154,6 @@ test("manual screenshots", async ({ page }) => {
 		await writeSheet(page, {
 			challenge: "問い合わせ対応の手順書を作り、平均対応時間を15分から10分にする",
 			task: "12月末までによくある問い合わせを整理し、手順書の案を作る",
-			achievement: "手順書を作成してチームに共有した。平均対応時間は11分になった",
 		});
 		await page.getByRole("button", { name: "目標を送信する" }).click();
 		await confirm(page, "目標を送信しますか？", "目標を送信する");
@@ -172,7 +176,6 @@ test("manual screenshots", async ({ page }) => {
 			{
 				challenge: "受注処理の手戻りを、半年で月20件から10件に減らす",
 				task: "12月末までに手戻りの原因を分類し、上位3つの対策を決める",
-				achievement: "入力チェック表を作って運用した。3月の手戻りは月9件になった",
 			},
 			() => shot(page.locator(".challenge-card"), "user", "07-goal"),
 		);
@@ -206,11 +209,14 @@ test("manual screenshots", async ({ page }) => {
 				.first()
 				.click();
 			await page.getByRole("button", { name: "達成状況を入力" }).click();
+			await page
+				.getByRole("textbox", { name: "達成状況 1", exact: true })
+				.fill(ACHIEVEMENTS[employeeNo]);
 			if (employeeNo === "RELEASE004") {
-				await expect(page.getByRole("textbox", { name: "達成状況 1", exact: true })).toBeVisible();
 				await shot(page.locator(".challenge-card"), "user", "17-achievement");
 			}
-			await page.getByRole("button", { name: "キャンセル", exact: true }).click();
+			await page.getByRole("button", { name: "達成状況を保存" }).click();
+			await expect(page.getByRole("button", { name: "達成状況を入力" })).toBeVisible();
 			await page.getByRole("button", { name: "一次評価を依頼する" }).click();
 			if (employeeNo === "RELEASE004") {
 				await shot(page, "user", "18-request-evaluation");
@@ -291,7 +297,7 @@ test("manual screenshots", async ({ page }) => {
 		await shot(page, "evaluator", "10-finalize");
 		await confirm(page, "評価を確定しますか？", "評価を確定する");
 		await closeSheetWindow(page.getByRole("dialog", { name: /さんの評価シート/ }));
-		await expect(page.getByRole("row", { name: /RELEASE004/ })).toContainText("最終評価済み");
+		await expect(page.getByRole("row", { name: /RELEASE004/ })).toContainText("評価確定");
 		await shot(page, "evaluator", "11-final");
 		await signOut(page);
 	});
@@ -318,7 +324,7 @@ test("manual screenshots", async ({ page }) => {
 		await expect(page.getByRole("button", { name: "PDF出力" })).toBeVisible();
 		await shot(page, "user", "10-sheet-list-final");
 		await page.getByRole("link", { name: /一般職/ }).click();
-		await expect(page.getByText("最終評価済みです。内容は変更できません。")).toBeVisible();
+		await expect(page.getByText("評価が確定しました。内容は変更できません。")).toBeVisible();
 		await shot(page, "user", "11-result");
 		await page.getByRole("button", { name: "ユーザーメニュー" }).click();
 		await shot(page, "user", "12-user-menu");

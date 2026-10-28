@@ -3,28 +3,20 @@ import {
 	type EvaluationStatusValue,
 } from "../../domain/valueObjects/EvaluationStatus";
 
-/** 状態の表示名は「いま何を待っているか」。済んだことではなく、次に誰が動くかが分かる言葉にする。 */
-const STATUS_LABELS: Record<EvaluationStatusValue, string> = {
-	draft: "下書き",
-	goals_submitted: "送信済み",
-	goals_confirmed: "目標確定",
-	submitted: "一次評価待ち",
-	first_evaluated: "二次評価待ち",
-	finalized: "最終評価済み",
-};
-
-export const statusLabel = (status: EvaluationStatusValue): string => STATUS_LABELS[status];
+/** 状態の表示名(EvaluationStatus.label)。「いま何を待っているか」が分かる言葉。 */
+export const statusLabel = (status: EvaluationStatusValue): string =>
+	EvaluationStatus.from(status).label();
 
 const STATUS_HINTS: Record<EvaluationStatusValue, string> = {
 	draft:
 		"本人が目標を書いています。送信するまで評価者には表示されません。前期に書いた目標は「前期」タブで見られます。",
 	goals_submitted:
-		"一次評価者による目標の確認を待っています。まだ評価は始まりません。達成状況は、この間も書き直せます。",
+		"一次評価者による目標の確認を待っています。まだ評価は始まりません。達成状況は、目標が確定してから書けます。",
 	goals_confirmed:
-		"目標は確定しました。期中目標は変えられません。達成状況を書いて、一次評価を依頼してください。",
+		"目標は確定しました。本人が達成状況を書いています。期中目標は変えられません。書き終えたら一次評価を依頼してください。",
 	submitted: "一次評価者の評価を待っています。",
 	first_evaluated: "一次評価が確定しました。二次評価者の評価を待っています。",
-	finalized: "最終評価済みです。内容は変更できません。",
+	finalized: "評価が確定しました。内容は変更できません。",
 };
 
 /** いまの状態で「誰の番か」を一文で示す。 */

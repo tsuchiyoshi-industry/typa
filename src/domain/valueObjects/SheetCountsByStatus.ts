@@ -1,14 +1,5 @@
 import { EvaluationStatus, type EvaluationStatusValue } from "./EvaluationStatus";
 
-/** 確定していない状態の呼び方(締められない理由に使う)。 */
-const UNFINISHED_LABELS: readonly [EvaluationStatus, string][] = [
-	[EvaluationStatus.DRAFT, "下書き"],
-	[EvaluationStatus.GOALS_SUBMITTED, "送信済み"],
-	[EvaluationStatus.GOALS_CONFIRMED, "目標確定"],
-	[EvaluationStatus.SUBMITTED, "一次評価待ち"],
-	[EvaluationStatus.FIRST_EVALUATED, "二次評価待ち"],
-];
-
 /** 1つの評価期間の評価シートを、状態ごとに数えたもの。 */
 export class SheetCountsByStatus {
 	private constructor(private readonly counts: ReadonlyMap<EvaluationStatus, number>) {}
@@ -45,8 +36,8 @@ export class SheetCountsByStatus {
 
 	/** 「下書き 2 件・二次評価待ち 1 件」。確定していないシートが無ければ空文字。 */
 	describeUnfinished(): string {
-		return UNFINISHED_LABELS.filter(([status]) => this.of(status) > 0)
-			.map(([status, label]) => `${label} ${this.of(status)} 件`)
+		return EvaluationStatus.ALL.filter((status) => !status.isFinalized() && this.of(status) > 0)
+			.map((status) => `${status.label()} ${this.of(status)} 件`)
 			.join("・");
 	}
 }

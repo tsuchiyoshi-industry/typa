@@ -209,7 +209,7 @@ describe("value objects and immutable entities", () => {
 		const original = milestone();
 		const changed = original.withTextUpdates({
 			challengeGoal: "new",
-			periodGoals: [{ description: "task", achievement: "done" }],
+			periodGoals: [{ description: "task", achievement: "達成" }],
 		});
 		expect(changed.ok && [changed.value.firstScore.value, changed.value.secondScore.value]).toEqual(
 			[2, 4],

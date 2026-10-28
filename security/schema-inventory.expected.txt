@@ -278,6 +278,7 @@ FUNCTION get_sheet_import_template() definer=true anon=false authenticated=true 
 FUNCTION get_sheet_notification(bigint,uuid) definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=0a4e1de44acf86f2860858160b9c7b3b
 FUNCTION get_sheet_overview() definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=d57bad6251bb84bedb2d8c3ceb1dec33
 FUNCTION goal_achievement_only(jsonb,jsonb) definer=false anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=17857111d0a4fd5bf7e41a5d5ccecd9c
+FUNCTION guard_achievement_before_confirmation() definer=false anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=9fd1e75feb3336ede3bf0ca226bb1465
 FUNCTION guard_common_evaluation_result_write() definer=false anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=f53fead580ae9b10a90c0f53eb7ec721
 FUNCTION guard_employee_write() definer=false anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=39771062e280a4bdef9083fca7c6521f
 FUNCTION guard_evaluation_period_delete() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=7f0b40649c47f887526aa91a9b35bc63
@@ -292,6 +293,7 @@ FUNCTION issue_pending_employee_invitations() definer=true anon=false authentica
 FUNCTION lock_employee_administration() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=ca0590d5aedbe55640c261bb9f8cd068
 FUNCTION lock_evaluation_sheet(bigint) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=ee701b7ab71476d24a520441d88c9e5b
 FUNCTION lock_sheet_content_write() definer=false anon=true authenticated=true service_role=true auth_admin=true config={"search_path=\"\""} md5=da9c80c007a4d8b63ce9bc5537e33579
+FUNCTION milestone_achievements(jsonb) definer=false anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=09762f8b7425d5ba75a00de408f5dffe
 FUNCTION next_evaluator_of(evaluation_sheets) definer=false anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=4f72eac31123b01f3e9259692372d001
 FUNCTION notify_next_evaluator() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=ed7fa5b2098f40a5e9e8de80d064417c
 FUNCTION pre_register_employee(text,text,smallint,text,text,text,boolean) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=a0740d9a885fbba877b743feb5bca6b5
@@ -464,5 +466,6 @@ TRIGGER evaluation_sheets z_evaluation_sheets_notification_revision BEFORE UPDAT
 TRIGGER milestones a_milestones_lock_sheet BEFORE DELETE,INSERT,UPDATE
 TRIGGER milestones milestones_achievement_placement AFTER INSERT,UPDATE
 TRIGGER milestones milestones_check_goal_number BEFORE INSERT,UPDATE
+TRIGGER milestones milestones_guard_achievement_before_confirmation BEFORE INSERT,UPDATE
 TRIGGER milestones milestones_guard_write BEFORE UPDATE
 TRIGGER milestones milestones_require_active_period BEFORE DELETE,INSERT,UPDATE

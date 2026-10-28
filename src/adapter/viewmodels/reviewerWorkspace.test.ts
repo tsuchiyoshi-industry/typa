@@ -16,12 +16,15 @@ it("labels each stage from the reviewer's point of view", () => {
 	const cases = [
 		[reviewerRow(1, { sheetId: null, status: "missing" }), "未作成"],
 		[reviewerRow(1, { status: "draft" }), "目標の送信待ち"],
+		[reviewerRow(1, { status: "goals_submitted", isPrimary: true }), "目標を確認する"],
+		[reviewerRow(1, { status: "goals_submitted" }), "目標確認待ち"],
+		[reviewerRow(1, { status: "goals_confirmed" }), "本人の振り返り待ち"],
 		[reviewerRow(1, submittedToPrimary), "一次評価する"],
 		[reviewerRow(1, { ...submittedToPrimary, primaryIsFinal: true }), "評価する"],
 		[reviewerRow(1, { status: "submitted" }), "一次評価待ち"],
 		[reviewerRow(1), "二次評価する"],
 		[reviewerRow(1, { isPrimary: true, canViewFinal: false }), "二次評価待ち"],
-		[reviewerRow(1, { status: "finalized" }), "最終評価済み"],
+		[reviewerRow(1, { status: "finalized" }), "評価確定"],
 	] as const;
 	for (const [row, label] of cases) {
 		expect(reviewLabel(row)).toBe(label);
@@ -120,7 +123,7 @@ it("counts only the stages the reviewer takes part in", () => {
 		["all", "全員", 3],
 		["second", "二次評価する", 1],
 		["waiting", "本人・相手の評価待ち", 1],
-		["finalized", "最終評価済み", 1],
+		["finalized", "評価確定", 1],
 	]);
 	const firstOnly = [reviewerRow(1, { ...submittedToPrimary, canViewSecond: false })];
 	expect(reviewStats(firstOnly).map(([key]) => key)).toEqual([

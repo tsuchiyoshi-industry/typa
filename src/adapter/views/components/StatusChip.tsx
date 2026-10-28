@@ -11,8 +11,8 @@ import { statusLabel } from "../format";
 
 /**
  * 色だけに頼らず、形でも状態を見分けられるようにする。状態ごとに別の形にする。
- * 下書き: 鉛筆 / 送信済み: 紙飛行機 / 目標確定: チェックの付いたボード / 一次評価待ち: 受信箱 /
- * 二次評価待ち: 砂時計 / 最終評価済み: 認証バッジ
+ * 下書き: 鉛筆 / 目標確認待ち: 紙飛行機 / 振り返り待ち: チェックの付いたボード / 一次評価待ち: 受信箱 /
+ * 二次評価待ち: 砂時計 / 評価確定: 認証バッジ
  */
 const STATUS_ICONS: Record<EvaluationStatusValue, typeof PencilLine> = {
 	draft: PencilLine,

@@ -281,7 +281,7 @@ it("finalizes after confirmation and advances to the reviewer's next turn", asyn
 	await view.findByText("社員3 さんの評価に進みました");
 	within(
 		view.getByRole("checkbox", { name: "社員1を比較に選択" }).closest("tr") as HTMLElement,
-	).getByText("最終評価済み");
+	).getByText("評価確定");
 });
 it("goes to the person announced in the dialog even though confirming reorders the list", async () => {
 	// 並びは「評価が必要な順」。社員2を確定すると社員2は末尾へ移り、並びだけで選ぶと先頭の社員1になる

@@ -166,7 +166,7 @@ function correctedGoalsValid(
 		if (periodGoals === undefined && achievement === undefined) {
 			continue;
 		}
-		const next = goal.withTextUpdates({
+		const next = goal.withCorrectedText({
 			// 形は validate で確かめてある
 			periodGoals: periodGoals === undefined ? undefined : (parsePeriodGoals(periodGoals) ?? []),
 			achievement,

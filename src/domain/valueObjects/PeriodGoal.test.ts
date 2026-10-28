@@ -117,7 +117,52 @@ describe("milestone text", () => {
 		expect(theme.ok && theme.value.achievement).toBe("テーマの実績");
 	});
 
+	it("does not let a draft gain achievement text before the goals are confirmed", () => {
+		const draft = goal([task("手順書を作る")]);
+		for (const change of [
+			{ periodGoals: [task("手順書を作る", "作成済み")] },
+			{ periodGoals: [task("手順書を作る"), task("共有する", "済み")] },
+		]) {
+			expect(failure(draft.withTextUpdates(change))).toEqual({
+				kind: "achievementBeforeConfirmation",
+			});
+		}
+		expect(failure(goal([]).withTextUpdates({ achievement: "テーマの実績" }))).toEqual({
+			kind: "achievementBeforeConfirmation",
+		});
+		// 目標の本文は今までどおり書ける
+		const edited = draft.withTextUpdates({ periodGoals: [task("手順書を直す"), task("共有する")] });
+		expect(edited.ok).toBe(true);
+	});
+
+	it("keeps or clears an achievement written before this rule, but never adds new text", () => {
+		const legacy = goal([task("手順書を作る", "以前の実績"), task("共有する")]);
+		// 本文だけ直しても、以前の達成状況はそのまま残る
+		const kept = legacy.withTextUpdates({
+			periodGoals: [task("手順書を直す", "以前の実績"), task("共有する")],
+		});
+		expect(kept.ok && kept.value.periodGoals[0].achievement).toBe("以前の実績");
+		// 並べ替え・消すのはよい
+		expect(
+			legacy.withTextUpdates({
+				periodGoals: [task("共有する"), task("手順書を作る", "以前の実績")],
+			}).ok,
+		).toBe(true);
+		expect(legacy.withTextUpdates({ periodGoals: [task("手順書を作る")] }).ok).toBe(true);
+		// 書き換えるのは、新しく書くのと同じ
+		expect(
+			failure(
+				legacy.withTextUpdates({
+					periodGoals: [task("手順書を作る", "以前の実績に追記"), task("共有する")],
+				}),
+			),
+		).toEqual({ kind: "achievementBeforeConfirmation" });
+	});
+
 	it("words every failure for the person who caused it", () => {
+		expect(describeMilestoneError({ kind: "achievementBeforeConfirmation" })).toBe(
+			"達成状況は、一次評価者が目標を確定してから書けます。",
+		);
 		expect(describeMilestoneError({ kind: "goalsFixed" })).toBe(
 			"目標確定後は達成状況だけを編集できます。",
 		);

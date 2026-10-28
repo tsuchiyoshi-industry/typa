@@ -119,4 +119,6 @@ export interface EvaluationSheetDto {
 	notifiesByMail: boolean;
 	/** 一次評価者が目標を差し戻した理由。下書きの間だけ。なければ空。 */
 	goalReturnReason: string;
+	/** いまボールを持っている人(役割と名前)。評価確定は null。 */
+	currentHolder: { actor: "subject" | "primary" | "secondary"; name: string } | null;
 }

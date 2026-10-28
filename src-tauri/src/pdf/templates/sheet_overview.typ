@@ -12,11 +12,11 @@
 // 進行順。表示名は画面と同じ言葉にする
 #let stages = (
   (key: "draft", label: "下書き", shade: luma(205)),
-  (key: "goals_submitted", label: "送信済み", shade: luma(190)),
-  (key: "goals_confirmed", label: "目標確定", shade: luma(170)),
+  (key: "goals_submitted", label: "目標確認待ち", shade: luma(190)),
+  (key: "goals_confirmed", label: "振り返り待ち", shade: luma(170)),
   (key: "submitted", label: "一次評価待ち", shade: luma(150)),
   (key: "first_evaluated", label: "二次評価待ち", shade: luma(95)),
-  (key: "finalized", label: "最終評価済み", shade: accent),
+  (key: "finalized", label: "評価確定", shade: accent),
 )
 #let stage-of(key) = {
   let index = stages.position(stage => stage.key == key)

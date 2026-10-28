@@ -9,7 +9,12 @@ afterEach(cleanup);
 
 function setup(
 	initial: PeriodGoal[],
-	options: { canEditGoals?: boolean; disabled?: boolean; achievement?: string } = {},
+	options: {
+		canEditGoals?: boolean;
+		canEditAchievements?: boolean;
+		disabled?: boolean;
+		achievement?: string;
+	} = {},
 ) {
 	const [state, setState] = createSignal({
 		periodGoals: initial,
@@ -21,6 +26,7 @@ function setup(
 			goals={state().periodGoals}
 			achievement={state().achievement}
 			canEditGoals={options.canEditGoals}
+			canEditAchievements={options.canEditAchievements}
 			disabled={options.disabled}
 			onChange={onChange}
 		/>
@@ -84,6 +90,20 @@ it("lets only the achievement be written once the goals are fixed", () => {
 	expect(within(first).getByRole("textbox", { name: "達成状況 1" })).toBeTruthy();
 	expect(view.queryByRole("button", { name: /削除/ })).toBeNull();
 	expect(view.queryByRole("button", { name: "期中目標を追加" })).toBeNull();
+});
+
+it("asks for no achievement while the goals are written, and keeps one written before", () => {
+	const view = setup(two, { canEditAchievements: false });
+	expect(view.queryByRole("textbox", { name: /達成状況/ })).toBeNull();
+	expect(view.getByText(/達成状況は、一次評価者が目標を確定してから書きます/)).toBeTruthy();
+	// 本文を直しても、以前に書かれた達成状況は消さずに送る
+	fireEvent.input(view.getByRole("textbox", { name: "期中目標 1" }), {
+		target: { value: "手順書を直す" },
+	});
+	expect(view.state().periodGoals[0]).toEqual({ description: "手順書を直す", achievement: "8割" });
+
+	const theme = setup([], { canEditAchievements: false, achievement: "以前の実績" });
+	expect(theme.queryByRole("textbox", { name: /達成状況/ })).toBeNull();
 });
 
 it("locks every field and button while saving", () => {

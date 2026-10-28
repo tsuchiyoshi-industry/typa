@@ -73,7 +73,7 @@ it("puts my sheets and my reports' sheets under evaluation period tabs, newest p
 	fireEvent.click(tabs[1]);
 	expect(view.getByText("社員A")).toBeTruthy();
 	expect(view.queryByText("社員B")).toBeNull();
-	expect(view.getAllByText("最終評価済み")).toHaveLength(2);
+	expect(view.getAllByText("評価確定")).toHaveLength(2);
 	expect(view.getByRole("link", { name: "総合Ⅱ級" }).getAttribute("href")).toBe("/sheet/1");
 	// Admin 以外には、全社の一覧を出さない
 	expect(view.queryByRole("heading", { name: /全社の評価シート/ })).toBeNull();

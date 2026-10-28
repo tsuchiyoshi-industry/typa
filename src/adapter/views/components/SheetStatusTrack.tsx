@@ -29,9 +29,13 @@ interface SheetStatusTrackProps {
 	onFinalize: () => void;
 	onConfirmGoals?: () => void;
 	onRequestFirst?: () => void;
+	/** いまボールを持っている人(EvaluationSheet.currentHolder)。評価確定は null。 */
+	holder?: { actor: "subject" | "primary" | "secondary"; name: string } | null;
 }
 
-/** 下書き → 送信済み → 目標確定 → 一次評価待ち → 二次評価待ち → 最終評価済み の進行と、いま自分ができる次の操作を示す。 */
+const HOLDER_ROLES = { subject: "本人", primary: "一次評価者", secondary: "二次評価者" } as const;
+
+/** 下書き → 目標確認待ち → 振り返り待ち → 一次評価待ち → 二次評価待ち → 評価確定 の進行と、いまの担当、自分ができる次の操作を示す。 */
 const SheetStatusTrack: Component<SheetStatusTrackProps> = (props) => {
 	const current = () => EvaluationStatus.from(props.status);
 	const steps = () =>
@@ -136,7 +140,16 @@ const SheetStatusTrack: Component<SheetStatusTrackProps> = (props) => {
 				</Show>
 			</div>
 
-			<p class="status-track__hint">{statusHint(props.status)}</p>
+			<p class="status-track__hint">
+				<Show when={props.holder}>
+					{(holder) => (
+						<strong class="status-track__holder">
+							いまの担当：{HOLDER_ROLES[holder().actor]}（{holder().name}）
+						</strong>
+					)}
+				</Show>
+				{statusHint(props.status)}
+			</p>
 
 			<Show when={props.notice}>
 				<p class="status-track__notice" role="alert">

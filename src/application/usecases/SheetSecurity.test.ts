@@ -277,13 +277,37 @@ describe("milestone updates validate before side effects", () => {
 		const { sheets, milestones, out } = setup(EvaluationStatus.DRAFT);
 		const change = {
 			challengeGoal: "new",
-			periodGoals: [{ description: "mid", achievement: "done" }],
+			periodGoals: [{ description: "mid", achievement: "" }],
 		};
 		await use(milestones, sheets).execute(
 			mode === "update" ? text(change) : upsert(1, change),
 			out,
 		);
 		expect(mode === "update" ? milestones.updateText : milestones.upsertText).toHaveBeenCalled();
+	});
+	it.each(["update", "upsert"])(
+		"refuses new achievement text with a %s on draft, before the goals are confirmed",
+		async (mode) => {
+			const { sheets, milestones, out } = setup(EvaluationStatus.DRAFT);
+			const change = { periodGoals: [{ description: "手順を見直す", achievement: "書き足した" }] };
+			await expectResultError(
+				use(milestones, sheets).execute(mode === "update" ? text(change) : upsert(1, change), out),
+				{ kind: "achievementBeforeConfirmation" },
+			);
+			expect(milestones.updateText).not.toHaveBeenCalled();
+			expect(milestones.upsertText).not.toHaveBeenCalled();
+		},
+	);
+	it("refuses achievements while the goals wait for confirmation", async () => {
+		const { sheets, milestones, out } = setup(EvaluationStatus.GOALS_SUBMITTED);
+		await expectResultError(
+			use(milestones, sheets).execute(
+				text({ periodGoals: [{ description: "手順を見直す", achievement: "書き足した" }] }),
+				out,
+			),
+			{ kind: "forbidden", action: "editGoalText" },
+		);
+		expect(milestones.updateText).not.toHaveBeenCalled();
 	});
 	it("creates a goal by number only while the sheet has room", async () => {
 		const { sheets, milestones, out } = setup(EvaluationStatus.DRAFT);
@@ -348,7 +372,7 @@ describe("milestone updates validate before side effects", () => {
 		expect(milestones.updateText).not.toHaveBeenCalled();
 		expect(milestones.upsertText).not.toHaveBeenCalled();
 	});
-	it.each([EvaluationStatus.GOALS_SUBMITTED, EvaluationStatus.GOALS_CONFIRMED])(
+	it.each([EvaluationStatus.GOALS_CONFIRMED])(
 		"lets only the subject write the achievements in %s",
 		async (status) => {
 			const { sheets, milestones, out } = setup(status);
@@ -371,7 +395,7 @@ describe("milestone updates validate before side effects", () => {
 					{ kind: "forbidden", action: "editGoalText" },
 				);
 			}
-			// 確認中・確定後は、新しい目標を番号で作れない
+			// 確定後は、新しい目標を番号で作れない
 			await expectResultError(
 				use(milestones, sheets).execute(upsert(2, { achievement: "x" }), out),
 				{ kind: "forbidden", action: "editGoalText" },

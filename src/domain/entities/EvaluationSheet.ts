@@ -3,7 +3,7 @@ import { EvaluationAllocatedScores } from "../valueObjects/EvaluationAllocatedSc
 import { EvaluationAllocation } from "../valueObjects/EvaluationAllocation";
 import { EvaluationRank } from "../valueObjects/EvaluationRank";
 import { EvaluationScoreTotals } from "../valueObjects/EvaluationScoreTotals";
-import { EvaluationStatus } from "../valueObjects/EvaluationStatus";
+import { EvaluationStatus, type SheetActor } from "../valueObjects/EvaluationStatus";
 import type { CommonEvaluationResult } from "./CommonEvaluationResult";
 import type { Employee } from "./Employee";
 import type { EvaluationPeriod } from "./EvaluationPeriod";
@@ -291,6 +291,26 @@ export class EvaluationSheet {
 				.filter((result) => result[scoreKey].toNumber() === 0)
 				.map((result) => ({ label: `共通評価「${result.item.title}」`, itemId: result.itemId })),
 		];
+	}
+
+	/**
+	 * いまボールを持っている人と、その名前。二次評価者「なし」の社員の一次評価済み(以前のデータ)は、
+	 * 一次評価者が最終評価者として持つ。評価確定は null。
+	 */
+	currentHolder(): { actor: SheetActor; name: string } | null {
+		const actor =
+			this.status.isAwaitingSecondEvaluation() && this.primaryIsFinalEvaluator()
+				? "primary"
+				: this.status.holder();
+		if (!actor) {
+			return null;
+		}
+		const names = {
+			subject: this.subject.name,
+			primary: this.primaryEvaluatorName,
+			secondary: this.secondaryEvaluatorName,
+		};
+		return { actor, name: names[actor] };
 	}
 
 	/** 一次評価の評価点(チャレンジ目標と共通評価の得点率に、それぞれの配点を掛けた合計)。 */

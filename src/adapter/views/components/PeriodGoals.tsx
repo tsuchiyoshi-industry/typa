@@ -57,10 +57,15 @@ export const PeriodGoalsEditor: Component<{
 	disabled?: boolean;
 	/** false なら目標の文言は固定し、達成状況だけを書ける(目標確定後)。 */
 	canEditGoals?: boolean;
+	/**
+	 * false なら達成状況の欄を出さない(目標が確定するまでは書けない)。以前に書かれた達成状況は、そのまま送り返す。
+	 */
+	canEditAchievements?: boolean;
 	/** チャレンジ目標の達成状況の欄の見た目(遡及処理で、直した欄を示すなど)。 */
 	achievementClassList?: Record<string, boolean>;
 }> = (props) => {
 	const editsGoals = () => props.canEditGoals !== false;
+	const editsAchievements = () => props.canEditAchievements !== false;
 	const change = (periodGoals: PeriodGoal[]) =>
 		props.onChange({ periodGoals, achievement: props.achievement });
 	const update = (index: number, field: keyof PeriodGoal, value: string) =>
@@ -76,9 +81,11 @@ export const PeriodGoalsEditor: Component<{
 					</span>
 				</legend>
 				<p class="field-hint">
-					{editsGoals()
-						? "チャレンジ目標に向けて、この期に取り組むこと(期ごとに書き直します)。0件のときは、チャレンジ目標に達成状況を書きます。"
-						: "期中目標は目標の送信後は変えられません(要修正で戻ると直せます)。達成状況は、一次評価を依頼するまで書き直せます。"}
+					{!editsAchievements()
+						? "チャレンジ目標に向けて、この期に取り組むこと(期ごとに書き直します)。達成状況は、一次評価者が目標を確定してから書きます。"
+						: editsGoals()
+							? "チャレンジ目標に向けて、この期に取り組むこと(期ごとに書き直します)。0件のときは、チャレンジ目標に達成状況を書きます。"
+							: "期中目標は目標の送信後は変えられません(要修正で戻ると直せます)。達成状況は、一次評価を依頼するまで書き直せます。"}
 				</p>
 				<Show when={props.goals.length > 0}>
 					<ol class="period-goal-cards">
@@ -116,15 +123,17 @@ export const PeriodGoalsEditor: Component<{
 												</label>
 											</Show>
 										</div>
-										<label class="period-goal-field period-goal-card__achievement">
-											<span class="period-goal-card__label">
-												達成状況<span class="visually-hidden"> {index + 1}</span>
-											</span>
-											<textarea
-												value={goal().achievement}
-												onInput={(e) => update(index, "achievement", e.currentTarget.value)}
-											/>
-										</label>
+										<Show when={editsAchievements()}>
+											<label class="period-goal-field period-goal-card__achievement">
+												<span class="period-goal-card__label">
+													達成状況<span class="visually-hidden"> {index + 1}</span>
+												</span>
+												<textarea
+													value={goal().achievement}
+													onInput={(e) => update(index, "achievement", e.currentTarget.value)}
+												/>
+											</label>
+										</Show>
 										<Show when={editsGoals()}>
 											<button
 												type="button"
@@ -158,7 +167,7 @@ export const PeriodGoalsEditor: Component<{
 					</button>
 				</Show>
 			</fieldset>
-			<Show when={props.goals.length === 0}>
+			<Show when={props.goals.length === 0 && editsAchievements()}>
 				<label classList={props.achievementClassList}>
 					<span>達成状況</span>
 					<textarea

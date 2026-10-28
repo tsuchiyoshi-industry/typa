@@ -242,10 +242,10 @@ test("a term is divided, its first half closed with goals only, and its challeng
 			"true",
 		);
 		const panel = page.locator("article.objective-block");
-		// 据え置いた目標は、今期の計画(期中目標)を書くところから始まる。達成状況は写さない
+		// 据え置いた目標は、今期の計画(期中目標)を書くところから始まる。達成状況は写さない(目標の確定までは書けない)
 		await expect(panel.getByRole("textbox", { name: /チャレンジ目標/ })).toHaveValue("上期の目標B");
 		await expect(panel.getByText("前期から据え置き")).toBeVisible();
-		await expect(panel.getByRole("textbox", { name: "達成状況" })).toHaveValue("");
+		await expect(panel.getByRole("textbox", { name: /達成状況/ })).toHaveCount(0);
 		await panel.getByRole("button", { name: "期中目標を追加" }).click();
 		await panel.getByLabel("期中目標 1", { exact: true }).fill("下期の手順を試す");
 		await panel.getByRole("button", { name: "目標を保存" }).click();

@@ -75,7 +75,8 @@ test("a sheet goes from the employee through both evaluators to a final rank", a
 		await page.getByRole("textbox", { name: "期中目標 1", exact: true }).fill("手順を見直す");
 		await page.getByRole("button", { name: "期中目標を追加" }).click();
 		await page.getByRole("textbox", { name: "期中目標 2", exact: true }).fill("研修を開く");
-		await page.getByRole("textbox", { name: "達成状況 2", exact: true }).fill("参加者に案内した");
+		// 達成状況は、一次評価者が目標を確定してから書く
+		await expect(page.getByRole("textbox", { name: /達成状況/ })).toHaveCount(0);
 		await page.screenshot({
 			path: test.info().outputPath("period-goals-editor.png"),
 			fullPage: true,
@@ -88,10 +89,10 @@ test("a sheet goes from the employee through both evaluators to a final rank", a
 		await expect(page.getByText(/一次評価者による目標の確認を待っています。/)).toBeVisible();
 		await expect(page.getByRole("tabpanel")).toContainText("手順を見直す");
 		await expect(page.getByRole("tabpanel")).toContainText("研修を開く");
-		await expect(page.getByRole("tabpanel")).toContainText("参加者に案内した");
 
-		// 送信後は目標を書き換えられない
+		// 送信後は目標を書き換えられず、目標が確定するまでは達成状況も書けない
 		await expect(page.getByRole("button", { name: "目標を編集" })).toHaveCount(0);
+		await expect(page.getByRole("button", { name: "達成状況を入力" })).toHaveCount(0);
 		await signOut(page);
 	});
 
@@ -134,7 +135,9 @@ test("a sheet goes from the employee through both evaluators to a final rank", a
 		await page
 			.getByRole("textbox", { name: "達成状況 1", exact: true })
 			.fill("手順を試行して改善した");
+		await page.getByRole("textbox", { name: "達成状況 2", exact: true }).fill("参加者に案内した");
 		await page.getByRole("button", { name: "達成状況を保存" }).click();
+		await expect(page.getByRole("tabpanel")).toContainText("参加者に案内した");
 		await page.getByRole("button", { name: "一次評価を依頼する" }).click();
 		await confirm(page, "一次評価を依頼しますか？", "一次評価を依頼する");
 		await expect(page.getByText("一次評価者の評価を待っています。")).toBeVisible();
@@ -249,7 +252,7 @@ test("a sheet goes from the employee through both evaluators to a final rank", a
 		);
 		await signIn(page, "RELEASE004");
 		const goal = await openOwnSheet(page);
-		await expect(page.getByText("最終評価済みです。内容は変更できません。")).toBeVisible();
+		await expect(page.getByText("評価が確定しました。内容は変更できません。")).toBeVisible();
 		await expect(goal).toContainText(/一次評価\s*4\s*\/\s*4/);
 		await expect(page.getByText("75")).toHaveCount(0);
 	});
@@ -303,5 +306,5 @@ test("zero period goals records achievement on the challenge and primary evaluat
 	await score(sheet, "一次評価", 3);
 	await sheet.getByRole("button", { name: "評価を確定する" }).click();
 	await confirm(page, "評価を確定しますか？", "評価を確定する");
-	await expect(sheet.getByText("最終評価済みです。内容は変更できません。")).toBeVisible();
+	await expect(sheet.getByText("評価が確定しました。内容は変更できません。")).toBeVisible();
 });

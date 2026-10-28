@@ -23,7 +23,7 @@ export const reviewLabel = (row: ReviewerRowDto): string => {
 		return row.isPrimary ? "目標を確認する" : "目標確認待ち";
 	}
 	if (status.isGoalsConfirmed()) {
-		return "本人の達成状況入力待ち";
+		return "本人の振り返り待ち";
 	}
 	if (status.isAwaitingFirstEvaluation()) {
 		return row.isPrimary ? (row.primaryIsFinal ? "評価する" : "一次評価する") : "一次評価待ち";
@@ -31,7 +31,7 @@ export const reviewLabel = (row: ReviewerRowDto): string => {
 	if (status.isAwaitingSecondEvaluation()) {
 		return row.canViewFinal ? "二次評価する" : "二次評価待ち";
 	}
-	return "最終評価済み";
+	return "評価確定";
 };
 
 /** 絞り込みに使う等級のキー。等級が未設定の社員もまとめて選べるようにする。 */
@@ -71,7 +71,7 @@ export function reviewStats(rows: ReviewerRowDto[]): [ReviewFilter, string, numb
 		["first", "一次評価する", count("first"), rows.some((row) => row.isPrimary)],
 		["second", "二次評価する", count("second"), rows.some((row) => row.canViewSecond)],
 		["waiting", "本人・相手の評価待ち", count("waiting"), true],
-		["finalized", "最終評価済み", count("finalized"), true],
+		["finalized", "評価確定", count("finalized"), true],
 	];
 	return stats.filter(([, , , shown]) => shown).map(([key, label, total]) => [key, label, total]);
 }

@@ -13,20 +13,46 @@ export type EvaluationStatusValue = (typeof EVALUATION_STATUS_VALUES)[number];
 export type SheetActor = "subject" | "primary" | "secondary";
 
 /**
- * その状態になったとき、誰から誰へシートが渡ったか。通知はこの to へ送り、再送できるのは from の人。
- * 下書きは、一次評価者が目標を要修正として戻したとき(作ったばかりの下書きは通知しない)。
+ * 業務のきまり: その状態のとき、ボールを持っている(次に動く)のは誰か。最終評価済みは誰も持たない。
+ * DB の next_evaluator_of も同じきまりで、アプリ内通知の宛先を決める。
  */
-const HANDOFFS: Record<EvaluationStatusValue, { from: SheetActor; to: SheetActor } | null> = {
-	draft: { from: "primary", to: "subject" },
-	goals_submitted: { from: "subject", to: "primary" },
-	goals_confirmed: { from: "primary", to: "subject" },
-	submitted: { from: "subject", to: "primary" },
-	first_evaluated: { from: "primary", to: "secondary" },
+const HOLDERS: Record<EvaluationStatusValue, SheetActor | null> = {
+	draft: "subject",
+	goals_submitted: "primary",
+	goals_confirmed: "subject",
+	submitted: "primary",
+	first_evaluated: "secondary",
 	finalized: null,
 };
 
 /**
- * 評価シートの状態。下書き → 送信済み → 目標確定 → 一次評価待ち → 二次評価待ち → 最終評価済み。
+ * その状態へ進めるのは誰か。下書きへは一次評価者が要修正として戻す(作ったばかりの下書きは渡していない)。
+ */
+const MOVED_BY: Record<EvaluationStatusValue, SheetActor> = {
+	draft: "primary",
+	goals_submitted: "subject",
+	goals_confirmed: "primary",
+	submitted: "subject",
+	first_evaluated: "primary",
+	finalized: "secondary",
+};
+
+/**
+ * 状態の呼び名。「いま何を待っているか」でそろえ、済・中は使わない(誰の番かは「いまの担当」で示す)。
+ * 始まりの下書きと終わりの評価確定だけは、自然な言葉にする。
+ */
+const LABELS: Record<EvaluationStatusValue, string> = {
+	draft: "下書き",
+	goals_submitted: "目標確認待ち",
+	goals_confirmed: "振り返り待ち",
+	submitted: "一次評価待ち",
+	first_evaluated: "二次評価待ち",
+	finalized: "評価確定",
+};
+
+/**
+ * 評価シートの状態。下書き → 目標確認待ち → 振り返り待ち(目標確定後、本人が達成状況を書く) → 一次評価待ち →
+ * 二次評価待ち → 評価確定。
  * アプリの中では文字列ではなくこの6つを持ち回り、状態による判断はここのメソッドで行う。
  * 状態を増やすときはここに足す。状態ごとの分岐は Record<EvaluationStatusValue, …> で書いてあり、
  * 足した状態の扱いを決めていない箇所はコンパイルエラーになる。
@@ -84,9 +110,22 @@ export class EvaluationStatus {
 		return this.order() >= EvaluationStatus.SUBMITTED.order();
 	}
 
-	/** この状態になったとき、誰から誰へ渡ったか。評価の確定は次に動く人がいないので null。 */
+	/** この状態のとき、ボールを持っている人。最終評価済みは null。 */
+	holder(): SheetActor | null {
+		return HOLDERS[this.value];
+	}
+
+	/**
+	 * この状態になったとき、誰から誰へ渡ったか(to はボールの持ち主)。通知は to へ送り、再送できるのは from の人。
+	 * 評価の確定は次に動く人がいないので null。
+	 */
 	handoff(): { from: SheetActor; to: SheetActor } | null {
-		return HANDOFFS[this.value];
+		const to = this.holder();
+		return to && { from: MOVED_BY[this.value], to };
+	}
+
+	label(): string {
+		return LABELS[this.value];
 	}
 
 	isGoalsSubmitted(): boolean {

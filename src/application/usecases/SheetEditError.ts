@@ -69,6 +69,7 @@ export function describeSheetEditError(error: SheetEditError): string {
 		case "tooManyPeriodGoals":
 		case "achievementBesideTasks":
 		case "goalsFixed":
+		case "achievementBeforeConfirmation":
 			return describeMilestoneError(error);
 		case "objectivesIncomplete":
 		case "evaluationIncomplete":

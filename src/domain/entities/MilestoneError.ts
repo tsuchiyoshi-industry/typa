@@ -8,7 +8,9 @@ export type MilestoneError =
 	/** 期中目標があるのに、チャレンジ目標にも達成状況を書いた。 */
 	| { kind: "achievementBesideTasks" }
 	/** 目標の送信後に、達成状況以外(チャレンジ目標・期中目標の本文・件数・順序)を変えようとした。 */
-	| { kind: "goalsFixed" };
+	| { kind: "goalsFixed" }
+	/** 目標が確定する前に、達成状況を書こうとした。 */
+	| { kind: "achievementBeforeConfirmation" };
 
 export function describeMilestoneError(error: MilestoneError): string {
 	switch (error.kind) {
@@ -20,5 +22,7 @@ export function describeMilestoneError(error: MilestoneError): string {
 			return "期中目標があるときは、達成状況を期中目標ごとに記入してください。";
 		case "goalsFixed":
 			return "目標確定後は達成状況だけを編集できます。";
+		case "achievementBeforeConfirmation":
+			return "達成状況は、一次評価者が目標を確定してから書けます。";
 	}
 }

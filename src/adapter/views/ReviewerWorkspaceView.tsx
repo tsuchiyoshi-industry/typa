@@ -321,12 +321,8 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 			showToast("info", `${target.employeeName} さんの評価に進みました`);
 		} else {
 			const completed = loaded.find((row) => row.employeeId === finished);
-			// 本人へ戻した(要修正・目標確定)シートは、もう評価者が開いておく理由がないので閉じる
-			if (
-				!completed ||
-				!canOpen(completed) ||
-				sheetStatus(completed)?.handoff()?.to === "subject"
-			) {
+			// ボールが本人へ移った(要修正・目標確定)シートは、もう評価者が開いておく理由がないので閉じる
+			if (!completed || !canOpen(completed) || sheetStatus(completed)?.holder() === "subject") {
 				setParams({ sheet: undefined }, { scroll: false });
 			}
 			showToast("success", "この一覧で自分の番のシートはすべて確定しました");
@@ -784,7 +780,7 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 							部下 <strong>{rows().length}</strong> 名
 						</span>
 						<span class="review-progress-count">
-							最終評価済み <strong>{count("finalized")}</strong> / {rows().length}
+							評価確定 <strong>{count("finalized")}</strong> / {rows().length}
 						</span>
 					</div>
 					<progress

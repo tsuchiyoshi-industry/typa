@@ -53,7 +53,7 @@ it("selects a closed period and confirms the exact status change before writing"
 	expect(calls[calls.length - 1]?.[0]).toMatchObject({
 		details: expect.arrayContaining([
 			expect.stringContaining("社員4"),
-			expect.stringContaining("最終評価済み → 下書き"),
+			expect.stringContaining("評価確定 → 下書き"),
 		]),
 	});
 });

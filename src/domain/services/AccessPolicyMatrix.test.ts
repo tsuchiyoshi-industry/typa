@@ -44,10 +44,8 @@ describe("authorization matrix", () => {
 				expect(policy.canReturnGoalsToDraft()).toBe(id === 2 && status.isGoalsSubmitted());
 				expect(policy.canConfirmGoals()).toBe(id === 2 && status.isGoalsSubmitted());
 				expect(policy.canRequestFirstEvaluation()).toBe(id === 1 && status.isGoalsConfirmed());
-				// 達成状況は、一次評価を依頼するまで本人が自由に書き直せる(目標の確認中も)
-				expect(policy.canEditMilestoneAchievement()).toBe(
-					id === 1 && !status.isEvaluationStarted(),
-				);
+				// 達成状況は、目標が確定してから一次評価を依頼するまでの間だけ本人が書ける(下書き・確認中は書けない)
+				expect(policy.canEditMilestoneAchievement()).toBe(id === 1 && status.isGoalsConfirmed());
 				// 前期のチャレンジ目標を据え置く・見直すのは、目標を書ける下書きの間だけ
 				expect(policy.canCarryOverGoal()).toBe(id === 1 && draft);
 				expect(policy.canConfirmFirstEvaluation()).toBe(id === 2 && firstStage);

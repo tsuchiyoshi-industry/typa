@@ -284,6 +284,7 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 						canRevert={viewModel().canReturnGoalsToDraft}
 						canConfirmGoals={viewModel().canConfirmGoals}
 						canRequestFirst={viewModel().canRequestFirstEvaluation}
+						holder={sheet()?.currentHolder}
 						// 受け持ち画面では、評価の確定は入力を終えた先(末尾のバー)に置く
 						canConfirmFirst={!props.embedded && viewModel().canConfirmFirstEvaluation}
 						canFinalize={!props.embedded && viewModel().canFinalizeEvaluation}

@@ -1294,6 +1294,12 @@
 	color: var(--hr-text-muted);
 }
 
+.status-track__holder {
+	margin-right: 0.75em;
+	font-weight: 600;
+	color: var(--hr-text);
+}
+
 .status-track__notice {
 	flex-basis: 100%;
 	margin: 0;

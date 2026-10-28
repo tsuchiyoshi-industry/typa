@@ -202,11 +202,11 @@ export class EvaluationSheetAccessPolicy {
 	}
 
 	/**
-	 * 達成状況は本人の自由な振り返りで、一次評価を依頼するまで(下書き・目標の確認中・目標確定後)
-	 * いつでも書き直せる。期中目標の本文は目標確定で固定され、要修正で戻ると直せる。
+	 * 達成状況は、一次評価者が目標を確定してから(振り返り待ち)、本人が一次評価を依頼するまでの間だけ書ける。
+	 * 確定前の目標に対して実績を書かせない。期中目標の本文は目標確定で固定され、要修正で戻ると直せる。
 	 */
 	canEditMilestoneAchievement(): boolean {
-		return this.periodIsOpen && this.viewerIsSubject && !this.sheet.status.isEvaluationStarted();
+		return this.periodIsOpen && this.viewerIsSubject && this.sheet.status.isGoalsConfirmed();
 	}
 
 	/** 前期のチャレンジ目標を据え置く・見直して引き継ぐのは、目標を書ける下書きの間の本人だけ。 */

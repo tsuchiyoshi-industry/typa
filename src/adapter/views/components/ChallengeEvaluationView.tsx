@@ -592,7 +592,10 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 									<span class="objective-field__label">期中目標(今期の計画)</span>
 									<PeriodGoalsList
 										goals={activeObjective()?.periodGoals ?? []}
-										achievement={activeObjective()?.achievement}
+										// 下書きの間は達成状況を書かないので、空欄を「未入力」と見せない
+										achievement={
+											props.canEditMilestoneGoal ? undefined : activeObjective()?.achievement
+										}
 									/>
 								</div>
 							</div>
@@ -651,6 +654,7 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 								goals={draftText().periodGoals}
 								achievement={draftText().achievement}
 								canEditGoals={props.canEditMilestoneGoal}
+								canEditAchievements={props.canEditMilestoneAchievement === true}
 								disabled={textUpdating()}
 								onChange={(next) => setDraftText({ ...draftText(), ...next })}
 							/>

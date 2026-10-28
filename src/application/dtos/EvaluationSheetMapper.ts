@@ -123,6 +123,7 @@ export function toEvaluationSheetDto(
 		status: sheet.status.toString(),
 		notifiesByMail: sheet.notifiesByMail,
 		goalReturnReason: sheet.goalReturnReason,
+		currentHolder: sheet.currentHolder(),
 		corrections: sheet.corrections
 			.filter((correction) => policy.canViewCorrection(correction))
 			.map(toSheetCorrectionDto),

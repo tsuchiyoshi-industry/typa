@@ -30,7 +30,7 @@ import type { FallibleUseCase } from "../ports/UseCase";
 export interface UpdateEvaluationStatusRequest {
 	sheetId: number;
 	/**
-	 * 進める先の状態。下書き: 一次評価者が要修正として戻す / 送信済み: 本人が目標を送信 /
+	 * 進める先の状態。下書き: 一次評価者が要修正として戻す / 目標確認待ち: 本人が目標を送信 /
 	 * 目標確定: 一次評価者が承認 / 一次評価待ち: 本人が一次評価を依頼 /
 	 * 一次評価済み: 一次評価者が一次評価を確定する / 評価確定: 最終評価者が評価を確定する。
 	 */

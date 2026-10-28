@@ -68,18 +68,18 @@ export type ReviewTask = "goals" | "first" | "second" | "waiting" | "finalized";
 export const sheetStatus = (row: ReviewerRow): EvaluationStatus | undefined =>
 	EvaluationStatus.find(row.status);
 
+/** 自分の番は、いまの状態のボール(EvaluationStatus.holder)を自分の役割が持っているとき。 */
 export function reviewTask(row: ReviewerRow): ReviewTask {
 	const status = sheetStatus(row);
 	if (status?.isFinalized()) {
 		return "finalized";
 	}
-	if (status?.isGoalsSubmitted() && row.isPrimary) {
-		return "goals";
+	const holder = status?.holder();
+	if (holder === "primary" && row.isPrimary) {
+		return status?.isGoalsSubmitted() ? "goals" : "first";
 	}
-	if (status?.isAwaitingFirstEvaluation() && row.isPrimary) {
-		return "first";
-	}
-	if (status?.isAwaitingSecondEvaluation() && row.canViewFinal) {
+	// 二次評価者「なし」の社員の一次評価済み(以前のデータ)は、最終評価者を兼ねる一次評価者の番
+	if (holder === "secondary" && row.canViewFinal) {
 		return "second";
 	}
 	return "waiting";

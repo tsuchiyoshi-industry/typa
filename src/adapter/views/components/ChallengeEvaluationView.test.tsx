@@ -138,7 +138,7 @@ it("hides add and delete controls from evaluators", () => {
 	expect(view.queryByRole("button", { name: "この目標を削除" })).toBeNull();
 });
 
-it("saves separate tasks and their achievements under the selected challenge, without a completion action", async () => {
+it("saves separate tasks under the selected challenge in a draft, asking for no achievement and keeping one written before", async () => {
 	const view = setup([
 		{
 			id: 11,
@@ -156,9 +156,8 @@ it("saves separate tasks and their achievements under the selected challenge, wi
 	const task = view.getByRole("textbox", { name: "期中目標 2" });
 	fireEvent.input(task, { target: { value: "研修を開く" } });
 	expect(view.getByRole("textbox", { name: "期中目標 2" })).toBe(task);
-	fireEvent.input(view.getByRole("textbox", { name: "達成状況 2" }), {
-		target: { value: "参加者に案内した" },
-	});
+	// 達成状況は目標が確定してから書くので、下書きでは欄を出さない
+	expect(view.queryByRole("textbox", { name: /達成状況/ })).toBeNull();
 	expect(view.queryAllByRole("checkbox")).toHaveLength(0);
 	fireEvent.click(view.getByRole("button", { name: "目標を保存" }));
 	await waitFor(() =>
@@ -167,25 +166,22 @@ it("saves separate tasks and their achievements under the selected challenge, wi
 			11,
 			"品質改善",
 			[
+				// このきまりより前に書かれた達成状況は、消さずに送り返す
 				{ description: "手順を見直す", achievement: "試行中" },
-				{ description: "研修を開く", achievement: "参加者に案内した" },
+				{ description: "研修を開く", achievement: "" },
 			],
 			"",
 		),
 	);
 	await view.findByText("研修を開く");
-	expect(view.getByText("参加者に案内した")).toBeTruthy();
 	fireEvent.click(view.getByRole("button", { name: "目標を編集" }));
 	fireEvent.click(view.getByRole("button", { name: "期中目標 1 を削除" }));
 	expect((view.getByRole("textbox", { name: "期中目標 1" }) as HTMLTextAreaElement).value).toBe(
 		"研修を開く",
 	);
-	expect((view.getByRole("textbox", { name: "達成状況 1" }) as HTMLTextAreaElement).value).toBe(
-		"参加者に案内した",
-	);
 	fireEvent.click(view.getByRole("button", { name: "期中目標 1 を削除" }));
 	expect(view.queryByRole("textbox", { name: "期中目標 1" })).toBeNull();
-	expect(view.getByRole("textbox", { name: /^達成状況$/ })).toBeTruthy();
+	expect(view.queryByRole("textbox", { name: /達成状況/ })).toBeNull();
 	fireEvent.click(view.getByRole("button", { name: "キャンセル" }));
 	expect(view.getByText("手順を見直す")).toBeTruthy();
 });
@@ -244,7 +240,7 @@ it.each([0, 4])(
 	},
 );
 
-it("moves the theme's achievement into the first task instead of keeping it out of sight", async () => {
+it("moves a theme achievement written before into the first task in a draft, without showing a field", async () => {
 	const view = setup([
 		{
 			id: 11,
@@ -259,10 +255,7 @@ it("moves the theme's achievement into the first task instead of keeping it out 
 	]);
 	fireEvent.click(view.getByRole("button", { name: "目標を編集" }));
 	fireEvent.click(view.getByRole("button", { name: "期中目標を追加" }));
-	expect(view.queryByRole("textbox", { name: "達成状況" })).toBeNull();
-	expect((view.getByRole("textbox", { name: "達成状況 1" }) as HTMLTextAreaElement).value).toBe(
-		"テーマの実績",
-	);
+	expect(view.queryByRole("textbox", { name: /達成状況/ })).toBeNull();
 	fireEvent.click(view.getByRole("button", { name: "目標を保存" }));
 	await waitFor(() =>
 		expect(view.controller.updateText).toHaveBeenCalledWith(

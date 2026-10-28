@@ -7,6 +7,15 @@ export const CAREER_COURSES = ["総合職", "一般職", "技能職", "役員"] 
 export const isValidEmployeeNo = (employeeNo: string): boolean =>
 	/^[A-Za-z0-9_-]+$/.test(employeeNo);
 
+/**
+ * 業務のきまり: 評価者(一次・二次)になれるのは、評価者になれる権限(EmployeeRole.canEvaluate)を持つ人と、
+ * 評価する側としてだけ現れる役員。
+ */
+export const canBeEvaluator = (role: EmployeeRole, careerCourse: string | null): boolean =>
+	role.canEvaluate() || isExecutiveCourse(careerCourse);
+
+const isExecutiveCourse = (careerCourse: string | null): boolean => careerCourse?.trim() === "役員";
+
 export class EmployeeProfile {
 	constructor(
 		public readonly id: number,
@@ -32,7 +41,12 @@ export class EmployeeProfile {
 
 	/** 役員は評価される側ではない。等級・評価者は管理せず、権限とログインだけを扱う。 */
 	isExecutive(): boolean {
-		return this.careerCourse?.trim() === "役員";
+		return isExecutiveCourse(this.careerCourse);
+	}
+
+	/** 評価者に選べる人か(canBeEvaluator)。 */
+	canBeEvaluator(): boolean {
+		return canBeEvaluator(this.role, this.careerCourse);
 	}
 
 	/**

@@ -1,3 +1,5 @@
+import { canBeEvaluator } from "../../domain/entities/EmployeeProfile";
+import { EmployeeRole } from "../../domain/valueObjects/EmployeeRole";
 import {
 	EvaluationStatus,
 	type EvaluationStatusValue,
@@ -21,6 +23,15 @@ const STATUS_HINTS: Record<EvaluationStatusValue, string> = {
 
 /** いまの状態で「誰の番か」を一文で示す。 */
 export const statusHint = (status: EvaluationStatusValue): string => STATUS_HINTS[status];
+
+/**
+ * 一覧の社員を評価者の候補に出すか。きまりはドメイン(canBeEvaluator)にあり、ここでは一覧の値を渡すだけ。
+ * 権限は Admin にしか届かないが、評価者を変えられるのも Admin だけ(canEditEvaluators)。
+ */
+export const isEvaluatorCandidate = (employee: {
+	roleName: string | null;
+	careerCourse: string | null;
+}): boolean => canBeEvaluator(EmployeeRole.fromStored(employee.roleName), employee.careerCourse);
 
 /** 進行順での位置。一覧の並び替えに使う。 */
 export const statusRank = (status: EvaluationStatusValue): number =>

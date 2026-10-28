@@ -82,6 +82,16 @@ export class PreRegisterEmployeeInteractor
 			fail("評価者が見つかりませんでした。");
 			return;
 		}
+		const ineligible = employees.find(
+			(employee) =>
+				(employee.employeeNo === request.primaryEvaluatorEmployeeNo ||
+					employee.employeeNo === request.secondaryEvaluatorEmployeeNo) &&
+				!employee.canBeEvaluator(),
+		);
+		if (ineligible) {
+			fail(`${ineligible.name}さんは評価者の権限を持っていないため、評価者に設定できません。`);
+			return;
+		}
 
 		const registered = await this.employeeMasterRepository.preRegisterEmployee({
 			...request,

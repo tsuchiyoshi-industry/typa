@@ -77,6 +77,16 @@ export class UpdateEmployeeEvaluatorInteractor
 			return;
 		}
 
+		if (evaluator && !evaluator.canBeEvaluator()) {
+			outputPort.present({
+				success: false,
+				message: `${evaluator.name}さんは評価者の権限を持っていないため、評価者に設定できません。`,
+				evaluatorType: request.evaluatorType,
+				targetEmployeeNo,
+			});
+			return;
+		}
+
 		const updatedProfile = await this.employeeMasterRepository.updateEvaluatorByEmployeeNo(
 			targetEmployeeNo,
 			evaluatorEmployeeNo,

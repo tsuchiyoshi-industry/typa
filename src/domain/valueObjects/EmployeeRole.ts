@@ -32,6 +32,11 @@ export class EmployeeRole {
 		return this.value === "Admin";
 	}
 
+	/** 評価者になれる権限か。Employee は評価される側で、評価者には選べない。 */
+	canEvaluate(): boolean {
+		return this.value === "Admin" || this.value === "Reviewer";
+	}
+
 	toString(): EmployeeRoleName {
 		return this.value;
 	}

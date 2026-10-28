@@ -16,6 +16,7 @@ import type { EmployeeMasterController } from "../controllers/EmployeeMasterCont
 import type { EmployeeMasterViewModel } from "../presenters/EmployeeMasterPresenter";
 import SearchableEvaluatorSelect from "./components/SearchableEvaluatorSelect";
 import { confirmAction, showToast } from "./feedback";
+import { isEvaluatorCandidate } from "./format";
 
 /** 二次評価者「なし」を表す選択肢の値。未設定(空文字)と区別する。 */
 const NO_SECONDARY = "__none__";
@@ -58,11 +59,14 @@ const EmployeePreRegistrationView: Component<{
 
 	const grades = createMemo(() => props.viewModel().grades);
 	const evaluators = createMemo(() =>
-		props.viewModel().relations.map((relation) => ({
-			value: relation.employeeNo,
-			name: relation.name,
-			employeeNo: relation.employeeNo,
-		})),
+		props
+			.viewModel()
+			.relations.filter(isEvaluatorCandidate)
+			.map((relation) => ({
+				value: relation.employeeNo,
+				name: relation.name,
+				employeeNo: relation.employeeNo,
+			})),
 	);
 	const unset = { value: "", name: "未設定" };
 	// 役員は評価される側ではないので、評価者を決めない

@@ -22,6 +22,8 @@ const run = async (
 ) => {
 	const repo = masterRepository();
 	repo.findCurrentEmployeeProfile.mockResolvedValue(role === null ? null : profile(role, 2));
+	// 評価者に選べるのは評価者の権限を持つ人(EmployeeProfile.canBeEvaluator)
+	repo.findAllEmployeeProfiles.mockResolvedValue([profile("Reviewer")]);
 	const out = output<PreRegisterEmployeeResponse>();
 	await new PreRegisterEmployeeInteractor(repo).execute({ ...request, ...input }, out);
 	expect(out.present).toHaveBeenCalledOnce();
@@ -79,6 +81,7 @@ describe("pre-register an employee", () => {
 	it("reports a refusal from the database", async () => {
 		const repo = masterRepository();
 		repo.findCurrentEmployeeProfile.mockResolvedValue(profile("Admin", 2));
+		repo.findAllEmployeeProfiles.mockResolvedValue([profile("Reviewer")]);
 		repo.preRegisterEmployee.mockResolvedValue(false);
 		const out = output<PreRegisterEmployeeResponse>();
 		await new PreRegisterEmployeeInteractor(repo).execute(request, out);

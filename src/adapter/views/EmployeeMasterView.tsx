@@ -28,7 +28,7 @@ import type { EmployeeMasterViewModel } from "../presenters/EmployeeMasterPresen
 import EvaluationStructure from "./components/EvaluationStructure";
 import SearchableEvaluatorSelect from "./components/SearchableEvaluatorSelect";
 import { confirmAction, showToast } from "./feedback";
-import { formatDateTime } from "./format";
+import { formatDateTime, isEvaluatorCandidate } from "./format";
 
 interface EmployeeMasterViewProps {
 	controller: EmployeeMasterController;
@@ -115,11 +115,13 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 	);
 
 	// 評価者の候補。全員分を一度だけ作り、どのセルも同じ候補を使う(セルごとに作ると行数の2乗になる)
+	// 権限のない人を選んでいるセルでも名前が出るよう、全員分を作って選べる人に印を付ける
 	const evaluatorCandidates = createMemo(() =>
 		relations().map((candidate) => ({
 			value: candidate.employeeNo,
 			name: candidate.name,
 			employeeNo: candidate.employeeNo,
+			eligible: isEvaluatorCandidate(candidate),
 		})),
 	);
 	const noSecondaryOption = { value: NO_SECONDARY, name: "なし（一次評価が最終評価）" };
@@ -233,8 +235,11 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 		};
 
 		const options = createMemo(() => {
+			const current = selected();
 			const others = evaluatorCandidates().filter(
-				(candidate) => candidate.value !== cell.relation.employeeNo,
+				(candidate) =>
+					candidate.value !== cell.relation.employeeNo &&
+					(candidate.eligible || candidate.value === current),
 			);
 			return cell.evaluatorType === "secondary" ? [noSecondaryOption, ...others] : others;
 		});

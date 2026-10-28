@@ -231,6 +231,16 @@ try {
 						p_reason: "attack",
 					},
 				],
+				[
+					"change_sheet_grade",
+					{
+						...sheetArgs,
+						p_grade_id: 9001,
+						p_expected_grade_id: null,
+						p_expected_status: "draft",
+						p_reason: "attack",
+					},
+				],
 			] as const) {
 				assert.equal(
 					(await rpc(name, actor.token, args)).status,

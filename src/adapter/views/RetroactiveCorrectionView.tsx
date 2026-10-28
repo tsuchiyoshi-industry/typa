@@ -13,9 +13,11 @@ import {
 import type { CorrectableSheetDto } from "../../application/dtos/SheetCorrectionDto";
 import { messageOf } from "../../application/errorMessage";
 import type { RequestedChange } from "../../domain/entities/RetroactiveCorrection";
+import { canChangeSheetGrade } from "../../domain/entities/SheetGradeChange";
 import { parsePeriodGoals } from "../../domain/valueObjects/CorrectionField";
 import {
 	EVALUATION_STATUS_VALUES,
+	EvaluationStatus,
 	type EvaluationStatusValue,
 } from "../../domain/valueObjects/EvaluationStatus";
 import type {
@@ -62,17 +64,21 @@ function originalValues(sheet: CorrectableSheetDto): Map<string, string> {
 	return values;
 }
 
-/** シートに対してできること。値を直せるのは締め済みの期間のシートだけ。 */
-type Mode = "values" | "status" | "delete";
+/**
+ * シートに対してできること。値を直せるのは締め済みの期間のシートだけ。
+ * 等級を変えられるのは当期のシートで、一次評価が確定する前だけ。
+ */
+type Mode = "values" | "status" | "grade" | "delete";
 const MODES: { value: Mode; label: string }[] = [
 	{ value: "values", label: "値を直す" },
 	{ value: "status", label: "状態を変える" },
+	{ value: "grade", label: "等級を変える" },
 	{ value: "delete", label: "削除する" },
 ];
 
 /**
- * 遡及処理(Admin だけ)。選んだシートの値を直す(締め済みの期間だけ)、状態を変える、削除する。
- * 値を直したことは本人と評価者のシートに「締め後修正」として出る。状態変更と削除は通知せず、監査ログに残す。
+ * 遡及処理(Admin だけ)。選んだシートの値を直す(締め済みの期間だけ)、状態を変える、等級を変える(当期だけ)、削除する。
+ * 値を直したことは本人と評価者のシートに「締め後修正」として出る。それ以外は通知せず、監査ログに残す。
  */
 const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionController }> = (
 	props,
@@ -99,6 +105,18 @@ const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionCo
 	);
 	const [mode, setMode] = createSignal<Mode>("values");
 	const [nextStatus, setNextStatus] = createSignal<EvaluationStatusValue | null>(null);
+	const [nextGrade, setNextGrade] = createSignal<number | null>(null);
+	// 等級の一覧は、等級を変えるときだけ一度読む
+	const [gradesWanted, setGradesWanted] = createSignal(false);
+	const [grades] = createResource(gradesWanted, () => props.controller.grades());
+	const gradeList = () => (grades.error ? [] : (grades() ?? []));
+	const canChangeGrade = () => {
+		const target = row();
+		const state = period()?.state;
+		return !!target && !!state && canChangeSheetGrade(EvaluationStatus.from(target.status), state);
+	};
+	const gradeName = (id: number | null) =>
+		gradeList().find((grade) => grade.id === id)?.name ?? "未設定";
 	const [drafts, setDrafts] = createSignal(new Map<string, string>());
 	const [reason, setReason] = createSignal("");
 	const [busy, setBusy] = createSignal(false);
@@ -127,10 +145,12 @@ const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionCo
 	const clearInput = () => {
 		setDrafts(new Map());
 		setNextStatus(null);
+		setNextGrade(null);
 		setReason("");
 	};
 	// 書きかけがあるうちは、別のシート・期間へ移る前と画面を離れる前に確かめる
-	const dirty = () => changes().length > 0 || nextStatus() !== null || reason().trim() !== "";
+	const dirty = () =>
+		changes().length > 0 || nextStatus() !== null || nextGrade() !== null || reason().trim() !== "";
 	trackUnsaved("retroactive-correction", dirty);
 	const discardInput = async () => {
 		if (!(await confirmDiscard(dirty()))) {
@@ -159,6 +179,10 @@ const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionCo
 		}
 		setDrafts(new Map());
 		setNextStatus(null);
+		setNextGrade(null);
+		if (next === "grade") {
+			setGradesWanted(true);
+		}
 		setMode(next);
 	};
 	const visibleSheets = () => {
@@ -262,6 +286,42 @@ const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionCo
 		await refetchSheets();
 	};
 
+	const changeGrade = async (target: MaintainedSheetRow) => {
+		const grade = nextGrade() as number;
+		const request = {
+			sheetId: target.sheetId,
+			gradeId: grade,
+			// 確かめている間に等級か状態が変わっていたら DB が断る(表示したものと照らし合わせる)
+			expectedGradeId: target.gradeId,
+			expectedStatus: target.status,
+			reason: reason().trim(),
+		};
+		const confirmed = await confirmAction({
+			title: "シートの等級を変更しますか？",
+			message: `理由: ${request.reason}`,
+			details: [
+				`${target.employeeName}(${target.employeeNo})・${period()?.periodName}`,
+				`${target.gradeName || "未設定"} → ${gradeName(grade)}`,
+				"共通評価の入力(点数・コメント)をすべて削除",
+			],
+			note: "この操作は取り消せません。チャレンジ目標・期中目標・達成状況・点数・総評は変わりません。通知は送らず、削除した内容と理由を監査ログに残します。",
+			confirmLabel: "等級を変更する",
+			tone: "danger",
+		});
+		if (!confirmed) {
+			return;
+		}
+		const result = await props.controller.changeGrade(request);
+		if (!result.success) {
+			// 失敗しても、選んだ等級と理由は残す
+			showToast("error", "等級を変更できませんでした", result.message);
+			return;
+		}
+		showToast("success", result.message);
+		clearInput();
+		await refetchSheets();
+	};
+
 	const canSubmit = () =>
 		!busy() &&
 		!!row() &&
@@ -270,13 +330,17 @@ const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionCo
 			? changes().length > 0
 			: mode() === "status"
 				? nextStatus() !== null
-				: true);
+				: mode() === "grade"
+					? nextGrade() !== null && canChangeGrade()
+					: true);
 	const submitLabel = () =>
 		mode() === "values"
 			? `修正内容を確認(${changes().length}件)`
 			: mode() === "status"
 				? "状態の変更を確認"
-				: "削除を確認";
+				: mode() === "grade"
+					? "等級の変更を確認"
+					: "削除を確認";
 	const submit = async () => {
 		const target = row();
 		if (!target || !canSubmit()) {
@@ -284,7 +348,11 @@ const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionCo
 		}
 		setBusy(true);
 		try {
-			await (mode() === "values" ? correctValues(target.sheetId) : operate(target));
+			await (mode() === "values"
+				? correctValues(target.sheetId)
+				: mode() === "grade"
+					? changeGrade(target)
+					: operate(target));
 		} catch (error) {
 			showToast(
 				"error",
@@ -450,8 +518,41 @@ const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionCo
 		</fieldset>
 	);
 
+	const gradePane = (target: MaintainedSheetRow) => (
+		<div class="correction-grade">
+			<dl class="correction-grade__current">
+				<dt>今の等級</dt>
+				<dd>{target.gradeName || "未設定"}</dd>
+			</dl>
+			<label class="correction-field">
+				<span>変更後の等級</span>
+				<select
+					value={String(nextGrade() ?? "")}
+					disabled={busy() || grades.loading || !!grades.error}
+					onChange={(event) => setNextGrade(Number(event.currentTarget.value) || null)}
+				>
+					<option value="">選んでください</option>
+					<For each={gradeList().filter((grade) => grade.id !== target.gradeId)}>
+						{(grade) => <option value={grade.id}>{grade.name}</option>}
+					</For>
+				</select>
+			</label>
+			<Show when={grades.error}>
+				<p class="field-error" role="alert">
+					等級の一覧を読み込めませんでした。({messageOf(grades.error, "")})
+				</p>
+			</Show>
+			<div class="correction-danger">
+				<p>共通評価で入力済みの点数とコメントは、すべて削除されます。この操作は取り消せません。</p>
+				<p class="correction-pane__hint">
+					等級で変わるのは共通評価の項目だけです。チャレンジ目標・期中目標・達成状況・点数・総評は変わりません。通知は送らず、削除した内容と理由を監査ログに残します。
+				</p>
+			</div>
+		</div>
+	);
+
 	const deletePane = () => (
-		<div class="correction-delete">
+		<div class="correction-danger">
 			<p>このシートを削除します。目標・評価・修正の記録もまとめて削除され、取り消せません。</p>
 			<p class="correction-pane__hint">
 				通知は送りません。削除前の内容と理由は監査ログに残ります。テストや誤って作ったシートの片付けに使います。
@@ -468,7 +569,7 @@ const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionCo
 						遡及処理
 					</h1>
 					<p class="correction-lead">
-						評価シートの値と状態を、通常の手順を越えて直します。値を直せるのは締めた評価期間のシートだけで、直したことは本人と評価者のシートに「締め後修正」として赤字で表示されます。状態の変更と削除はどの評価期間のシートにもでき、通知は送らずに監査ログへ記録します。
+						評価シートの値と状態を、通常の手順を越えて直します。値を直せるのは締めた評価期間のシートだけで、直したことは本人と評価者のシートに「締め後修正」として赤字で表示されます。状態の変更と削除はどの評価期間のシートにもでき、当期のシートは作成時の等級も変えられます。これらは通知を送らずに監査ログへ記録します。
 					</p>
 				</div>
 			</header>
@@ -596,7 +697,11 @@ const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionCo
 															aria-selected={mode() === entry.value}
 															aria-controls="correction-mode-panel"
 															classList={{ "is-danger": entry.value === "delete" }}
-															disabled={busy() || (entry.value === "values" && !periodClosed())}
+															disabled={
+																busy() ||
+																(entry.value === "values" && !periodClosed()) ||
+																(entry.value === "grade" && !canChangeGrade())
+															}
 															onClick={() => void chooseMode(entry.value)}
 														>
 															{entry.label}
@@ -604,6 +709,16 @@ const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionCo
 													)}
 												</For>
 											</div>
+											<Show when={period()?.state !== "active"}>
+												<p class="correction-pane__hint">
+													等級を変えられるのは、当期(実施中の評価期間)のシートだけです。
+												</p>
+											</Show>
+											<Show when={period()?.state === "active" && !canChangeGrade()}>
+												<p class="correction-pane__hint">
+													一次評価が確定したシートの等級は、先に状態を一次評価待ちまでに戻すと変えられます。
+												</p>
+											</Show>
 											<Show when={!periodClosed()}>
 												<p class="correction-pane__hint">
 													値を直せるのは、締め済みの評価期間のシートだけです。締める前のシートの値は、本人と評価者がシートで直します。
@@ -636,6 +751,7 @@ const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionCo
 														</Show>
 													</Match>
 													<Match when={mode() === "status"}>{statusPane(target().status)}</Match>
+													<Match when={mode() === "grade"}>{gradePane(target())}</Match>
 													<Match when={mode() === "delete"}>{deletePane()}</Match>
 												</Switch>
 											</div>
@@ -655,7 +771,7 @@ const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionCo
 												<button
 													type="button"
 													class="primary-action"
-													classList={{ danger: mode() === "delete" }}
+													classList={{ danger: mode() === "delete" || mode() === "grade" }}
 													disabled={!canSubmit()}
 													onClick={() => void submit()}
 												>

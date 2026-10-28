@@ -27,6 +27,8 @@ export interface EvaluationSheetSummary {
  * 確定していればどんな結果だったか。目標やコメントは、シートを開いて見る。
  */
 export interface EvaluationSheetOverviewRow extends EvaluationSheetSummary {
+	/** シートを作成したときの等級の ID。未設定なら null。遡及処理で等級を変えるときに照らし合わせる。 */
+	gradeId: number | null;
 	/** シートの評価者の名前。決まっていなければ「未設定」、二次評価者を置かないシートは「なし」。 */
 	primaryEvaluatorName: string;
 	secondaryEvaluatorName: string;

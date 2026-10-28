@@ -7,6 +7,10 @@ import {
 	toCorrectableSheetDto,
 } from "../../application/dtos/SheetCorrectionDto";
 import { messageOf } from "../../application/errorMessage";
+import {
+	type ChangeSheetGradeInteractor,
+	describeSheetGradeChangeError,
+} from "../../application/usecases/ChangeSheetGradeInteractor";
 import type {
 	CorrectClosedSheetInteractor,
 	CorrectClosedSheetRequest,
@@ -19,7 +23,11 @@ import {
 } from "../../application/usecases/PrivilegedSheetOperationInteractor";
 import { EvaluationCalendar } from "../../domain/entities/EvaluationCalendar";
 import type { PrivilegedSheetOperationRequest } from "../../domain/entities/PrivilegedSheetOperation";
-import type { EmployeeMasterRepository } from "../../domain/repositories/EmployeeMasterRepository";
+import type { SheetGradeChangeRequest } from "../../domain/entities/SheetGradeChange";
+import type {
+	EmployeeGrade,
+	EmployeeMasterRepository,
+} from "../../domain/repositories/EmployeeMasterRepository";
 import type { EvaluationPeriodRepository } from "../../domain/repositories/EvaluationPeriodRepository";
 import type { EvaluationSheetRepository } from "../../domain/repositories/EvaluationSheetRepository";
 import type { SheetCorrectionRepository } from "../../domain/repositories/SheetCorrectionRepository";
@@ -32,20 +40,28 @@ export interface MaintainedSheetRow {
 	employeeName: string;
 	employeeNo: string;
 	status: EvaluationStatusValue;
+	/** シートを作成したときの等級。未設定なら null と空文字。 */
+	gradeId: number | null;
+	gradeName: string;
 }
 
 /**
  * 遡及処理の画面(Admin だけ)。シートを選び、値を直す(締め済みの期間だけ)・状態を変える・削除する。
- * 値の修正は締め後修正として本人と評価者に見え、状態変更と削除は通知なしで監査ログに残る。
+ * 当期のシートは作成時の等級も変えられる(共通評価の入力は消える)。
+ * 値の修正は締め後修正として本人と評価者に見え、状態変更・削除・等級の変更は通知なしで監査ログに残る。
  */
 export class RetroactiveCorrectionController {
 	constructor(
-		private readonly employees: Pick<EmployeeMasterRepository, "findCurrentEmployeeProfile">,
+		private readonly employees: Pick<
+			EmployeeMasterRepository,
+			"findCurrentEmployeeProfile" | "findGrades"
+		>,
 		private readonly periodRepository: Pick<EvaluationPeriodRepository, "findDistinctPeriods">,
 		private readonly sheetRepository: Pick<EvaluationSheetRepository, "findOverview">,
 		private readonly correctionRepository: Pick<SheetCorrectionRepository, "findClosedSheet">,
 		private readonly correctUseCase: CorrectClosedSheetInteractor,
 		private readonly operationUseCase: PrivilegedSheetOperationInteractor,
+		private readonly gradeUseCase: ChangeSheetGradeInteractor,
 	) {}
 
 	/** すべての評価期間。新しい順。Admin でなければ何も読まずに断る(URL を直接開いたときも)。 */
@@ -68,6 +84,8 @@ export class RetroactiveCorrectionController {
 				employeeName: row.employeeName,
 				employeeNo: row.employeeNo,
 				status: row.status.toString(),
+				gradeId: row.gradeId ?? null,
+				gradeName: row.gradeName,
 			}))
 			.sort((a, b) => a.employeeNo.localeCompare(b.employeeNo));
 	}
@@ -116,6 +134,30 @@ export class RetroactiveCorrectionController {
 				: { success: false, message: describePrivilegedSheetOperationError(result.error) };
 		} catch (error) {
 			return { success: false, message: messageOf(error, "操作を完了できませんでした。") };
+		}
+	}
+
+	/** 変更後の等級の選択肢。 */
+	grades(): Promise<EmployeeGrade[]> {
+		return this.employees.findGrades();
+	}
+
+	/** 当期のシートの作成時の等級を変える。共通評価の入力は消え、取り消せない。 */
+	async changeGrade(
+		request: SheetGradeChangeRequest,
+	): Promise<{ success: boolean; message: string }> {
+		let message = "等級を変更しました。";
+		try {
+			const result = await this.gradeUseCase.execute(request, {
+				present: (value) => {
+					message = value.message;
+				},
+			});
+			return result.ok
+				? { success: true, message }
+				: { success: false, message: describeSheetGradeChangeError(result.error) };
+		} catch (error) {
+			return { success: false, message: messageOf(error, "等級を変更できませんでした。") };
 		}
 	}
 }

@@ -919,18 +919,44 @@ a.setup-task-link:hover {
 	font-size: 0.75rem;
 }
 
-.correction-delete {
+.correction-danger {
 	margin-top: 1.25rem;
 	padding: 1rem 1.1rem;
 	border: 1px solid color-mix(in srgb, var(--hr-danger) 40%, transparent);
 	border-radius: var(--hr-radius-md);
 	background: color-mix(in srgb, var(--hr-danger) 6%, var(--hr-surface));
 }
-.correction-delete > p:first-child {
+.correction-danger > p:first-child {
 	margin: 0;
 	font-size: 0.9rem;
 	font-weight: 600;
 	color: var(--hr-danger-text);
+}
+
+/* 等級を変える。今の等級と変更後の等級を縦に並べ、消えるものを最後に示す */
+.correction-grade {
+	display: grid;
+	gap: 1rem;
+	max-width: 32rem;
+	margin-top: 1.25rem;
+}
+.correction-grade__current {
+	display: flex;
+	align-items: baseline;
+	gap: 0.75rem;
+	margin: 0;
+}
+.correction-grade__current dt {
+	font-size: 0.8125rem;
+	color: var(--hr-text-muted);
+}
+.correction-grade__current dd {
+	margin: 0;
+	font-size: 0.95rem;
+	font-weight: 600;
+}
+.correction-grade .correction-danger {
+	margin-top: 0;
 }
 .correction-editor h3 {
 	margin: 1.75rem 0 0.6rem;

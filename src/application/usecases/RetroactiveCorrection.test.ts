@@ -20,6 +20,7 @@ import {
 } from "../../test/fixtures";
 import { toEvaluationSheetDto } from "../dtos/EvaluationSheetMapper";
 import { toSheetExportDataDto } from "../dtos/ExportSheetMapper";
+import type { ChangeSheetGradeInteractor } from "./ChangeSheetGradeInteractor";
 import { CorrectClosedSheetInteractor } from "./CorrectClosedSheetInteractor";
 import type { PrivilegedSheetOperationInteractor } from "./PrivilegedSheetOperationInteractor";
 
@@ -40,6 +41,7 @@ function setup(role = "Admin", target: EvaluationSheet = closedSheet()) {
 		corrections,
 		new CorrectClosedSheetInteractor(corrections, employees),
 		{} as PrivilegedSheetOperationInteractor,
+		{} as ChangeSheetGradeInteractor,
 	);
 	return { corrections, controller, employees };
 }
@@ -148,6 +150,7 @@ describe("choosing what to correct", () => {
 			corrections,
 			{} as CorrectClosedSheetInteractor,
 			{} as PrivilegedSheetOperationInteractor,
+			{} as ChangeSheetGradeInteractor,
 		);
 		expect(
 			(await controller.periods())

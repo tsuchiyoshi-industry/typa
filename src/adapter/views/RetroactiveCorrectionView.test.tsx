@@ -63,8 +63,22 @@ function setup(
 			? vi.fn().mockRejectedValue(new Error("Admin のみ操作できます。"))
 			: vi.fn().mockResolvedValue(options.periods ?? [CLOSED]),
 		sheets: vi.fn().mockResolvedValue([
-			{ sheetId: 100, employeeName: "社員4", employeeNo: "E4", status: "finalized" },
-			{ sheetId: 101, employeeName: "社員5", employeeNo: "E5", status: "submitted" },
+			{
+				sheetId: 100,
+				employeeName: "社員4",
+				employeeNo: "E4",
+				status: "finalized",
+				gradeId: 1,
+				gradeName: "一般1級",
+			},
+			{
+				sheetId: 101,
+				employeeName: "社員5",
+				employeeNo: "E5",
+				status: "submitted",
+				gradeId: 1,
+				gradeName: "一般1級",
+			},
 		]),
 		load: vi.fn().mockResolvedValue(options.sheet ?? loaded()),
 		correct: vi.fn(async (request: { confirmed: boolean }) =>
@@ -76,6 +90,12 @@ function setup(
 					},
 		),
 		operate: vi.fn().mockResolvedValue({ success: true, message: "記録しました" }),
+		grades: vi.fn().mockResolvedValue([
+			{ id: 1, name: "一般1級" },
+			{ id: 2, name: "主任" },
+			{ id: 3, name: "係長" },
+		]),
+		changeGrade: vi.fn().mockResolvedValue({ success: true, message: "等級を変更しました" }),
 	};
 	const view = render(() => (
 		<RetroactiveCorrectionView
@@ -472,4 +492,174 @@ it("shows nothing when a sheet has no corrections, and every correction in red w
 	expect(notice.classList.contains("correction-notice")).toBe(true);
 	expect(notice.textContent).toContain("チャレンジ目標 1・二次評価4 → 3");
 	expect(notice.textContent).toContain("理由: 転記ミス");
+});
+
+// ----- 等級を変える(当期・一次評価の確定前だけ) -----
+
+const openGrade = async (view: View, name = "社員5") => {
+	await pick(view, name);
+	fireEvent.click(await view.findByRole("tab", { name: "等級を変える" }));
+	return (await view.findByLabelText("変更後の等級")) as HTMLSelectElement;
+};
+
+it("warns that common evaluation input is deleted for good, and nothing else", async () => {
+	const { view } = setup({ periods: [ACTIVE] });
+	await openGrade(view);
+	const pane = view.getByRole("tabpanel");
+	expect(pane.textContent).toContain("今の等級一般1級");
+	expect(pane.textContent).toContain("共通評価で入力済みの点数とコメントは、すべて削除されます");
+	expect(pane.textContent).toContain(
+		"チャレンジ目標・期中目標・達成状況・点数・総評は変わりません",
+	);
+	expect(pane.textContent).toContain("この操作は取り消せません");
+});
+
+it("offers every grade except the current one", async () => {
+	const { view } = setup({ periods: [ACTIVE] });
+	const select = await openGrade(view);
+	await waitFor(() => expect(select.options.length).toBe(3));
+	expect([...select.options].map((option) => option.textContent)).toEqual([
+		"選んでください",
+		"主任",
+		"係長",
+	]);
+});
+
+it("offers every grade when the sheet had no grade", async () => {
+	const { controller, view } = setup({ periods: [ACTIVE] });
+	controller.sheets.mockResolvedValue([
+		{
+			sheetId: 101,
+			employeeName: "社員5",
+			employeeNo: "E5",
+			status: "draft",
+			gradeId: null,
+			gradeName: "",
+		},
+	]);
+	const select = await openGrade(view);
+	await waitFor(() => expect(select.options.length).toBe(4));
+	expect(view.getByRole("tabpanel").textContent).toContain("今の等級未設定");
+});
+
+it("asks only once for the grade list, and only when the grade tab is opened", async () => {
+	const { controller, view } = setup({ periods: [ACTIVE] });
+	await pick(view, "社員5");
+	await view.findByText(/社員5さん\(E5\)・26期/);
+	expect(controller.grades).not.toHaveBeenCalled();
+	await openGrade(view);
+	fireEvent.click(mode(view, "状態を変える"));
+	fireEvent.click(mode(view, "等級を変える"));
+	await view.findByLabelText("変更後の等級");
+	expect(controller.grades).toHaveBeenCalledOnce();
+});
+
+it("needs a grade and a reason, and writes nothing until the confirmation is accepted", async () => {
+	const { controller, view } = setup({ periods: [ACTIVE] });
+	const select = await openGrade(view);
+	await waitFor(() => expect(select.options.length).toBe(3));
+	expect(submitButton(view).disabled).toBe(true);
+	fireEvent.change(select, { target: { value: "2" } });
+	expect(submitButton(view).disabled).toBe(true);
+	fireEvent.input(reasonBox(view), { target: { value: "等級の登録誤り" } });
+	expect(submitButton(view).textContent).toBe("等級の変更を確認");
+	expect(submitButton(view).classList.contains("danger")).toBe(true);
+
+	vi.mocked(confirmAction).mockResolvedValueOnce(false);
+	fireEvent.click(submitButton(view));
+	await waitFor(() => expect(confirmAction).toHaveBeenCalledOnce());
+	expect(controller.changeGrade).not.toHaveBeenCalled();
+	expect(vi.mocked(confirmAction).mock.calls[0][0]).toMatchObject({
+		title: "シートの等級を変更しますか？",
+		message: "理由: 等級の登録誤り",
+		details: ["社員5(E5)・26期", "一般1級 → 主任", "共通評価の入力(点数・コメント)をすべて削除"],
+		note: expect.stringContaining("この操作は取り消せません"),
+		confirmLabel: "等級を変更する",
+		tone: "danger",
+	});
+
+	await waitFor(() => expect(submitButton(view).disabled).toBe(false));
+	vi.mocked(confirmAction).mockResolvedValueOnce(true);
+	fireEvent.click(submitButton(view));
+	await waitFor(() =>
+		expect(controller.changeGrade).toHaveBeenCalledWith({
+			sheetId: 101,
+			gradeId: 2,
+			expectedGradeId: 1,
+			expectedStatus: "submitted",
+			reason: "等級の登録誤り",
+		}),
+	);
+	await waitFor(() => expect(showToast).toHaveBeenCalledWith("success", "等級を変更しました"));
+	// 一覧を読み直して新しい等級で続けられる。入力は空に戻る
+	await waitFor(() => expect(controller.sheets).toHaveBeenCalledTimes(2));
+	expect(reasonBox(view).value).toBe("");
+	expect(controller.operate).not.toHaveBeenCalled();
+});
+
+it("keeps the chosen grade and the reason when the server refuses", async () => {
+	const { controller, view } = setup({ periods: [ACTIVE] });
+	controller.changeGrade.mockResolvedValue({
+		success: false,
+		message: "シートの状態か等級が変わりました。再読み込みしてから操作してください。",
+	});
+	vi.mocked(confirmAction).mockResolvedValue(true);
+	const select = await openGrade(view);
+	await waitFor(() => expect(select.options.length).toBe(3));
+	fireEvent.change(select, { target: { value: "3" } });
+	fireEvent.input(reasonBox(view), { target: { value: "等級の登録誤り" } });
+	fireEvent.click(submitButton(view));
+	await waitFor(() =>
+		expect(showToast).toHaveBeenCalledWith(
+			"error",
+			"等級を変更できませんでした",
+			"シートの状態か等級が変わりました。再読み込みしてから操作してください。",
+		),
+	);
+	expect(select.value).toBe("3");
+	expect(reasonBox(view).value).toBe("等級の登録誤り");
+});
+
+it("cannot submit when the grade list fails to load, and says why", async () => {
+	const { controller, view } = setup({ periods: [ACTIVE] });
+	controller.grades.mockRejectedValue(new Error("offline"));
+	await pick(view, "社員5");
+	fireEvent.click(await view.findByRole("tab", { name: "等級を変える" }));
+	await view.findByText(/等級の一覧を読み込めませんでした/);
+	fireEvent.input(reasonBox(view), { target: { value: "理由" } });
+	expect(submitButton(view).disabled).toBe(true);
+});
+
+it.each([
+	[
+		"a closed period",
+		[CLOSED],
+		"社員5",
+		"等級を変えられるのは、当期(実施中の評価期間)のシートだけです。",
+	],
+	[
+		"a confirmed first evaluation",
+		[ACTIVE],
+		"社員4",
+		"一次評価が確定したシートの等級は、先に状態を一次評価待ちまでに戻すと変えられます。",
+	],
+] as const)("offers no grade change for %s, and says why", async (_, periods, name, reason) => {
+	const { controller, view } = setup({ periods: [...periods] });
+	await pick(view, name);
+	const tab = (await view.findByRole("tab", { name: "等級を変える" })) as HTMLButtonElement;
+	expect(tab.disabled).toBe(true);
+	expect(view.getByText(reason)).toBeTruthy();
+	expect(controller.grades).not.toHaveBeenCalled();
+});
+
+it("asks before dropping a chosen grade to open another sheet", async () => {
+	const { controller, view } = setup({ periods: [ACTIVE] });
+	const select = await openGrade(view);
+	await waitFor(() => expect(select.options.length).toBe(3));
+	fireEvent.change(select, { target: { value: "2" } });
+	vi.mocked(confirmAction).mockResolvedValueOnce(false);
+	fireEvent.click(view.getByRole("button", { name: "社員4さんのシートを選ぶ" }));
+	await waitFor(() => expect(confirmAction).toHaveBeenCalledOnce());
+	expect(select.value).toBe("2");
+	expect(controller.changeGrade).not.toHaveBeenCalled();
 });

@@ -23,6 +23,7 @@ const row = (
 	employeeId: id,
 	status,
 	totalScore: 0,
+	gradeId: 1,
 	createdAt: "2026-04-01T00:00:00Z",
 	updatedAt: "2026-10-05T03:00:00Z",
 	periodName: `${periodId}期: 本番`,

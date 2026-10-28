@@ -35,6 +35,7 @@ import { NotFound } from "./adapter/views/components/NotFound";
 import DashboardLayout from "./adapter/views/DashboardLayout";
 import LoginView from "./adapter/views/LoginView";
 import { CarryOverGoalInteractor } from "./application/usecases/CarryOverGoalInteractor";
+import { ChangeSheetGradeInteractor } from "./application/usecases/ChangeSheetGradeInteractor";
 import { CloseEvaluationPeriodInteractor } from "./application/usecases/CloseEvaluationPeriodInteractor";
 import { CorrectClosedSheetInteractor } from "./application/usecases/CorrectClosedSheetInteractor";
 import { CreateEvaluationSheetInteractor } from "./application/usecases/CreateEvaluationSheetInteractor";
@@ -84,6 +85,7 @@ import { SupabaseNotificationInboxRepository } from "./infrastructure/repositori
 import { SupabasePrivilegedSheetRepository } from "./infrastructure/repositories/SupabasePrivilegedSheetRepository";
 import { SupabaseReviewerWorkspaceRepository } from "./infrastructure/repositories/SupabaseReviewerWorkspaceRepository";
 import { SupabaseSheetCorrectionRepository } from "./infrastructure/repositories/SupabaseSheetCorrectionRepository";
+import { SupabaseSheetGradeRepository } from "./infrastructure/repositories/SupabaseSheetGradeRepository";
 import { SupabaseSheetImportRepository } from "./infrastructure/repositories/SupabaseSheetImportRepository";
 import { SupabaseWorkspaceSettingsRepository } from "./infrastructure/repositories/SupabaseWorkspaceSettingsRepository";
 import { TauriCsvFileGateway } from "./infrastructure/repositories/TauriCsvFileGateway";
@@ -147,6 +149,7 @@ const retroactiveCorrectionController = new RetroactiveCorrectionController(
 		new SupabasePrivilegedSheetRepository(),
 		employeeMasterRepository,
 	),
+	new ChangeSheetGradeInteractor(new SupabaseSheetGradeRepository(), employeeMasterRepository),
 );
 const settingsController = new SettingsController(
 	evaluationSettingsRepository,

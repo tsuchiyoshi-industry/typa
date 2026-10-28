@@ -7,7 +7,16 @@ import SheetCorrectionsNotice from "./components/SheetCorrectionsNotice";
 import { confirmAction, showToast } from "./feedback";
 import RetroactiveCorrectionView from "./RetroactiveCorrectionView";
 
-vi.mock("./feedback", () => ({ confirmAction: vi.fn(), showToast: vi.fn() }));
+vi.mock("./feedback", () => {
+	const confirmAction = vi.fn();
+	return {
+		confirmAction,
+		// 書きかけがあるときだけ確かめる(本物と同じ)
+		confirmDiscard: vi.fn(async (dirty: boolean) => !dirty || confirmAction()),
+		showToast: vi.fn(),
+		trackUnsaved: vi.fn(),
+	};
+});
 afterEach(() => {
 	cleanup();
 	vi.clearAllMocks();
@@ -42,11 +51,10 @@ function setup(options: { sheet?: CorrectableSheetDto; periodsFail?: boolean } =
 		closedPeriods: options.periodsFail
 			? vi.fn().mockRejectedValue(new Error("Admin のみ操作できます。"))
 			: vi.fn().mockResolvedValue([{ id: 1, periodName: "25期" }]),
-		sheets: vi
-			.fn()
-			.mockResolvedValue([
-				{ sheetId: 100, employeeName: "社員4", employeeNo: "E4", status: "finalized" },
-			]),
+		sheets: vi.fn().mockResolvedValue([
+			{ sheetId: 100, employeeName: "社員4", employeeNo: "E4", status: "finalized" },
+			{ sheetId: 101, employeeName: "社員5", employeeNo: "E5", status: "finalized" },
+		]),
 		load: vi.fn().mockResolvedValue(options.sheet ?? loaded()),
 		correct: vi.fn(async (request: { confirmed: boolean }) =>
 			request.confirmed
@@ -236,4 +244,47 @@ it("moves the theme's achievement into a first added task as two recorded change
 			{ field: "achievement", value: "" },
 		],
 	});
+});
+
+it("narrows the sheets by employee number or name, ignoring full-width input", async () => {
+	const { view } = setup();
+	await view.findByRole("button", { name: "社員5さんのシートを直す" });
+	fireEvent.input(view.getByRole("searchbox", { name: "社員番号・氏名で絞り込む" }), {
+		target: { value: "ｅ４" },
+	});
+	expect(view.getByRole("button", { name: "社員4さんのシートを直す" })).toBeTruthy();
+	expect(view.queryByRole("button", { name: "社員5さんのシートを直す" })).toBeNull();
+	expect(view.getByRole("status").textContent).toBe("1 / 2 件");
+	fireEvent.input(view.getByRole("searchbox"), { target: { value: "該当なし" } });
+	expect(view.getByText("該当するシートはありません。")).toBeTruthy();
+});
+
+it("asks before dropping a half-written correction to open another sheet", async () => {
+	const { controller, view } = setup();
+	await openSheet(view);
+	fireEvent.input(field(view, "達成状況 1"), { target: { value: "訂正" } });
+	const other = view.getByRole("button", { name: "社員5さんのシートを直す" });
+
+	// 「編集を続ける」なら、今のシートと入力が残る
+	vi.mocked(confirmAction).mockResolvedValueOnce(false);
+	fireEvent.click(other);
+	await waitFor(() => expect(confirmAction).toHaveBeenCalledOnce());
+	expect(controller.load).toHaveBeenCalledTimes(1);
+	expect(field(view, "達成状況 1").value).toBe("訂正");
+	expect(
+		view.getByRole("button", { name: "社員4さんのシートを直す" }).getAttribute("aria-current"),
+	).toBe("true");
+
+	// 破棄すれば、別のシートを開く
+	vi.mocked(confirmAction).mockResolvedValueOnce(true);
+	fireEvent.click(other);
+	await waitFor(() => expect(controller.load).toHaveBeenLastCalledWith(101));
+});
+
+it("opens another sheet without asking when nothing was changed", async () => {
+	const { controller, view } = setup();
+	await openSheet(view);
+	fireEvent.click(view.getByRole("button", { name: "社員5さんのシートを直す" }));
+	await waitFor(() => expect(controller.load).toHaveBeenLastCalledWith(101));
+	expect(confirmAction).not.toHaveBeenCalled();
 });

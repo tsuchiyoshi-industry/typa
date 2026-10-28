@@ -1,4 +1,5 @@
 import FilePenLine from "lucide-solid/icons/file-pen-line";
+import Search from "lucide-solid/icons/search";
 import { type Component, createResource, createSignal, For, Show } from "solid-js";
 import type { CorrectableSheetDto } from "../../application/dtos/SheetCorrectionDto";
 import { messageOf } from "../../application/errorMessage";
@@ -8,8 +9,10 @@ import type { EvaluationStatusValue } from "../../domain/valueObjects/Evaluation
 import type { RetroactiveCorrectionController } from "../controllers/RetroactiveCorrectionController";
 import { PeriodGoalsEditor } from "./components/PeriodGoals";
 import SheetCorrectionsNotice from "./components/SheetCorrectionsNotice";
-import { confirmAction, showToast } from "./feedback";
+import { confirmAction, confirmDiscard, showToast, trackUnsaved } from "./feedback";
 import { statusLabel } from "./format";
+
+const normalize = (value: string) => value.normalize("NFKC").toLocaleLowerCase();
 
 type Field = { target: RequestedChange["target"]; targetId: number | null; field: string };
 const keyOf = ({ target, targetId, field }: Field) => `${target}:${targetId ?? ""}:${field}`;
@@ -63,6 +66,7 @@ const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionCo
 	const [drafts, setDrafts] = createSignal(new Map<string, string>());
 	const [reason, setReason] = createSignal("");
 	const [busy, setBusy] = createSignal(false);
+	const [query, setQuery] = createSignal("");
 
 	const original = () =>
 		!sheet.error && sheet()
@@ -84,10 +88,36 @@ const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionCo
 				return { target, targetId: targetId ? Number(targetId) : null, field, value };
 			});
 
-	const open = (id: number) => {
-		setSheetId(id);
+	// 書きかけの修正があるうちは、別のシート・期間へ移る前と画面を離れる前に確かめる
+	const dirty = () => changes().length > 0 || reason().trim() !== "";
+	trackUnsaved("retroactive-correction", dirty);
+	const discardDraft = async () => {
+		if (!(await confirmDiscard(dirty()))) {
+			return false;
+		}
 		setDrafts(new Map());
 		setReason("");
+		return true;
+	};
+	const open = async (id: number) => {
+		if (id !== sheetId() && (await discardDraft())) {
+			setSheetId(id);
+		}
+	};
+	const choosePeriod = async (id: number) => {
+		if (id !== selectedPeriod() && (await discardDraft())) {
+			setPeriodId(id);
+			setSheetId(null);
+			setQuery("");
+		}
+	};
+	const visibleSheets = () => {
+		const term = normalize(query().trim());
+		return term
+			? sheetList().filter((row) =>
+					normalize(`${row.employeeNo} ${row.employeeName}`).includes(term),
+				)
+			: sheetList();
 	};
 
 	const submit = async () => {
@@ -169,14 +199,14 @@ const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionCo
 	);
 
 	return (
-		<div class="settings-page">
+		<div class="correction-page">
 			<header class="master-header">
 				<div>
 					<h1>
 						<FilePenLine class="header-icon" />
 						遡及処理
 					</h1>
-					<p>
+					<p class="correction-lead">
 						締めた評価期間のシートを、評価期間を開き直さずに直します。直した内容は理由とともに記録され、本人と評価者のシートに「締め後修正」として赤字で表示されます。
 					</p>
 				</div>
@@ -191,208 +221,240 @@ const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionCo
 						when={periodList().length > 0}
 						fallback={<p class="page-note">締め済みの評価期間はまだありません。</p>}
 					>
-						<section class="info-card" aria-labelledby="correction-sheets-heading">
-							<h2 id="correction-sheets-heading">1. 締めたシートを選ぶ</h2>
-							<nav class="period-tabs" aria-label="締め済みの評価期間">
-								<For each={periodList()}>
-									{(period) => (
-										<button
-											type="button"
-											aria-pressed={period.id === selectedPeriod()}
-											onClick={() => {
-												setPeriodId(period.id);
-												setSheetId(null);
-											}}
-										>
-											{period.periodName}
-										</button>
-									)}
-								</For>
-							</nav>
-							<Show when={sheets.error}>
-								<p class="field-error" role="alert">
-									{messageOf(sheets.error, "シートを読み込めませんでした。")}
-								</p>
-							</Show>
-							<Show
-								when={sheetList().length > 0}
-								fallback={<p class="page-note">この評価期間のシートはありません。</p>}
-							>
-								<div class="table-scroll">
-									<table class="sheet-table">
-										<thead>
-											<tr>
-												<th>社員番号</th>
-												<th>氏名</th>
-												<th>状態</th>
-												<th>
-													<span class="visually-hidden">操作</span>
-												</th>
-											</tr>
-										</thead>
-										<tbody>
-											<For each={sheetList()}>
+						<div class="correction-layout">
+							<section class="correction-picker" aria-labelledby="correction-sheets-heading">
+								<h2 id="correction-sheets-heading">締めたシート</h2>
+								<label class="correction-picker__field">
+									<span>評価期間</span>
+									<select
+										value={selectedPeriod() ?? ""}
+										onChange={(event) => {
+											const select = event.currentTarget;
+											const id = Number(select.value);
+											// 確認で取りやめたら、選択を元の期間に戻す
+											void choosePeriod(id).then(() => {
+												select.value = String(selectedPeriod() ?? "");
+											});
+										}}
+									>
+										<For each={periodList()}>
+											{(period) => <option value={period.id}>{period.periodName}</option>}
+										</For>
+									</select>
+								</label>
+								<label class="correction-picker__search">
+									<Search size={16} aria-hidden="true" />
+									<input
+										type="search"
+										aria-label="社員番号・氏名で絞り込む"
+										placeholder="社員番号・氏名"
+										value={query()}
+										onInput={(event) => setQuery(event.currentTarget.value)}
+									/>
+								</label>
+								<Show when={sheets.error}>
+									<p class="field-error" role="alert">
+										{messageOf(sheets.error, "シートを読み込めませんでした。")}
+									</p>
+								</Show>
+								<Show
+									when={!sheets.loading}
+									fallback={<p class="page-note">読み込んでいます...</p>}
+								>
+									<p class="correction-picker__count" role="status">
+										{query().trim()
+											? `${visibleSheets().length} / ${sheetList().length} 件`
+											: `${sheetList().length} 件`}
+									</p>
+									<Show
+										when={visibleSheets().length > 0}
+										fallback={
+											<p class="page-note">
+												{sheetList().length
+													? "該当するシートはありません。"
+													: "この評価期間のシートはありません。"}
+											</p>
+										}
+									>
+										<ul class="correction-sheet-list">
+											<For each={visibleSheets()}>
 												{(row) => (
-													<tr classList={{ "is-selected": row.sheetId === sheetId() }}>
-														<td>{row.employeeNo}</td>
-														<td>{row.employeeName}</td>
-														<td>{statusLabel(row.status as EvaluationStatusValue)}</td>
-														<td>
-															<button
-																type="button"
-																class="secondary-action"
-																aria-label={`${row.employeeName}さんのシートを直す`}
-																onClick={() => open(row.sheetId)}
-															>
-																直す
-															</button>
-														</td>
-													</tr>
+													<li>
+														<button
+															type="button"
+															aria-label={`${row.employeeName}さんのシートを直す`}
+															aria-current={row.sheetId === sheetId() ? "true" : undefined}
+															onClick={() => void open(row.sheetId)}
+														>
+															<span class="correction-sheet-list__no">{row.employeeNo}</span>
+															<span class="correction-sheet-list__name">{row.employeeName}</span>
+															<span class="correction-sheet-list__status">
+																{statusLabel(row.status as EvaluationStatusValue)}
+															</span>
+														</button>
+													</li>
 												)}
 											</For>
-										</tbody>
-									</table>
-								</div>
-							</Show>
-						</section>
+										</ul>
+									</Show>
+								</Show>
+							</section>
+
+							<div class="correction-workspace">
+								<Show when={sheet.error}>
+									<div class="inline-alert" role="alert">
+										<span>{messageOf(sheet.error, "シートを読み込めませんでした。")}</span>
+									</div>
+								</Show>
+								<Show when={!sheetId()}>
+									<p class="correction-empty">左の一覧から、直すシートを選んでください。</p>
+								</Show>
+								<Show when={sheetId() && sheet.loading}>
+									<p class="page-note">シートを読み込んでいます...</p>
+								</Show>
+								<Show when={!sheet.error && sheet()}>
+									{(loaded) => (
+										<section class="correction-editor" aria-labelledby="correction-editor-heading">
+											<header class="correction-editor__head">
+												<h2 id="correction-editor-heading">
+													{loaded().employeeName}さん({loaded().employeeNo})・{loaded().periodName}
+													を直す
+												</h2>
+												<p class="correction-editor__hint">
+													直したい欄だけを書き換えてください。書き換えた欄は赤く表示されます。点数は
+													1〜4 です。
+												</p>
+											</header>
+
+											<h3>チャレンジ目標</h3>
+											<For each={loaded().goals}>
+												{(goal) => (
+													<fieldset class="correction-group">
+														<legend>チャレンジ目標 {goal.goalNumber}</legend>
+														{textArea(
+															{ target: "goal", targetId: goal.id, field: "challenge_goal" },
+															"チャレンジ目標",
+														)}
+
+														{(() => {
+															const tasks: Field = {
+																target: "goal",
+																targetId: goal.id,
+																field: "period_goals",
+															};
+															const achievement: Field = {
+																target: "goal",
+																targetId: goal.id,
+																field: "achievement",
+															};
+															return (
+																<div classList={{ "correction-field--changed": changed(tasks) }}>
+																	<PeriodGoalsEditor
+																		goals={parsePeriodGoals(draftValue(tasks)) ?? []}
+																		achievement={draftValue(achievement)}
+																		disabled={busy()}
+																		achievementClassList={{
+																			"correction-field": true,
+																			"correction-field--changed": changed(achievement),
+																		}}
+																		onChange={(next) => {
+																			edit(tasks, JSON.stringify(next.periodGoals));
+																			edit(achievement, next.achievement);
+																		}}
+																	/>
+																</div>
+															);
+														})()}
+														<div class="correction-scores">
+															{scoreSelect(
+																{ target: "goal", targetId: goal.id, field: "first_score" },
+																"一次評価",
+															)}
+															<Show when={!loaded().primaryIsFinalEvaluator}>
+																{scoreSelect(
+																	{ target: "goal", targetId: goal.id, field: "second_score" },
+																	"二次評価",
+																)}
+															</Show>
+														</div>
+													</fieldset>
+												)}
+											</For>
+
+											<h3>共通評価</h3>
+											<For each={loaded().commonItems}>
+												{(item) => (
+													<fieldset class="correction-group">
+														<legend>{item.title}</legend>
+														<div class="correction-scores">
+															{scoreSelect(
+																{ target: "common", targetId: item.itemId, field: "first_score" },
+																"一次評価",
+															)}
+															<Show when={!loaded().primaryIsFinalEvaluator}>
+																{scoreSelect(
+																	{
+																		target: "common",
+																		targetId: item.itemId,
+																		field: "second_score",
+																	},
+																	"二次評価",
+																)}
+															</Show>
+														</div>
+														{textArea(
+															{ target: "common", targetId: item.itemId, field: "first_comment" },
+															"一次評価者コメント",
+														)}
+													</fieldset>
+												)}
+											</For>
+
+											<h3>総評</h3>
+											{textArea(
+												{ target: "sheet", targetId: null, field: "first_overall_comment" },
+												"一次評価者の総評",
+											)}
+											<Show when={!loaded().primaryIsFinalEvaluator}>
+												{textArea(
+													{ target: "sheet", targetId: null, field: "second_overall_comment" },
+													"二次評価者の総評",
+												)}
+											</Show>
+
+											<SheetCorrectionsNotice
+												corrections={loaded().corrections}
+												heading={`このシートの修正の記録(${loaded().corrections.length}件)`}
+											/>
+
+											{/* 長いシートの下まで送らなくても、理由と確認にすぐ手が届くよう画面の下に留める */}
+											<div class="correction-submit">
+												<label class="correction-reason">
+													<span>修正の理由(必須・500 文字まで)</span>
+													<textarea
+														rows={2}
+														maxLength={500}
+														value={reason()}
+														disabled={busy()}
+														onInput={(event) => setReason(event.currentTarget.value)}
+													/>
+												</label>
+												<button
+													type="button"
+													class="primary-action"
+													disabled={busy() || changes().length === 0 || !reason().trim()}
+													onClick={() => void submit()}
+												>
+													修正内容を確認({changes().length}件)
+												</button>
+											</div>
+										</section>
+									)}
+								</Show>
+							</div>
+						</div>
 					</Show>
 				</Show>
-			</Show>
-
-			<Show when={sheet.error}>
-				<div class="inline-alert" role="alert">
-					<span>{messageOf(sheet.error, "シートを読み込めませんでした。")}</span>
-				</div>
-			</Show>
-			<Show when={!sheet.error && sheet()}>
-				{(loaded) => (
-					<section class="info-card correction-editor" aria-labelledby="correction-editor-heading">
-						<h2 id="correction-editor-heading">
-							2. {loaded().employeeName}さん({loaded().employeeNo})・{loaded().periodName}を直す
-						</h2>
-						<p>
-							直したい欄だけを書き換えてください。書き換えた欄は赤く表示されます。点数は 1〜4 です。
-						</p>
-
-						<h3>チャレンジ目標</h3>
-						<For each={loaded().goals}>
-							{(goal) => (
-								<fieldset class="correction-group">
-									<legend>チャレンジ目標 {goal.goalNumber}</legend>
-									{textArea(
-										{ target: "goal", targetId: goal.id, field: "challenge_goal" },
-										"チャレンジ目標",
-									)}
-
-									{(() => {
-										const tasks: Field = {
-											target: "goal",
-											targetId: goal.id,
-											field: "period_goals",
-										};
-										const achievement: Field = {
-											target: "goal",
-											targetId: goal.id,
-											field: "achievement",
-										};
-										return (
-											<div classList={{ "correction-field--changed": changed(tasks) }}>
-												<PeriodGoalsEditor
-													goals={parsePeriodGoals(draftValue(tasks)) ?? []}
-													achievement={draftValue(achievement)}
-													disabled={busy()}
-													achievementClassList={{
-														"correction-field": true,
-														"correction-field--changed": changed(achievement),
-													}}
-													onChange={(next) => {
-														edit(tasks, JSON.stringify(next.periodGoals));
-														edit(achievement, next.achievement);
-													}}
-												/>
-											</div>
-										);
-									})()}
-									<div class="correction-scores">
-										{scoreSelect(
-											{ target: "goal", targetId: goal.id, field: "first_score" },
-											"一次評価",
-										)}
-										<Show when={!loaded().primaryIsFinalEvaluator}>
-											{scoreSelect(
-												{ target: "goal", targetId: goal.id, field: "second_score" },
-												"二次評価",
-											)}
-										</Show>
-									</div>
-								</fieldset>
-							)}
-						</For>
-
-						<h3>共通評価</h3>
-						<For each={loaded().commonItems}>
-							{(item) => (
-								<fieldset class="correction-group">
-									<legend>{item.title}</legend>
-									<div class="correction-scores">
-										{scoreSelect(
-											{ target: "common", targetId: item.itemId, field: "first_score" },
-											"一次評価",
-										)}
-										<Show when={!loaded().primaryIsFinalEvaluator}>
-											{scoreSelect(
-												{ target: "common", targetId: item.itemId, field: "second_score" },
-												"二次評価",
-											)}
-										</Show>
-									</div>
-									{textArea(
-										{ target: "common", targetId: item.itemId, field: "first_comment" },
-										"一次評価者コメント",
-									)}
-								</fieldset>
-							)}
-						</For>
-
-						<h3>総評</h3>
-						{textArea(
-							{ target: "sheet", targetId: null, field: "first_overall_comment" },
-							"一次評価者の総評",
-						)}
-						<Show when={!loaded().primaryIsFinalEvaluator}>
-							{textArea(
-								{ target: "sheet", targetId: null, field: "second_overall_comment" },
-								"二次評価者の総評",
-							)}
-						</Show>
-
-						<label class="correction-reason">
-							<span>修正の理由(必須・500 文字まで)</span>
-							<textarea
-								rows={3}
-								maxLength={500}
-								value={reason()}
-								disabled={busy()}
-								onInput={(event) => setReason(event.currentTarget.value)}
-							/>
-						</label>
-						<div class="import-actions">
-							<button
-								type="button"
-								class="primary-action"
-								disabled={busy() || changes().length === 0 || !reason().trim()}
-								onClick={() => void submit()}
-							>
-								修正内容を確認({changes().length}件)
-							</button>
-						</div>
-
-						<SheetCorrectionsNotice
-							corrections={loaded().corrections}
-							heading={`このシートの修正の記録(${loaded().corrections.length}件)`}
-						/>
-					</section>
-				)}
 			</Show>
 		</div>
 	);

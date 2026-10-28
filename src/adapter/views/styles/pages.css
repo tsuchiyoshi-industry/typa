@@ -651,8 +651,199 @@ a.setup-task-link:hover {
 	font-size: 0.8125rem;
 	color: var(--hr-text-muted);
 }
+/* ----- 遡及処理: 左に締めたシートの一覧、右に直す欄 ----- */
+.correction-page {
+	display: grid;
+	gap: 1.5rem;
+	min-width: 0;
+}
+.correction-lead {
+	max-width: 60rem;
+	margin: 0.5rem 0 0;
+	color: var(--hr-text-muted);
+	font-size: 0.875rem;
+	line-height: 1.75;
+}
+.correction-layout {
+	display: grid;
+	grid-template-columns: minmax(16rem, 20rem) minmax(0, 1fr);
+	align-items: start;
+	gap: 1.5rem;
+}
+
+/* 一覧は、右の長いシートを送っても画面に残す */
+.correction-picker {
+	position: sticky;
+	/* トップバーの高さ + 余白 */
+	top: 4.5rem;
+	display: grid;
+	gap: 0.75rem;
+	max-height: calc(100vh - 6rem);
+	padding: 1rem;
+	border: 1px solid var(--hr-border);
+	border-radius: var(--hr-radius-lg);
+	background: var(--hr-surface);
+	grid-template-rows: auto auto auto auto minmax(0, 1fr);
+}
+.correction-picker h2 {
+	margin: 0;
+	font-size: 0.9375rem;
+	font-weight: 650;
+}
+.correction-picker__field {
+	display: grid;
+	gap: 0.3rem;
+	font-size: 0.8125rem;
+	color: var(--hr-text-muted);
+}
+.correction-picker select,
+.correction-picker__search input {
+	width: 100%;
+	min-height: 2.25rem;
+	padding: 0.4rem 0.6rem;
+	border: 1px solid var(--hr-border-input);
+	border-radius: var(--hr-radius-sm);
+	background: var(--hr-bg-elevated);
+	color: var(--hr-text);
+	font: inherit;
+	font-size: 0.875rem;
+}
+.correction-picker__search {
+	position: relative;
+	display: block;
+	color: var(--hr-text-muted);
+}
+.correction-picker__search svg {
+	position: absolute;
+	top: 50%;
+	left: 0.65rem;
+	transform: translateY(-50%);
+	pointer-events: none;
+}
+.correction-picker__search input {
+	padding-left: 2rem;
+}
+.correction-picker__count {
+	margin: 0;
+	font-size: 0.75rem;
+	font-variant-numeric: tabular-nums;
+	color: var(--hr-text-muted);
+}
+.correction-sheet-list {
+	display: grid;
+	align-content: start;
+	gap: 2px;
+	min-height: 0;
+	margin: 0 -0.5rem;
+	padding: 0;
+	overflow-y: auto;
+	scrollbar-width: thin;
+	list-style: none;
+}
+.correction-sheet-list button {
+	display: grid;
+	grid-template-columns: 1fr auto;
+	gap: 0.1rem 0.75rem;
+	width: 100%;
+	padding: 0.55rem 0.75rem;
+	border-radius: var(--hr-radius-sm);
+	color: var(--hr-text);
+	text-align: left;
+}
+.correction-sheet-list button:hover {
+	background: var(--hr-surface-hover);
+}
+/* 選んでいるシートは面で示す */
+.correction-sheet-list button[aria-current="true"] {
+	background: var(--hr-accent-muted);
+}
+.correction-sheet-list__no {
+	grid-column: 1;
+	font-size: 0.75rem;
+	font-variant-numeric: tabular-nums;
+	color: var(--hr-text-muted);
+}
+.correction-sheet-list__name {
+	grid-column: 1;
+	font-size: 0.9rem;
+	font-weight: 600;
+}
+.correction-sheet-list__status {
+	grid-column: 2;
+	grid-row: 1 / span 2;
+	align-self: center;
+	font-size: 0.75rem;
+	color: var(--hr-text-muted);
+}
+
+.correction-workspace {
+	display: grid;
+	gap: 1rem;
+	min-width: 0;
+}
+.correction-empty {
+	display: grid;
+	place-items: center;
+	min-height: 16rem;
+	margin: 0;
+	border: 1px dashed var(--hr-border-strong);
+	border-radius: var(--hr-radius-lg);
+	color: var(--hr-text-muted);
+	font-size: 0.9rem;
+}
+.correction-editor {
+	padding: 1.5rem 1.5rem 0;
+	border: 1px solid var(--hr-border);
+	border-radius: var(--hr-radius-lg);
+	background: var(--hr-surface);
+}
+.correction-editor__head h2 {
+	margin: 0;
+	font-size: 1.1rem;
+	font-weight: 650;
+}
+.correction-editor__hint {
+	margin: 0.4rem 0 0;
+	font-size: 0.8125rem;
+	color: var(--hr-text-muted);
+}
 .correction-editor h3 {
-	margin: 1.4rem 0 0.4rem;
+	margin: 1.75rem 0 0.6rem;
+	font-size: 0.875rem;
+	font-weight: 600;
+}
+/* 理由と確認ボタンは、シートの下端まで送らなくても画面の下に見えている */
+.correction-submit {
+	position: sticky;
+	bottom: 0;
+	z-index: 2;
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: end;
+	gap: 1rem;
+	margin: 1.5rem -1.5rem 0;
+	padding: 1rem 1.5rem;
+	border-top: 1px solid var(--hr-border);
+	border-radius: 0 0 var(--hr-radius-lg) var(--hr-radius-lg);
+	background: var(--hr-surface);
+}
+
+@media (max-width: 860px) {
+	.correction-layout {
+		grid-template-columns: minmax(0, 1fr);
+	}
+	.correction-picker {
+		position: static;
+		max-height: 24rem;
+	}
+	.correction-editor {
+		padding: 1rem 1rem 0;
+	}
+	.correction-submit {
+		grid-template-columns: minmax(0, 1fr);
+		margin: 1.25rem -1rem 0;
+		padding: 0.85rem 1rem;
+	}
 }
 .correction-group {
 	display: grid;
@@ -704,11 +895,8 @@ a.setup-task-link:hover {
 	border-color: var(--hr-danger);
 	color: var(--hr-danger-text);
 }
-.correction-reason {
-	margin-top: 1.2rem;
-}
 .correction-editor .correction-notice {
-	margin-top: 1.4rem;
+	margin-top: 1.75rem;
 }
 
 .privileged-operation-form {

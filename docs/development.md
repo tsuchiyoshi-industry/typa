@@ -81,26 +81,33 @@ Vitest の Node 側は `forks`、最大2ワーカー、ファイルごとの分�
 
 PGlite の初期化は `beforeAll`、終了は `afterAll` に置きます。`SchemaInventorySql.test.ts` は初期化まで5秒のテスト本体に含めていたため、起動時間だけで失敗していました。他のDBテストと同じ60秒のセットアップ枠へ移し、テスト本体の5秒制限は維持しています。全体のタイムアウト延長やリトライで失敗を隠す設定は入れません。
 
-## 特権操作の保守
+## 遡及処理の保守
 
-Admin のユーザーメニュー「遡及処理」の直下に「特権操作」があります。実施中・締め済みを含む全評価期間のシートを対象に、削除または6状態の任意の状態へ変更できます。状態変更では入力済みの本文・点数を保持し、確定値を解除します。最終評価済みに変更したときはDBで再集計します。評価期間は開き直しません。
+Admin のユーザーメニュー「遡及処理」（`/retroactive`）は、1つのシートに対する4つの操作をまとめた画面です。以前の「特権操作」の画面は統合しました。
 
-処理は `PrivilegedSheetOperationInteractor` → `SupabasePrivilegedSheetRepository` → `privileged_sheet_operation` の順です。RPC が有効な Admin、操作、理由（1〜500文字）、確認した時点の状態を検証し、対象行をロックします。操作・未読依頼の取り下げ・監査記録は同じトランザクションで行い、アプリ内通知もメールも送信しません。
+| 操作         | 対象の評価期間 | 経路                                                                                                      | 監査                                              |
+| ------------ | -------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| 値を直す     | 締め済みだけ   | `CorrectClosedSheetInteractor` → `SupabaseSheetCorrectionRepository` → `correct_closed_sheet`             | `sheet_corrections`（本人・評価者に見える）       |
+| 状態を変える | すべて         | `PrivilegedSheetOperationInteractor` → `SupabasePrivilegedSheetRepository` → `privileged_sheet_operation` | `security_audit_log` の `sheet.privileged_status` |
+| 等級を変える | 実施中だけ     | `ChangeSheetGradeInteractor` → `SupabaseSheetGradeRepository` → `change_sheet_grade`                      | `security_audit_log` の `sheet.grade_change`      |
+| 削除する     | すべて         | `PrivilegedSheetOperationInteractor` → `SupabasePrivilegedSheetRepository` → `privileged_sheet_operation` | `security_audit_log` の `sheet.privileged_delete` |
 
-`security_audit_log` の `sheet.privileged_status` / `sheet.privileged_delete` に操作者、対象、期間、前後の状態、理由を記録します。削除時はシート・目標・共通評価・遡及修正履歴の削除前データも残します。監査に失敗した場合、操作全体をロールバックします。特権を認める文脈は、クライアントが書けないテーブルでトランザクションと対象シートに限定し、トリガーを全体的に無効化しません。
+画面とコントローラは `RetroactiveCorrectionView` / `RetroactiveCorrectionController` です。どの RPC も、有効な Admin・理由（1〜500文字）・画面に出していた状態（等級の変更では等級も）を確かめ、対象行をロックして1トランザクションで処理します。監査に失敗した場合は全体を取り消します。状態変更・削除・等級の変更は通知を送りません。
 
-配布前に `202610260002_privileged_sheet_operations.sql` を適用してください。アプリのビルド・更新だけでは RPC は追加されません。
+等級の変更は、一次評価が確定する前のシートだけです。等級で変わるのは共通評価の項目だけなので、そのシートの共通評価の入力をすべて削除し、目標・点数・総評・状態・評価者には触れません。
+
+配布前に `202610260002_privileged_sheet_operations.sql` と `202610280002_change_sheet_grade.sql` を適用してください。アプリのビルド・更新だけでは RPC は追加されません。
 
 ## PDFの変更
 
 出力処理は `ExportEvaluationSheetInteractor` → `ExportSheetMapper` → Tauri の `generate_pdf_with_typst` → Typst の順です。画面と同じ `EvaluationSheetRepository.findById` から帳票データを作成します。
 
-帳票デザインは [template.typ](../src-tauri/src/templates/template.typ) にあります。項目を増やす場合は、次のファイルを合わせて変更します。
+帳票デザインは [template.typ](../src-tauri/src/pdf/templates/template.typ) にあります。項目を増やす場合は、次のファイルを合わせて変更します。
 
 - `src/application/dtos/ExportSheetDto.ts`
 - `src/application/dtos/ExportSheetMapper.ts`
-- `src-tauri/src/lib.rs`
-- `src-tauri/src/templates/template.typ`
+- `src-tauri/src/pdf/sheet.rs`
+- `src-tauri/src/pdf/templates/template.typ`
 
 共通評価は保存済みの結果だけでなく項目マスタを基準に組み立てます。シート作成時の等級と、確定時に固定した集計・配点・評価者を保持する仕様は [基本設計書](basic-design.md) を参照してください。
 

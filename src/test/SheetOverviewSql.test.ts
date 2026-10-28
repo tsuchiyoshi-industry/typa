@@ -131,8 +131,8 @@ it("refuses the overview to everyone but an Admin, including an evaluator of the
 	await expect(overview()).rejects.toMatchObject(denied);
 });
 
-it("leaves the sheet tables closed to an Admin: the overview is the only way in", async () => {
-	// 一覧(と、その PDF)は DB 関数が Admin にだけ返す
+it("leaves the sheet tables closed to an Admin: only DB functions (the overview, get_sheet) let them in", async () => {
+	// 一覧(と、その PDF)は DB 関数が Admin にだけ返す。シート1枚は get_sheet が読み取り専用で返す
 	expect(await overview()).toHaveLength(4);
 	// 評価シートの表そのものは、Admin であることでは読めない(この表には他のポリシーがない)
 	for (const table of ["evaluation_sheets", "milestones", "common_evaluation_results"]) {

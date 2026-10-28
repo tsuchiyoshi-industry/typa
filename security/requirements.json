@@ -25,7 +25,7 @@
 		{
 			"id": "ACCESS-BOLA",
 			"asvs": ["V8.2.2"],
-			"condition": "Another employee's real token cannot read, edit or transition the owner's sheet; stored data remains unchanged"
+			"condition": "Another employee's real token cannot read, edit or transition the owner's sheet; an Admin can read it but cannot edit or transition it; stored data remains unchanged"
 		},
 		{
 			"id": "ACCESS-BFLA",

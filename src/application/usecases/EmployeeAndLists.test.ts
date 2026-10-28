@@ -422,7 +422,7 @@ describe("lists and permission queries", () => {
 		sheets.findById.mockResolvedValue(null);
 		const out = output<import("../dtos/EvaluationSheetDto").EvaluationSheetDto>();
 		await expect(
-			new FetchEvaluationSheetInteractor(sheets, employeeRepository()).execute(
+			new FetchEvaluationSheetInteractor(sheets, employeeRepository(), masterRepository()).execute(
 				{ sheetId: 100, currentEmployeeId: 2 },
 				out,
 			),
@@ -433,10 +433,11 @@ describe("lists and permission queries", () => {
 	it.each([1, 2, 3])("resolves sheet-specific permissions for %s", async (id) => {
 		const out = output<never>();
 		// 一次評価待ちは一次評価の段階。二次評価者は読めるが、一次評価が確定するまで入力できない
-		await new FetchEvaluationSheetInteractor(sheetRepository(), employeeRepository()).execute(
-			{ sheetId: 100, currentEmployeeId: id },
-			out,
-		);
+		await new FetchEvaluationSheetInteractor(
+			sheetRepository(),
+			employeeRepository(),
+			masterRepository(),
+		).execute({ sheetId: 100, currentEmployeeId: id }, out);
 		expect(out.present).toHaveBeenCalledWith(
 			expect.objectContaining({
 				permissions: expect.objectContaining({
@@ -452,10 +453,11 @@ describe("lists and permission queries", () => {
 		const sheets = sheetRepository();
 		sheets.findById.mockResolvedValue(sheet(EvaluationStatus.FIRST_EVALUATED));
 		const next = output<never>();
-		await new FetchEvaluationSheetInteractor(sheets, employeeRepository()).execute(
-			{ sheetId: 100, currentEmployeeId: id },
-			next,
-		);
+		await new FetchEvaluationSheetInteractor(
+			sheets,
+			employeeRepository(),
+			masterRepository(),
+		).execute({ sheetId: 100, currentEmployeeId: id }, next);
 		expect(next.present).toHaveBeenCalledWith(
 			expect.objectContaining({
 				permissions: expect.objectContaining({
@@ -512,10 +514,11 @@ describe("sheet creation orchestration", () => {
 		const sheets = sheetRepository();
 		sheets.findById.mockResolvedValue(sheet(EvaluationStatus.DRAFT));
 		const out = output<never>();
-		await new FetchEvaluationSheetInteractor(sheets, employeeRepository()).execute(
-			{ sheetId: 100, currentEmployeeId: 1 },
-			out,
-		);
+		await new FetchEvaluationSheetInteractor(
+			sheets,
+			employeeRepository(),
+			masterRepository(),
+		).execute({ sheetId: 100, currentEmployeeId: 1 }, out);
 		expect(out.present).toHaveBeenCalledWith(
 			expect.objectContaining({
 				permissions: expect.objectContaining({

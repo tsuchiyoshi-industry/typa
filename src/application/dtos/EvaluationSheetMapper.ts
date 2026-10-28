@@ -129,6 +129,7 @@ export function toEvaluationSheetDto(
 			.map(toSheetCorrectionDto),
 		pendingObjectiveFields: sheet.pendingObjectiveFields(),
 		permissions: {
+			viewsAsAdmin: policy.viewsAsAdmin(),
 			isSubject: policy.isSubject(),
 			canEditFirst: policy.canEditCommonEvaluationFirst(),
 			canEditSecond: policy.canEditCommonEvaluationSecond(),

@@ -250,7 +250,14 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 
 	return (
 		<div class="dashboard-page" classList={{ "review-editor": props.embedded }}>
-			<Show when={!props.embedded && !isNew() && viewModel().canViewCommonEvaluation}>
+			<Show
+				when={
+					!props.embedded &&
+					!isNew() &&
+					viewModel().canViewCommonEvaluation &&
+					!viewModel().viewsAsAdmin
+				}
+			>
 				<A
 					class="review-editor-entry"
 					href={`/review?period=${sheet()?.evaluationPeriod?.id}&sheet=${sheetId()}`}
@@ -274,6 +281,9 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 							disabled={viewModel().loadingAccessibleSheets || viewModel().loadingSheet}
 							onPick={handleSubjectChange}
 						/>
+					</Show>
+					<Show when={!isNew() && viewModel().viewsAsAdmin}>
+						<p class="page-note">Admin として閲覧しています。入力や状態の変更はできません。</p>
 					</Show>
 				</div>
 				<Show when={!isNew() && sheet()}>

@@ -33,9 +33,11 @@ export class EvaluationSheetAccessPolicy {
 		/**
 		 * 被評価者の今の評価者(異動で新しく評価者になった人など)として、確定した(または締めた期間の)シートを
 		 * 評価の記録として読む。
-		 * 読むだけで、帳票と同じ全体が見える。
+		 * 読むだけで、帳票と同じ全体が見える。Admin が関わらないシートを見るときも同じ。
 		 */
 		private readonly viewerReadsRecord = false,
+		/** Admin として、自分が本人でも評価者でもないシートを見ている(状態を問わず、読むだけ)。 */
+		private readonly viewerIsAdminReader = false,
 	) {
 		this.periodIsOpen = sheet.evaluationPeriod.isActive;
 		this.viewerIsFinalEvaluator =
@@ -46,23 +48,38 @@ export class EvaluationSheetAccessPolicy {
 			(sheet.status.isSentToEvaluators() || !this.periodIsOpen);
 	}
 
+	/**
+	 * viewerCanViewAllSheets: 見る人が全社のシートを見られる(Admin, canViewAllSheets)か。
+	 * 本人・評価者として関わるシートでは、その立場の見え方が優先する(自分の確定前の点数は Admin でも見えない)。
+	 */
 	static for(
 		currentEmployeeId: number | null,
 		sheet: EvaluationSheet,
+		viewerCanViewAllSheets = false,
 	): EvaluationSheetAccessPolicy {
 		if (currentEmployeeId === null) {
 			return new EvaluationSheetAccessPolicy(sheet, false, false, false);
 		}
 		const subject = isSubject(currentEmployeeId, sheet.subject);
+		const primary = isPrimaryEvaluator(currentEmployeeId, sheet.subject);
+		const secondary = isSecondaryEvaluator(currentEmployeeId, sheet.subject);
+		const adminReader = viewerCanViewAllSheets && !subject && !primary && !secondary;
 		return new EvaluationSheetAccessPolicy(
 			sheet,
 			subject,
-			isPrimaryEvaluator(currentEmployeeId, sheet.subject),
-			isSecondaryEvaluator(currentEmployeeId, sheet.subject),
-			!subject &&
-				(sheet.status.isFinalized() || !sheet.evaluationPeriod.isActive) &&
-				sheet.currentEvaluatorIds.includes(currentEmployeeId),
+			primary,
+			secondary,
+			adminReader ||
+				(!subject &&
+					(sheet.status.isFinalized() || !sheet.evaluationPeriod.isActive) &&
+					sheet.currentEvaluatorIds.includes(currentEmployeeId)),
+			adminReader,
 		);
+	}
+
+	/** Admin として、関わらないシートを読み取り専用で見ている。画面はその旨を示し、評価者向けの導線を出さない。 */
+	viewsAsAdmin(): boolean {
+		return this.viewerIsAdminReader;
 	}
 
 	isSubject(): boolean {
@@ -235,7 +252,9 @@ export class EvaluationSheetAccessPolicy {
 	canFinalizeEvaluation(): boolean {
 		return (
 			this.periodIsOpen &&
-			this.canViewFinalEvaluation() &&
+			// 見られるだけ(記録を読む人・Admin)では確定できない。最終評価者本人だけ
+			!this.viewerIsSubject &&
+			this.viewerIsFinalEvaluator &&
 			(this.sheet.status.isAwaitingSecondEvaluation() ||
 				(this.sheet.primaryIsFinalEvaluator() && this.sheet.status.isAwaitingFirstEvaluation()))
 		);

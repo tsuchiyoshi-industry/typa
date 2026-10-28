@@ -79,7 +79,7 @@ it("puts my sheets and my reports' sheets under evaluation period tabs, newest p
 	expect(view.queryByRole("heading", { name: /全社の評価シート/ })).toBeNull();
 });
 
-it("adds the company-wide overview for an Admin below the two tables, as a table to look at, not to open", async () => {
+it("adds the company-wide overview for an Admin below the two tables, whose rows open the sheet", async () => {
 	const everyone = (
 		id: number,
 		period: 25 | 26,
@@ -115,12 +115,14 @@ it("adds the company-wide overview for an Admin below the two tables, as a table
 	expect(within(overview).getAllByRole("row")).toHaveLength(1 + 4);
 	expect(within(overview).getByRole("columnheader", { name: "二次評価者" })).toBeTruthy();
 	expect(within(overview).getByText("なし")).toBeTruthy();
-	// 俯瞰するための表。行は押せず、シートへのリンクも、行ごとの PDF 出力もない
-	expect(within(overview).queryAllByRole("link")).toEqual([]);
+	// 行(と氏名のリンク)からシートを読み取り専用で開く。行ごとの PDF 出力はない
+	expect(within(overview).getByRole("link", { name: "他部署X" }).getAttribute("href")).toBe(
+		"/sheet/8",
+	);
 	expect(within(overview).queryByRole("button", { name: "PDF出力" })).toBeNull();
 	const finalized = within(overview).getByText("他部署Y").closest("tr") as HTMLElement;
 	expect(finalized.textContent).toContain("88 点 B+");
-	expect(finalized.classList.contains("sheet-row")).toBe(false);
+	expect(finalized.classList.contains("sheet-row")).toBe(true);
 	fireEvent.click(finalized);
 	expect(view.controller.exportSheet).not.toHaveBeenCalled();
 

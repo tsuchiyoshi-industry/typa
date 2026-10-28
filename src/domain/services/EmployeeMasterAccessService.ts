@@ -43,7 +43,7 @@ export const canRunPrivilegedOperations = adminOnly;
 /**
  * 全社員の評価シートを一覧で見て、PDF に出せるのは Admin だけ。一覧には進み具合と評価者、
  * 確定した結果が、PDF にはさらに段ごとのランクと総評が載る。
- * 評価シートそのものを開けるのは、Admin でも、そのシートの本人・評価者だけ(EvaluationSheetAccessPolicy)。
+ * 一覧の行から、関わらないシートを読み取り専用で開ける(EvaluationSheetAccessPolicy の viewsAsAdmin)。
  */
 export const canViewAllSheets = adminOnly;
 

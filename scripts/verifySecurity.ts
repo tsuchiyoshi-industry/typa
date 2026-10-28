@@ -205,8 +205,12 @@ try {
 	});
 	await check("ACCESS-BOLA", async () => {
 		const before = sheetSnapshot();
+		// Admin は全社のシートを読み取り専用で開ける(読めても、改変・確定はできない)
+		assertDocument(await readSheet(admin.token));
 		for (const token of [other.token, admin.token, unlinked.token]) {
-			assert.equal((await readSheet(token)).body, null);
+			if (token !== admin.token) {
+				assert.equal((await readSheet(token)).body, null);
+			}
 			assert.equal((await transition(token, "finalized")).status, 403);
 			const updated = await call(`milestones?id=eq.${goalId}&select=id`, token, "PATCH", {
 				challenge_goal: "attack",

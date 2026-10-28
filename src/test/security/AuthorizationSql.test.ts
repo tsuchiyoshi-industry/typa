@@ -30,13 +30,20 @@ beforeEach(async () => {
 
 describe.each(EVALUATION_STATUS_VALUES)("BOLA: sheet status %s", (status) => {
 	it.each([1, 5, 99])(
-		"does not disclose or mutate another employee's sheet as actor %s",
+		"does not mutate (or, unless Admin, disclose) another employee's sheet as actor %s",
 		async (actor) => {
 			await db.exec("alter table public.evaluation_sheets disable trigger user");
 			await db.query("update public.evaluation_sheets set status=$1 where id=100", [status]);
 			await db.exec("alter table public.evaluation_sheets enable trigger user");
 			await actAs(db, actor);
-			expect(await document()).toBeNull();
+			// Admin(1)は全社のシートを読み取り専用で開ける。変更できないことは下で確かめる
+			if (actor === 1) {
+				expect(await document()).toMatchObject({
+					objectives: [expect.objectContaining({ challengeGoal: "confidential-goal" })],
+				});
+			} else {
+				expect(await document()).toBeNull();
+			}
 			await expect(transition("finalized")).rejects.toMatchObject(denied);
 			await expect(rows("select public.save_common_evaluation(100,'[]')")).rejects.toMatchObject(
 				denied,

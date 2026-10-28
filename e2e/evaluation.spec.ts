@@ -1,5 +1,5 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
-import { closeSheetWindow, restAs, signIn, signOut } from "./support";
+import { ADMIN, closeSheetWindow, restAs, signIn, signOut } from "./support";
 
 // 内部の人が入力欄に仕込んだ HTML は、評価者の画面で文字として出るだけで実行されない
 const GOAL = '受注処理の手戻りを半減する<img src=x onerror="window.__xss=1">';
@@ -255,6 +255,26 @@ test("a sheet goes from the employee through both evaluators to a final rank", a
 		await expect(page.getByText("評価が確定しました。内容は変更できません。")).toBeVisible();
 		await expect(goal).toContainText(/一次評価\s*4\s*\/\s*4/);
 		await expect(page.getByText("75")).toHaveCount(0);
+		await signOut(page);
+	});
+
+	await test.step("Admin は全社の一覧からシートを開き、読み取り専用で全体を見る", async () => {
+		await signIn(page, ADMIN);
+		await page
+			.locator("section", { has: page.getByRole("heading", { name: /全社の評価シート/ }) })
+			.getByRole("link", { name: "Release test 4" })
+			.click();
+		await expect(page.getByText(/Admin として閲覧しています/)).toBeVisible();
+		// 本人には見えない二次評価の点数まで見える
+		const goal = page.getByRole("tabpanel");
+		await expect(goal.getByText(GOAL)).toBeVisible();
+		await expect(goal).toContainText(/二次評価\s*3\s*\/\s*4/);
+		for (const name of ["目標を編集", "評価を確定する", "通知を再送"]) {
+			await expect(page.getByRole("button", { name })).toHaveCount(0);
+		}
+		// 評価者向けの「部下の一覧を見ながら評価する」は出さない
+		await expect(page.getByRole("link", { name: /部下の一覧を見ながら/ })).toHaveCount(0);
+		await signOut(page);
 	});
 });
 

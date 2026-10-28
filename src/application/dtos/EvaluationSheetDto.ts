@@ -38,6 +38,8 @@ export interface EvaluationRankDto {
 /** そのシートで、見ている人に何ができるか。画面の出し分けに使う(保存の可否は DB 側でも確かめる)。 */
 export interface SheetPermissionsDto {
 	canResendNotification?: boolean;
+	/** Admin として、関わらないシートを読み取り専用で見ている。 */
+	viewsAsAdmin?: boolean;
 	isSubject: boolean;
 	canEditFirst: boolean;
 	canEditSecond: boolean;
@@ -56,6 +58,7 @@ export interface SheetPermissionsDto {
 
 export const NO_SHEET_PERMISSIONS: SheetPermissionsDto = {
 	canResendNotification: false,
+	viewsAsAdmin: false,
 	isSubject: false,
 	canEditFirst: false,
 	canEditSecond: false,

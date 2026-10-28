@@ -180,6 +180,7 @@ const fetchCategorizedSheetsUseCase = new FetchCategorizedSheetsInteractor(
 const fetchEvaluationSheetUseCase = new FetchEvaluationSheetInteractor(
 	evaluationSheetRepository,
 	employeeRepository,
+	employeeMasterRepository,
 );
 const fetchDistinctPeriodsUseCase = new FetchDistinctPeriodsInteractor(evaluationPeriodRepository);
 const createEvaluationSheetUseCase = new CreateEvaluationSheetInteractor(

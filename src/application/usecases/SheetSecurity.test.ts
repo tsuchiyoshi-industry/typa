@@ -8,10 +8,12 @@ import {
 	commonRepository,
 	commonResult,
 	employeeRepository,
+	masterRepository,
 	milestone,
 	milestoneRepository,
 	output,
 	period,
+	profile,
 	sheet,
 	sheetRepository,
 } from "../../test/fixtures";
@@ -47,7 +49,7 @@ describe("sheet reading and confidentiality", () => {
 	it.each([null, 4])("denies viewer %s without presenting personal data", async (id) => {
 		const { sheets, employees, out } = setup();
 		await expect(
-			new FetchEvaluationSheetInteractor(sheets, employees).execute(
+			new FetchEvaluationSheetInteractor(sheets, employees, masterRepository()).execute(
 				{ sheetId: 100, currentEmployeeId: id },
 				out,
 			),
@@ -59,7 +61,7 @@ describe("sheet reading and confidentiality", () => {
 		const { sheets, employees, out } = setup();
 		sheets.findById.mockResolvedValue(null);
 		await expect(
-			new FetchEvaluationSheetInteractor(sheets, employees).execute(
+			new FetchEvaluationSheetInteractor(sheets, employees, masterRepository()).execute(
 				{ sheetId: 100, currentEmployeeId: 1 },
 				out,
 			),
@@ -70,7 +72,7 @@ describe("sheet reading and confidentiality", () => {
 	it.each([1, 2, 3])("redacts all restricted fields for role %s", async (id) => {
 		const { sheets, employees } = setup();
 		const out = output<import("../dtos/EvaluationSheetDto").EvaluationSheetDto>();
-		await new FetchEvaluationSheetInteractor(sheets, employees).execute(
+		await new FetchEvaluationSheetInteractor(sheets, employees, masterRepository()).execute(
 			{ sheetId: 100, currentEmployeeId: id },
 			out,
 		);
@@ -96,7 +98,7 @@ describe("sheet reading and confidentiality", () => {
 		const { sheets, employees } = setup();
 		const out = output<import("../dtos/EvaluationSheetDto").EvaluationSheetDto>();
 		// 評価関係のない人(4)は、シートごと断る(denies viewer)
-		await new FetchEvaluationSheetInteractor(sheets, employees).execute(
+		await new FetchEvaluationSheetInteractor(sheets, employees, masterRepository()).execute(
 			{ sheetId: 100, currentEmployeeId: 1 },
 			out,
 		);
@@ -107,7 +109,7 @@ describe("sheet reading and confidentiality", () => {
 		async (id) => {
 			const { sheets, employees } = setup();
 			const out = output<import("../dtos/EvaluationSheetDto").EvaluationSheetDto>();
-			await new FetchEvaluationSheetInteractor(sheets, employees).execute(
+			await new FetchEvaluationSheetInteractor(sheets, employees, masterRepository()).execute(
 				{ sheetId: 100, currentEmployeeId: id },
 				out,
 			);
@@ -128,6 +130,70 @@ describe("sheet reading and confidentiality", () => {
 			});
 		},
 	);
+});
+
+describe("Admin reads any sheet, read-only", () => {
+	const read = async (
+		viewerId: number,
+		role: string | null,
+		status = EvaluationStatus.SUBMITTED,
+	) => {
+		const { sheets, employees } = setup(status);
+		const master = masterRepository();
+		master.findCurrentEmployeeProfile.mockResolvedValue(role ? profile(role, viewerId) : null);
+		const out = output<import("../dtos/EvaluationSheetDto").EvaluationSheetDto>();
+		const run = new FetchEvaluationSheetInteractor(sheets, employees, master).execute(
+			{ sheetId: 100, currentEmployeeId: viewerId },
+			out,
+		);
+		return { run, out, master };
+	};
+
+	it.each(EvaluationStatus.ALL)(
+		"shows an Admin with no part in the sheet everything at %s, and offers no action",
+		async (status) => {
+			const { run, out } = await read(4, "Admin", status);
+			await run;
+			const dto = out.present.mock.calls[0][0];
+			expect(dto.objectives[0]).toMatchObject({ firstScore: 2, secondScore: 4 });
+			expect(dto.firstOverallComment).toBe("一次総評");
+			expect(dto.secondOverallComment).toBe("二次総評");
+			expect(dto.commonEvaluation?.totalSecondScore).toBe(20);
+			const { isSubject, canViewCommonEvaluation, canViewSecondEvaluation, viewsAsAdmin, ...acts } =
+				dto.permissions;
+			expect({ isSubject, canViewCommonEvaluation, canViewSecondEvaluation, viewsAsAdmin }).toEqual(
+				{
+					isSubject: false,
+					canViewCommonEvaluation: true,
+					canViewSecondEvaluation: true,
+					viewsAsAdmin: true,
+				},
+			);
+			expect(Object.values(acts).every((can) => can === false)).toBe(true);
+			expect(dto.pendingEvaluationItems).toBeUndefined();
+		},
+	);
+
+	it.each([
+		["Reviewer", "Reviewer"],
+		["Employee", "Employee"],
+		["no profile (disabled or unlinked)", null],
+	])("still refuses a non-Admin with no part in the sheet: %s", async (_label, role) => {
+		const { run, out } = await read(4, role);
+		await expect(run).rejects.toThrow("権限");
+		expect(out.present).not.toHaveBeenCalled();
+	});
+
+	it("does not ask who the viewer is when they already have a part in the sheet", async () => {
+		const { run, out, master } = await read(2, "Admin");
+		await run;
+		expect(master.findCurrentEmployeeProfile).not.toHaveBeenCalled();
+		// 一次評価者の Admin は、一次評価者として見る(二次評価は伏せる)
+		expect(out.present.mock.calls[0][0]).toMatchObject({
+			secondOverallComment: "",
+			permissions: { viewsAsAdmin: false },
+		});
+	});
 });
 
 describe("milestone updates validate before side effects", () => {

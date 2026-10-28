@@ -368,4 +368,72 @@ describe("EvaluationSheetAccessPolicy", () => {
 			expect(policy.canViewFinalEvaluation()).toBe(false);
 		});
 	});
+
+	describe("Admin(全社のシートを見られる人)", () => {
+		const ADMIN_ID = UNRELATED_ID;
+		const asAdmin = (status: EvaluationStatus, viewer = ADMIN_ID) =>
+			EvaluationSheetAccessPolicy.for(viewer, buildSheet(status), true);
+
+		it.each(EvaluationStatus.ALL)(
+			"関わらないシートは、%s でも全体を読めるが、何も変えられない",
+			(status) => {
+				const policy = asAdmin(status);
+				expect(policy.canViewSheet()).toBe(true);
+				expect(policy.viewsAsAdmin()).toBe(true);
+				expect(policy.canViewMilestoneFirstScore()).toBe(true);
+				expect(policy.canViewMilestoneSecondScore()).toBe(true);
+				expect(policy.canViewCommonEvaluation()).toBe(true);
+				expect(policy.canViewCommonEvaluationSecond()).toBe(true);
+				expect(policy.canViewFinalEvaluation()).toBe(true);
+				for (const can of [
+					policy.canEditMilestoneGoal(),
+					policy.canEditMilestoneAchievement(),
+					policy.canEditMilestoneFirstScore(),
+					policy.canEditMilestoneSecondScore(),
+					policy.canEditCommonEvaluationFirst(),
+					policy.canEditCommonEvaluationSecond(),
+					policy.canCarryOverGoal(),
+					policy.canSubmitGoals(),
+					policy.canReturnGoalsToDraft(),
+					policy.canConfirmGoals(),
+					policy.canRequestFirstEvaluation(),
+					policy.canConfirmFirstEvaluation(),
+					policy.canFinalizeEvaluation(),
+					policy.canResendNotification(),
+				]) {
+					expect(can).toBe(false);
+				}
+			},
+		);
+
+		it("PDF の出力は権限ではなくシートの状態で決まる(確定したシートだけ)", () => {
+			expect(asAdmin(EvaluationStatus.FIRST_EVALUATED).canExportSheet()).toBe(false);
+			expect(asAdmin(EvaluationStatus.FINALIZED).canExportSheet()).toBe(true);
+		});
+
+		it("自分が本人のシートは本人として見る(確定前の点数・共通評価は見えない)", () => {
+			const policy = asAdmin(EvaluationStatus.FIRST_EVALUATED, SUBJECT_ID);
+			expect(policy.viewsAsAdmin()).toBe(false);
+			expect(policy.canViewMilestoneFirstScore()).toBe(false);
+			expect(policy.canViewCommonEvaluation()).toBe(false);
+			expect(policy.canViewFinalEvaluation()).toBe(false);
+		});
+
+		it("自分が一次評価者のシートは一次評価者として見る(二次評価は見えず、下書きも開けない)", () => {
+			const policy = asAdmin(EvaluationStatus.FIRST_EVALUATED, PRIMARY_EVALUATOR_ID);
+			expect(policy.viewsAsAdmin()).toBe(false);
+			expect(policy.canViewMilestoneSecondScore()).toBe(false);
+			expect(policy.canViewCommonEvaluationSecond()).toBe(false);
+			expect(asAdmin(EvaluationStatus.DRAFT, PRIMARY_EVALUATOR_ID).canViewSheet()).toBe(false);
+		});
+
+		it("Admin でなければ、関わらないシートは見られない", () => {
+			const policy = EvaluationSheetAccessPolicy.for(
+				UNRELATED_ID,
+				buildSheet(EvaluationStatus.FINALIZED),
+			);
+			expect(policy.canViewSheet()).toBe(false);
+			expect(policy.viewsAsAdmin()).toBe(false);
+		});
+	});
 });

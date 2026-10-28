@@ -1,5 +1,7 @@
+import type { EmployeeMasterRepository } from "../../domain/repositories/EmployeeMasterRepository";
 import type { EmployeeRepository } from "../../domain/repositories/EmployeeRepository";
 import type { EvaluationSheetRepository } from "../../domain/repositories/EvaluationSheetRepository";
+import { canViewAllSheets } from "../../domain/services/EmployeeMasterAccessService";
 import { EvaluationSheetAccessPolicy } from "../../domain/services/EvaluationSheetAccessPolicy";
 import type { EvaluationSheetDto } from "../dtos/EvaluationSheetDto";
 import { toEvaluationSheetDto } from "../dtos/EvaluationSheetMapper";
@@ -21,6 +23,7 @@ export class FetchEvaluationSheetInteractor
 	constructor(
 		private readonly evaluationSheetRepository: EvaluationSheetRepository,
 		private readonly employeeRepository: EmployeeRepository,
+		private readonly employeeMasterRepository: EmployeeMasterRepository,
 	) {}
 
 	async execute(
@@ -33,7 +36,15 @@ export class FetchEvaluationSheetInteractor
 			throw new Error("評価シートが見つかりません。");
 		}
 
-		const policy = EvaluationSheetAccessPolicy.for(request.currentEmployeeId, sheet);
+		let policy = EvaluationSheetAccessPolicy.for(request.currentEmployeeId, sheet);
+		// 関わらないシートを開いたときだけ、全社のシートを見られる人(Admin)かを確かめる。
+		// 本人・評価者として開く普段の閲覧では問い合わせない
+		if (!policy.canViewSheet()) {
+			const viewer = await this.employeeMasterRepository.findCurrentEmployeeProfile();
+			if (viewer && canViewAllSheets(viewer.role)) {
+				policy = EvaluationSheetAccessPolicy.for(request.currentEmployeeId, sheet, true);
+			}
+		}
 		if (!policy.canViewSheet()) {
 			throw new Error("評価シートを閲覧する権限がありません。");
 		}

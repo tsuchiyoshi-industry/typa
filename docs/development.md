@@ -56,6 +56,16 @@ VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 
 画面は Node.js 上の happy-dom で DOM の構築・更新を測ります。ブラウザのレイアウト・描画は含みません。平均・p99・RME・サンプル数を確認し、性能比較は同じ実行環境で行ってください。ソースを直接読み込むため、ViewModel の測定には Vitest のモジュール変換による getter のコストも含まれ、警告が出る場合があります。JSON は `.vitest/bench/results.json`（git 管理対象外）、CI では `benchmark-results` アーティファクトに保存します。
 
+### ChromiumでのUI計測
+
+`bun run bench:browser` は Vitest 5 Browser Mode と Playwright の Chromium で、社員マスタと評価者画面に300人分を表示して測ります。初回は `bunx playwright install --only-shell chromium` を実行してください。通常のテスト・happy-dom の bench とは別の設定です。
+
+- 実際のアプリの CSS、1440×900 の表示領域、ライトテーマを使用します。Solid は `dev: false` と production の解決条件で実行します（配信は Vitest/Vite のテスト環境で、製品ビルドそのものではありません）。データと Controller は固定の fixture で、DB・認証・ネットワーク取得は計測に含みません。
+- 初期表示、検索の1入力（「社員」→「社員1」）、評価者画面のグループ化の有効化を別々に測ります。各30サンプル・ウォームアップ5回。検索の準備とグループ化の解除は計測の外です。
+- 入力は1回の `input` イベントを発火させ、操作後の2回目の `requestAnimationFrame` まで待ちます。表示フレームまでの時間の目安であり、実キーボード入力の INP、厳密なピクセル提示時刻ではありません。フレーム待ちのため軽い操作でも約1〜2フレームの時間を含みます。
+- 集計結果は `.vitest/bench/browser/results.json` に保存します。統計計測とは別に各操作を1回ずつトレースし、`*.trace.json`、`*.summary.json` と画面写真も同じディレクトリに保存します。CI の `benchmark-results` に一緒に添付します。
+- `*.trace.json` は Chrome DevTools の Performance パネルの「Load profile」で開けます。`typa:<操作名>:start/end` の間が対象です。summary はその renderer のメインスレッドだけを集計し、重なった区間を二重計上せず、JavaScript・GC・スタイル/レイアウト・描画・その他/フレーム待ちに分けます。GPU・compositor の処理時間は含みません。トレースは採取負荷を伴う1回分なので、平均時間や改善率の比較には bench の統計を使ってください。
+
 ## DBと通知
 
 - 新しい環境の構築、Auth、SMTP、Edge Function の配置は [Supabase 環境の構築手順](supabase-setup.md) を参照してください。

@@ -2,25 +2,11 @@
 import { MemoryRouter, Route } from "@solidjs/router";
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import { afterEach, expect, test } from "vitest";
-import type { ReviewerRowDto } from "../../application/dtos/ReviewerWorkspaceDto";
+import { reviewPeriods as periods, reviewerRows as rowsOf } from "../../test/listBenchFixtures";
 import { reviewerEditorFixture } from "../../test/reviewerEditorFixture";
-import { reviewerRow } from "../../test/reviewerFixture";
 import type { ReviewerWorkspaceController } from "../controllers/ReviewerWorkspaceController";
 import ReviewerWorkspaceView from "./ReviewerWorkspaceView";
 
-const STATUSES = ["draft", "goals_submitted", "submitted", "first_evaluated", "finalized"] as const;
-const rowsOf = (n: number): ReviewerRowDto[] =>
-	Array.from({ length: n }, (_, i) =>
-		reviewerRow(i + 1, {
-			gradeId: i % 6,
-			gradeName: `等級${i % 6}`,
-			status: STATUSES[i % STATUSES.length],
-			isPrimary: i % 3 === 0,
-		}),
-	);
-const periods = [
-	{ id: 10, periodName: "下期", startDate: "2026-10-01", endDate: "2027-03-31", isActive: true },
-];
 const samples = { iterations: 12, time: 0, warmupIterations: 3, warmupTime: 0 };
 afterEach(cleanup);
 

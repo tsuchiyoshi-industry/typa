@@ -10,7 +10,10 @@ export default defineConfig({
 		pool: "forks",
 		maxWorkers: 1,
 		testTimeout: 120_000,
-		benchmark: { include: ["src/**/*.bench.{ts,tsx}"] },
+		benchmark: {
+			include: ["src/**/*.bench.{ts,tsx}"],
+			exclude: ["src/**/*.browser.bench.tsx"],
+		},
 		reporters: ["default", "json"],
 		outputFile: { json: ".vitest/bench/results.json" },
 	},

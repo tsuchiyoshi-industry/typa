@@ -12,6 +12,7 @@
 		"vite.config.ts",
 		"vitest.config.ts",
 		"vitest.bench.config.ts",
+		"vitest.browser-bench.config.ts",
 		"playwright.config.ts",
 		"scripts/**/*.ts",
 		"e2e/**/*.ts",

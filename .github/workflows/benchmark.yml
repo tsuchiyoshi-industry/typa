@@ -25,10 +25,16 @@ jobs:
           bun-version: latest
       - run: bun install --frozen-lockfile
       - run: bun run bench
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('node_modules/playwright-core/package.json') }}
+      - run: bunx playwright install --only-shell chromium
+      - run: bun run bench:browser
       - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: benchmark-results
-          path: .vitest/bench/results.json
+          path: .vitest/bench/
           include-hidden-files: true
           retention-days: 14

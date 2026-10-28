@@ -14,9 +14,9 @@ export const err = <E>(error: E): Result<never, E> => ({ ok: false, error });
  * 保存済みの値など、きまりどおりのはずのデータから作った結果を取り出す。
  * 失敗していたらデータの不整合(業務の失敗ではない)なので、例外にする。
  */
-export function expectOk<T, E>(result: Result<T, E>, describe: (error: E) => string): T {
+export function expectOk<T, E>(result: Result<T, E>, describeError: (error: E) => string): T {
 	if (!result.ok) {
-		throw new Error(describe(result.error));
+		throw new Error(describeError(result.error));
 	}
 	return result.value;
 }

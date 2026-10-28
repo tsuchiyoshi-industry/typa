@@ -44,6 +44,16 @@
 			"indentStyle": "tab"
 		}
 	},
+	"markdown": {
+		"formatter": {
+			"enabled": true
+		}
+	},
+	"yaml": {
+		"formatter": {
+			"enabled": false
+		}
+	},
 	"assist": {
 		"enabled": true,
 		"actions": {

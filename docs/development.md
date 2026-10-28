@@ -4,14 +4,14 @@
 
 ## 技術構成
 
-| 担当 | 技術 |
-| --- | --- |
-| 画面 | Solid、Solid Router、lucide-solid |
-| デスクトップ | Tauri 2 |
-| ビルド | Vite、Bun |
-| DB・認証 | Supabase |
-| PDF | Rust、Typst、typst-as-lib、typst-pdf |
-| 整形・検査 | Biome、TypeScript、Vitest |
+| 担当         | 技術                                 |
+| ------------ | ------------------------------------ |
+| 画面         | Solid、Solid Router、lucide-solid    |
+| デスクトップ | Tauri 2                              |
+| ビルド       | Vite、Bun                            |
+| DB・認証     | Supabase                             |
+| PDF          | Rust、Typst、typst-as-lib、typst-pdf |
+| 整形・検査   | Biome、TypeScript、Vitest            |
 
 ## ローカルで起動する
 
@@ -30,20 +30,20 @@ VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 
 会社ドメイン、通知の方法、通知メールの SMTP 設定は DB に保存します。SMTP パスワード・service_role キー・署名の秘密鍵を `VITE_*` に入れないでください。
 
-| コマンド | 用途 |
-| --- | --- |
-| `bun run dev` | 画面をブラウザで起動 |
-| `bun run tauri dev` | デスクトップアプリを起動 |
-| `bun run build` | フロントエンドのビルド |
-| `bun run tauri build` | デスクトップ配布物のビルド |
-| `bun run typecheck` | 型検査 |
-| `bun run check` | Biome の整形・lint・import 順を検査（警告も失敗扱い） |
-| `bun run test:coverage` | TypeScript・画面・SQLのテストとカバレッジ |
-| `bun run test:security` | 攻撃入力・認可・通知API・CSV・Tauri設定の回帰テスト。範囲と未検証項目は [セキュリティ検証](security-verification.md) を参照 |
-| `bun run test:e2e` | 画面のE2E（Playwright）。ローカル Supabase を起動しておく。検証用DB `typa_e2e` を作り直して使い、開発用DBには触れない |
-| `bun run docs:user-manual` | [利用者](manual/user.md)・[評価者](manual/evaluator.md)・[管理者](manual/admin.md)のマニュアルの画面写真を、それぞれの権限でログインして撮り直し、`docs/manual/*.pdf` を作る。E2E と同じ `typa_e2e` を使う。写真と PDF は git に置かず、CI が E2E の後に作ってリリースに添える（写真はアプリのヘルプにも入る）。手元で確かめたいときだけ実行する。撮っていなくても、アプリはヘルプの写真なしでビルド・テストできる |
-| `bun run test:rust --release` | PDF生成などのRustテスト |
-| `bun run fix` | Biomeによる整形と検査 |
+| コマンド                      | 用途                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `bun run dev`                 | 画面をブラウザで起動                                                                                                                                                                                                                                                                                                                                                                                               |
+| `bun run tauri dev`           | デスクトップアプリを起動                                                                                                                                                                                                                                                                                                                                                                                           |
+| `bun run build`               | フロントエンドのビルド                                                                                                                                                                                                                                                                                                                                                                                             |
+| `bun run tauri build`         | デスクトップ配布物のビルド                                                                                                                                                                                                                                                                                                                                                                                         |
+| `bun run typecheck`           | 型検査                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `bun run check`               | Biome の整形・lint・import 順を検査（警告も失敗扱い）                                                                                                                                                                                                                                                                                                                                                              |
+| `bun run test:coverage`       | TypeScript・画面・SQLのテストとカバレッジ                                                                                                                                                                                                                                                                                                                                                                          |
+| `bun run test:security`       | 攻撃入力・認可・通知API・CSV・Tauri設定の回帰テスト。範囲と未検証項目は [セキュリティ検証](security-verification.md) を参照                                                                                                                                                                                                                                                                                        |
+| `bun run test:e2e`            | 画面のE2E（Playwright）。ローカル Supabase を起動しておく。検証用DB `typa_e2e` を作り直して使い、開発用DBには触れない                                                                                                                                                                                                                                                                                              |
+| `bun run docs:user-manual`    | [利用者](manual/user.md)・[評価者](manual/evaluator.md)・[管理者](manual/admin.md)のマニュアルの画面写真を、それぞれの権限でログインして撮り直し、`docs/manual/*.pdf` を作る。E2E と同じ `typa_e2e` を使う。写真と PDF は git に置かず、CI が E2E の後に作ってリリースに添える（写真はアプリのヘルプにも入る）。手元で確かめたいときだけ実行する。撮っていなくても、アプリはヘルプの写真なしでビルド・テストできる |
+| `bun run test:rust --release` | PDF生成などのRustテスト                                                                                                                                                                                                                                                                                                                                                                                            |
+| `bun run fix`                 | Biomeによる整形と検査                                                                                                                                                                                                                                                                                                                                                                                              |
 
 `test:e2e` と `docs:user-manual` はローカル Supabase が必要です。Docker Desktop を起動し、TYPA のコンテナがまだ動いていなければ、プロジェクトのルートで `bunx supabase@2.121.0 start` を実行します。Docker と PostgreSQL の起動が完了してから、`bun run docs:user-manual` を実行してください。起動前チェックで、Docker への接続、必要なコンテナ、PostgreSQL の準備状態を確認します。
 

@@ -40,6 +40,7 @@ VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 | `bun run check`               | Biome の整形・lint・import 順を検査（警告も失敗扱い）                                                                                                                                                                                                                                                                                                                                                              |
 | `bun run test:coverage`       | TypeScript・画面・SQLのテストとカバレッジ                                                                                                                                                                                                                                                                                                                                                                          |
 | `bun run test:security`       | 攻撃入力・認可・通知API・CSV・Tauri設定の回帰テスト。範囲と未検証項目は [セキュリティ検証](security-verification.md) を参照                                                                                                                                                                                                                                                                                        |
+| `bun run bench`               | Vitest 5 の `bench` fixture で計測。ViewModel は1,000・10,000件、画面は30・300人で表示・検索・再読込などを測る。通常テストと分離し、専用CI（`benchmark.yml`）で結果JSONを保存。対象は `*.bench.ts(x)`                                                                                                                                                                                                              |
 | `bun run test:e2e`            | 画面のE2E（Playwright）。ローカル Supabase を起動しておく。検証用DB `typa_e2e` を作り直して使い、開発用DBには触れない                                                                                                                                                                                                                                                                                              |
 | `bun run docs:user-manual`    | [利用者](manual/user.md)・[評価者](manual/evaluator.md)・[管理者](manual/admin.md)のマニュアルの画面写真を、それぞれの権限でログインして撮り直し、`docs/manual/*.pdf` を作る。E2E と同じ `typa_e2e` を使う。写真と PDF は git に置かず、CI が E2E の後に作ってリリースに添える（写真はアプリのヘルプにも入る）。手元で確かめたいときだけ実行する。撮っていなくても、アプリはヘルプの写真なしでビルド・テストできる |
 | `bun run test:rust --release` | PDF生成などのRustテスト                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -50,6 +51,10 @@ VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 画面と REST 検証のログインは同じ IP の Auth 制限を共有します。高速な CI では短時間の上限（30回）に達するため、テスト用のログイン処理は HTTP 429 のときだけ 2.1 秒待って最大5回再試行します。認証設定は変更せず、誤ったパスワードなど他の応答はそのまま検証します。E2E は実際に制限に達してから REST・画面の両方でログインできることも確認します。
 
 本番ビルドは HTTPS の接続先、公開キー、CSP の接続許可を検査します。接続先を変える場合は `src-tauri/tauri.conf.json` の `csp`・`devCsp` も合わせます。
+
+ベンチマークは `*.bench.ts(x)` に `test("名前", async ({ bench }) => { ... })` の形式で追加します。`bench(...).run()` と `bench.compare(...)` を使い、ウォームアップ・サンプル集計は Vitest 5 に任せます。表示の計測では後片付けを `bench` の `afterEach` フックに置き、時間から外します。
+
+画面は Node.js 上の happy-dom で DOM の構築・更新を測ります。ブラウザのレイアウト・描画は含みません。平均・p99・RME・サンプル数を確認し、性能比較は同じ実行環境で行ってください。ソースを直接読み込むため、ViewModel の測定には Vitest のモジュール変換による getter のコストも含まれ、警告が出る場合があります。JSON は `.vitest/bench/results.json`（git 管理対象外）、CI では `benchmark-results` アーティファクトに保存します。
 
 ## DBと通知
 

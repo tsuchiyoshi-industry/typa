@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
-import { cleanup, fireEvent, render } from "@solidjs/testing-library";
+import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
-import { test } from "vitest";
+import { afterEach, expect, test } from "vitest";
 import type { ApprovalRelationDto } from "../../application/dtos/EmployeeMasterDto";
 import type { EmployeeMasterController } from "../controllers/EmployeeMasterController";
 import type { EmployeeMasterViewModel } from "../presenters/EmployeeMasterPresenter";
@@ -25,8 +25,8 @@ const employee = (id: number): ApprovalRelationDto => ({
 	registered: true,
 	keepSignedIn: false,
 });
-const relations = Array.from({ length: 300 }, (_, i) => employee(i + 1));
-const [viewModel, setViewModel] = createSignal<EmployeeMasterViewModel>({
+
+const viewModelOf = (n: number): EmployeeMasterViewModel => ({
 	loading: false,
 	errorMessage: null,
 	updateStatus: { message: null, success: null },
@@ -46,33 +46,43 @@ const [viewModel, setViewModel] = createSignal<EmployeeMasterViewModel>({
 		primaryEvaluatorName: "未設定",
 		secondaryEvaluatorName: "未設定",
 	},
-	relations,
+	relations: Array.from({ length: n }, (_, i) => employee(i + 1)),
 	grades: [
 		{ id: 1, name: "G1" },
 		{ id: 2, name: "G2" },
 	],
 });
 const controller = { load: async () => {} } as unknown as EmployeeMasterController;
-const mount = () =>
-	render(() => <EmployeeMasterView controller={controller} viewModel={viewModel} />);
 
-test("employee master screen, 300 employees", { timeout: 300_000 }, async ({ bench }) => {
-	// happy-dom は外した DOM もしばらく手放さないので、出し直す回数は少なくする
-	await bench("mount the list", () => {
+// DOM を出し直す操作は回数を絞り、ウォームアップも同じ条件で行う。
+const samples = { iterations: 12, time: 0, warmupIterations: 3, warmupTime: 0 };
+afterEach(cleanup);
+
+for (const n of [30, 300]) {
+	test(`employee master, ${n} employees`, async ({ bench }) => {
+		const [viewModel, setViewModel] = createSignal(viewModelOf(n));
+		const mount = () =>
+			render(() => <EmployeeMasterView controller={controller} viewModel={viewModel} />);
+
+		// 後片付けはフックに置き、表示の計測時間から外す。
+		await bench("mount the list", { afterEach: cleanup }, mount).run(samples);
+
 		mount();
-		cleanup();
-	}).run({ iterations: 4, warmup: false, time: 0 });
+		const initialRows = document.querySelectorAll("tbody tr").length;
+		expect(initialRows).toBe(n);
+		await bench("reload all rows after a save", () => {
+			setViewModel((previous) => ({
+				...previous,
+				relations: previous.relations.map((row) => ({ ...row })),
+			}));
+		}).run(samples);
 
-	mount();
-	// 保存のあとは、全員の行が新しいオブジェクトで届き直す
-	await bench("reload all rows after a save", () => {
-		setViewModel((prev) => ({ ...prev, relations: prev.relations.map((row) => ({ ...row })) }));
-	}).run({ iterations: 10, time: 0 });
-	await bench("type a search keyword, then clear", () => {
-		const search = document.querySelector("input[type=search]") as HTMLInputElement;
-		for (const value of ["社", "社員", "社員1", ""]) {
-			fireEvent.input(search, { target: { value } });
-		}
-	}).run({ iterations: 10, time: 0 });
-	cleanup();
-});
+		const search = screen.getByRole("searchbox");
+		await bench("type a search keyword, then clear", () => {
+			for (const value of ["社", "社員", "社員1", ""]) {
+				fireEvent.input(search, { target: { value } });
+			}
+		}).run(samples);
+		expect(document.querySelectorAll("tbody tr").length).toBe(initialRows);
+	});
+}

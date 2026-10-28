@@ -126,12 +126,13 @@ mod tests {
             .iter()
             .map(|data| {
                 let result = compile_template(TEMPLATE, to_dict(data), &path);
-                if let Ok(preview_dir) = std::env::var("TYPA_PDF_PREVIEW_DIR") {
-                    if result.is_ok() && !data.rows.is_empty() {
-                        let preview_dir = std::path::PathBuf::from(preview_dir);
-                        fs::create_dir_all(&preview_dir).unwrap();
-                        fs::copy(&path, preview_dir.join("overview.pdf")).unwrap();
-                    }
+                if let Ok(preview_dir) = std::env::var("TYPA_PDF_PREVIEW_DIR")
+                    && result.is_ok()
+                    && !data.rows.is_empty()
+                {
+                    let preview_dir = std::path::PathBuf::from(preview_dir);
+                    fs::create_dir_all(&preview_dir).unwrap();
+                    fs::copy(&path, preview_dir.join("overview.pdf")).unwrap();
                 }
                 let header = result.as_ref().ok().map(|_| fs::read(&path).unwrap());
                 if path.exists() {

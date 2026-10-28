@@ -131,7 +131,7 @@ it("keeps the top bar usable when the current user cannot be read", async () => 
 	expect(view.getByRole("button", { name: "ログアウト" })).toBeTruthy();
 	expect(view.getByRole("link", { name: "ヘルプ" })).toBeTruthy();
 	expect(view.queryByRole("link", { name: "設定" })).toBeNull();
-	expect(view.queryByRole("link", { name: "特権操作" })).toBeNull();
+	expect(view.queryByRole("link", { name: "遡及処理" })).toBeNull();
 	expect(within(view.nav()).queryByRole("link", { name: "部下の評価" })).toBeNull();
 	expect(view.current()).toEqual(["評価シート"]);
 });
@@ -175,21 +175,14 @@ it("closes the user menu with Escape and when the other menu opens", async () =>
 });
 
 it.each([true, false])(
-	"shows privileged operations immediately below corrections only for Admin (%s)",
+	"offers 遡及処理, the single page for changing or deleting sheets, only to Admin (%s)",
 	async (allowed) => {
-		const view = setup("/", async () => ({
-			name: "管理者",
-			canCorrectClosedSheets: allowed,
-			canRunPrivilegedOperations: allowed,
-		}));
+		const view = setup("/", async () => ({ name: "管理者", canCorrectClosedSheets: allowed }));
 		await view.findByText("管理者");
 		fireEvent.click(view.getByRole("button", { name: "ユーザーメニュー" }));
-		if (allowed) {
-			const links = view.getAllByRole("link").map((link) => link.textContent);
-			expect(links[links.indexOf("遡及処理") + 1]).toBe("特権操作");
-			expect(view.getByRole("link", { name: "特権操作" }).getAttribute("href")).toBe("/privileged");
-		} else {
-			expect(view.queryByRole("link", { name: "特権操作" })).toBeNull();
-		}
+		const links = view.getAllByRole("link").map((link) => link.textContent);
+		expect(links.includes("遡及処理")).toBe(allowed);
+		// 特権操作は遡及処理にまとめた
+		expect(links).not.toContain("特権操作");
 	},
 );

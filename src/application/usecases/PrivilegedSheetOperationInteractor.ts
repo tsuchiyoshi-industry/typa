@@ -14,7 +14,7 @@ export function describePrivilegedSheetOperationError(
 	error: PrivilegedSheetOperationError,
 ): string {
 	const messages: Record<PrivilegedSheetOperationError["kind"], string> = {
-		forbidden: "特権操作は Admin のみ利用できます。",
+		forbidden: "遡及処理は Admin のみ利用できます。",
 		invalidSheetId: "評価シートを選んでください。",
 		invalidOperation: "操作を選んでください。",
 		invalidStatus: "シートの状態が正しくありません。",

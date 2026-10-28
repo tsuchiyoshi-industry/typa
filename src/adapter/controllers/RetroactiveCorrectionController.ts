@@ -13,38 +13,54 @@ import type {
 	CorrectClosedSheetResponse,
 } from "../../application/usecases/CorrectClosedSheetInteractor";
 import { describeCorrectClosedSheetError } from "../../application/usecases/CorrectClosedSheetInteractor";
+import {
+	describePrivilegedSheetOperationError,
+	type PrivilegedSheetOperationInteractor,
+} from "../../application/usecases/PrivilegedSheetOperationInteractor";
 import { EvaluationCalendar } from "../../domain/entities/EvaluationCalendar";
+import type { PrivilegedSheetOperationRequest } from "../../domain/entities/PrivilegedSheetOperation";
+import type { EmployeeMasterRepository } from "../../domain/repositories/EmployeeMasterRepository";
 import type { EvaluationPeriodRepository } from "../../domain/repositories/EvaluationPeriodRepository";
 import type { EvaluationSheetRepository } from "../../domain/repositories/EvaluationSheetRepository";
 import type { SheetCorrectionRepository } from "../../domain/repositories/SheetCorrectionRepository";
+import { canCorrectClosedSheets } from "../../domain/services/EmployeeMasterAccessService";
+import type { EvaluationStatusValue } from "../../domain/valueObjects/EvaluationStatus";
 
-/** 遡及処理の一覧に出す、締めたシートの1行。 */
-export interface ClosedSheetRow {
+/** 一覧に出すシートの1行。 */
+export interface MaintainedSheetRow {
 	sheetId: number;
 	employeeName: string;
 	employeeNo: string;
-	status: string;
+	status: EvaluationStatusValue;
 }
 
-/** 遡及処理の画面(Admin だけ)。締めた評価期間のシートを選び、項目を直して記録する。 */
+/**
+ * 遡及処理の画面(Admin だけ)。シートを選び、値を直す(締め済みの期間だけ)・状態を変える・削除する。
+ * 値の修正は締め後修正として本人と評価者に見え、状態変更と削除は通知なしで監査ログに残る。
+ */
 export class RetroactiveCorrectionController {
 	constructor(
+		private readonly employees: Pick<EmployeeMasterRepository, "findCurrentEmployeeProfile">,
 		private readonly periodRepository: Pick<EvaluationPeriodRepository, "findDistinctPeriods">,
 		private readonly sheetRepository: Pick<EvaluationSheetRepository, "findOverview">,
 		private readonly correctionRepository: Pick<SheetCorrectionRepository, "findClosedSheet">,
 		private readonly correctUseCase: CorrectClosedSheetInteractor,
+		private readonly operationUseCase: PrivilegedSheetOperationInteractor,
 	) {}
 
-	/** 締め済みの評価期間。新しい順。直せるのはこの評価期間のシートだけ。 */
-	async closedPeriods(): Promise<EvaluationPeriodDto[]> {
+	/** すべての評価期間。新しい順。Admin でなければ何も読まずに断る(URL を直接開いたときも)。 */
+	async periods(): Promise<EvaluationPeriodDto[]> {
+		const actor = await this.employees.findCurrentEmployeeProfile();
+		if (!actor?.enabled || !canCorrectClosedSheets(actor.role)) {
+			throw new Error("遡及処理は Admin のみ利用できます。");
+		}
 		return new EvaluationCalendar(await this.periodRepository.findDistinctPeriods())
 			.all()
-			.filter((period) => period.isClosed)
 			.map(toEvaluationPeriodDto);
 	}
 
-	/** その評価期間のシート。社員番号順。Admin でなければ失敗する。 */
-	async sheets(periodId: number): Promise<ClosedSheetRow[]> {
+	/** その評価期間のシート。社員番号順。 */
+	async sheets(periodId: number): Promise<MaintainedSheetRow[]> {
 		return (await this.sheetRepository.findOverview())
 			.filter((row) => row.periodId === periodId)
 			.map((row) => ({
@@ -56,6 +72,7 @@ export class RetroactiveCorrectionController {
 			.sort((a, b) => a.employeeNo.localeCompare(b.employeeNo));
 	}
 
+	/** 値を直すためにシートの中身を読む。締め済みの期間のシートだけ(DB も同じ条件で断る)。 */
 	load(sheetId: number): Promise<CorrectableSheetDto> {
 		return this.correctionRepository.findClosedSheet(sheetId).then(toCorrectableSheetDto);
 	}
@@ -81,5 +98,24 @@ export class RetroactiveCorrectionController {
 			return { status: "rejected", message: messageOf(error, "シートを修正できませんでした。") };
 		}
 		return response;
+	}
+
+	/** 状態を変える・削除する。通常の進行条件を越え、どの期間のシートにも行える。 */
+	async operate(
+		request: PrivilegedSheetOperationRequest,
+	): Promise<{ success: boolean; message: string }> {
+		let message = "操作を完了できませんでした。";
+		try {
+			const result = await this.operationUseCase.execute(request, {
+				present: (value) => {
+					message = value.message;
+				},
+			});
+			return result.ok
+				? { success: true, message }
+				: { success: false, message: describePrivilegedSheetOperationError(result.error) };
+		} catch (error) {
+			return { success: false, message: messageOf(error, "操作を完了できませんでした。") };
+		}
 	}
 }

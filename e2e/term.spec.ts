@@ -72,18 +72,15 @@ test("a term is divided, its first half closed with goals only, and its challeng
 
 	await test.step("遡及処理: 締めた評価期間は開き直さず、確定済みのシートを理由つきで直す", async () => {
 		await openFromUserMenu(page, "遡及処理");
-		await page
-			.getByRole("navigation", { name: "締め済みの評価期間" })
-			.getByRole("button", { name: "Release verification" })
-			.click();
-		await page.getByRole("button", { name: "Release test 4さんのシートを直す" }).click();
+		await page.getByLabel("評価期間").selectOption({ label: "Release verification(締め済み)" });
+		await page.getByRole("button", { name: "Release test 4さんのシートを選ぶ" }).click();
 		const goal = page.getByRole("group", { name: "チャレンジ目標 1" });
 		await goal.getByLabel("達成状況 1", { exact: true }).fill("遡及で追記");
 		await goal.getByLabel("二次評価").selectOption("4");
 		const check = page.getByRole("button", { name: /修正内容を確認/ });
 		// 理由が無いうちは確かめられない
 		await expect(check).toBeDisabled();
-		await page.getByLabel(/修正の理由/).fill("評価会議での訂正");
+		await page.getByLabel(/理由/).fill("評価会議での訂正");
 		await check.click();
 		const dialog = page.getByRole("dialog", { name: "締めたシートを修正しますか？" });
 		await expect(dialog).toContainText("チャレンジ目標 1・期中目標と達成状況");

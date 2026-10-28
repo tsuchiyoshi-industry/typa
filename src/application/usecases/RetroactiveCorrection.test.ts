@@ -21,6 +21,7 @@ import {
 import { toEvaluationSheetDto } from "../dtos/EvaluationSheetMapper";
 import { toSheetExportDataDto } from "../dtos/ExportSheetMapper";
 import { CorrectClosedSheetInteractor } from "./CorrectClosedSheetInteractor";
+import type { PrivilegedSheetOperationInteractor } from "./PrivilegedSheetOperationInteractor";
 
 const closedSheet = () => sheet(EvaluationStatus.FINALIZED, undefined, true);
 function setup(role = "Admin", target: EvaluationSheet = closedSheet()) {
@@ -33,12 +34,14 @@ function setup(role = "Admin", target: EvaluationSheet = closedSheet()) {
 		record: vi.fn<SheetCorrectionRepository["record"]>().mockResolvedValue(1),
 	};
 	const controller = new RetroactiveCorrectionController(
+		employees,
 		periodRepository(),
 		{ findOverview: vi.fn() },
 		corrections,
 		new CorrectClosedSheetInteractor(corrections, employees),
+		{} as PrivilegedSheetOperationInteractor,
 	);
-	return { corrections, controller };
+	return { corrections, controller, employees };
 }
 const secondScoreTo3 = {
 	sheetId: 100,
@@ -124,8 +127,8 @@ describe("correcting a closed sheet", () => {
 });
 
 describe("choosing what to correct", () => {
-	it("offers only closed periods, and the sheets of the chosen one in employee number order", async () => {
-		const { corrections } = setup();
+	it("offers every period with whether it is closed, and the sheets of the chosen one in employee number order", async () => {
+		const { corrections, employees } = setup();
 		const row = (id: number, periodId: number, employeeNo: string) =>
 			({
 				id,
@@ -135,6 +138,7 @@ describe("choosing what to correct", () => {
 				status: EvaluationStatus.FINALIZED,
 			}) as EvaluationSheetOverviewRow;
 		const controller = new RetroactiveCorrectionController(
+			employees,
 			periodRepository(),
 			{
 				findOverview: vi
@@ -143,8 +147,13 @@ describe("choosing what to correct", () => {
 			},
 			corrections,
 			{} as CorrectClosedSheetInteractor,
+			{} as PrivilegedSheetOperationInteractor,
 		);
-		expect((await controller.closedPeriods()).map((p) => p.periodName)).toEqual(["前期"]);
+		expect(
+			(await controller.periods())
+				.filter((entry) => entry.state === "closed")
+				.map((entry) => entry.periodName),
+		).toEqual(["前期"]);
 		expect((await controller.sheets(1)).map((s) => s.employeeNo)).toEqual(["E1", "E3"]);
 	});
 });

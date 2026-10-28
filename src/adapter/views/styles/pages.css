@@ -802,10 +802,135 @@ a.setup-task-link:hover {
 	font-size: 1.1rem;
 	font-weight: 650;
 }
-.correction-editor__hint {
-	margin: 0.4rem 0 0;
-	font-size: 0.8125rem;
+.correction-editor__meta {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.4rem;
+	margin: 0.5rem 0 0;
+}
+.correction-editor__meta span {
+	padding: 0.15rem 0.55rem;
+	border: 1px solid var(--hr-border);
+	border-radius: 999px;
+	font-size: 0.75rem;
 	color: var(--hr-text-muted);
+}
+
+/* 操作の切り替え。選んでいるものは面で示す(下線や縦線で強調しない) */
+.correction-modes {
+	display: inline-flex;
+	gap: 2px;
+	margin-top: 1.25rem;
+	padding: 3px;
+	border: 1px solid var(--hr-border);
+	border-radius: var(--hr-radius-md);
+	background: var(--hr-bg);
+}
+.correction-modes button {
+	padding: 0.45rem 1rem;
+	border-radius: calc(var(--hr-radius-md) - 3px);
+	font-size: 0.875rem;
+	font-weight: 600;
+	color: var(--hr-text-muted);
+}
+.correction-modes button:hover:not(:disabled) {
+	color: var(--hr-text);
+}
+.correction-modes button[aria-selected="true"] {
+	background: var(--hr-surface);
+	color: var(--hr-text);
+	box-shadow: var(--hr-shadow);
+}
+.correction-modes button.is-danger[aria-selected="true"] {
+	color: var(--hr-danger-text);
+}
+.correction-modes button:disabled {
+	cursor: not-allowed;
+	opacity: 0.45;
+}
+.correction-pane {
+	margin-top: 0.5rem;
+}
+.correction-pane__hint {
+	margin: 0.75rem 0 0;
+	font-size: 0.8125rem;
+	line-height: 1.7;
+	color: var(--hr-text-muted);
+}
+
+/* 変更後の状態。進む順に縦に並べ、今の状態との前後が見えるようにする */
+.correction-status {
+	margin: 0;
+	padding: 0;
+	border: 0;
+}
+.correction-status legend {
+	padding: 0;
+	margin-top: 1.25rem;
+	font-size: 0.875rem;
+	font-weight: 600;
+}
+.correction-status__steps {
+	display: grid;
+	gap: 0.4rem;
+	max-width: 28rem;
+	margin: 0.9rem 0 0;
+	padding: 0;
+	list-style: none;
+	counter-reset: step;
+}
+.correction-status__option {
+	display: flex;
+	align-items: center;
+	gap: 0.7rem;
+	padding: 0.6rem 0.85rem;
+	border: 1px solid var(--hr-border);
+	border-radius: var(--hr-radius-sm);
+	font-size: 0.9rem;
+	color: var(--hr-text);
+	cursor: pointer;
+	counter-increment: step;
+}
+.correction-status__option::before {
+	content: counter(step);
+	min-width: 1.25rem;
+	font-size: 0.75rem;
+	font-variant-numeric: tabular-nums;
+	color: var(--hr-text-muted);
+}
+.correction-status__option:hover {
+	background: var(--hr-surface-hover);
+}
+.correction-status__option:has(input:checked) {
+	border-color: var(--hr-border-strong);
+	background: var(--hr-accent-muted);
+}
+.correction-status__option.is-current {
+	color: var(--hr-text-muted);
+	background: var(--hr-bg);
+	cursor: default;
+}
+.correction-status__steps input {
+	margin: 0;
+	accent-color: var(--hr-accent);
+}
+.correction-status__steps small {
+	margin-left: auto;
+	font-size: 0.75rem;
+}
+
+.correction-delete {
+	margin-top: 1.25rem;
+	padding: 1rem 1.1rem;
+	border: 1px solid color-mix(in srgb, var(--hr-danger) 40%, transparent);
+	border-radius: var(--hr-radius-md);
+	background: color-mix(in srgb, var(--hr-danger) 6%, var(--hr-surface));
+}
+.correction-delete > p:first-child {
+	margin: 0;
+	font-size: 0.9rem;
+	font-weight: 600;
+	color: var(--hr-danger-text);
 }
 .correction-editor h3 {
 	margin: 1.75rem 0 0.6rem;
@@ -897,12 +1022,4 @@ a.setup-task-link:hover {
 }
 .correction-editor .correction-notice {
 	margin-top: 1.75rem;
-}
-
-.privileged-operation-form {
-	display: grid;
-	gap: 1rem;
-}
-.privileged-operation-form .primary-action {
-	justify-self: start;
 }

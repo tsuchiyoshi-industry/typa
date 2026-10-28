@@ -1,12 +1,27 @@
-import FilePenLine from "lucide-solid/icons/file-pen-line";
 import Search from "lucide-solid/icons/search";
-import { type Component, createResource, createSignal, For, Show } from "solid-js";
+import ShieldAlert from "lucide-solid/icons/shield-alert";
+import {
+	type Component,
+	createMemo,
+	createResource,
+	createSignal,
+	For,
+	Match,
+	Show,
+	Switch,
+} from "solid-js";
 import type { CorrectableSheetDto } from "../../application/dtos/SheetCorrectionDto";
 import { messageOf } from "../../application/errorMessage";
 import type { RequestedChange } from "../../domain/entities/RetroactiveCorrection";
 import { parsePeriodGoals } from "../../domain/valueObjects/CorrectionField";
-import type { EvaluationStatusValue } from "../../domain/valueObjects/EvaluationStatus";
-import type { RetroactiveCorrectionController } from "../controllers/RetroactiveCorrectionController";
+import {
+	EVALUATION_STATUS_VALUES,
+	type EvaluationStatusValue,
+} from "../../domain/valueObjects/EvaluationStatus";
+import type {
+	MaintainedSheetRow,
+	RetroactiveCorrectionController,
+} from "../controllers/RetroactiveCorrectionController";
 import { PeriodGoalsEditor } from "./components/PeriodGoals";
 import SheetCorrectionsNotice from "./components/SheetCorrectionsNotice";
 import { confirmAction, confirmDiscard, showToast, trackUnsaved } from "./feedback";
@@ -47,22 +62,43 @@ function originalValues(sheet: CorrectableSheetDto): Map<string, string> {
 	return values;
 }
 
+/** シートに対してできること。値を直せるのは締め済みの期間のシートだけ。 */
+type Mode = "values" | "status" | "delete";
+const MODES: { value: Mode; label: string }[] = [
+	{ value: "values", label: "値を直す" },
+	{ value: "status", label: "状態を変える" },
+	{ value: "delete", label: "削除する" },
+];
+
 /**
- * 遡及処理(Admin だけ)。締めた評価期間を開き直さずに、締めたシートの項目を1つずつ直す。
- * 直した内容は理由とともに消えない記録になり、本人と評価者のシートに「締め後修正」として出る。
+ * 遡及処理(Admin だけ)。選んだシートの値を直す(締め済みの期間だけ)、状態を変える、削除する。
+ * 値を直したことは本人と評価者のシートに「締め後修正」として出る。状態変更と削除は通知せず、監査ログに残す。
  */
 const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionController }> = (
 	props,
 ) => {
-	const [periods] = createResource(() => props.controller.closedPeriods());
+	const [periods] = createResource(() => props.controller.periods());
 	const [periodId, setPeriodId] = createSignal<number | null>(null);
 	// 読み込みに失敗したリソースの値を読むと例外になるので、失敗したら空として扱う(理由は別に出す)
 	const periodList = () => (periods.error ? [] : (periods() ?? []));
-	const sheetList = () => (sheets.error ? [] : (sheets() ?? []));
-	const selectedPeriod = () => periodId() ?? periodList()[0]?.id ?? null;
-	const [sheets] = createResource(selectedPeriod, (id) => props.controller.sheets(id));
+	const selectedPeriod = () =>
+		periodId() ?? periodList().find((entry) => entry.isActive)?.id ?? periodList()[0]?.id ?? null;
+	const period = () => periodList().find((entry) => entry.id === selectedPeriod());
+	const periodClosed = () => period()?.state === "closed";
+	const [sheets, { refetch: refetchSheets }] = createResource(selectedPeriod, (id) =>
+		props.controller.sheets(id),
+	);
+	// 操作の後に読み直す間も、一覧と選んだシートを出したままにする
+	const sheetList = () => (sheets.error ? [] : (sheets.latest ?? []));
 	const [sheetId, setSheetId] = createSignal<number | null>(null);
-	const [sheet, { refetch }] = createResource(sheetId, (id) => props.controller.load(id));
+	const row = createMemo(() => sheetList().find((entry) => entry.sheetId === sheetId()));
+	// 中身は値を直すときだけ要る。締めていない期間のシートは読みにいかない(DB も断る)
+	const [sheet, { refetch }] = createResource(
+		() => (periodClosed() && sheetId()) || false,
+		(id) => props.controller.load(id),
+	);
+	const [mode, setMode] = createSignal<Mode>("values");
+	const [nextStatus, setNextStatus] = createSignal<EvaluationStatusValue | null>(null);
 	const [drafts, setDrafts] = createSignal(new Map<string, string>());
 	const [reason, setReason] = createSignal("");
 	const [busy, setBusy] = createSignal(false);
@@ -88,82 +124,173 @@ const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionCo
 				return { target, targetId: targetId ? Number(targetId) : null, field, value };
 			});
 
-	// 書きかけの修正があるうちは、別のシート・期間へ移る前と画面を離れる前に確かめる
-	const dirty = () => changes().length > 0 || reason().trim() !== "";
+	const clearInput = () => {
+		setDrafts(new Map());
+		setNextStatus(null);
+		setReason("");
+	};
+	// 書きかけがあるうちは、別のシート・期間へ移る前と画面を離れる前に確かめる
+	const dirty = () => changes().length > 0 || nextStatus() !== null || reason().trim() !== "";
 	trackUnsaved("retroactive-correction", dirty);
-	const discardDraft = async () => {
+	const discardInput = async () => {
 		if (!(await confirmDiscard(dirty()))) {
 			return false;
 		}
-		setDrafts(new Map());
-		setReason("");
+		clearInput();
 		return true;
 	};
 	const open = async (id: number) => {
-		if (id !== sheetId() && (await discardDraft())) {
+		if (id !== sheetId() && (await discardInput())) {
 			setSheetId(id);
+			setMode(periodClosed() ? "values" : "status");
 		}
 	};
 	const choosePeriod = async (id: number) => {
-		if (id !== selectedPeriod() && (await discardDraft())) {
+		if (id !== selectedPeriod() && (await discardInput())) {
 			setPeriodId(id);
 			setSheetId(null);
 			setQuery("");
 		}
 	};
+	// 理由は操作をまたいで残す。直しかけの値だけは、別の操作へ移る前に確かめる
+	const chooseMode = async (next: Mode) => {
+		if (next === mode() || (changes().length > 0 && !(await confirmDiscard(true)))) {
+			return;
+		}
+		setDrafts(new Map());
+		setNextStatus(null);
+		setMode(next);
+	};
 	const visibleSheets = () => {
 		const term = normalize(query().trim());
 		return term
-			? sheetList().filter((row) =>
-					normalize(`${row.employeeNo} ${row.employeeName}`).includes(term),
+			? sheetList().filter((entry) =>
+					normalize(`${entry.employeeNo} ${entry.employeeName}`).includes(term),
 				)
 			: sheetList();
 	};
 
+	const correctValues = async (id: number) => {
+		const request = { sheetId: id, changes: changes(), reason: reason() };
+		const checked = await props.controller.correct({ ...request, confirmed: false });
+		if (checked.status !== "ready") {
+			showToast(
+				"error",
+				"修正できません",
+				checked.status === "rejected" ? checked.message : undefined,
+			);
+			return;
+		}
+		const confirmed = await confirmAction({
+			title: "締めたシートを修正しますか？",
+			message: `理由: ${reason().trim()}`,
+			details: checked.changes.map(
+				(change) => `${change.subject}: ${change.before} → ${change.after}`,
+			),
+			note: "修正したことは取り消せず、本人と評価者のシートに「締め後修正」として表示されます。評価期間は締めたまま変わりません。",
+			confirmLabel: "修正を記録する",
+			tone: "danger",
+		});
+		if (!confirmed) {
+			return;
+		}
+		const result = await props.controller.correct({ ...request, confirmed: true });
+		if (result.status === "corrected") {
+			showToast("success", result.message);
+			clearInput();
+			await refetch();
+		} else {
+			// 失敗しても、入力した内容は残す
+			showToast(
+				"error",
+				"修正を記録できませんでした",
+				result.status === "rejected" ? result.message : undefined,
+			);
+		}
+	};
+
+	const operate = async (target: MaintainedSheetRow) => {
+		const deleting = mode() === "delete";
+		const status = nextStatus();
+		const who = `${target.employeeName}(${target.employeeNo})・${period()?.periodName}`;
+		// 確かめている間に状態が変わっていたら DB が断る(表示した状態と照らし合わせる)
+		const request = {
+			sheetId: target.sheetId,
+			expectedStatus: target.status,
+			action: deleting ? "delete" : "changeStatus",
+			status: deleting ? undefined : (status ?? undefined),
+			reason: reason().trim(),
+		};
+		const confirmed = await confirmAction(
+			deleting
+				? {
+						title: "シートを削除しますか？",
+						message: `理由: ${request.reason}`,
+						details: [who, "評価シートと、その目標・評価・修正の記録を削除"],
+						note: "削除は取り消せません。通知は送らず、削除前の内容と理由を監査ログに残します。",
+						confirmLabel: "シートを削除する",
+						tone: "danger",
+					}
+				: {
+						title: "シートの状態を変更しますか？",
+						message: `理由: ${request.reason}`,
+						details: [
+							who,
+							`${statusLabel(target.status)} → ${statusLabel(status as EvaluationStatusValue)}`,
+						],
+						note: "承認や通常の進行条件を省略します。記入した内容と点数はそのままで、確定した評価点とランクは解除されます。通知は送らず、前後の状態と理由を監査ログに残します。",
+						confirmLabel: "状態を変更する",
+						tone: "danger",
+					},
+		);
+		if (!confirmed) {
+			return;
+		}
+		const result = await props.controller.operate(request);
+		if (!result.success) {
+			// 失敗しても、選んだシートと理由は残す
+			showToast("error", "操作を実行できませんでした", result.message);
+			return;
+		}
+		showToast("success", result.message);
+		clearInput();
+		if (deleting) {
+			setSheetId(null);
+		} else if (periodClosed()) {
+			await refetch();
+		}
+		await refetchSheets();
+	};
+
+	const canSubmit = () =>
+		!busy() &&
+		!!row() &&
+		reason().trim() !== "" &&
+		(mode() === "values"
+			? changes().length > 0
+			: mode() === "status"
+				? nextStatus() !== null
+				: true);
+	const submitLabel = () =>
+		mode() === "values"
+			? `修正内容を確認(${changes().length}件)`
+			: mode() === "status"
+				? "状態の変更を確認"
+				: "削除を確認";
 	const submit = async () => {
-		const id = sheetId();
-		if (id === null || busy()) {
+		const target = row();
+		if (!target || !canSubmit()) {
 			return;
 		}
 		setBusy(true);
 		try {
-			const request = { sheetId: id, changes: changes(), reason: reason() };
-			const checked = await props.controller.correct({ ...request, confirmed: false });
-			if (checked.status !== "ready") {
-				showToast(
-					"error",
-					"修正できません",
-					checked.status === "rejected" ? checked.message : undefined,
-				);
-				return;
-			}
-			const confirmed = await confirmAction({
-				title: "締めたシートを修正しますか？",
-				message: `理由: ${reason().trim()}`,
-				details: checked.changes.map(
-					(change) => `${change.subject}: ${change.before} → ${change.after}`,
-				),
-				note: "修正したことは取り消せず、本人と評価者のシートに「締め後修正」として表示されます。評価期間は締めたまま変わりません。",
-				confirmLabel: "修正を記録する",
-				tone: "danger",
-			});
-			if (!confirmed) {
-				return;
-			}
-			const result = await props.controller.correct({ ...request, confirmed: true });
-			if (result.status === "corrected") {
-				showToast("success", result.message);
-				setDrafts(new Map());
-				setReason("");
-				await refetch();
-			} else {
-				// 失敗しても、入力した内容は残す
-				showToast(
-					"error",
-					"修正を記録できませんでした",
-					result.status === "rejected" ? result.message : undefined,
-				);
-			}
+			await (mode() === "values" ? correctValues(target.sheetId) : operate(target));
+		} catch (error) {
+			showToast(
+				"error",
+				"操作を完了できませんでした",
+				messageOf(error, "時間をおいて再度お試しください。"),
+			);
 		} finally {
 			setBusy(false);
 		}
@@ -198,16 +325,150 @@ const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionCo
 		</label>
 	);
 
+	const valuesPane = (loaded: CorrectableSheetDto) => (
+		<>
+			<p class="correction-pane__hint">
+				直したい欄だけを書き換えてください。書き換えた欄は赤く表示されます。点数は 1〜4 です。
+			</p>
+			<h3>チャレンジ目標</h3>
+			<For each={loaded.goals}>
+				{(goal) => {
+					const tasks: Field = { target: "goal", targetId: goal.id, field: "period_goals" };
+					const achievement: Field = { target: "goal", targetId: goal.id, field: "achievement" };
+					return (
+						<fieldset class="correction-group">
+							<legend>チャレンジ目標 {goal.goalNumber}</legend>
+							{textArea(
+								{ target: "goal", targetId: goal.id, field: "challenge_goal" },
+								"チャレンジ目標",
+							)}
+							<div classList={{ "correction-field--changed": changed(tasks) }}>
+								<PeriodGoalsEditor
+									goals={parsePeriodGoals(draftValue(tasks)) ?? []}
+									achievement={draftValue(achievement)}
+									disabled={busy()}
+									achievementClassList={{
+										"correction-field": true,
+										"correction-field--changed": changed(achievement),
+									}}
+									onChange={(next) => {
+										edit(tasks, JSON.stringify(next.periodGoals));
+										edit(achievement, next.achievement);
+									}}
+								/>
+							</div>
+							<div class="correction-scores">
+								{scoreSelect(
+									{ target: "goal", targetId: goal.id, field: "first_score" },
+									"一次評価",
+								)}
+								<Show when={!loaded.primaryIsFinalEvaluator}>
+									{scoreSelect(
+										{ target: "goal", targetId: goal.id, field: "second_score" },
+										"二次評価",
+									)}
+								</Show>
+							</div>
+						</fieldset>
+					);
+				}}
+			</For>
+			<h3>共通評価</h3>
+			<For each={loaded.commonItems}>
+				{(item) => (
+					<fieldset class="correction-group">
+						<legend>{item.title}</legend>
+						<div class="correction-scores">
+							{scoreSelect(
+								{ target: "common", targetId: item.itemId, field: "first_score" },
+								"一次評価",
+							)}
+							<Show when={!loaded.primaryIsFinalEvaluator}>
+								{scoreSelect(
+									{ target: "common", targetId: item.itemId, field: "second_score" },
+									"二次評価",
+								)}
+							</Show>
+						</div>
+						{textArea(
+							{ target: "common", targetId: item.itemId, field: "first_comment" },
+							"一次評価者コメント",
+						)}
+					</fieldset>
+				)}
+			</For>
+			<h3>総評</h3>
+			{textArea(
+				{ target: "sheet", targetId: null, field: "first_overall_comment" },
+				"一次評価者の総評",
+			)}
+			<Show when={!loaded.primaryIsFinalEvaluator}>
+				{textArea(
+					{ target: "sheet", targetId: null, field: "second_overall_comment" },
+					"二次評価者の総評",
+				)}
+			</Show>
+			<SheetCorrectionsNotice
+				corrections={loaded.corrections}
+				heading={`このシートの修正の記録(${loaded.corrections.length}件)`}
+			/>
+		</>
+	);
+
+	// 状態は進む順に並べ、今の状態から前へ戻すのか先へ進めるのかを見て選べるようにする
+	const statusPane = (current: EvaluationStatusValue) => (
+		<fieldset class="correction-status">
+			<legend>変更後の状態</legend>
+			<p class="correction-pane__hint">
+				承認や通常の進行条件を省略して、どの状態へも移せます。記入した内容と点数はそのままで、確定した評価点とランクは解除されます。通知は送りません。
+			</p>
+			<ol class="correction-status__steps">
+				<For each={EVALUATION_STATUS_VALUES}>
+					{(value) => (
+						<li>
+							<label
+								class="correction-status__option"
+								classList={{ "is-current": value === current }}
+							>
+								<input
+									type="radio"
+									name="next-status"
+									value={value}
+									checked={nextStatus() === value}
+									disabled={busy() || value === current}
+									onChange={() => setNextStatus(value)}
+								/>
+								<span>{statusLabel(value)}</span>
+								<Show when={value === current}>
+									<small>現在</small>
+								</Show>
+							</label>
+						</li>
+					)}
+				</For>
+			</ol>
+		</fieldset>
+	);
+
+	const deletePane = () => (
+		<div class="correction-delete">
+			<p>このシートを削除します。目標・評価・修正の記録もまとめて削除され、取り消せません。</p>
+			<p class="correction-pane__hint">
+				通知は送りません。削除前の内容と理由は監査ログに残ります。テストや誤って作ったシートの片付けに使います。
+			</p>
+		</div>
+	);
+
 	return (
 		<div class="correction-page">
 			<header class="master-header">
 				<div>
 					<h1>
-						<FilePenLine class="header-icon" />
+						<ShieldAlert class="header-icon" />
 						遡及処理
 					</h1>
 					<p class="correction-lead">
-						締めた評価期間のシートを、評価期間を開き直さずに直します。直した内容は理由とともに記録され、本人と評価者のシートに「締め後修正」として赤字で表示されます。
+						評価シートの値と状態を、通常の手順を越えて直します。値を直せるのは締めた評価期間のシートだけで、直したことは本人と評価者のシートに「締め後修正」として赤字で表示されます。状態の変更と削除はどの評価期間のシートにもでき、通知は送らずに監査ログへ記録します。
 					</p>
 				</div>
 			</header>
@@ -219,26 +480,30 @@ const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionCo
 				>
 					<Show
 						when={periodList().length > 0}
-						fallback={<p class="page-note">締め済みの評価期間はまだありません。</p>}
+						fallback={<p class="page-note">評価期間はまだありません。</p>}
 					>
 						<div class="correction-layout">
 							<section class="correction-picker" aria-labelledby="correction-sheets-heading">
-								<h2 id="correction-sheets-heading">締めたシート</h2>
+								<h2 id="correction-sheets-heading">シート</h2>
 								<label class="correction-picker__field">
 									<span>評価期間</span>
 									<select
 										value={selectedPeriod() ?? ""}
+										disabled={busy()}
 										onChange={(event) => {
 											const select = event.currentTarget;
-											const id = Number(select.value);
 											// 確認で取りやめたら、選択を元の期間に戻す
-											void choosePeriod(id).then(() => {
+											void choosePeriod(Number(select.value)).then(() => {
 												select.value = String(selectedPeriod() ?? "");
 											});
 										}}
 									>
 										<For each={periodList()}>
-											{(period) => <option value={period.id}>{period.periodName}</option>}
+											{(entry) => (
+												<option value={entry.id}>
+													{entry.periodName}({entry.stateLabel})
+												</option>
+											)}
 										</For>
 									</select>
 								</label>
@@ -258,7 +523,7 @@ const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionCo
 									</p>
 								</Show>
 								<Show
-									when={!sheets.loading}
+									when={sheets.state !== "pending"}
 									fallback={<p class="page-note">読み込んでいます...</p>}
 								>
 									<p class="correction-picker__count" role="status">
@@ -278,18 +543,19 @@ const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionCo
 									>
 										<ul class="correction-sheet-list">
 											<For each={visibleSheets()}>
-												{(row) => (
+												{(entry) => (
 													<li>
 														<button
 															type="button"
-															aria-label={`${row.employeeName}さんのシートを直す`}
-															aria-current={row.sheetId === sheetId() ? "true" : undefined}
-															onClick={() => void open(row.sheetId)}
+															aria-label={`${entry.employeeName}さんのシートを選ぶ`}
+															aria-current={entry.sheetId === sheetId() ? "true" : undefined}
+															disabled={busy()}
+															onClick={() => void open(entry.sheetId)}
 														>
-															<span class="correction-sheet-list__no">{row.employeeNo}</span>
-															<span class="correction-sheet-list__name">{row.employeeName}</span>
+															<span class="correction-sheet-list__no">{entry.employeeNo}</span>
+															<span class="correction-sheet-list__name">{entry.employeeName}</span>
 															<span class="correction-sheet-list__status">
-																{statusLabel(row.status as EvaluationStatusValue)}
+																{statusLabel(entry.status)}
 															</span>
 														</button>
 													</li>
@@ -301,136 +567,83 @@ const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionCo
 							</section>
 
 							<div class="correction-workspace">
-								<Show when={sheet.error}>
-									<div class="inline-alert" role="alert">
-										<span>{messageOf(sheet.error, "シートを読み込めませんでした。")}</span>
-									</div>
-								</Show>
-								<Show when={!sheetId()}>
-									<p class="correction-empty">左の一覧から、直すシートを選んでください。</p>
-								</Show>
-								<Show when={sheetId() && sheet.loading}>
-									<p class="page-note">シートを読み込んでいます...</p>
-								</Show>
-								<Show when={!sheet.error && sheet()}>
-									{(loaded) => (
+								<Show
+									when={row()}
+									fallback={<p class="correction-empty">左の一覧から、シートを選んでください。</p>}
+								>
+									{(target) => (
 										<section class="correction-editor" aria-labelledby="correction-editor-heading">
 											<header class="correction-editor__head">
 												<h2 id="correction-editor-heading">
-													{loaded().employeeName}さん({loaded().employeeNo})・{loaded().periodName}
-													を直す
+													{target().employeeName}さん({target().employeeNo})・{period()?.periodName}
 												</h2>
-												<p class="correction-editor__hint">
-													直したい欄だけを書き換えてください。書き換えた欄は赤く表示されます。点数は
-													1〜4 です。
+												<p class="correction-editor__meta">
+													<span>{statusLabel(target().status)}</span>
+													<span>評価期間は{period()?.stateLabel}</span>
 												</p>
 											</header>
-
-											<h3>チャレンジ目標</h3>
-											<For each={loaded().goals}>
-												{(goal) => (
-													<fieldset class="correction-group">
-														<legend>チャレンジ目標 {goal.goalNumber}</legend>
-														{textArea(
-															{ target: "goal", targetId: goal.id, field: "challenge_goal" },
-															"チャレンジ目標",
-														)}
-
-														{(() => {
-															const tasks: Field = {
-																target: "goal",
-																targetId: goal.id,
-																field: "period_goals",
-															};
-															const achievement: Field = {
-																target: "goal",
-																targetId: goal.id,
-																field: "achievement",
-															};
-															return (
-																<div classList={{ "correction-field--changed": changed(tasks) }}>
-																	<PeriodGoalsEditor
-																		goals={parsePeriodGoals(draftValue(tasks)) ?? []}
-																		achievement={draftValue(achievement)}
-																		disabled={busy()}
-																		achievementClassList={{
-																			"correction-field": true,
-																			"correction-field--changed": changed(achievement),
-																		}}
-																		onChange={(next) => {
-																			edit(tasks, JSON.stringify(next.periodGoals));
-																			edit(achievement, next.achievement);
-																		}}
-																	/>
-																</div>
-															);
-														})()}
-														<div class="correction-scores">
-															{scoreSelect(
-																{ target: "goal", targetId: goal.id, field: "first_score" },
-																"一次評価",
-															)}
-															<Show when={!loaded().primaryIsFinalEvaluator}>
-																{scoreSelect(
-																	{ target: "goal", targetId: goal.id, field: "second_score" },
-																	"二次評価",
-																)}
-															</Show>
-														</div>
-													</fieldset>
-												)}
-											</For>
-
-											<h3>共通評価</h3>
-											<For each={loaded().commonItems}>
-												{(item) => (
-													<fieldset class="correction-group">
-														<legend>{item.title}</legend>
-														<div class="correction-scores">
-															{scoreSelect(
-																{ target: "common", targetId: item.itemId, field: "first_score" },
-																"一次評価",
-															)}
-															<Show when={!loaded().primaryIsFinalEvaluator}>
-																{scoreSelect(
-																	{
-																		target: "common",
-																		targetId: item.itemId,
-																		field: "second_score",
-																	},
-																	"二次評価",
-																)}
-															</Show>
-														</div>
-														{textArea(
-															{ target: "common", targetId: item.itemId, field: "first_comment" },
-															"一次評価者コメント",
-														)}
-													</fieldset>
-												)}
-											</For>
-
-											<h3>総評</h3>
-											{textArea(
-												{ target: "sheet", targetId: null, field: "first_overall_comment" },
-												"一次評価者の総評",
-											)}
-											<Show when={!loaded().primaryIsFinalEvaluator}>
-												{textArea(
-													{ target: "sheet", targetId: null, field: "second_overall_comment" },
-													"二次評価者の総評",
-												)}
+											<div
+												class="correction-modes"
+												role="tablist"
+												aria-label="このシートに行う操作"
+											>
+												<For each={MODES}>
+													{(entry) => (
+														<button
+															type="button"
+															role="tab"
+															id={`correction-mode-${entry.value}`}
+															aria-selected={mode() === entry.value}
+															aria-controls="correction-mode-panel"
+															classList={{ "is-danger": entry.value === "delete" }}
+															disabled={busy() || (entry.value === "values" && !periodClosed())}
+															onClick={() => void chooseMode(entry.value)}
+														>
+															{entry.label}
+														</button>
+													)}
+												</For>
+											</div>
+											<Show when={!periodClosed()}>
+												<p class="correction-pane__hint">
+													値を直せるのは、締め済みの評価期間のシートだけです。締める前のシートの値は、本人と評価者がシートで直します。
+												</p>
 											</Show>
-
-											<SheetCorrectionsNotice
-												corrections={loaded().corrections}
-												heading={`このシートの修正の記録(${loaded().corrections.length}件)`}
-											/>
+											<div
+												id="correction-mode-panel"
+												class="correction-pane"
+												role="tabpanel"
+												aria-labelledby={`correction-mode-${mode()}`}
+											>
+												<Switch>
+													<Match when={mode() === "values"}>
+														<Show when={sheet.error}>
+															<div class="inline-alert" role="alert">
+																<span>
+																	{messageOf(sheet.error, "シートを読み込めませんでした。")}
+																</span>
+															</div>
+														</Show>
+														<Show
+															when={!sheet.error && sheet()}
+															fallback={
+																<Show when={!sheet.error}>
+																	<p class="page-note">シートを読み込んでいます...</p>
+																</Show>
+															}
+														>
+															{(loaded) => valuesPane(loaded())}
+														</Show>
+													</Match>
+													<Match when={mode() === "status"}>{statusPane(target().status)}</Match>
+													<Match when={mode() === "delete"}>{deletePane()}</Match>
+												</Switch>
+											</div>
 
 											{/* 長いシートの下まで送らなくても、理由と確認にすぐ手が届くよう画面の下に留める */}
 											<div class="correction-submit">
 												<label class="correction-reason">
-													<span>修正の理由(必須・500 文字まで)</span>
+													<span>理由(必須・500 文字まで)</span>
 													<textarea
 														rows={2}
 														maxLength={500}
@@ -442,10 +655,11 @@ const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionCo
 												<button
 													type="button"
 													class="primary-action"
-													disabled={busy() || changes().length === 0 || !reason().trim()}
+													classList={{ danger: mode() === "delete" }}
+													disabled={!canSubmit()}
 													onClick={() => void submit()}
 												>
-													修正内容を確認({changes().length}件)
+													{submitLabel()}
 												</button>
 											</div>
 										</section>

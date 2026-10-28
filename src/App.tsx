@@ -15,7 +15,6 @@ import { CommonEvaluationController } from "./adapter/controllers/CommonEvaluati
 import { EmployeeMasterController } from "./adapter/controllers/EmployeeMasterController";
 import { EvaluationPeriodController } from "./adapter/controllers/EvaluationPeriodController";
 import { NotificationInboxController } from "./adapter/controllers/NotificationInboxController";
-import { PrivilegedOperationsController } from "./adapter/controllers/PrivilegedOperationsController";
 import { RetroactiveCorrectionController } from "./adapter/controllers/RetroactiveCorrectionController";
 import { ReviewerWorkspaceController } from "./adapter/controllers/ReviewerWorkspaceController";
 import { SettingsController } from "./adapter/controllers/SettingsController";
@@ -101,7 +100,6 @@ const ReviewerWorkspaceView = lazy(() => import("./adapter/views/ReviewerWorkspa
 const SettingsView = lazy(() => import("./adapter/views/SettingsView"));
 const SheetImportView = lazy(() => import("./adapter/views/SheetImportView"));
 const RetroactiveCorrectionView = lazy(() => import("./adapter/views/RetroactiveCorrectionView"));
-const PrivilegedOperationsView = lazy(() => import("./adapter/views/PrivilegedOperationsView"));
 const SetupView = lazy(() => import("./adapter/views/SetupView"));
 const SheetEditorView = lazy(() => import("./adapter/views/SheetEditorView"));
 const SheetListView = lazy(() => import("./adapter/views/SheetListView"));
@@ -114,7 +112,6 @@ const protectedViews = [
 	SetupView,
 	SheetImportView,
 	RetroactiveCorrectionView,
-	PrivilegedOperationsView,
 	SheetEditorView,
 	SheetListView,
 ];
@@ -139,21 +136,17 @@ const reviewerWorkspaceController = new ReviewerWorkspaceController(
 	evaluationPeriodRepository,
 	employeeMasterRepository,
 );
-const privilegedOperationsController = new PrivilegedOperationsController(
-	employeeMasterRepository,
-	evaluationPeriodRepository,
-	evaluationSheetRepository,
-	new PrivilegedSheetOperationInteractor(
-		new SupabasePrivilegedSheetRepository(),
-		employeeMasterRepository,
-	),
-);
 const sheetCorrectionRepository = new SupabaseSheetCorrectionRepository();
 const retroactiveCorrectionController = new RetroactiveCorrectionController(
+	employeeMasterRepository,
 	evaluationPeriodRepository,
 	evaluationSheetRepository,
 	sheetCorrectionRepository,
 	new CorrectClosedSheetInteractor(sheetCorrectionRepository, employeeMasterRepository),
+	new PrivilegedSheetOperationInteractor(
+		new SupabasePrivilegedSheetRepository(),
+		employeeMasterRepository,
+	),
 );
 const settingsController = new SettingsController(
 	evaluationSettingsRepository,
@@ -455,12 +448,6 @@ const App: Component = () => {
 						path="/retroactive"
 						component={() => (
 							<RetroactiveCorrectionView controller={retroactiveCorrectionController} />
-						)}
-					/>
-					<Route
-						path="/privileged"
-						component={() => (
-							<PrivilegedOperationsView controller={privilegedOperationsController} />
 						)}
 					/>
 					<Route path="/help" component={HelpView} />

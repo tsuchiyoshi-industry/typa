@@ -400,17 +400,14 @@ test("manual screenshots", async ({ page }) => {
 
 		// 遡及処理: 締めた 2026年度 下期の、佐藤さんのシートを直す
 		await menu(page, "遡及処理");
-		await page
-			.getByRole("navigation", { name: "締め済みの評価期間" })
-			.getByRole("button", { name: "2026年度 下期" })
-			.click();
-		await page.getByRole("button", { name: "佐藤 三郎さんのシートを直す" }).click();
+		await page.getByLabel("評価期間").selectOption({ label: "2026年度 下期(締め済み)" });
+		await page.getByRole("button", { name: "佐藤 三郎さんのシートを選ぶ" }).click();
 		const goal = page.getByRole("group", { name: "チャレンジ目標 1" });
 		await goal
 			.getByLabel("達成状況")
 			.fill("入力チェック表を作って運用した。3月の手戻りは月8件になった");
 		await goal.getByLabel("二次評価").selectOption("4");
-		await page.getByLabel(/修正の理由/).fill("3月の集計の誤りが見つかり、評価会議で見直した");
+		await page.getByLabel(/理由/).fill("3月の集計の誤りが見つかり、評価会議で見直した");
 		await shot(page.locator(".correction-editor"), "admin", "14-retroactive");
 		await page.getByRole("button", { name: /修正内容を確認/ }).click();
 		const correcting = page.getByRole("dialog", { name: "締めたシートを修正しますか？" });

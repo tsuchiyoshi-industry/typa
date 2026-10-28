@@ -1,7 +1,6 @@
 import { A, useLocation } from "@solidjs/router";
 import ChevronDown from "lucide-solid/icons/chevron-down";
 import CircleQuestionMark from "lucide-solid/icons/circle-question-mark";
-import FilePenLine from "lucide-solid/icons/file-pen-line";
 import LogOut from "lucide-solid/icons/log-out";
 import Menu from "lucide-solid/icons/menu";
 import PackageOpen from "lucide-solid/icons/package-open";
@@ -158,14 +157,8 @@ const DashboardLayout: Component<{
 									class="user-menu-item"
 									onClick={() => setUserMenuOpen(false)}
 								>
-									<FilePenLine size={18} />
-									<span>遡及処理</span>
-								</A>
-							</Show>
-							<Show when={user()?.canRunPrivilegedOperations}>
-								<A href="/privileged" class="user-menu-item" onClick={() => setUserMenuOpen(false)}>
 									<ShieldAlert size={18} />
-									<span>特権操作</span>
+									<span>遡及処理</span>
 								</A>
 							</Show>
 							<A href="/help" class="user-menu-item" onClick={() => setUserMenuOpen(false)}>

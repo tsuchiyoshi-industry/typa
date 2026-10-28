@@ -85,8 +85,10 @@ export function reviewTask(row: ReviewerRow): ReviewTask {
 	return "waiting";
 }
 
-export const isMyTurn = (row: ReviewerRow): boolean =>
-	reviewTask(row) === "goals" || reviewTask(row) === "first" || reviewTask(row) === "second";
+export const isMyTurn = (row: ReviewerRow): boolean => {
+	const task = reviewTask(row);
+	return task === "goals" || task === "first" || task === "second";
+};
 
 /** 評価者は、本人が目標を送信したシートだけを開ける。下書きは内容が届かない。 */
 export const canOpen = (row: ReviewerRow): boolean =>

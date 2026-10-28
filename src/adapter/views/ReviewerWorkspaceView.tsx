@@ -10,8 +10,10 @@ import {
 	type Component,
 	createEffect,
 	createMemo,
+	createSelector,
 	createSignal,
 	For,
+	Index,
 	onCleanup,
 	onMount,
 	Show,
@@ -59,7 +61,13 @@ const PIE = { center: 12, radius: 8.5, gap: 0.7 };
  * 円を steps 個に切り分けたときの index 番目のピース(12時から時計回り)。
  * すき間を中心までどこも同じ幅にするため、切り口を境の線から平行にずらす。
  */
+const piePieces = new Map<string, string>();
 const piePiece = (index: number, steps: number): string => {
+	const cacheKey = `${index}/${steps}`;
+	const cached = piePieces.get(cacheKey);
+	if (cached !== undefined) {
+		return cached;
+	}
 	const angle = (2 * Math.PI) / steps;
 	const from = index * angle;
 	const to = from + angle;
@@ -68,12 +76,14 @@ const piePiece = (index: number, steps: number): string => {
 	const tip = PIE.gap / Math.sin(angle / 2);
 	const at = (x: number, y: number) =>
 		`${(PIE.center + x).toFixed(2)} ${(PIE.center + y).toFixed(2)}`;
-	return [
+	const path = [
 		`M${at(tip * Math.sin(middle), -tip * Math.cos(middle))}`,
 		`L${at(PIE.gap * Math.cos(from) + reach * Math.sin(from), PIE.gap * Math.sin(from) - reach * Math.cos(from))}`,
 		`A${PIE.radius} ${PIE.radius} 0 0 1 ${at(reach * Math.sin(to) - PIE.gap * Math.cos(to), -reach * Math.cos(to) - PIE.gap * Math.sin(to))}`,
 		"Z",
 	].join("");
+	piePieces.set(cacheKey, path);
+	return path;
 };
 /**
  * その人の進み具合。円を段階の数(目標送信 → 目標確定 → 一次評価の依頼 → 一次評価 → 二次評価)に切り分け、済んだ段階を塗る。
@@ -179,10 +189,17 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 	const primaryEvaluatorLabel = createMemo(() =>
 		primaryEvaluators().find((label) => label.id === primaryEvaluator()),
 	);
-	const count = (task: ReviewFilter) => rows().filter((row) => reviewTask(row) === task).length;
+	const finalizedCount = createMemo(
+		() => rows().filter((row) => reviewTask(row) === "finalized").length,
+	);
 	const stats = createMemo(() => reviewStats(rows()));
 	const next = createMemo(() => nextMyTurn(visible(), current()?.employeeId));
-	const listGroups = createMemo(() => (byGrade() ? groupByGrade(visible()) : [visible()]));
+	const myTurnCount = createMemo(() => visible().filter(isMyTurn).length);
+	const gradeGroups = createMemo(() => (byGrade() ? groupByGrade(visible()) : []));
+	// 行ごとの「開いている行か」「選んだ人か」は、変わった行だけを描き直す
+	const isCurrent = createSelector(() => current()?.employeeId);
+	const isSelected = createSelector(selected, (employeeId: number, set) => set.has(employeeId));
+	const selectionFull = createMemo(() => selected().size >= 6);
 	/** 比較に選んだ人のうち、いまの絞り込みで一覧に出ている人。 */
 	const compared = createMemo(() => visible().filter((row) => selected().has(row.employeeId)));
 	const comparing = () => params.compare === "1" && compared().length > 0;
@@ -506,7 +523,7 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 									openable: canOpen(row),
 									mine: isMyTurn(row),
 									// 窓を閉じたときに、どの行を開いていたかが分かる
-									current: current()?.employeeId === row.employeeId,
+									current: isCurrent(row.employeeId),
 								}}
 								title={canOpen(row) ? undefined : "本人が目標を送信すると開けるようになります"}
 								onClick={() => open(row)}
@@ -515,10 +532,8 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 									<input
 										type="checkbox"
 										aria-label={`${row.employeeName}を比較に選択`}
-										checked={selected().has(row.employeeId)}
-										disabled={
-											!canOpen(row) || (!selected().has(row.employeeId) && selected().size >= 6)
-										}
+										checked={isSelected(row.employeeId)}
+										disabled={!canOpen(row) || (!isSelected(row.employeeId) && selectionFull())}
 										onClick={(event) => event.stopPropagation()}
 										onChange={() => toggleSelection(row)}
 									/>
@@ -780,12 +795,12 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 							部下 <strong>{rows().length}</strong> 名
 						</span>
 						<span class="review-progress-count">
-							評価確定 <strong>{count("finalized")}</strong> / {rows().length}
+							評価確定 <strong>{finalizedCount()}</strong> / {rows().length}
 						</span>
 					</div>
 					<progress
 						aria-label="部下の最終評価の進捗"
-						value={count("finalized")}
+						value={finalizedCount()}
 						max={Math.max(1, rows().length)}
 					/>
 				</div>
@@ -884,7 +899,7 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 										disabled={mutationBusy()}
 										onClick={() => open(target())}
 									>
-										自分の番を評価する（{visible().filter(isMyTurn).length}）
+										自分の番を評価する（{myTurnCount()}）
 										<ArrowRight size={16} />
 									</button>
 								)}
@@ -892,21 +907,22 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 						</div>
 					</div>
 					<Show when={visible().length} fallback={<Empty />}>
-						<For each={listGroups()}>
-							{(people) => (
-								<Show when={byGrade()} fallback={<SummaryTable people={people} />}>
+						{/* 絞り込みのたびに表を作り直さない。行は同じものを使い回し、増減した行だけを描く */}
+						<Show when={byGrade()} fallback={<SummaryTable people={visible()} />}>
+							<Index each={gradeGroups()}>
+								{(people) => (
 									<section class="review-comparison-group">
 										<header>
 											<div>
-												<h2>{people[0]?.gradeName}</h2>
-												<p>{people.length} 名</p>
+												<h2>{people()[0]?.gradeName}</h2>
+												<p>{people().length} 名</p>
 											</div>
 										</header>
-										<SummaryTable people={people} />
+										<SummaryTable people={people()} />
 									</section>
-								</Show>
-							)}
-						</For>
+								)}
+							</Index>
+						</Show>
 					</Show>
 				</Show>
 			</Show>

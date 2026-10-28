@@ -7,6 +7,7 @@ import {
 	type Component,
 	createEffect,
 	createMemo,
+	createSelector,
 	createSignal,
 	For,
 	Index,
@@ -52,6 +53,9 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 	const [scope, setScope] = createSignal<Scope>("all");
 	const [listView, setListView] = createSignal<ListView>("list");
 	const [savingKey, setSavingKey] = createSignal<string | null>(null);
+	// 行の数だけセルが並ぶ。保存中の印は該当のセルだけ、押せなくするのは保存の始めと終わりだけ描き直す
+	const isSaving = createSelector(savingKey);
+	const busy = createMemo(() => savingKey() !== null);
 
 	onMount(() => {
 		void props.controller.load();
@@ -110,6 +114,16 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 		visibleRelations().filter((relation) => !relation.isExecutive),
 	);
 
+	// 評価者の候補。全員分を一度だけ作り、どのセルも同じ候補を使う(セルごとに作ると行数の2乗になる)
+	const evaluatorCandidates = createMemo(() =>
+		relations().map((candidate) => ({
+			value: candidate.employeeNo,
+			name: candidate.name,
+			employeeNo: candidate.employeeNo,
+		})),
+	);
+	const noSecondaryOption = { value: NO_SECONDARY, name: "なし（一次評価が最終評価）" };
+
 	const employeeNoById = createMemo(
 		() => new Map(relations().map((relation) => [relation.employeeId, relation.employeeNo])),
 	);
@@ -165,14 +179,11 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 		};
 
 		return (
-			<span
-				class="cell-select"
-				classList={{ unset: !cell.value, saving: savingKey() === cell.saveKey }}
-			>
+			<span class="cell-select" classList={{ unset: !cell.value, saving: isSaving(cell.saveKey) }}>
 				<select
 					ref={select}
 					aria-label={cell.label}
-					disabled={savingKey() !== null}
+					disabled={busy()}
 					onChange={() => void handleChange()}
 				>
 					<option value="" disabled>
@@ -221,26 +232,20 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 			);
 		};
 
-		const options = createMemo(() => [
-			...(cell.evaluatorType === "secondary"
-				? [{ value: NO_SECONDARY, name: "なし（一次評価が最終評価）" }]
-				: []),
-			...relations()
-				.filter((candidate) => candidate.employeeId !== cell.relation.employeeId)
-				.map((candidate) => ({
-					value: candidate.employeeNo,
-					name: candidate.name,
-					employeeNo: candidate.employeeNo,
-				})),
-		]);
+		const options = createMemo(() => {
+			const others = evaluatorCandidates().filter(
+				(candidate) => candidate.value !== cell.relation.employeeNo,
+			);
+			return cell.evaluatorType === "secondary" ? [noSecondaryOption, ...others] : others;
+		});
 		const saveKey = () => `${cell.relation.employeeNo}:${cell.evaluatorType}`;
 		return (
 			<SearchableEvaluatorSelect
 				label={`${cell.relation.name}さんの${label()}`}
 				value={selected()}
 				options={options()}
-				disabled={savingKey() !== null}
-				saving={savingKey() === saveKey()}
+				disabled={busy()}
+				saving={isSaving(saveKey())}
 				onPick={async (value) => {
 					setSavingKey(saveKey());
 					try {
@@ -455,7 +460,7 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 				<button
 					type="button"
 					class="row-action"
-					disabled={savingKey() !== null}
+					disabled={busy()}
 					aria-label={`${cell.relation.name}さんの招待コードを発行する`}
 					onClick={() => void issueInvitation(cell.relation)}
 				>
@@ -467,7 +472,7 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 					<button
 						type="button"
 						class="row-action"
-						disabled={savingKey() !== null}
+						disabled={busy()}
 						aria-label={`${cell.relation.name}さんの登録を取り消す`}
 						onClick={() => void resetRegistration(cell.relation)}
 					>
@@ -478,7 +483,7 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 				<button
 					type="button"
 					class="row-action"
-					disabled={savingKey() !== null}
+					disabled={busy()}
 					aria-label={`${cell.relation.name}さんの利用を${cell.relation.enabled === false ? "再開" : "停止"}する`}
 					onClick={() => void changeEnabled(cell.relation)}
 				>
@@ -612,7 +617,7 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 						<button
 							type="button"
 							class="secondary-action"
-							disabled={savingKey() !== null}
+							disabled={busy()}
 							onClick={() => void issuePendingInvitations()}
 						>
 							招待コードを一括発行

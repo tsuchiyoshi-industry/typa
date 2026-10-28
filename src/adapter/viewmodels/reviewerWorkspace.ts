@@ -64,7 +64,17 @@ export function primaryEvaluatorOptions(
  * 一次評価しか担当しない人に「二次評価する 0」は出さない。
  */
 export function reviewStats(rows: ReviewerRowDto[]): [ReviewFilter, string, number][] {
-	const count = (task: ReviewTask) => rows.filter((row) => reviewTask(row) === task).length;
+	const counts: Record<ReviewTask, number> = {
+		goals: 0,
+		first: 0,
+		second: 0,
+		waiting: 0,
+		finalized: 0,
+	};
+	for (const row of rows) {
+		counts[reviewTask(row)] += 1;
+	}
+	const count = (task: ReviewTask) => counts[task];
 	const stats: [ReviewFilter, string, number, boolean][] = [
 		["all", "全員", rows.length, true],
 		["goals", "目標を確認する", count("goals"), rows.some((row) => row.isPrimary)],
@@ -80,7 +90,13 @@ export function reviewStats(rows: ReviewerRowDto[]): [ReviewFilter, string, numb
 export function groupByGrade(rows: ReviewerRowDto[]): ReviewerRowDto[][] {
 	const grouped = new Map<string, ReviewerRowDto[]>();
 	for (const row of rows) {
-		grouped.set(gradeKey(row), [...(grouped.get(gradeKey(row)) ?? []), row]);
+		const key = gradeKey(row);
+		const group = grouped.get(key);
+		if (group) {
+			group.push(row);
+		} else {
+			grouped.set(key, [row]);
+		}
 	}
 	return [...grouped.values()];
 }
@@ -93,6 +109,19 @@ const TASK_PRIORITY: Record<ReviewTask, number> = {
 	finalized: 4,
 };
 
+const collator = new Intl.Collator("ja");
+const normalize = (value: string) => value.normalize("NFKC").toLocaleLowerCase();
+/** 検索に使う文字列。行は読み込みごとに作り直すので、同じ行は同じ文字列のまま覚えておく。 */
+const searchTexts = new WeakMap<ReviewerRowDto, string>();
+const searchText = (row: ReviewerRowDto): string => {
+	let text = searchTexts.get(row);
+	if (text === undefined) {
+		text = normalize(`${row.employeeName} ${row.employeeNo} ${row.primaryEvaluator}`);
+		searchTexts.set(row, text);
+	}
+	return text;
+};
+
 export function filterReviewRows(
 	rows: ReviewerRowDto[],
 	options: {
@@ -103,7 +132,6 @@ export function filterReviewRows(
 		sort: ReviewSort;
 	},
 ): ReviewerRowDto[] {
-	const normalize = (value: string) => value.normalize("NFKC").toLocaleLowerCase();
 	const query = normalize(options.query.trim());
 	const value = (row: ReviewerRowDto): number => {
 		if (options.sort === "firstScore") {
@@ -118,33 +146,33 @@ export function filterReviewRows(
 		}
 		return 0;
 	};
-	return rows
-		.filter((row) => {
-			if (
-				query &&
-				!normalize(`${row.employeeName} ${row.employeeNo} ${row.primaryEvaluator}`).includes(query)
-			) {
-				return false;
-			}
-			if (options.grade && gradeKey(row) !== options.grade) {
-				return false;
-			}
-			if (options.primaryEvaluator && primaryEvaluatorKey(row) !== options.primaryEvaluator) {
-				return false;
-			}
-			return options.filter === "all" || reviewTask(row) === options.filter;
-		})
-		.sort((a, b) => {
-			const difference =
-				options.sort === "priority"
-					? TASK_PRIORITY[reviewTask(a)] - TASK_PRIORITY[reviewTask(b)]
-					: value(b) - value(a);
-			return (
-				difference ||
-				a.employeeName.localeCompare(b.employeeName, "ja") ||
-				a.employeeId - b.employeeId
-			);
-		});
+	return (
+		rows
+			.filter((row) => {
+				if (query && !searchText(row).includes(query)) {
+					return false;
+				}
+				if (options.grade && gradeKey(row) !== options.grade) {
+					return false;
+				}
+				if (options.primaryEvaluator && primaryEvaluatorKey(row) !== options.primaryEvaluator) {
+					return false;
+				}
+				return options.filter === "all" || reviewTask(row) === options.filter;
+			})
+			// 並べ替えの鍵(評価点の計算を含む)は、比べるたびではなく行ごとに一度だけ求める
+			.map((row) => ({
+				row,
+				key: options.sort === "priority" ? TASK_PRIORITY[reviewTask(row)] : -value(row),
+			}))
+			.sort(
+				(a, b) =>
+					a.key - b.key ||
+					collator.compare(a.row.employeeName, b.row.employeeName) ||
+					a.row.employeeId - b.row.employeeId,
+			)
+			.map(({ row }) => row)
+	);
 }
 
 /** 一覧の並びで、いまの対象者の次にある「自分の番」のシート。 */

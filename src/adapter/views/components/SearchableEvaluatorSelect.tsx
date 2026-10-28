@@ -19,6 +19,18 @@ export interface EvaluatorOption {
 	employeeNo?: string;
 }
 
+const normalize = (value: string) => value.normalize("NFKC").toLocaleLowerCase();
+/** 検索に使う文字列。同じ候補は同じオブジェクトで渡されるので、一度だけ作る。 */
+const searchTexts = new WeakMap<EvaluatorOption, string>();
+const searchText = (option: EvaluatorOption): string => {
+	let text = searchTexts.get(option);
+	if (text === undefined) {
+		text = normalize(`${option.name} ${option.employeeNo ?? ""}`);
+		searchTexts.set(option, text);
+	}
+	return text;
+};
+
 const SearchableEvaluatorSelect: Component<{
 	label: string;
 	value: string;
@@ -43,14 +55,13 @@ const SearchableEvaluatorSelect: Component<{
 	let input!: HTMLInputElement;
 	let panel: HTMLDivElement | undefined;
 	const selected = () => props.options.find((option) => option.value === props.value);
+	// 一覧の行の数だけこの部品が並ぶので、候補の絞り込みはメニューを開いている間だけ行う
 	const filtered = createMemo(() => {
-		const term = query().trim().normalize("NFKC").toLocaleLowerCase();
-		return props.options.filter((option) =>
-			`${option.name} ${option.employeeNo ?? ""}`
-				.normalize("NFKC")
-				.toLocaleLowerCase()
-				.includes(term),
-		);
+		if (!open()) {
+			return [];
+		}
+		const term = normalize(query().trim());
+		return props.options.filter((option) => searchText(option).includes(term));
 	});
 	const place = () => {
 		if (!open()) {

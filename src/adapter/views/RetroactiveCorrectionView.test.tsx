@@ -147,12 +147,32 @@ it("records nothing when the confirmation is declined, and records after it is a
 		confirmed: false,
 	});
 
+	// 記録した後に読み直すと、直した値と修正の記録が付いて返る
+	const corrected = loaded();
+	corrected.goals[0] = {
+		...corrected.goals[0],
+		periodGoals: [{ description: "", achievement: "訂正" }],
+	};
+	corrected.corrections = [
+		{
+			id: 1,
+			subject: "チャレンジ目標 1・期中目標と達成状況",
+			before: "達成",
+			after: "訂正",
+			reason: "評価会議での訂正",
+			correctedAt: "2026-10-28T01:00:00Z",
+		},
+	];
+	controller.load.mockResolvedValueOnce(corrected);
 	vi.mocked(confirmAction).mockResolvedValueOnce(true);
 	fireEvent.click(submitButton(view));
 	await waitFor(() => expect(showToast).toHaveBeenCalledWith("success", "1 件修正しました。"));
 	expect(controller.correct).toHaveBeenLastCalledWith(expect.objectContaining({ confirmed: true }));
-	// 記録した後は読み直して、入力は空に戻る
-	await waitFor(() => expect(controller.load).toHaveBeenCalledTimes(2));
+	// 読み直した内容を出し、入力は空に戻る
+	const record = await view.findByRole("region", { name: "このシートの修正の記録(1件)" });
+	expect(record.textContent).toContain("理由: 評価会議での訂正");
+	expect(field(view, "達成状況 1").value).toBe("訂正");
+	expect(field(view, "達成状況 1").closest(".correction-field--changed")).toBeNull();
 	expect(submitButton(view).disabled).toBe(true);
 	expect(reasonBox(view).value).toBe("");
 });
@@ -372,6 +392,19 @@ it("labels each period with its state and starts from the active one", async () 
 		"25期(締め済み)",
 	]);
 	await waitFor(() => expect(controller.sheets).toHaveBeenCalledWith(2));
+});
+
+it("shows the sheets of the period switched to, starting from a period with none", async () => {
+	const { controller, view } = setup({ periods: [ACTIVE, CLOSED] });
+	controller.sheets.mockImplementation(async (id: number) =>
+		id === CLOSED.id
+			? [{ sheetId: 100, employeeName: "社員4", employeeNo: "E4", status: "finalized" }]
+			: [],
+	);
+	await view.findByText("この評価期間のシートはありません。");
+	fireEvent.change(view.getByLabelText("評価期間"), { target: { value: String(CLOSED.id) } });
+	expect(await view.findByRole("button", { name: "社員4さんのシートを選ぶ" })).toBeTruthy();
+	expect((view.getByLabelText("評価期間") as HTMLSelectElement).value).toBe(String(CLOSED.id));
 });
 
 it("narrows the sheets by employee number or name, ignoring full-width input", async () => {

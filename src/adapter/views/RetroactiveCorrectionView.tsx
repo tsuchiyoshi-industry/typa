@@ -325,13 +325,13 @@ const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionCo
 		</label>
 	);
 
-	const valuesPane = (loaded: CorrectableSheetDto) => (
+	const valuesPane = (loaded: () => CorrectableSheetDto) => (
 		<>
 			<p class="correction-pane__hint">
 				直したい欄だけを書き換えてください。書き換えた欄は赤く表示されます。点数は 1〜4 です。
 			</p>
 			<h3>チャレンジ目標</h3>
-			<For each={loaded.goals}>
+			<For each={loaded().goals}>
 				{(goal) => {
 					const tasks: Field = { target: "goal", targetId: goal.id, field: "period_goals" };
 					const achievement: Field = { target: "goal", targetId: goal.id, field: "achievement" };
@@ -362,7 +362,7 @@ const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionCo
 									{ target: "goal", targetId: goal.id, field: "first_score" },
 									"一次評価",
 								)}
-								<Show when={!loaded.primaryIsFinalEvaluator}>
+								<Show when={!loaded().primaryIsFinalEvaluator}>
 									{scoreSelect(
 										{ target: "goal", targetId: goal.id, field: "second_score" },
 										"二次評価",
@@ -374,7 +374,7 @@ const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionCo
 				}}
 			</For>
 			<h3>共通評価</h3>
-			<For each={loaded.commonItems}>
+			<For each={loaded().commonItems}>
 				{(item) => (
 					<fieldset class="correction-group">
 						<legend>{item.title}</legend>
@@ -383,7 +383,7 @@ const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionCo
 								{ target: "common", targetId: item.itemId, field: "first_score" },
 								"一次評価",
 							)}
-							<Show when={!loaded.primaryIsFinalEvaluator}>
+							<Show when={!loaded().primaryIsFinalEvaluator}>
 								{scoreSelect(
 									{ target: "common", targetId: item.itemId, field: "second_score" },
 									"二次評価",
@@ -402,15 +402,15 @@ const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionCo
 				{ target: "sheet", targetId: null, field: "first_overall_comment" },
 				"一次評価者の総評",
 			)}
-			<Show when={!loaded.primaryIsFinalEvaluator}>
+			<Show when={!loaded().primaryIsFinalEvaluator}>
 				{textArea(
 					{ target: "sheet", targetId: null, field: "second_overall_comment" },
 					"二次評価者の総評",
 				)}
 			</Show>
 			<SheetCorrectionsNotice
-				corrections={loaded.corrections}
-				heading={`このシートの修正の記録(${loaded.corrections.length}件)`}
+				corrections={loaded().corrections}
+				heading={`このシートの修正の記録(${loaded().corrections.length}件)`}
 			/>
 		</>
 	);
@@ -632,7 +632,7 @@ const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionCo
 																</Show>
 															}
 														>
-															{(loaded) => valuesPane(loaded())}
+															{(loaded) => valuesPane(loaded)}
 														</Show>
 													</Match>
 													<Match when={mode() === "status"}>{statusPane(target().status)}</Match>

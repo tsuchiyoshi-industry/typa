@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page } from "@playwright/test";
+import { authRequest } from "./authRequest";
 
 export const E2E_PORT = 1430;
 export const PASSWORD = "E2ePassw0rd!";
@@ -27,7 +28,17 @@ export async function signIn(page: Page, employeeNo: string, password = PASSWORD
 	await page.goto("/login");
 	await page.getByLabel("社員番号").fill(employeeNo);
 	await page.getByLabel("パスワード", { exact: true }).fill(password);
-	await page.getByRole("button", { name: "ログイン" }).click();
+	await authRequest(async () => {
+		const [response] = await Promise.all([
+			page.waitForResponse(
+				(response) =>
+					response.url().includes("/auth/v1/token?grant_type=password") &&
+					response.request().method() === "POST",
+			),
+			page.getByRole("button", { name: "ログイン" }).click(),
+		]);
+		return { status: response.status() };
+	});
 }
 
 export async function signOut(page: Page) {
@@ -43,13 +54,22 @@ export async function signOut(page: Page) {
 export async function restAs(n: number) {
 	const base = process.env.E2E_API_URL as string;
 	const apikey = process.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
-	const login = await fetch(`${base}/auth/v1/token?grant_type=password`, {
-		method: "POST",
-		headers: { apikey, "Content-Type": "application/json" },
-		body: JSON.stringify({ email: `typa-release00${n}@release.example`, password: PASSWORD }),
-	});
-	const { access_token } = (await login.json()) as { access_token: string };
-	expect(access_token).toBeTruthy();
+	const login = await authRequest(() =>
+		fetch(`${base}/auth/v1/token?grant_type=password`, {
+			method: "POST",
+			headers: { apikey, "Content-Type": "application/json" },
+			body: JSON.stringify({ email: `typa-release00${n}@release.example`, password: PASSWORD }),
+		}),
+	);
+	const { access_token, error_code } = (await login.json()) as {
+		access_token?: string;
+		error_code?: string;
+	};
+	if (!login.ok || !access_token) {
+		throw new Error(
+			`E2E REST login for RELEASE00${n} failed: HTTP ${login.status} (${error_code ?? "missing_access_token"}).`,
+		);
+	}
 	return (path: string, body?: unknown, method = body === undefined ? "GET" : "POST") =>
 		fetch(`${base}/rest/v1/${path}`, {
 			method,

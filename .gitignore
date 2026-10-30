@@ -10,6 +10,9 @@ playwright-report
 
 tables.md
 
+# ブラウザ版の PDF(bun run build:pdf-wasm が作る)
+public/typa-pdf.wasm.gz
+
 # マニュアルの画面写真と PDF は CI が撮って作る(手描きの図 *.svg は管理する)
 docs/manual/**/*.png
 docs/manual/*.pdf

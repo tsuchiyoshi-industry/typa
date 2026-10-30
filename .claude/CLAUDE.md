@@ -67,8 +67,8 @@
 
 ## PDF の項目を変えるとき
 
-- [ ] `src/application/dtos/ExportSheetDto.ts`、`ExportSheetMapper.ts`、`src-tauri/src/pdf/sheet.rs`、`src-tauri/src/pdf/templates/template.typ`
-- [ ] `bun run test:rust --release`
+- [ ] `src/application/dtos/ExportSheetDto.ts`、`ExportSheetMapper.ts`、`src-tauri/pdf/src/sheet.rs`、`src-tauri/pdf/src/templates/template.typ`（デスクトップとブラウザの WASM で共通）
+- [ ] `bun run test:rust --release`。ブラウザ版も確かめるなら `bun run build:pdf-wasm` のあと E2E（PDF のダウンロードを確かめる）
 
 ## スクリプト・CI を変えるとき
 

@@ -1,4 +1,5 @@
 import { A, useNavigate } from "@solidjs/router";
+import { isTauri } from "@tauri-apps/api/core";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import ArrowDown from "lucide-solid/icons/arrow-down";
 import ArrowUp from "lucide-solid/icons/arrow-up";
@@ -276,11 +277,13 @@ const SheetListView: Component<SheetListViewProps> = (props) => {
 				}
 				if (status.success) {
 					const fileName = status.fileName;
+					// ブラウザはダウンロードフォルダに入れるだけで、フォルダは開けない
+					const desktop = isTauri();
 					showToast(
 						"success",
-						"PDFを保存しました",
+						desktop ? "PDFを保存しました" : "PDFをダウンロードしました",
 						fileName ?? undefined,
-						fileName
+						fileName && desktop
 							? {
 									label: "フォルダを開く",
 									run: () =>

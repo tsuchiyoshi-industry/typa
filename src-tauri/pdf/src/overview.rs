@@ -29,7 +29,7 @@ struct SheetOverviewRowData {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct SheetOverviewData {
+pub struct SheetOverviewData {
     period_name: String,
     period_start: String,
     period_end: String,
@@ -74,7 +74,7 @@ pub(super) fn to_dict(data: &SheetOverviewData) -> Dict {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::pdf::compile_template;
+    use crate::compile_template;
     use std::fs;
 
     #[test]
@@ -125,7 +125,8 @@ mod tests {
         let results: Vec<_> = [with_rows, overview(vec![])]
             .iter()
             .map(|data| {
-                let result = compile_template(TEMPLATE, to_dict(data), &path);
+                let result = compile_template(TEMPLATE, SOURCE, to_dict(data))
+                    .map(|pdf| fs::write(&path, pdf).unwrap());
                 if let Ok(preview_dir) = std::env::var("TYPA_PDF_PREVIEW_DIR")
                     && result.is_ok()
                     && !data.rows.is_empty()

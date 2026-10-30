@@ -6,7 +6,7 @@ permissions:
 jobs:
   database:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 55
     steps:
       - uses: actions/checkout@v6
       - uses: supabase/setup-cli@v2
@@ -83,6 +83,17 @@ jobs:
           fc-cache -f ~/.local/share/fonts
           fc-list | grep -q "Noto Sans CJK JP"
           bunx playwright install --only-shell chromium
+      # ブラウザ版の PDF(src-tauri/pdf の WASM)。E2E が PDF を出力し、ダウンロードしたファイルを確かめる
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: wasm-pdf
+          save-if: ${{ github.event_name != 'pull_request' }}
+          workspaces: src-tauri -> target
+      - name: Build the PDF WebAssembly
+        run: bun run build:pdf-wasm
       - name: Exercise the UI end to end against the same platform
         run: bun run test:e2e
       # E2E を通った同じ環境で、マニュアルの画面写真と PDF を一度だけ作る。リリースはこれを使い回す

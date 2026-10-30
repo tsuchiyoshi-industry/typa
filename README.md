@@ -2,7 +2,7 @@
 
 社員の目標記入から一次・二次評価、評価結果のPDF出力までを行う人事考課アプリです。
 
-[最新版をダウンロード](https://github.com/tsuchiyoshi-industry/typa/releases/latest)
+[最新版をダウンロード](https://github.com/tsuchiyoshi-industry/typa/releases/latest)（Windows）・ブラウザ版：[https://typa.tyco.co.jp](https://typa.tyco.co.jp)（Chromebook などはこちら）
 
 ## 管理者が最初にすること
 
@@ -47,5 +47,6 @@
 - [環境の初期構築と運用手順](docs/supabase-setup.md)
 - [リリース・更新手順と検証結果](docs/release-readiness.md)
 - [開発・ビルド・PDFの変更](docs/development.md)
+- [Web 版（Cloudflare Pages）の構築と公開](docs/web.md)
 - [仕様・権限・計算方法](docs/basic-design.md)
 - [マイグレーションの変更経緯](docs/migration-history.md)

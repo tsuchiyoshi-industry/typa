@@ -8,6 +8,7 @@
 | ------------ | ------------------------------------ |
 | 画面         | Solid、Solid Router、lucide-solid    |
 | デスクトップ | Tauri 2                              |
+| Web          | Cloudflare Pages（PDF は WASM）      |
 | ビルド       | Vite、Bun                            |
 | DB・認証     | Supabase                             |
 | PDF          | Rust、Typst、typst-as-lib、typst-pdf |
@@ -35,6 +36,8 @@ VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 | `bun run dev`                 | 画面をブラウザで起動                                                                                                                                                                                                                                                                                                                                                                                               |
 | `bun run tauri dev`           | デスクトップアプリを起動                                                                                                                                                                                                                                                                                                                                                                                           |
 | `bun run build`               | フロントエンドのビルド                                                                                                                                                                                                                                                                                                                                                                                             |
+| `bun run build:pdf-wasm`      | ブラウザ版の PDF（WASM）を作り `public/typa-pdf.wasm.gz` に置く。Rust の `wasm32-unknown-unknown` ターゲットが要る                                                                                                                                                                                                                                                                                                 |
+| `bun run build:web`           | ブラウザ版（Cloudflare Pages に置く `dist/`）のビルド。公開の手順は [Web 版](web.md)                                                                                                                                                                                                                                                                                                                               |
 | `bun run tauri build`         | デスクトップ配布物のビルド                                                                                                                                                                                                                                                                                                                                                                                         |
 | `bun run typecheck`           | 型検査                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `bun run check`               | Biome の整形・lint・import 順を検査（警告も失敗扱い）                                                                                                                                                                                                                                                                                                                                                              |
@@ -107,14 +110,23 @@ Admin のユーザーメニュー「遡及処理」（`/retroactive`）は、1�
 
 ## PDFの変更
 
-出力処理は `ExportEvaluationSheetInteractor` → `ExportSheetMapper` → Tauri の `generate_pdf_with_typst` → Typst の順です。画面と同じ `EvaluationSheetRepository.findById` から帳票データを作成します。
+出力処理は `ExportEvaluationSheetInteractor` → `ExportSheetMapper` → `SheetPdfGateway` → Typst の順です。画面と同じ `EvaluationSheetRepository.findById` から帳票データを作成します。
 
-帳票デザインは [template.typ](../src-tauri/src/pdf/templates/template.typ) にあります。項目を増やす場合は、次のファイルを合わせて変更します。
+PDF を組む Rust のコードは [src-tauri/pdf](../src-tauri/pdf)（crate `typa-pdf`）にまとめてあり、デスクトップとブラウザで同じものを使います。
+
+| 版           | 呼び出し                                                                                          | 保存                     |
+| ------------ | ------------------------------------------------------------------------------------------------- | ------------------------ |
+| デスクトップ | `TauriSheetPdfGateway` → Tauri の `generate_pdf_with_typst`（`src-tauri/src/pdf.rs`）→ `typa-pdf` | 保存ダイアログで選んだ所 |
+| ブラウザ     | `WebSheetPdfGateway` → `WasmPdfRenderer` → `typa-pdf` の WASM（`/typa-pdf.wasm.gz`）              | ダウンロード             |
+
+WASM は `bun run build:pdf-wasm` で作り、`public/typa-pdf.wasm.gz`（git には入らない）に置きます。33 MB あり Cloudflare Pages の1ファイルの上限（25 MiB）を超えるので、gzip（12 MB）で置いてブラウザで展開します。wasm-bindgen は使わず、JSON を渡して PDF のバイト列を受け取るだけの受け渡し口（[wasm.rs](../src-tauri/pdf/src/wasm.rs)）です。依存がブラウザの関数（時計など）を求めるようになると、ビルドが止まります。初回は `rustup target add wasm32-unknown-unknown` が要ります。`bun run dev` で PDF を試すときも、先に一度作っておきます。
+
+帳票デザインは [template.typ](../src-tauri/pdf/src/templates/template.typ) にあります。項目を増やす場合は、次のファイルを合わせて変更します。
 
 - `src/application/dtos/ExportSheetDto.ts`
 - `src/application/dtos/ExportSheetMapper.ts`
-- `src-tauri/src/pdf/sheet.rs`
-- `src-tauri/src/pdf/templates/template.typ`
+- `src-tauri/pdf/src/sheet.rs`
+- `src-tauri/pdf/src/templates/template.typ`
 
 共通評価は保存済みの結果だけでなく項目マスタを基準に組み立てます。シート作成時の等級と、確定時に固定した集計・配点・評価者を保持する仕様は [基本設計書](basic-design.md) を参照してください。
 

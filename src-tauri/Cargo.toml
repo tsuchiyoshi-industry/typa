@@ -1,3 +1,7 @@
+# PDF の crate(pdf/)はブラウザ版も WASM で使う。Cargo.lock・プロファイル・パッチを共有する
+[workspace]
+members = ["pdf"]
+
 [package]
 name = "typa"
 version = "1.0.24"
@@ -22,9 +26,7 @@ tauri = { version = "~2.12.4", features = [] }
 tauri-plugin-fs = "2.7.1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-typst-as-lib = "0.17.0"
-typst = "0.15.0"
-typst-pdf = "0.15.0"
+typa-pdf = { path = "pdf" }
 tauri-plugin-dialog = "^2.8.3"
 tauri-plugin-process = "2.4.0"
 tauri-plugin-opener = "2.7.2"
@@ -44,3 +46,11 @@ strip = true
 # Upstream quick-xml >=0.41 fix, pending a citationberg crates.io release.
 [patch.crates-io]
 citationberg = { git = "https://github.com/typst/citationberg", rev = "8966cf7c178b38b621d297c9eb6d0bb81e14be5e" }
+
+# ブラウザ用の PDF(WASM)。Cloudflare Pages の1ファイルの上限(25 MiB)に収めるため、大きさを優先する
+[profile.wasm]
+inherits = "release"
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"

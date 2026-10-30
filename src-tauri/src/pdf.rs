@@ -1,31 +1,9 @@
-//! 評価シートのPDF出力。Typst のテンプレートにデータを流し込み、保存ダイアログで選ばれた場所に書く。
+//! 評価シートのPDF出力。PDF の中身は typa-pdf(ブラウザ版と共通)が作り、ここは保存ダイアログで選ばれた場所に書く。
 
-mod overview;
-mod sheet;
-
-use overview::SheetOverviewData;
-use sheet::SheetExportData;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
-use std::sync::LazyLock;
 use tauri_plugin_fs::FsExt;
-use typst::foundations::{Dict, Value};
-use typst_as_lib::TypstEngine;
-
-static FONT: &[u8] = include_bytes!("pdf/templates/ZenAntiqueSoft-Regular.ttf");
-
-// フォント(7MB)の解析と標準ライブラリの構築は重いので、エンジンは1つを使い回す。
-// 直近10回分のコンパイル結果も残し、続けて出力するときはレイアウト等を再利用する。
-static ENGINE: LazyLock<TypstEngine> = LazyLock::new(|| {
-    TypstEngine::builder()
-        .with_static_source_file_resolver([
-            (sheet::TEMPLATE, sheet::SOURCE),
-            (overview::TEMPLATE, overview::SOURCE),
-        ])
-        .fonts([FONT])
-        .comemo_evict_max_age(Some(10))
-        .build()
-});
+use typa_pdf::{SheetExportData, SheetOverviewData};
 
 /// 1人分の評価シートをPDFにする。
 #[tauri::command]
@@ -36,7 +14,7 @@ pub(crate) async fn generate_pdf_with_typst<R: tauri::Runtime>(
 ) -> Result<String, String> {
     let path = PathBuf::from(&output_path);
     validate_destination(&path, &app.fs_scope(), "pdf")?;
-    run_blocking(move || compile_template(sheet::TEMPLATE, sheet::to_dict(&data), &path)).await?;
+    run_blocking(move || write_pdf(&path, typa_pdf::sheet_pdf(&data)?)).await?;
     Ok(output_path)
 }
 
@@ -49,17 +27,12 @@ pub(crate) async fn generate_sheet_overview_pdf<R: tauri::Runtime>(
 ) -> Result<String, String> {
     let path = PathBuf::from(&output_path);
     validate_destination(&path, &app.fs_scope(), "pdf")?;
-    run_blocking(move || compile_template(overview::TEMPLATE, overview::to_dict(&data), &path))
-        .await?;
+    run_blocking(move || write_pdf(&path, typa_pdf::overview_pdf(&data)?)).await?;
     Ok(output_path)
 }
 
-fn str_dict(pairs: &[(&str, &str)]) -> Dict {
-    let mut dict = Dict::new();
-    for (key, value) in pairs {
-        dict.insert((*key).into(), Value::Str((*value).into()));
-    }
-    dict
+fn write_pdf(path: &Path, pdf: Vec<u8>) -> Result<(), String> {
+    fs::write(path, pdf).map_err(|e| format!("Failed to write PDF file: {}", e))
 }
 
 // Typstコンパイルは重い計算なので、非同期ランタイムのスレッドを塞がずに実行する
@@ -96,20 +69,6 @@ pub(crate) fn validate_destination(
     Ok(())
 }
 
-// inputs はラップせずに渡すので、テンプレート側では sys.inputs がこの辞書そのものになる
-fn compile_template(template_file: &str, inputs: Dict, pdf_path: &Path) -> Result<(), String> {
-    let result = ENGINE.compile_with_input(template_file, inputs);
-    if !result.warnings.is_empty() {
-        eprintln!("Typst warnings: {:?}", result.warnings);
-    }
-    let doc = result
-        .output
-        .map_err(|e| format!("Typst compilation failed: {:?}", e))?;
-    let pdf = typst_pdf::pdf(&doc, &typst_pdf::PdfOptions::default())
-        .map_err(|e| format!("PDF generation failed: {:?}", e))?;
-    fs::write(pdf_path, pdf).map_err(|e| format!("Failed to write PDF file: {}", e))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -117,7 +76,7 @@ mod tests {
     fn mock_app() -> tauri::App<tauri::test::MockRuntime> {
         tauri::test::mock_builder()
             .plugin(tauri_plugin_fs::init())
-            .invoke_handler(tauri::generate_handler![generate_pdf_with_typst])
+            .invoke_handler(tauri::generate_handler![generate_sheet_overview_pdf])
             .build(tauri::test::mock_context(tauri::test::noop_assets()))
             .unwrap()
     }
@@ -155,13 +114,15 @@ mod tests {
         let response = tauri::test::get_ipc_response(
             &webview,
             tauri::webview::InvokeRequest {
-                cmd: "generate_pdf_with_typst".into(),
+                cmd: "generate_sheet_overview_pdf".into(),
                 callback: tauri::ipc::CallbackFn(0),
                 error: tauri::ipc::CallbackFn(1),
                 url: "http://tauri.localhost".parse().unwrap(),
-                body: tauri::ipc::InvokeBody::Json(
-                    serde_json::json!({"data": sheet::tests::test_data(false), "outputPath": path}),
-                ),
+                body: tauri::ipc::InvokeBody::Json(serde_json::json!({
+                    "data": {"periodName": "26期", "periodStart": "", "periodEnd": "",
+                             "issuedAt": "", "issuedBy": "", "rows": []},
+                    "outputPath": path
+                })),
                 headers: Default::default(),
                 invoke_key: tauri::test::INVOKE_KEY.to_string(),
             },

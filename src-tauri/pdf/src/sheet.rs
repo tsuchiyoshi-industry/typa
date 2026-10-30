@@ -43,7 +43,7 @@ struct CommonEvaluationData {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct SheetExportData {
+pub struct SheetExportData {
     sheet_id: i32,
     employee_name: String,
     employee_no: String,
@@ -215,7 +215,7 @@ pub(super) fn to_dict(data: &SheetExportData) -> Dict {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::pdf::compile_template;
+    use crate::compile_template;
     use std::fs;
 
     pub(crate) fn test_data(primary_is_final_evaluator: bool) -> SheetExportData {
@@ -300,7 +300,8 @@ pub(crate) mod tests {
                 "2026-10-23 チャレンジ目標 1・二次評価: 4 → 3(理由: *転記ミス* #eval(\"1\"))"
                     .into(),
             ];
-            let result = compile_template(TEMPLATE, to_dict(&data), &path);
+            let result = compile_template(TEMPLATE, SOURCE, to_dict(&data))
+                .map(|pdf| fs::write(&path, pdf).unwrap());
             if let Ok(preview_dir) = std::env::var("TYPA_PDF_PREVIEW_DIR") {
                 let preview_dir = std::path::PathBuf::from(preview_dir);
                 fs::create_dir_all(&preview_dir).unwrap();

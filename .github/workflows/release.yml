@@ -249,3 +249,67 @@ jobs:
             src-tauri/target/release/bundle/**/*.exe.sig
             latest.json
             manual/*.pdf
+
+  # Web 版(https://typa.tyco.co.jp)。デスクトップ版のリリースが公開できたら、同じコミットを Cloudflare Pages に出す。
+  # Web は公開した瞬間に全員が新しい版になるので、DB のマイグレーションはリリースより前に当てておく
+  deploy-web:
+    needs: [metadata, build-and-release]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      deployments: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install frontend dependencies
+        run: bun install --frozen-lockfile
+
+      # 写真はアプリのヘルプに入る(デスクトップ版と同じ)
+      - name: Download manual
+        uses: actions/download-artifact@v8
+        with:
+          name: manual
+          path: docs/manual
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      # checks の E2E が保存した WASM 用の依存を使う
+      - name: Cargo cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: wasm-pdf
+          save-if: false
+          workspaces: src-tauri -> target
+
+      - name: Build web app
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+        run: bun run build:web
+
+      # 404.html があると、Pages は画面の URL(/sheet/1 など)を index.html に回さなくなる
+      - name: Check the build is a single-page app
+        run: |
+          set -euo pipefail
+          test -f dist/index.html
+          test -f dist/_headers
+          test -f dist/typa-pdf.wasm.gz
+          test ! -e dist/404.html
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist --project-name=typa --branch=main --commit-hash=${{ github.sha }}
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}

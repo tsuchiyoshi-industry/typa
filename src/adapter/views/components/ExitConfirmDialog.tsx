@@ -3,10 +3,18 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { type Component, onCleanup, onMount } from "solid-js";
 import { confirmAction, hasUnsavedChanges } from "../feedback";
 
-/** 保存していない入力があるときだけ、ウィンドウを閉じる前に確認する。 */
+/** 保存していない入力があるときだけ、ウィンドウ(ブラウザではタブ)を閉じる前に確認する。 */
 const ExitConfirmDialog: Component = () => {
 	onMount(() => {
 		if (!isTauri()) {
+			// ブラウザは自前の確認画面を出せないので、ブラウザ標準の確認に任せる
+			const confirmLeaving = (event: BeforeUnloadEvent) => {
+				if (hasUnsavedChanges()) {
+					event.preventDefault();
+				}
+			};
+			window.addEventListener("beforeunload", confirmLeaving);
+			onCleanup(() => window.removeEventListener("beforeunload", confirmLeaving));
 			return;
 		}
 

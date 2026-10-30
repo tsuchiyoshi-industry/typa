@@ -7,6 +7,8 @@
 		"start": "vite",
 		"dev": "vite",
 		"build": "vite build",
+		"build:pdf-wasm": "bun scripts/buildPdfWasm.ts",
+		"build:web": "bun run build:pdf-wasm && vite build",
 		"serve": "vite preview",
 		"tauri": "tauri",
 		"fix": "biome check --write .",
@@ -20,7 +22,7 @@
 		"typecheck": "tsc --noEmit && tsc --project tsconfig.node.json --noEmit",
 		"test:e2e": "playwright test",
 		"docs:user-manual": "playwright test -c playwright.manual.config.ts",
-		"test:rust": "cargo test --manifest-path src-tauri/Cargo.toml --locked"
+		"test:rust": "cargo test --manifest-path src-tauri/Cargo.toml --locked --workspace"
 	},
 	"license": "MIT",
 	"dependencies": {

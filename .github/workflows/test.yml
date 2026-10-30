@@ -78,7 +78,8 @@ jobs:
         with:
           tool: cargo-audit@0.22.2
       - run: cargo audit --file src-tauri/Cargo.lock
-      - run: cargo test --manifest-path src-tauri/Cargo.toml --locked --release
+      # PDF の crate(src-tauri/pdf。ブラウザ版の WASM と共通)のテストも流す
+      - run: cargo test --manifest-path src-tauri/Cargo.toml --locked --release --workspace
 
   # Keep the existing "test" status as the gate for every check, including failures/skips.
   test:

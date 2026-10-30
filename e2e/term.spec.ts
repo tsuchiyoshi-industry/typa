@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { expect, type Page, test } from "@playwright/test";
 import { ADMIN, restAs, signIn, signOut } from "./support";
 
@@ -197,7 +198,14 @@ test("a term is divided, its first half closed with goals only, and its challeng
 		const row = page.getByRole("row", { name: /Release verification|上期/ }).filter({
 			hasText: "下書き",
 		});
-		await expect(row.getByRole("button", { name: "PDF出力" })).toBeVisible();
+		// ブラウザ版はデスクトップ版と同じ Typst のテンプレートを WASM で組み、ダウンロードする
+		const downloading = page.waitForEvent("download");
+		await row.getByRole("button", { name: "PDF出力" }).click();
+		const download = await downloading;
+		expect(download.suggestedFilename()).toMatch(/^評価シート_.+\.pdf$/);
+		const pdf = readFileSync(await download.path());
+		expect(pdf.subarray(0, 5).toString("latin1")).toBe("%PDF-");
+		await expect(page.getByText("PDFをダウンロードしました")).toBeVisible();
 	});
 
 	await test.step("本人が締めたシートを振り返ると、締め後修正が赤字で示される", async () => {

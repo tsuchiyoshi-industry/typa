@@ -1,4 +1,5 @@
 import { Navigate, Route, Router } from "@solidjs/router";
+import { isTauri } from "@tauri-apps/api/core";
 import {
 	type Component,
 	createSignal,
@@ -90,6 +91,8 @@ import { SupabaseSheetImportRepository } from "./infrastructure/repositories/Sup
 import { SupabaseWorkspaceSettingsRepository } from "./infrastructure/repositories/SupabaseWorkspaceSettingsRepository";
 import { TauriCsvFileGateway } from "./infrastructure/repositories/TauriCsvFileGateway";
 import { TauriSheetPdfGateway } from "./infrastructure/repositories/TauriSheetPdfGateway";
+import { WebCsvFileGateway } from "./infrastructure/repositories/WebCsvFileGateway";
+import { WebSheetPdfGateway } from "./infrastructure/repositories/WebSheetPdfGateway";
 
 // ログイン後の画面のコードは、ログイン画面では読み込まない。
 // 紐付けを確かめた時点でまとめて読み込み、開いたあとで読み込み画面を挟まない。
@@ -118,12 +121,14 @@ const protectedViews = [
 	SheetListView,
 ];
 
+// デスクトップ(Tauri)は保存ダイアログとネイティブの PDF、ブラウザはダウンロードと WASM の PDF
+const desktop = isTauri();
 const workspaceSettingsRepository = new SupabaseWorkspaceSettingsRepository();
 const sheetImportRepository = new SupabaseSheetImportRepository();
 const sheetImportController = new SheetImportController(
 	sheetImportRepository,
 	new ImportSheetDataInteractor(sheetImportRepository),
-	new TauriCsvFileGateway(),
+	desktop ? new TauriCsvFileGateway() : new WebCsvFileGateway(),
 );
 const authRepository = new SupabaseAuthRepository(workspaceSettingsRepository);
 const employeeRepository = new SupabaseEmployeeRepository();
@@ -204,7 +209,7 @@ const updateEvaluationStatusUseCase = new UpdateEvaluationStatusInteractor(
 	employeeRepository,
 	emailNotificationRepository,
 );
-const sheetPdfGateway = new TauriSheetPdfGateway();
+const sheetPdfGateway = desktop ? new TauriSheetPdfGateway() : new WebSheetPdfGateway();
 const exportEvaluationSheetUseCase = new ExportEvaluationSheetInteractor(
 	evaluationSheetRepository,
 	employeeRepository,

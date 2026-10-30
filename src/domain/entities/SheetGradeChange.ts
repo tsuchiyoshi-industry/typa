@@ -1,6 +1,7 @@
 import { err, ok, type Result } from "../Result";
 import { EvaluationStatus, type EvaluationStatusValue } from "../valueObjects/EvaluationStatus";
 import type { PeriodStateValue } from "../valueObjects/PeriodState";
+import { charLength } from "../valueObjects/textLength";
 
 export interface SheetGradeChangeRequest {
 	sheetId: number;
@@ -61,7 +62,7 @@ export class SheetGradeChange {
 			return err({ kind: "firstEvaluationConfirmed" });
 		}
 		const reason = request.reason.trim();
-		if (!reason || reason.length > 500) {
+		if (!reason || charLength(reason) > 500) {
 			return err({ kind: "reasonInvalid" });
 		}
 		return ok(

@@ -5,7 +5,7 @@ import { createRoot, createSignal } from "solid-js";
 import { afterEach, expect, it, vi } from "vitest";
 import type { AccountController } from "../controllers/AccountController";
 import DashboardLayout from "./DashboardLayout";
-import { clearUnsavedChanges, settleConfirm, trackUnsaved } from "./feedback";
+import { clearUnsavedChanges, settleConfirm, showToast, toasts, trackUnsaved } from "./feedback";
 
 afterEach(() => {
 	cleanup();
@@ -159,6 +159,18 @@ it("does not sign out while the user keeps unsaved input", async () => {
 	await Promise.resolve();
 	expect(view.controller.signOut).not.toHaveBeenCalled();
 	dispose();
+});
+
+it("leaves no notice on screen for the next person after signing out", async () => {
+	const view = setup("/", async () => ({ name: "山田" }));
+	await view.findByText("山田");
+	// エラーは閉じるまで残る。共有 PC では、次にログインする人の画面に前の人の通知を残さない
+	showToast("error", "佐藤（二次評価者）に通知メールを送信できませんでした。");
+	showToast("success", "保存しました。");
+	fireEvent.click(view.getByRole("button", { name: "ユーザーメニュー" }));
+	fireEvent.click(view.getByRole("button", { name: "ログアウト" }));
+	await waitFor(() => expect(view.controller.signOut).toHaveBeenCalledOnce());
+	expect(toasts()).toEqual([]);
 });
 
 it("closes the user menu with Escape and when the other menu opens", async () => {

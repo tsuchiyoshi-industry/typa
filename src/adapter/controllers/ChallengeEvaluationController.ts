@@ -1,8 +1,5 @@
 import { messageOf } from "../../application/errorMessage";
-import {
-	type CarryOverGoalInteractor,
-	describeCarryOverGoalError,
-} from "../../application/usecases/CarryOverGoalInteractor";
+import type { CarryOverGoalInteractor } from "../../application/usecases/CarryOverGoalInteractor";
 import { describeSheetEditError } from "../../application/usecases/SheetEditError";
 import type {
 	UpdateMilestoneInteractor,
@@ -46,7 +43,7 @@ export class ChallengeEvaluationController {
 				{ present: (response) => (goalNumber = response.goalNumber) },
 			);
 			if (!result.ok) {
-				return { error: describeCarryOverGoalError(result.error) };
+				return { error: describeSheetEditError(result.error) };
 			}
 		} catch (error) {
 			return { error: messageOf(error, "前期の目標を引き継げませんでした。") };

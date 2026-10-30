@@ -1,5 +1,6 @@
 import type { SheetTransitionError } from "../entities/SheetTransitionError";
 import { err, ok, type Result } from "../Result";
+import { charLength } from "./textLength";
 
 /**
  * 目標を差し戻す理由。本人が何を直せばよいか分かるよう、差し戻しには必ず添える。
@@ -12,7 +13,7 @@ export class GoalReturnReason {
 
 	/** 前後の空白を除いた文字数。絵文字も1文字と数え、DB の char_length とそろえる。 */
 	static lengthOf(value: string): number {
-		return [...value.trim()].length;
+		return charLength(value.trim());
 	}
 
 	static from(value: string): Result<GoalReturnReason, SheetTransitionError> {

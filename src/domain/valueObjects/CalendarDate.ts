@@ -60,10 +60,6 @@ export class CalendarDate {
 		return this.compare(other) < 0;
 	}
 
-	equals(other: CalendarDate): boolean {
-		return this.compare(other) === 0;
-	}
-
 	toString(): string {
 		const pad = (value: number, length: number) => String(value).padStart(length, "0");
 		return `${pad(this.year, 4)}-${pad(this.month, 2)}-${pad(this.day, 2)}`;

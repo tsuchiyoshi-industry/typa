@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
+import { onTestFinished } from "vitest";
 
 const migrationsUrl = new URL("../../supabase/migrations/", import.meta.url);
 
@@ -172,4 +173,15 @@ export async function actAs(db: PGlite, id: number, method = "password"): Promis
 		],
 	);
 	await db.exec(id ? "set role authenticated" : "set role anon");
+}
+
+/**
+ * このテストで変えた行を、テストの終わりに巻き戻す。同じ DB を使うほかのテストが、
+ * テストの順番に寄りかからずに済む(--sequence.shuffle で確かめる)。途中で失敗する文を流すテストには使えない。
+ */
+export async function rollbackAfterTest(db: PGlite): Promise<void> {
+	await db.exec("begin");
+	onTestFinished(async () => {
+		await db.exec("rollback");
+	});
 }

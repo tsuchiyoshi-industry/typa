@@ -54,6 +54,21 @@ describe("authorization matrix", () => {
 				expect(policy.canExportSheet()).toBe(
 					(id === 1 || evaluator) && status === EvaluationStatus.FINALIZED,
 				);
+				// 見られる範囲(基本設計 4.2)。シートを見られる人について、何が見えるか
+				const sees = (can: boolean) => policy.canViewSheet() && can;
+				const finalized = status === EvaluationStatus.FINALIZED;
+				// 目標の点数: 評価者は送信後から、本人は評価が確定してから。二次点は二次評価者だけ
+				expect(sees(policy.canViewMilestoneFirstScore())).toBe(
+					(id === 1 && finalized) || evaluator,
+				);
+				expect(sees(policy.canViewMilestoneSecondScore())).toBe(
+					(id === 1 && finalized) || (id === 3 && evaluator),
+				);
+				// 共通評価の二次と、評価点・最終評価ランクは二次評価者(最終評価者)だけ。本人には確定後も見せない
+				expect(sees(policy.canViewCommonEvaluationSecond())).toBe(id === 3 && evaluator);
+				expect(sees(policy.canViewFinalEvaluation())).toBe(id === 3 && evaluator);
+				// ランクは採点が始まってから(目標の確認中は出さない)
+				expect(policy.canViewEvaluationRanks()).toBe(status.isEvaluationStarted());
 			},
 		);
 	}

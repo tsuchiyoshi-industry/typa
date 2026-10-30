@@ -24,9 +24,11 @@ beforeAll(async () => {
 	await db.exec(`
 		set session_replication_role = replica;
 		insert into public.evaluation_sheets (id, period_id, employee_id, status, primary_evaluator_id, secondary_evaluator_id)
-		values (100, 2, 4, 'draft', 2, 3), (200, 1, 4, 'draft', 2, 3);
+		values (100, 2, 4, 'draft', 2, 3), (101, 2, 6, 'draft', 2, null), (200, 1, 4, 'draft', 2, 3);
+		-- シート 101 は締めた後の訂正を確かめる。移行の結果を見るシート 100 は書き換えない
 		insert into public.milestones (id, sheet_id, goal_number, challenge_goal, midterm_goal, achievement)
-		values (11, 100, 1, '品質改善', E'既存の文章\n改行も保持', '途中まで実施');
+		values (11, 100, 1, '品質改善', E'既存の文章\n改行も保持', '途中まで実施'),
+		       (12, 101, 1, '品質改善', E'既存の文章\n改行も保持', '途中まで実施');
 		set session_replication_role = origin;
 	`);
 	await applyMigrations(db, (name) => name.startsWith("202610230004_"));
@@ -75,6 +77,11 @@ it.each(
 	),
 )("rejects malformed tasks and completion flags: %j", async ({ invalid }) => {
 	await actAs(db, 4);
+	// 直す先の目標があること(ほかのテストが作ったものに寄りかからない)
+	await rows(
+		"insert into public.milestones (sheet_id, goal_number, challenge_goal, period_goals) values (200, 1, '今期のテーマ', $1) on conflict (sheet_id, goal_number) do nothing",
+		[JSON.stringify(tasks)],
+	);
 	await expect(
 		rows("update public.milestones set period_goals = $1 where sheet_id = 200", [
 			JSON.stringify(invalid),
@@ -84,13 +91,13 @@ it.each(
 
 it("corrects a closed task list atomically and returns a visible history with all task associations", async () => {
 	await actAs(db, 1);
-	await rows("select public.correct_closed_sheet(100, $1, '記載の訂正')", [
+	await rows("select public.correct_closed_sheet(101, $1, '記載の訂正')", [
 		JSON.stringify([
-			{ target: "goal", targetId: 11, field: "period_goals", value: JSON.stringify(tasks) },
+			{ target: "goal", targetId: 12, field: "period_goals", value: JSON.stringify(tasks) },
 		]),
 	]);
-	await actAs(db, 4);
-	const corrected = await document(100);
+	await actAs(db, 6);
+	const corrected = await document(101);
 	expect(corrected.objectives[0].periodGoals).toEqual(tasks);
 	expect(corrected.corrections).toHaveLength(1);
 	expect(JSON.parse(corrected.corrections[0].before)).toEqual([
@@ -99,14 +106,14 @@ it("corrects a closed task list atomically and returns a visible history with al
 	expect(JSON.parse(corrected.corrections[0].after)).toEqual(tasks);
 	await actAs(db, 1);
 	await expect(
-		rows("select public.correct_closed_sheet(100, $1, '同じ内容')", [
+		rows("select public.correct_closed_sheet(101, $1, '同じ内容')", [
 			JSON.stringify([
-				{ target: "goal", targetId: 11, field: "period_goals", value: JSON.stringify(tasks) },
+				{ target: "goal", targetId: 12, field: "period_goals", value: JSON.stringify(tasks) },
 			]),
 		]),
 	).rejects.toThrow("今と同じ内容");
-	await actAs(db, 4);
+	await actAs(db, 6);
 	await expect(
-		rows("update public.milestones set period_goals = $1 where id = 11", [JSON.stringify(tasks)]),
+		rows("update public.milestones set period_goals = $1 where id = 12", [JSON.stringify(tasks)]),
 	).rejects.toThrow("締められた評価期間");
 });

@@ -12,7 +12,6 @@ import { describePeriodError, type PeriodError } from "./PeriodError";
 /**
  * 評価期間。期(年度)を通年のまま、または上期・下期、四半期に分けたものの1つで、
  * 分けた評価期間はそれぞれ独立している(シートを作り、評価し、締める単位)。
- * 同じ期の評価期間をまとめて「当期」などと呼ぶ扱いは EvaluationCalendar が持つ。
  */
 export class EvaluationPeriod {
 	private constructor(
@@ -75,11 +74,6 @@ export class EvaluationPeriod {
 	/** 締め済みか。締めた評価期間のシートは誰も変更できず、評価期間をもう一度開始することもできない。 */
 	get isClosed(): boolean {
 		return this.state === PeriodState.CLOSED;
-	}
-
-	/** 同じ期(年度)の評価期間か。上期と下期は同じ期。 */
-	isInSameTermAs(other: EvaluationPeriod): boolean {
-		return this.term.equals(other.term);
 	}
 
 	/** 次に実施する評価期間として開始できるか。開始できるのは未開始の評価期間だけ(締めたものは再開しない)。 */
@@ -147,10 +141,6 @@ export class EvaluationPeriod {
 			changes.range,
 			changes.allowUnfinalizedClose,
 		);
-	}
-
-	equals(other: EvaluationPeriod): boolean {
-		return this.id === other.id;
 	}
 }
 

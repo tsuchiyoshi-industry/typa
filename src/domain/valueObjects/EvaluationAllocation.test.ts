@@ -26,9 +26,7 @@ describe("configurable allocation", () => {
 		[31, 69],
 		[100, 0],
 	])("accepts %s / %s", (objective, common) => {
-		expect(
-			EvaluationAllocation.of(objective, common).equals(EvaluationAllocation.of(objective, common)),
-		).toBe(true);
+		expect(EvaluationAllocation.of(objective, common)).toMatchObject({ objective, common });
 	});
 	it.each([
 		[50, 60],

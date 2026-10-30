@@ -41,10 +41,6 @@ export class EvaluationAllocation {
 	static fromTotal(allocation: number, score: number, maximum: number): number {
 		return maximum > 0 ? Math.round((score * allocation) / maximum) : 0;
 	}
-
-	equals(other: EvaluationAllocation): boolean {
-		return this.objective === other.objective && this.common === other.common;
-	}
 }
 
 /** 保存値の読み込みで、欠けた値や負の値・小数を、0 以上の整数にそろえる。 */

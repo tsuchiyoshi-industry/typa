@@ -1,7 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
 import type { EvaluationSheetOverviewRow } from "../../domain/repositories/EvaluationSheetRepository";
-import { canViewAllSheets } from "../../domain/services/EmployeeMasterAccessService";
-import { EmployeeRole } from "../../domain/valueObjects/EmployeeRole";
 import { EvaluationStatus } from "../../domain/valueObjects/EvaluationStatus";
 import { masterRepository, output, profile, sheetRepository } from "../../test/fixtures";
 import type { ExportSheetOutputDto } from "../dtos/ExportSheetDto";
@@ -69,10 +67,6 @@ const setup = (role: string | null) => {
 };
 
 describe("the overview of every employee's sheets", () => {
-	it("is an Admin-only permission in the domain", () => {
-		expect(EmployeeRole.ALL.filter(canViewAllSheets)).toEqual([EmployeeRole.ADMIN]);
-	});
-
 	it.each(["Reviewer", "Employee", "unknown", null])(
 		"is not read for %s, who gets no list at all",
 		async (role) => {

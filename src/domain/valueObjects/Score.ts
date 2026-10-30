@@ -20,10 +20,6 @@ export class Score {
 		return Score.from(value ?? 0);
 	}
 
-	equals(other: Score): boolean {
-		return this.value === other.value;
-	}
-
 	toNumber(): number {
 		return this.value;
 	}

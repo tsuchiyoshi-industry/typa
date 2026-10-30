@@ -10,12 +10,13 @@ import {
 	type ReviewerWorkspaceController,
 } from "../controllers/ReviewerWorkspaceController";
 import FeedbackHost from "./components/FeedbackHost";
-import { clearUnsavedChanges, settleConfirm } from "./feedback";
+import { clearToasts, clearUnsavedChanges, settleConfirm } from "./feedback";
 import ReviewerWorkspaceView from "./ReviewerWorkspaceView";
 
 afterEach(() => {
 	cleanup();
 	clearUnsavedChanges();
+	clearToasts();
 	settleConfirm(false);
 });
 const periods = [

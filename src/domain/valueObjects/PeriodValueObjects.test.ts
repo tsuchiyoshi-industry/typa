@@ -69,7 +69,6 @@ describe("CalendarDate", () => {
 		expect(date("2026-12-31").isBefore(date("2027-01-01"))).toBe(true);
 		expect(date("2027-01-01").isBefore(date("2026-12-31"))).toBe(false);
 		expect(date("2026-04-01").isBefore(date("2026-04-01"))).toBe(false);
-		expect(date("2026-04-01").equals(date("2026-04-01"))).toBe(true);
 		expect(date("2026-04-01").compare(date("2026-03-31"))).toBe(1);
 		expect(date("2026-01-01").compare(date("2025-01-01"))).toBe(365);
 	});
@@ -88,37 +87,11 @@ describe("DateRange", () => {
 			error: { kind: "rangeReversed" },
 		});
 	});
-
-	it("ends before another only when not a single day overlaps", () => {
-		const firstHalf = expectOk(
-			DateRange.of(date("2026-04-01"), date("2026-09-30")),
-			describePeriodError,
-		);
-		const secondHalf = expectOk(
-			DateRange.of(date("2026-10-01"), date("2027-03-31")),
-			describePeriodError,
-		);
-		const overlapping = expectOk(
-			DateRange.of(date("2026-09-30"), date("2027-03-31")),
-			describePeriodError,
-		);
-		expect(firstHalf.endsBefore(secondHalf)).toBe(true);
-		expect(secondHalf.endsBefore(firstHalf)).toBe(false);
-		expect(firstHalf.endsBefore(overlapping)).toBe(false);
-		expect(firstHalf.endsBefore(firstHalf)).toBe(false);
-		expect(
-			firstHalf.equals(
-				expectOk(DateRange.of(date("2026-04-01"), date("2026-09-30")), describePeriodError),
-			),
-		).toBe(true);
-	});
 });
 
 describe("TermName", () => {
-	it("trims the name and compares by value", () => {
+	it("trims the name", () => {
 		expect(termName("  26期 ").toString()).toBe("26期");
-		expect(termName("26期").equals(termName(" 26期"))).toBe(true);
-		expect(termName("26期").equals(termName("27期"))).toBe(false);
 	});
 
 	it.each(["", "   ", "\t"])("rejects a blank name %j", (value) => {
@@ -160,7 +133,6 @@ describe("PeriodDivision and PeriodPart", () => {
 	it("names each part the way the company says it", () => {
 		const term = termName("26期");
 		expect(PeriodPart.of(PeriodDivision.FULL, 1).nameIn(term)).toBe("26期");
-		expect(PeriodPart.WHOLE_TERM.nameIn(term)).toBe("26期");
 		expect([1, 2].map((n) => PeriodPart.of(PeriodDivision.HALF, n).nameIn(term))).toEqual([
 			"26期 上期",
 			"26期 下期",
@@ -181,15 +153,6 @@ describe("PeriodDivision and PeriodPart", () => {
 		[PeriodDivision.QUARTER, 1.5],
 	])("rejects a part the division does not have (%s, %d)", (division, number) => {
 		expect(() => PeriodPart.of(division, number)).toThrow();
-	});
-
-	it("compares parts by division and number", () => {
-		expect(
-			PeriodPart.of(PeriodDivision.HALF, 1).equals(PeriodPart.of(PeriodDivision.HALF, 1)),
-		).toBe(true);
-		expect(
-			PeriodPart.of(PeriodDivision.HALF, 1).equals(PeriodPart.of(PeriodDivision.QUARTER, 1)),
-		).toBe(false);
 	});
 });
 

@@ -1,6 +1,6 @@
 import type { PGlite } from "@electric-sql/pglite";
 import { afterAll, beforeAll, expect, it } from "vitest";
-import { actAs, createProdLikeDb } from "./prodLikeDb";
+import { actAs, createProdLikeDb, rollbackAfterTest } from "./prodLikeDb";
 
 let db: PGlite;
 const rows = async (sql: string) => (await db.query(sql)).rows;
@@ -25,6 +25,7 @@ it("ends everyone's session with the app until an Admin says otherwise", async (
 });
 
 it("lets only an Admin decide who stays signed in", async () => {
+	await rollbackAfterTest(db);
 	// Reviewer は社員マスタを閲覧できるが、更新はできない
 	await actAs(db, 2);
 	expect(await keep(4, true)).toEqual([]);
@@ -36,6 +37,9 @@ it("lets only an Admin decide who stays signed in", async () => {
 });
 
 it("lets an employee read their own setting, which the app follows at sign-in", async () => {
+	await rollbackAfterTest(db);
+	await actAs(db, 1);
+	await keep(4, true);
 	const own = async (id: number) => {
 		await actAs(db, id);
 		return rows("select keep_signed_in from public.employees where user_id = auth.uid()");

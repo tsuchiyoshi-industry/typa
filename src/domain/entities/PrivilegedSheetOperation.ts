@@ -1,5 +1,6 @@
 import { err, ok, type Result } from "../Result";
 import { EvaluationStatus, type EvaluationStatusValue } from "../valueObjects/EvaluationStatus";
+import { charLength } from "../valueObjects/textLength";
 
 export interface PrivilegedSheetOperationRequest {
 	sheetId: number;
@@ -48,7 +49,7 @@ export class PrivilegedSheetOperation {
 			return err({ kind: "sameStatus" });
 		}
 		const reason = request.reason.trim();
-		if (!reason || reason.length > 500) {
+		if (!reason || charLength(reason) > 500) {
 			return err({ kind: "reasonInvalid" });
 		}
 		return ok(

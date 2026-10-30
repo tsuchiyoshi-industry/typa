@@ -33,6 +33,19 @@ describe("ボールを持っている人", () => {
 		expect(status.holder()).toBe(holder);
 	});
 
+	it("それぞれの状態へ、誰から誰へ渡ったか", () => {
+		expect(
+			Object.fromEntries(EvaluationStatus.ALL.map((s) => [s.toString(), s.handoff()])),
+		).toEqual({
+			draft: { from: "primary", to: "subject" },
+			goals_submitted: { from: "subject", to: "primary" },
+			goals_confirmed: { from: "primary", to: "subject" },
+			submitted: { from: "subject", to: "primary" },
+			first_evaluated: { from: "primary", to: "secondary" },
+			finalized: null,
+		});
+	});
+
 	it("状態を受け取る相手(handoff の to)は、その状態のボールの持ち主と同じ", () => {
 		for (const status of EvaluationStatus.ALL) {
 			expect(status.handoff()?.to ?? null).toBe(status.holder());

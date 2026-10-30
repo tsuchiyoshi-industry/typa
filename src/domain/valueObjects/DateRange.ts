@@ -12,13 +12,4 @@ export class DateRange {
 	static of(start: CalendarDate, end: CalendarDate): Result<DateRange, PeriodError> {
 		return end.isBefore(start) ? err({ kind: "rangeReversed" }) : ok(new DateRange(start, end));
 	}
-
-	/** other が始まる前に、この期間が終わっている(1日でも重なれば false)。 */
-	endsBefore(other: DateRange): boolean {
-		return this.end.isBefore(other.start);
-	}
-
-	equals(other: DateRange): boolean {
-		return this.start.equals(other.start) && this.end.equals(other.end);
-	}
 }

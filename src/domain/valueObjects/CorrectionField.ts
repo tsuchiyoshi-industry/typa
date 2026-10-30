@@ -1,10 +1,11 @@
 import type { CorrectionError } from "../entities/CorrectionError";
 import { err, ok, type Result } from "../Result";
 import { type PeriodGoal, toPeriodGoals } from "./PeriodGoal";
+import { charLength } from "./textLength";
 
 /** 何を直すか。目標(goal)・共通評価の項目(common)・シート全体(sheet)。 */
 export type CorrectionTarget = "goal" | "common" | "sheet";
-export const CORRECTION_FIELD_VALUES = [
+const CORRECTION_FIELD_VALUES = [
 	"challenge_goal",
 	"period_goals",
 	"achievement",
@@ -85,7 +86,7 @@ export class CorrectionField {
 	 * 期中目標は JSON の一覧で、タスクごとの文章も 2000 文字まで。
 	 */
 	validate(value: string): Result<string, CorrectionError> {
-		const tooLong = (text: string) => text.length > CorrectionField.MAX_TEXT_LENGTH;
+		const tooLong = (text: string) => charLength(text) > CorrectionField.MAX_TEXT_LENGTH;
 		const textTooLong = err({ kind: "textTooLong", max: CorrectionField.MAX_TEXT_LENGTH } as const);
 		if (this.value === "period_goals") {
 			const goals = parsePeriodGoals(value);
@@ -123,10 +124,6 @@ export class CorrectionField {
 			return value === "0" || value === "" ? "未評価" : value;
 		}
 		return value === "" ? "(空欄)" : value;
-	}
-
-	equals(other: CorrectionField): boolean {
-		return this.target === other.target && this.value === other.value;
 	}
 }
 

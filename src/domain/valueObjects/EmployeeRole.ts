@@ -40,8 +40,4 @@ export class EmployeeRole {
 	toString(): EmployeeRoleName {
 		return this.value;
 	}
-
-	equals(other: EmployeeRole): boolean {
-		return this.value === other.value;
-	}
 }

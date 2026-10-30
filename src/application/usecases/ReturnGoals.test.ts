@@ -1,10 +1,8 @@
 import { expect, it, vi } from "vitest";
 import { EvaluationStatus } from "../../domain/valueObjects/EvaluationStatus";
 import { employeeRepository, output, sheet, sheetRepository } from "../../test/fixtures";
-import {
-	describeUpdateEvaluationStatusError,
-	UpdateEvaluationStatusInteractor,
-} from "./UpdateEvaluationStatusInteractor";
+import { describeSheetEditError } from "./SheetEditError";
+import { UpdateEvaluationStatusInteractor } from "./UpdateEvaluationStatusInteractor";
 
 function setup() {
 	const sheets = sheetRepository();
@@ -39,7 +37,7 @@ it.each([
 	const { sheets, notifications, out, returnGoals } = setup();
 	const result = await returnGoals(reason);
 	expect(result).toEqual({ ok: false, error: { kind: "returnReasonInvalid", max: 200 } });
-	expect(!result.ok && describeUpdateEvaluationStatusError(result.error)).toBe(
+	expect(!result.ok && describeSheetEditError(result.error)).toBe(
 		"差し戻しの理由を 200 文字以内で入力してください。",
 	);
 	expect(sheets.returnGoals).not.toHaveBeenCalled();

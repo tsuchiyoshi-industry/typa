@@ -161,8 +161,4 @@ export class EvaluationStatus {
 	toString(): EvaluationStatusValue {
 		return this.value;
 	}
-
-	equals(other: EvaluationStatus): boolean {
-		return this.value === other.value;
-	}
 }

@@ -31,7 +31,7 @@ export interface MilestoneRepository {
 		achievement: string,
 	): Promise<void>;
 	updateScore(milestoneId: number, firstScore?: number, secondScore?: number): Promise<void>;
-	/** 同じ社員の、前の評価期間(EvaluationCalendar.previousOf)のシートの目標。そのシートが無い、または見られないときは null。 */
+	/** 同じ社員の、前の評価期間(DB の previous_evaluation_period)のシートの目標。そのシートが無い、または見られないときは null。 */
 	findPreviousGoals(sheetId: number): Promise<PreviousGoals | null>;
 	/**
 	 * 前期のチャレンジ目標を、このシート(本人の下書き)へ引き継ぐ。写すのはチャレンジ目標の文言だけで、

@@ -123,9 +123,10 @@ export class SupabaseEvaluationPeriodRepository implements EvaluationPeriodRepos
 			.select(COLUMNS)
 			.eq("id", periodId)
 			.maybeSingle();
-		if (error || !data) {
-			return null;
+		// 読めなかったことを「その評価期間は無い」と見せない
+		if (error) {
+			throw new Error(error.message);
 		}
-		return toPeriod(data as PeriodRow);
+		return data ? toPeriod(data as PeriodRow) : null;
 	}
 }

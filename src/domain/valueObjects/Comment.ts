@@ -5,10 +5,6 @@ export class Comment {
 		return new Comment(value?.trim() ?? "");
 	}
 
-	equals(other: Comment): boolean {
-		return this.value === other.value;
-	}
-
 	toString(): string {
 		return this.value;
 	}

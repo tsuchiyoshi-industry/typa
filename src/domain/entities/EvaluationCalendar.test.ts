@@ -56,15 +56,13 @@ const quarters27 = [1, 2, 3, 4].map((part) =>
 const calendar = new EvaluationCalendar([first26, ...quarters27, term25, second26]);
 
 describe("evaluation period", () => {
-	it("is named after its term and part, and knows which term it belongs to", () => {
+	it("is named after its term and part", () => {
 		expect(names([term25, first26, second26, quarters27[2]])).toEqual([
 			"25期",
 			"26期 上期",
 			"26期 下期",
 			"27期 第3四半期",
 		]);
-		expect(first26.isInSameTermAs(second26)).toBe(true);
-		expect(first26.isInSameTermAs(term25)).toBe(false);
 		expect([first26.startDate, first26.endDate]).toEqual(["2026-04-01", "2026-09-30"]);
 	});
 
@@ -182,9 +180,9 @@ describe("evaluation period", () => {
 			range: range("2026-10-01", "2027-03-20"),
 			allowUnfinalizedClose: true,
 		});
-		expect([plan.periodName, plan.part.equals(second26.part), plan.allowUnfinalizedClose]).toEqual([
+		expect([plan.periodName, plan.part, plan.allowUnfinalizedClose]).toEqual([
 			"第26期 下期",
-			true,
+			second26.part,
 			true,
 		]);
 	});
@@ -206,63 +204,21 @@ describe("evaluation calendar", () => {
 		expect(calendar.find(-1)).toBeNull();
 	});
 
-	it("groups the divided periods of a term", () => {
-		expect(names(calendar.termOf(second26))).toEqual(["26期 上期", "26期 下期"]);
-		expect(names(calendar.termOf(quarters27[0]))).toEqual([
-			"27期 第1四半期",
-			"27期 第2四半期",
-			"27期 第3四半期",
-			"27期 第4四半期",
-		]);
-		expect(names(calendar.termOf(term25))).toEqual(["25期"]);
-	});
-
-	it.each([
-		["the second half follows the first half of the same term", second26, "26期 上期"],
-		["the first half follows the previous full-year term", first26, "25期"],
-		["the first quarter follows the second half of the previous term", quarters27[0], "26期 下期"],
-		["a later quarter follows the quarter before it", quarters27[2], "27期 第2四半期"],
-	])("knows the previous period: %s", (_label, current, previous) => {
-		expect(calendar.previousOf(current)?.periodName).toBe(previous);
-	});
-
-	it("has nothing in progress and no previous period when there are no periods", () => {
+	it("has nothing in progress when there are no periods", () => {
 		const empty = new EvaluationCalendar([]);
 		expect([empty.all(), empty.active(), empty.find(1)]).toEqual([[], null, null]);
 		expect(empty.hasPeriodNamed("26期")).toBe(false);
 	});
 
-	it("has no previous period before the first one", () => {
-		expect(calendar.previousOf(term25)).toBeNull();
-		expect(new EvaluationCalendar([first26]).previousOf(first26)).toBeNull();
-	});
-
-	it("looks further back when the period just before is missing", () => {
-		// 26期の下期を消した(作らなかった)ときの27期第1四半期の前は、26期の上期
-		const withoutSecondHalf = new EvaluationCalendar([term25, first26, ...quarters27]);
-		expect(withoutSecondHalf.previousOf(quarters27[0])?.periodName).toBe("26期 上期");
-		// あいだに評価期間の無い時期があっても、その前の評価期間
-		const gap = period("29期", "full", 1, "2029-04-01", "2030-03-31");
-		expect(new EvaluationCalendar([term25, gap]).previousOf(gap)?.periodName).toBe("25期");
-	});
-
-	it("does not count a period that is still running when the next one starts", () => {
-		// 移行前の通年の期と、分けた評価期間が重なっていても、前は終わったものから選ぶ
-		const legacy = period("26期(旧)", "full", 1, "2026-04-01", "2027-03-20");
-		const overlapping = new EvaluationCalendar([term25, legacy, first26, second26]);
-		expect(overlapping.previousOf(second26)?.periodName).toBe("26期 上期");
-		expect(overlapping.previousOf(first26)?.periodName).toBe("25期");
-	});
-
-	it("breaks ties between periods that end on the same day by start date, then by id", () => {
+	it("orders periods that end on the same day by start date, then by id", () => {
 		const longer = period("A", "full", 1, "2026-01-01", "2026-09-30", { id: 100 });
 		const shorter = period("B", "full", 1, "2026-07-01", "2026-09-30", { id: 101 });
 		const sameAsShorter = period("C", "full", 1, "2026-07-01", "2026-09-30", { id: 102 });
-		const next = period("D", "full", 1, "2026-10-01", "2027-03-31", { id: 103 });
-		expect(new EvaluationCalendar([longer, shorter, next]).previousOf(next)?.periodName).toBe("B");
-		expect(
-			new EvaluationCalendar([sameAsShorter, longer, shorter, next]).previousOf(next)?.periodName,
-		).toBe("C");
+		expect(names(new EvaluationCalendar([longer, sameAsShorter, shorter]).all())).toEqual([
+			"C",
+			"B",
+			"A",
+		]);
 	});
 
 	it("knows which names are already taken, apart from the period being renamed", () => {

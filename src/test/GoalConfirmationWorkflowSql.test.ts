@@ -1,5 +1,5 @@
 import type { PGlite } from "@electric-sql/pglite";
-import { afterAll, beforeAll, beforeEach, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, expect, it, onTestFinished } from "vitest";
 import { actAs, applyMigrations, createProdLikeDb, uid } from "./prodLikeDb";
 
 let db: PGlite;
@@ -263,6 +263,13 @@ it("routes each pre-evaluation notification to the next actor and never asks for
 });
 
 it("preserves challenge achievements in correction and previous-period lookup", async () => {
+	// 移行の結果を見るテストのために、訂正した目標 100 を戻す
+	onTestFinished(async () => {
+		await db.exec(`reset role; set session_replication_role = replica;
+			update public.milestones set achievement = '既存の実績' where id = 100;
+			delete from public.sheet_corrections where sheet_id = 100;
+			set session_replication_role = origin;`);
+	});
 	await actAs(db, 1);
 	await value("public.correct_closed_sheet($1,$2,$3)", [
 		100,

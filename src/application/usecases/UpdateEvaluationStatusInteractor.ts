@@ -1,8 +1,5 @@
 import type { EvaluationSheet } from "../../domain/entities/EvaluationSheet";
-import {
-	describeSheetTransitionError,
-	type SheetTransitionError,
-} from "../../domain/entities/SheetTransitionError";
+import type { SheetTransitionError } from "../../domain/entities/SheetTransitionError";
 import { err, ok, type Result } from "../../domain/Result";
 import type {
 	EmailNotificationRepository,
@@ -12,10 +9,7 @@ import type {
 import type { EmployeeRepository } from "../../domain/repositories/EmployeeRepository";
 import type { EvaluationSheetRepository } from "../../domain/repositories/EvaluationSheetRepository";
 import { EvaluationSheetAccessPolicy } from "../../domain/services/EvaluationSheetAccessPolicy";
-import {
-	describeSheetAccessError,
-	type SheetAccessError,
-} from "../../domain/services/SheetAccessError";
+import type { SheetAccessError } from "../../domain/services/SheetAccessError";
 import type {
 	EvaluationStatus,
 	EvaluationStatusValue,
@@ -58,25 +52,6 @@ export type UpdateEvaluationStatusError =
 	| { kind: "sheetNotFound" };
 
 export type ResendNotificationError = Extract<SheetAccessError, { kind: "forbidden" }>;
-
-export function describeUpdateEvaluationStatusError(error: UpdateEvaluationStatusError): string {
-	switch (error.kind) {
-		case "sheetNotFound":
-			return "評価シートが見つかりません。";
-		case "periodClosed":
-		case "forbidden":
-		case "transitionForbidden":
-			return describeSheetAccessError(error);
-		case "objectivesIncomplete":
-		case "evaluationIncomplete":
-		case "returnReasonInvalid":
-			return describeSheetTransitionError(error);
-	}
-}
-
-export function describeResendNotificationError(error: ResendNotificationError): string {
-	return describeSheetAccessError(error);
-}
 
 const RECIPIENT_LABELS: Record<SheetActor, string> = {
 	subject: "本人",

@@ -22,9 +22,9 @@ export class SupabaseEmployeeRepository implements EmployeeRepository {
 			.eq("user_id", authUserId)
 			.maybeSingle();
 
+		// 読めなかったことを「紐付いていない(登録が終わっていない)」と言わない
 		if (error) {
-			console.error("Error checking user link:", error);
-			return false;
+			throw error;
 		}
 
 		// データが存在すれば紐づけ済み

@@ -33,6 +33,7 @@ afterAll(async () => {
 });
 
 it("moves an achievement written on both sides into the first task, without dropping either", async () => {
+	await db.exec("reset role");
 	expect(await row(100)).toEqual({
 		period_goals: [task("a", "タスクの実績\nテーマの実績")],
 		achievement: "",
@@ -69,25 +70,26 @@ it("rejects a write that leaves an achievement on both sides", async () => {
 
 it("checks a correction after all of its changes, so moving the achievement in one request works", async () => {
 	await db.exec(`reset role; set session_replication_role=replica;
-		update public.milestones set period_goals='[]', achievement='テーマ' where id=101;
+		insert into public.milestones(id,sheet_id,goal_number,challenge_goal,period_goals,achievement)
+		values(102,100,3,'旧','[]','テーマ');
 		set session_replication_role=origin;`);
 	await actAs(db, 1);
 	const correct = (changes: unknown[]) =>
 		query("select public.correct_closed_sheet(100,$1,'訂正')", [JSON.stringify(changes)]);
 	await expect(
 		correct([
-			{ target: "goal", targetId: 101, field: "period_goals", value: JSON.stringify([task("b")]) },
+			{ target: "goal", targetId: 102, field: "period_goals", value: JSON.stringify([task("b")]) },
 		]),
 	).rejects.toMatchObject({ code: "23514" });
 	await correct([
 		{
 			target: "goal",
-			targetId: 101,
+			targetId: 102,
 			field: "period_goals",
 			value: JSON.stringify([task("b", "テーマ")]),
 		},
-		{ target: "goal", targetId: 101, field: "achievement", value: "" },
+		{ target: "goal", targetId: 102, field: "achievement", value: "" },
 	]);
 	await db.exec("reset role");
-	expect(await row(101)).toEqual({ period_goals: [task("b", "テーマ")], achievement: "" });
+	expect(await row(102)).toEqual({ period_goals: [task("b", "テーマ")], achievement: "" });
 });

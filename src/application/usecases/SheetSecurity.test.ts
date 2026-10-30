@@ -315,13 +315,51 @@ describe("milestone updates validate before side effects", () => {
 			}),
 		);
 	});
-	it.each([1, 3])("refuses a first score from %s, who is not the primary evaluator", async (id) => {
-		const { sheets, milestones, out } = setup();
-		await expectResultError(use(milestones, sheets).execute(score(id, { firstScore: 4 }), out), {
+	it.each([
+		// 一次点は、一次評価待ちの一次評価者だけ
+		[1, EvaluationStatus.SUBMITTED, { firstScore: 4 }, "editFirstScore"],
+		[3, EvaluationStatus.SUBMITTED, { firstScore: 4 }, "editFirstScore"],
+		[4, EvaluationStatus.SUBMITTED, { firstScore: 4 }, "editFirstScore"],
+		[2, EvaluationStatus.FIRST_EVALUATED, { firstScore: 4 }, "editFirstScore"],
+		[2, EvaluationStatus.GOALS_CONFIRMED, { firstScore: 4 }, "editFirstScore"],
+		// 二次点は、一次評価が確定した後の二次評価者だけ
+		[1, EvaluationStatus.FIRST_EVALUATED, { secondScore: 4 }, "editSecondScore"],
+		[2, EvaluationStatus.FIRST_EVALUATED, { secondScore: 4 }, "editSecondScore"],
+		[3, EvaluationStatus.SUBMITTED, { secondScore: 4 }, "editSecondScore"],
+		[3, EvaluationStatus.FINALIZED, { secondScore: 4 }, "editSecondScore"],
+	] as const)("refuses a score from %s at %s: %o", async (id, status, scores, action) => {
+		const { sheets, milestones, out } = setup(status);
+		await expectResultError(use(milestones, sheets).execute(score(id, scores), out), {
 			kind: "forbidden",
-			action: "editFirstScore",
+			action,
 		});
 		expect(milestones.updateScore).not.toHaveBeenCalled();
+	});
+	it("refuses a new goal while the sheet already holds as many goals as the lowered limit", async () => {
+		const { sheets, milestones, out } = setup(EvaluationStatus.DRAFT);
+		// 上限を 4 から 2 に下げる前に、目標 3・4 を書いていた
+		sheets.findById.mockResolvedValue(
+			EvaluationSheet.create({
+				...sheet(EvaluationStatus.DRAFT),
+				maxObjectives: 2,
+				objectives: [3, 4].map((goalNumber) =>
+					Milestone.restore({
+						id: 10 + goalNumber,
+						sheetId: 100,
+						goalNumber,
+						challengeGoal: "目標",
+					}),
+				),
+			}),
+		);
+		await expectResultError(
+			use(milestones, sheets).execute(upsert(1, { challengeGoal: "x" }), out),
+			{
+				kind: "tooManyGoals",
+				max: 2,
+			},
+		);
+		expect(milestones.upsertText).not.toHaveBeenCalled();
 	});
 	it("does not read back after a failed score write, and fails when the sheet cannot be read", async () => {
 		const failed = setup();
@@ -474,8 +512,16 @@ describe("milestone updates validate before side effects", () => {
 describe("common evaluation updates", () => {
 	// 評価は 1〜4。配点(5)は係数なので、点数の上限ではない
 	const result = { id: 21, itemId: 31, firstComment: "x", firstScore: 3, secondScore: 4 };
-	it.each([1, 4])("denies role %s without saving", async (id) => {
-		const { sheets, common, out } = setup();
+	it.each([
+		[1, EvaluationStatus.SUBMITTED],
+		[4, EvaluationStatus.SUBMITTED],
+		// 段階が違えば、担当の評価者でも保存できない
+		[2, EvaluationStatus.GOALS_SUBMITTED],
+		[2, EvaluationStatus.FIRST_EVALUATED],
+		[3, EvaluationStatus.SUBMITTED],
+		[3, EvaluationStatus.FINALIZED],
+	] as const)("denies %s at %s without saving", async (id, status) => {
+		const { sheets, common, out } = setup(status);
 		await expectResultError(
 			new UpsertCommonEvaluationInteractor(sheets, common).execute(
 				{ sheetId: 100, currentEmployeeId: id, results: [result] },
@@ -495,18 +541,19 @@ describe("common evaluation updates", () => {
 		expect(out.present).toHaveBeenCalledWith({ sheetId: 100, success: true });
 	});
 	it.each([
-		{ results: [{ ...result, itemId: 999 }] },
-		{ results: [result, result] },
-		{ results: [{ ...result, firstScore: 6 }] },
-		{ results: [{ ...result, firstScore: NaN }] },
-	])("rejects invalid batch before any write", async ({ results }) => {
+		["an item of another grade", [{ ...result, itemId: 999 }], "commonItemInvalid"],
+		["the same item twice", [result, result], "commonItemInvalid"],
+		["a score above 4", [{ ...result, firstScore: 6 }], "scoreOutOfRange"],
+		["a score that is not a number", [{ ...result, firstScore: NaN }], "scoreOutOfRange"],
+		["a fractional score", [{ ...result, firstScore: 2.5 }], "scoreOutOfRange"],
+	] as const)("rejects %s before any write", async (_label, results, kind) => {
 		const { sheets, common, out } = setup();
 		expect(
 			await new UpsertCommonEvaluationInteractor(sheets, common).execute(
-				{ sheetId: 100, currentEmployeeId: 2, results },
+				{ sheetId: 100, currentEmployeeId: 2, results: [...results] },
 				out,
 			),
-		).toMatchObject({ ok: false });
+		).toEqual({ ok: false, error: { kind } });
 		expect(common.upsertResults).not.toHaveBeenCalled();
 		expect(out.present).not.toHaveBeenCalled();
 	});
@@ -547,41 +594,74 @@ describe("comments, final rank, status and notifications", () => {
 		);
 		expect(sheets.updateOverallComment).not.toHaveBeenCalled();
 	});
-	it.each([
-		[EvaluationStatus.DRAFT, 1, "goals_submitted"],
-		[EvaluationStatus.GOALS_SUBMITTED, 2, "draft"],
-		[EvaluationStatus.GOALS_SUBMITTED, 2, "goals_confirmed"],
-		[EvaluationStatus.GOALS_CONFIRMED, 1, "submitted"],
-		[EvaluationStatus.SUBMITTED, 2, "first_evaluated"],
-		[EvaluationStatus.FIRST_EVALUATED, 3, "finalized"],
-	] as const)("allows transition %s by %s to %s", async (initial, id, status) => {
-		const { sheets, employees, out } = setup(initial);
-		const notifications = notificationRepository();
-		await new UpdateEvaluationStatusInteractor(sheets, employees, notifications).execute(
-			{
-				sheetId: 100,
-				currentEmployeeId: id,
-				status: EvaluationStatus.from(status),
-				returnReason: "理由",
-			},
-			out,
-		);
-		if (status === "draft") {
-			expect(sheets.returnGoals).toHaveBeenCalledWith(100, expect.anything());
-		} else {
-			expect(sheets.updateStatus).toHaveBeenCalledWith(
-				100,
-				EvaluationStatus.from(status),
-				expect.anything(),
+	// 状態 6 × 操作する人(本人・一次・二次・無関係) × 進める先 6 のすべて。許されるのは状態遷移図の 6 本だけ
+	const ALLOWED = new Set([
+		"draft/1/goals_submitted",
+		"goals_submitted/2/draft",
+		"goals_submitted/2/goals_confirmed",
+		"goals_confirmed/1/submitted",
+		"submitted/2/first_evaluated",
+		"first_evaluated/3/finalized",
+	]);
+	const everyTransition = EvaluationStatus.ALL.flatMap((initial) =>
+		[1, 2, 3, 4].flatMap((id) =>
+			EvaluationStatus.ALL.map((to) => [initial, id, to.toString()] as const),
+		),
+	);
+	it.each(everyTransition.filter(([initial, id, to]) => ALLOWED.has(`${initial}/${id}/${to}`)))(
+		"allows transition %s by %s to %s",
+		async (initial, id, status) => {
+			const { sheets, employees, out } = setup(initial);
+			const notifications = notificationRepository();
+			await new UpdateEvaluationStatusInteractor(sheets, employees, notifications).execute(
+				{
+					sheetId: 100,
+					currentEmployeeId: id,
+					status: EvaluationStatus.from(status),
+					returnReason: "理由",
+				},
+				out,
 			);
-		}
-		expect(notifications.notifySheetStatusChanged).toHaveBeenCalledTimes(
-			status === "finalized" ? 0 : 1,
-		);
-		// 要修正で戻した評価者には、もう見られないシートの本文を返さない
-		const presented = (vi.mocked(out.present).mock.calls[0][0] as { sheet: unknown }).sheet;
-		expect(presented === null).toBe(status === "draft");
-	});
+			if (status === "draft") {
+				expect(sheets.returnGoals).toHaveBeenCalledWith(100, expect.anything());
+			} else {
+				expect(sheets.updateStatus).toHaveBeenCalledWith(
+					100,
+					EvaluationStatus.from(status),
+					expect.anything(),
+				);
+			}
+			expect(notifications.notifySheetStatusChanged).toHaveBeenCalledTimes(
+				status === "finalized" ? 0 : 1,
+			);
+			// 要修正で戻した評価者には、もう見られないシートの本文を返さない
+			const presented = (vi.mocked(out.present).mock.calls[0][0] as { sheet: unknown }).sheet;
+			expect(presented === null).toBe(status === "draft");
+		},
+	);
+	it.each(everyTransition.filter(([initial, id, to]) => !ALLOWED.has(`${initial}/${id}/${to}`)))(
+		"rejects transition %s by %s to %s before any write or notification",
+		async (initial, id, status) => {
+			const { sheets, employees, out } = setup(initial);
+			const notifications = notificationRepository();
+			await expectResultError(
+				new UpdateEvaluationStatusInteractor(sheets, employees, notifications).execute(
+					{
+						sheetId: 100,
+						currentEmployeeId: id,
+						status: EvaluationStatus.from(status),
+						returnReason: "理由",
+					},
+					out,
+				),
+				{ kind: "transitionForbidden", to: status },
+			);
+			expect(sheets.updateStatus).not.toHaveBeenCalled();
+			expect(sheets.returnGoals).not.toHaveBeenCalled();
+			expect(notifications.notifySheetStatusChanged).not.toHaveBeenCalled();
+			expect(out.present).not.toHaveBeenCalled();
+		},
+	);
 	it.each([
 		[EvaluationStatus.DRAFT, 1, "goals_submitted"],
 		[EvaluationStatus.SUBMITTED, 2, "first_evaluated"],
@@ -606,39 +686,6 @@ describe("comments, final rank, status and notifications", () => {
 			expect(notifications.notifySheetStatusChanged).not.toHaveBeenCalled();
 		},
 	);
-	it.each([
-		[EvaluationStatus.DRAFT, 1, "submitted"],
-		[EvaluationStatus.SUBMITTED, 1, "draft"],
-		[EvaluationStatus.GOALS_SUBMITTED, 1, "draft"],
-		[EvaluationStatus.GOALS_CONFIRMED, 2, "submitted"],
-		[EvaluationStatus.DRAFT, 2, "submitted"],
-		[EvaluationStatus.DRAFT, 2, "first_evaluated"],
-		[EvaluationStatus.DRAFT, 3, "finalized"],
-		// 一次評価が確定するまで、二次評価者は確定できない
-		[EvaluationStatus.SUBMITTED, 3, "finalized"],
-		[EvaluationStatus.SUBMITTED, 3, "first_evaluated"],
-		[EvaluationStatus.SUBMITTED, 1, "first_evaluated"],
-		[EvaluationStatus.SUBMITTED, 2, "finalized"],
-		// 一次評価の確定後は、本人も一次評価者も元に戻せない
-		[EvaluationStatus.FIRST_EVALUATED, 1, "draft"],
-		[EvaluationStatus.FIRST_EVALUATED, 2, "submitted"],
-		[EvaluationStatus.FIRST_EVALUATED, 2, "first_evaluated"],
-		[EvaluationStatus.FIRST_EVALUATED, 2, "finalized"],
-		[EvaluationStatus.FINALIZED, 1, "draft"],
-		[EvaluationStatus.FINALIZED, 3, "finalized"],
-	] as const)("rejects forbidden transition %s by %s to %s", async (initial, id, status) => {
-		const { sheets, employees, out } = setup(initial);
-		const notifications = notificationRepository();
-		await expectResultError(
-			new UpdateEvaluationStatusInteractor(sheets, employees, notifications).execute(
-				{ sheetId: 100, currentEmployeeId: id, status: EvaluationStatus.from(status) },
-				out,
-			),
-			{ kind: "transitionForbidden", to: status },
-		);
-		expect(sheets.updateStatus).not.toHaveBeenCalled();
-		expect(notifications.notifySheetStatusChanged).not.toHaveBeenCalled();
-	});
 	it("stores the rank decided by the score rate when each stage is confirmed", async () => {
 		// 一次評価 70点 → B、二次評価 100点 → S。評価者はランクを選べない
 		const first = setup();
@@ -694,6 +741,25 @@ describe("comments, final rank, status and notifications", () => {
 				expect(out.presentNotificationDelivery).toHaveBeenCalledExactlyOnceWith({
 					recipient,
 					error: "SMTP unavailable",
+				}),
+			);
+		},
+	);
+	it.each([null, "timeout", { code: 500 }])(
+		"explains a failed notification in its own words when the failure says nothing (%o)",
+		async (failure) => {
+			const { sheets, employees } = setup(EvaluationStatus.DRAFT);
+			vi.spyOn(console, "error").mockImplementation(() => {});
+			const notifications = { notifySheetStatusChanged: vi.fn().mockRejectedValue(failure) };
+			const out = { present: vi.fn(), presentNotificationDelivery: vi.fn() };
+			await new UpdateEvaluationStatusInteractor(sheets, employees, notifications).execute(
+				{ sheetId: 100, currentEmployeeId: 1, status: EvaluationStatus.GOALS_SUBMITTED },
+				out,
+			);
+			await vi.waitFor(() =>
+				expect(out.presentNotificationDelivery).toHaveBeenCalledExactlyOnceWith({
+					recipient: "一次評価者",
+					error: "通知メールを送信できませんでした。",
 				}),
 			);
 		},
@@ -873,34 +939,48 @@ it.each([1, 2])("allows only the subject to delete a tab (%s)", async (employeeI
 });
 
 describe("deliberate notification retry", () => {
-	it.each([
-		[EvaluationStatus.SUBMITTED, 1],
-		[EvaluationStatus.FIRST_EVALUATED, 2],
-	] as const)("allows only the actor at %s", async (stage, actor) => {
+	// 再送できるのは、いまの状態へシートを渡した人(EvaluationStatus.handoff の from)で、シートを見られる人だけ。
+	// 要修正で下書きに戻した一次評価者は、もう下書きを見られない。評価の確定は誰にも知らせない
+	const SENDER: Record<string, number | null> = {
+		draft: null,
+		goals_submitted: 1,
+		goals_confirmed: 2,
+		submitted: 1,
+		first_evaluated: 2,
+		finalized: null,
+	};
+	it.each(EvaluationStatus.ALL.flatMap((stage) => [1, 2, 3, 4].map((id) => [stage, id] as const)))(
+		"at %s, lets %s resend only if they handed the sheet over",
+		async (stage, id) => {
+			const sheets = sheetRepository();
+			sheets.findById.mockResolvedValue(sheet(stage));
+			const mail = { notifySheetStatusChanged: vi.fn().mockResolvedValue(undefined) };
+			const result = await new UpdateEvaluationStatusInteractor(
+				sheets,
+				employeeRepository(),
+				mail,
+			).resendNotification(100, id, vi.fn());
+			const sender = SENDER[stage.toString()] === id;
+			expect(result).toEqual(
+				sender
+					? { ok: true, value: undefined }
+					: { ok: false, error: { kind: "forbidden", action: "resendNotification" } },
+			);
+			expect(mail.notifySheetStatusChanged).toHaveBeenCalledTimes(sender ? 1 : 0);
+			expect(sheets.updateStatus).not.toHaveBeenCalled();
+		},
+	);
+	it("refuses a resend for a sheet it cannot find", async () => {
 		const sheets = sheetRepository();
-		sheets.findById.mockResolvedValue(sheet(stage));
-		const mail = {
-			notifySheetStatusChanged: vi.fn().mockResolvedValue(undefined),
-		};
-		const useCase = new UpdateEvaluationStatusInteractor(sheets, employeeRepository(), mail);
-		await useCase.resendNotification(100, actor, vi.fn());
+		sheets.findById.mockResolvedValue(null);
+		const mail = { notifySheetStatusChanged: vi.fn() };
 		expect(
-			stage === EvaluationStatus.SUBMITTED
-				? mail.notifySheetStatusChanged
-				: mail.notifySheetStatusChanged,
-		).toHaveBeenCalledOnce();
-		expect(sheets.updateStatus).not.toHaveBeenCalled();
-	});
-	it.each([1, 2, 3, 4])("rejects retries on finalized sheets by %s", async (actor) => {
-		const sheets = sheetRepository();
-		sheets.findById.mockResolvedValue(sheet(EvaluationStatus.FINALIZED));
-		await expectResultError(
-			new UpdateEvaluationStatusInteractor(sheets, employeeRepository()).resendNotification(
-				100,
-				actor,
-				vi.fn(),
-			),
-			{ kind: "forbidden", action: "resendNotification" },
-		);
+			await new UpdateEvaluationStatusInteractor(
+				sheets,
+				employeeRepository(),
+				mail,
+			).resendNotification(100, 1, vi.fn()),
+		).toMatchObject({ ok: false, error: { kind: "forbidden" } });
+		expect(mail.notifySheetStatusChanged).not.toHaveBeenCalled();
 	});
 });

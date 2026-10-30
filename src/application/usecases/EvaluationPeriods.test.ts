@@ -188,6 +188,32 @@ describe("closing an evaluation period", () => {
 		context.periods.activate.mockResolvedValue(false);
 		expect(await close(context, 3, true)).toMatchObject({ status: "rejected" });
 	});
+
+	it("starts the very first period without closing anything, when none is in progress yet", async () => {
+		const context = setup();
+		const first = EvaluationPeriod.restore({
+			id: 3,
+			termName: "来期",
+			startDate: "2027-04-01",
+			endDate: "2028-03-31",
+			isActive: false,
+		});
+		context.periods.findDistinctPeriods.mockResolvedValue([first]);
+		expect(await close(context, 3, false)).toEqual({
+			status: "ready",
+			closing: null,
+			next: expect.objectContaining({ id: 3 }),
+			finalizedSheets: 0,
+			unfinishedSheets: 0,
+		});
+		// 締める期間が無いので、シートを数えに行かない
+		expect(context.periods.countSheetsByStatus).not.toHaveBeenCalled();
+		expect(await close(context, 3, true)).toEqual({
+			status: "closed",
+			message: "「来期」を開始しました。",
+		});
+		expect(context.periods.activate).toHaveBeenCalledExactlyOnceWith(3);
+	});
 });
 
 describe("adding, editing and deleting evaluation periods", () => {
@@ -354,17 +380,52 @@ describe("adding, editing and deleting evaluation periods", () => {
 		expect(context.periods.create).not.toHaveBeenCalled();
 	});
 
-	it.each([
-		["a blank name", { termName: "  " }],
-		["a name already used", { termName: "今期" }],
-		["an unknown division", { division: "monthly" }],
-		["a missing date", { startDate: "" }],
-		["a date that does not exist", { endDate: "2029-02-30" }],
-		["an end before the start", { endDate: "2028-03-31" }],
-		["an unknown period", { periodId: 999 }],
-	])("rejects %s without saving", async (_label, override) => {
+	// 追加するときも、既にある評価期間(来期 3)を変えるときも、同じ入力の誤りで止める
+	it.each(
+		[
+			["a blank name", { termName: "  " }, "期の名前を入力してください。"],
+			["a name already used", { termName: "今期" }, "「今期」という評価期間は既にあります。"],
+			["a missing start date", { startDate: "" }, "開始日と終了日を入力してください。"],
+			["a missing end date", { endDate: "" }, "開始日と終了日を入力してください。"],
+			[
+				"a start date that does not exist",
+				{ startDate: "2028-02-30" },
+				"日付は実在する日を YYYY-MM-DD で入力してください。",
+			],
+			[
+				"an end date that does not exist",
+				{ endDate: "2029-02-30" },
+				"日付は実在する日を YYYY-MM-DD で入力してください。",
+			],
+			[
+				"an end before the start",
+				{ endDate: "2028-03-31" },
+				"終了日は開始日以降の日付にしてください。",
+			],
+		].flatMap(([label, override, message]) =>
+			[undefined, 3].map((periodId) => [label, periodId, override, message] as const),
+		),
+	)("rejects %s without saving (period %s)", async (_label, periodId, override, message) => {
 		const context = setup();
-		expect(await run(context, { ...nextTerm, ...override })).toMatchObject({ success: false });
+		expect(await run(context, { ...nextTerm, periodId, ...(override as object) })).toEqual({
+			success: false,
+			message,
+		});
+		for (const write of writes(context.periods)) {
+			expect(write).not.toHaveBeenCalled();
+		}
+	});
+
+	it.each([
+		[
+			"an unknown division",
+			{ division: "monthly" },
+			"評価期間の区切りは、通年・半期・四半期から選んでください。",
+		],
+		["an unknown period", { periodId: 999 }, "評価期間が見つかりませんでした。"],
+	])("rejects %s without saving", async (_label, override, message) => {
+		const context = setup();
+		expect(await run(context, { ...nextTerm, ...override })).toEqual({ success: false, message });
 		for (const write of writes(context.periods)) {
 			expect(write).not.toHaveBeenCalled();
 		}

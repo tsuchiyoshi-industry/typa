@@ -1,10 +1,14 @@
 // @vitest-environment happy-dom
 import { cleanup, fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
 import { afterEach, expect, it, vi } from "vitest";
-import { confirmAction, settleConfirm, showToast } from "../feedback";
+import { clearToasts, confirmAction, settleConfirm, showToast } from "../feedback";
 import FeedbackHost from "./FeedbackHost";
 
-afterEach(cleanup);
+afterEach(() => {
+	cleanup();
+	// 通知は画面をまたいで残る。次のテストに持ち越さない
+	clearToasts();
+});
 
 it("通知のボタンを押すと、その操作をして通知を閉じる", async () => {
 	const run = vi.fn();

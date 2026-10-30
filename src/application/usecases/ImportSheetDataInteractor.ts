@@ -141,7 +141,7 @@ export class ImportSheetDataInteractor
  * 空欄か同じ内容にする。期中目標の無い行の達成状況は、チャレンジ目標の達成状況。
  * 期中目標の件数と達成状況の置き場所は Milestone が確かめ、決まりを破った行を示す。
  */
-export function mergeGoalRows(
+function mergeGoalRows(
 	rows: readonly string[][],
 	lines: readonly number[],
 ): { rows: GoalImportRow[] } | { errors: SheetImportError[] } {

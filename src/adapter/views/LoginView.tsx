@@ -120,6 +120,10 @@ const LoginView = (props: LoginViewProps) => {
 			);
 		} else if (status === "account_disabled") {
 			setErrorMessage("利用が停止されています。再開が必要な場合は管理者に連絡してください。");
+		} else if (status === "unavailable") {
+			setErrorMessage(
+				"ログインできるかを確かめられませんでした。通信状況を確かめて、もう一度ログインしてください。",
+			);
 		} else if (status === "registration_incomplete") {
 			// 登録が社員番号の紐付けの前で止まったアカウント。新規登録をやり直すと続きから再開できる
 			switchMode("signup", "登録が完了していません。新規登録をやり直してください。");

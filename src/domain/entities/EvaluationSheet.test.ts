@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { commonResult, employee, milestone, period } from "../../test/fixtures";
+import { commonResult, employee, milestone, period, sheet } from "../../test/fixtures";
 import { EvaluationAllocation } from "../valueObjects/EvaluationAllocation";
 import { EvaluationStatus } from "../valueObjects/EvaluationStatus";
 import { EvaluationSheet, type StoredSheetScores } from "./EvaluationSheet";
@@ -165,6 +165,23 @@ describe("what a sheet needs before it moves on", () => {
 		expect(draft().readinessFor(status).ok).toBe(true);
 	});
 
+	it.each([
+		[4, 4, true],
+		[5, 4, false],
+		[2, 2, true],
+		[3, 2, false],
+	])("allows %s goals under a limit of %s: %s", (count, max, allowed) => {
+		const goals = Array.from({ length: count }, (_, i) =>
+			Milestone.restore({ id: 20 + i, sheetId: 100, goalNumber: i + 1, challengeGoal: "目標" }),
+		);
+		const sheet = EvaluationSheet.create({ ...draft(goals), maxObjectives: max });
+		expect(failure(sheet.readinessFor(EvaluationStatus.GOALS_SUBMITTED))).toEqual(
+			allowed
+				? null
+				: { kind: "objectivesIncomplete", missing: [`チャレンジ目標は1〜${max}件必要です。`] },
+		);
+	});
+
 	it("needs the confirming evaluator's own scores, and only those, before confirming", () => {
 		// 一次 2・二次 4 の目標と、未評価の共通評価
 		const first = failure(draft().readinessFor(EvaluationStatus.FIRST_EVALUATED));
@@ -187,4 +204,45 @@ describe("what a sheet needs before it moves on", () => {
 		);
 		expect(scored.readinessFor(EvaluationStatus.FIRST_EVALUATED).ok).toBe(true);
 	});
+});
+
+describe("changing the status of a copy", () => {
+	const returned = (status = EvaluationStatus.DRAFT) =>
+		EvaluationSheet.create({
+			sheetId: 100,
+			subject: employee(),
+			evaluationPeriod: period(),
+			primaryEvaluatorName: "一次",
+			secondaryEvaluatorName: "二次",
+			objectives: [milestone()],
+			status,
+			goalReturnReason: "数値目標を入れてください",
+		});
+
+	it("changes only the status, leaving the original as it was", () => {
+		const before = sheet(EvaluationStatus.GOALS_SUBMITTED);
+		const after = before.withStatus(EvaluationStatus.DRAFT);
+		expect([before.status, after.status]).toEqual([
+			EvaluationStatus.GOALS_SUBMITTED,
+			EvaluationStatus.DRAFT,
+		]);
+		const { status: _after, ...rest } = after;
+		const { status: _before, ...original } = before;
+		expect(rest).toEqual(original);
+	});
+
+	it("keeps the return reason while the sheet stays a draft", () => {
+		expect(returned().withStatus(EvaluationStatus.DRAFT).goalReturnReason).toBe(
+			"数値目標を入れてください",
+		);
+	});
+
+	// DB も下書きを離れると理由を消す(evaluation_sheets_settle_goal_return_reason)
+	it.each(EvaluationStatus.ALL.filter((status) => !status.isDraft()))(
+		"drops the return reason once the sheet leaves the draft for %s",
+		(status) => {
+			const moved = returned().withStatus(status);
+			expect([moved.status, moved.goalReturnReason]).toEqual([status, ""]);
+		},
+	);
 });

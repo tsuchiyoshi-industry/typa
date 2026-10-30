@@ -1,6 +1,6 @@
-// E・F は過去に手入力されたランクを読むために残している。得点率から決まるのは S〜D。
-export const EVALUATION_RANK_LETTERS = ["S", "A", "B", "C", "D", "E", "F"] as const;
-export const EVALUATION_RANK_LEVELS = ["plus", "none", "minus"] as const;
+// 得点率から決まる S〜D だけ。
+const EVALUATION_RANK_LETTERS = ["S", "A", "B", "C", "D"] as const;
+const EVALUATION_RANK_LEVELS = ["plus", "none", "minus"] as const;
 
 export type EvaluationRankLetter = (typeof EVALUATION_RANK_LETTERS)[number];
 export type EvaluationRankLevel = (typeof EVALUATION_RANK_LEVELS)[number];

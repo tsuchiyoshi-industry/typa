@@ -14,6 +14,12 @@ export default defineConfig({
 		maxWorkers: 2,
 		clearMocks: true,
 		restoreMocks: true,
+		// 何も確かめないテストは失敗にする
+		expect: { requireAssertions: true },
+		// テストを毎回ちがう順に流し、前のテストが残した状態に寄りかかるテストを見つける。
+		// 落ちたときは出力の seed を --sequence.seed に渡すと同じ順で再現できる。
+		// 前の段の結果を使う一連の流れは、describe に { shuffle: false } を付けて順番を守る
+		sequence: { shuffle: { files: false, tests: true } },
 		projects: [
 			{
 				extends: true,

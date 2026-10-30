@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { commonResult, employee, milestone, period, profile, sheet } from "../../test/fixtures";
+import { commonResult, employee, milestone, period } from "../../test/fixtures";
 import { EvaluationSheet } from "../entities/EvaluationSheet";
 import { Comment } from "./Comment";
 import { EMPLOYEE_ROLE_NAMES, EmployeeRole } from "./EmployeeRole";
@@ -24,11 +24,12 @@ describe("value objects and immutable entities", () => {
 		expect(Score.isValid(value)).toBe(false);
 		expect(() => Score.from(value as number)).toThrow("点数は 0〜4 の整数");
 	});
-	it("normalizes optional scores and compares values", () => {
-		expect([0, 1, 4].every((value) => Score.isValid(value))).toBe(true);
-		expect(Score.fromOptional().toNumber()).toBe(0);
-		expect(Score.fromOptional(null).equals(Score.from(0))).toBe(true);
-		expect(Score.from(2).equals(Score.from(3))).toBe(false);
+	it.each([0, 1, 4])("accepts score %s", (value) => {
+		expect(Score.isValid(value)).toBe(true);
+		expect(Score.from(value).toNumber()).toBe(value);
+	});
+	it.each([undefined, null])("treats a missing score (%s) as unrated", (value) => {
+		expect(Score.fromOptional(value).toNumber()).toBe(0);
 	});
 	it.each([null, undefined, "", "   "])("normalizes empty comment %s", (value) =>
 		expect(Comment.from(value).toString()).toBe(""),
@@ -45,20 +46,22 @@ describe("value objects and immutable entities", () => {
 	});
 	it("trims comments without interpreting markup", () => {
 		expect(Comment.from("  <script>x</script>  ").value).toBe("<script>x</script>");
-		expect(Comment.from(" x ").equals(Comment.from("x"))).toBe(true);
 	});
 	it.each([...EVALUATION_STATUS_VALUES])("round trips status %s", (value) => {
 		const status = EvaluationStatus.from(value);
 		expect(status.toString()).toBe(value);
 		expect(status.isDraft()).toBe(value === "draft");
 		expect(status.isSentToEvaluators()).toBe(value !== "draft");
+		// 採点は一次評価の依頼から。目標の確認中は点数もランクもまだ無い
+		expect(status.isEvaluationStarted()).toBe(
+			["submitted", "first_evaluated", "finalized"].includes(value),
+		);
 		expect(status.isAwaitingFirstEvaluation()).toBe(value === "submitted");
 		expect(status.isAwaitingSecondEvaluation()).toBe(value === "first_evaluated");
 		expect(status.isFirstEvaluationConfirmed()).toBe(
 			value === "first_evaluated" || value === "finalized",
 		);
 		expect(status.isFinalized()).toBe(value === "finalized");
-		expect(status.equals(EvaluationStatus.from(value))).toBe(true);
 	});
 	it.each([
 		[100, "S"],
@@ -83,8 +86,8 @@ describe("value objects and immutable entities", () => {
 		expect(EvaluationRank.fromScore(58, 100).toDisplayText()).toBe("B-");
 		expect(EvaluationRank.fromScore(5, 0).toDisplayText()).toBe("D");
 	});
-	it("round trips ranks through display text, including ranks entered by hand in the past", () => {
-		for (const text of ["S", "A", "B+", "B", "B-", "C", "D", "F-"]) {
+	it("round trips ranks through display text", () => {
+		for (const text of ["S", "A", "B+", "B", "B-", "C", "D"]) {
 			expect(EvaluationRank.fromText(text)?.toDisplayText()).toBe(text);
 		}
 		expect(EvaluationRank.from("S", "plus").toDisplayText()).toBe("S+");
@@ -92,11 +95,16 @@ describe("value objects and immutable entities", () => {
 		expect(EvaluationRank.fromOptional()).toBeUndefined();
 		expect(EvaluationRank.fromText(null)).toBeUndefined();
 		expect(EvaluationRank.fromText("")).toBeUndefined();
-		expect(() => EvaluationRank.fromText("Z")).toThrow();
+		for (const text of ["Z", "E", "F-"]) {
+			expect(() => EvaluationRank.fromText(text)).toThrow();
+		}
 	});
 	it.each([
 		["X", "none"],
 		["A", "bad"],
+		// 得点率から決まるのは S〜D だけ。E・F は使わない
+		["E", "none"],
+		["F", "minus"],
 	])("rejects rank %s/%s", (letter, level) =>
 		expect(() => EvaluationRank.fromOptional(letter, level)).toThrow(),
 	);
@@ -219,27 +227,6 @@ describe("value objects and immutable entities", () => {
 	it("trims a common result's comment", () => {
 		expect(commonResult({ firstComment: " x " }).firstComment.value).toBe("x");
 	});
-	it("entity identity is stable across rehydration", () => {
-		expect(employee().equals(employee())).toBe(true);
-		expect(
-			employee().equals(
-				new (employee().constructor as typeof import("../entities/Employee").Employee)(
-					9,
-					"x",
-					"x",
-					1,
-					null,
-					null,
-					null,
-					null,
-				),
-			),
-		).toBe(false);
-		expect(profile().equals(profile())).toBe(true);
-		expect(period().equals(period())).toBe(true);
-		expect(commonResult().item.equals(commonResult().item)).toBe(true);
-		expect(sheet().equals(sheet())).toBe(true);
-	});
 	it("keeps roles to the known values and treats an unknown stored name as the weakest role", () => {
 		expect(EmployeeRole.ALL.map(String)).toEqual([...EMPLOYEE_ROLE_NAMES]);
 		expect(EmployeeRole.find("Admin")).toBe(EmployeeRole.ADMIN);
@@ -248,8 +235,7 @@ describe("value objects and immutable entities", () => {
 			expect(EmployeeRole.fromStored(stored)).toBe(EmployeeRole.EMPLOYEE);
 		}
 		expect(EmployeeRole.ALL.filter((role) => role.isAdmin())).toEqual([EmployeeRole.ADMIN]);
-		expect(EmployeeRole.REVIEWER.equals(EmployeeRole.fromStored("Reviewer"))).toBe(true);
-		expect(EmployeeRole.REVIEWER.equals(EmployeeRole.EMPLOYEE)).toBe(false);
+		expect(EmployeeRole.fromStored("Reviewer")).toBe(EmployeeRole.REVIEWER);
 	});
 });
 

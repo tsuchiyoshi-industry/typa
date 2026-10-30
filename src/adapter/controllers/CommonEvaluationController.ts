@@ -1,9 +1,9 @@
 import { messageOf } from "../../application/errorMessage";
+import { describeSheetEditError } from "../../application/usecases/SheetEditError";
 import type {
 	UpsertCommonEvaluationInteractor,
 	UpsertCommonEvaluationOutputPort,
 } from "../../application/usecases/UpsertCommonEvaluationInteractor";
-import { describeUpsertCommonEvaluationError } from "../../application/usecases/UpsertCommonEvaluationInteractor";
 import type { EmployeeRepository } from "../../domain/repositories/EmployeeRepository";
 import type { CommonEvaluationViewModel } from "../presenters/CommonEvaluationPresenter";
 import { requireCurrentEmployeeId } from "./currentEmployee";
@@ -45,7 +45,7 @@ export class CommonEvaluationController {
 				this.presenter.outputPort.upsert,
 			);
 			if (!result.ok) {
-				this.presenter.presentUpsertError(describeUpsertCommonEvaluationError(result.error));
+				this.presenter.presentUpsertError(describeSheetEditError(result.error));
 				return false;
 			}
 			return true;

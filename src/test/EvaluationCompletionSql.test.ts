@@ -164,6 +164,7 @@ it("checks the third and fourth goals at confirmation", async () => {
 	await expect(confirm("first_evaluated")).rejects.toThrow("チャレンジ目標 4");
 	await db.exec("update public.milestones set first_score = 4 where id = 14");
 	await confirm("first_evaluated");
+	expect(await status()).toBe("first_evaluated");
 });
 it("rejects a whitespace-only challenge goal even with every score saved", async () => {
 	await db.exec("update public.milestones set challenge_goal = E' \t\n' where id = 12");
@@ -177,6 +178,7 @@ it("takes the largest number of goals from the settings", async () => {
 	await db.exec(`update public.evaluation_settings set max_challenge_goals = 5;
 		insert into public.milestones (id, sheet_id, goal_number, first_score, second_score) values (13, 100, 3, 4, 0), (14, 100, 4, 4, 0), (15, 100, 5, 4, 0)`);
 	await confirm("first_evaluated");
+	expect(await status()).toBe("first_evaluated");
 	await expect(
 		db.exec("update public.evaluation_settings set max_challenge_goals = 11"),
 	).rejects.toMatchObject({ code: "23514" });
@@ -185,6 +187,7 @@ it("takes the largest number of goals from the settings", async () => {
 it("lets a sheet through with the midterm goal and the achievement left blank", async () => {
 	await db.exec("update public.milestones set midterm_goal = '', achievement = null");
 	await confirm("first_evaluated");
+	expect(await status()).toBe("first_evaluated");
 });
 it("requires at least one goal on submission", async () => {
 	await confirm("draft");

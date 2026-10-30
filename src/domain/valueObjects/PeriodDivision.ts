@@ -2,7 +2,7 @@ import type { PeriodError } from "../entities/PeriodError";
 import { err, ok, type Result } from "../Result";
 
 /** DB にはこの文字列で保存する。 */
-export const PERIOD_DIVISION_VALUES = ["full", "half", "quarter"] as const;
+const PERIOD_DIVISION_VALUES = ["full", "half", "quarter"] as const;
 export type PeriodDivisionValue = (typeof PERIOD_DIVISION_VALUES)[number];
 
 /**

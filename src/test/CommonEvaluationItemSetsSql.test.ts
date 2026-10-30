@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
 import { afterAll, beforeAll, expect, it } from "vitest";
+import { rollbackAfterTest } from "./prodLikeDb";
 
 let db: PGlite;
 const migration = readFileSync(
@@ -57,6 +58,8 @@ it("keeps every grade on the items it had, and drops the per-item grade", async 
 	expect(columns.rows).toHaveLength(0);
 });
 it("lets a second grade share the same item set", async () => {
+	// 移行の結果を見るほかのテストに残さないよう、確かめた後に戻す
+	await rollbackAfterTest(db);
 	await db.exec(`
 		update public.employee_grades
 		set item_set_id = (select item_set_id from public.employee_grades where grade_name = '技術1級')

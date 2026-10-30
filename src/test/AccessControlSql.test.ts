@@ -1,5 +1,5 @@
 import type { PGlite } from "@electric-sql/pglite";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, onTestFinished } from "vitest";
 import { EvaluationAllocation } from "../domain/valueObjects/EvaluationAllocation";
 import { EvaluationRank } from "../domain/valueObjects/EvaluationRank";
 import { actAs, createProdLikeDb } from "./prodLikeDb";
@@ -171,7 +171,8 @@ it("keeps the Admin-only settings working through the narrowed employee table", 
 	);
 });
 
-describe("a sheet from draft to finalized", () => {
+// 1枚のシートを下書きから確定まで進める。各段は前の段の結果から始まるので、順番どおりに流す
+describe("a sheet from draft to finalized", { shuffle: false }, () => {
 	let sheetId: number;
 	let goalIds: number[];
 
@@ -405,6 +406,13 @@ describe("a sheet from draft to finalized", () => {
 	it("still carries a new evaluator over to an open sheet when the employee master changes", async () => {
 		await actAs(db, 5);
 		const id = await createSheet(5);
+		// 社員 5 の評価者とシートを、社員マスタの見え方を確かめるテストに残さない
+		onTestFinished(async () => {
+			await db.exec(`reset role; set session_replication_role = replica;
+				delete from public.evaluation_sheets where id = ${id};
+				update public.employees set primary_evaluator_id = null where id = 5;
+				set session_replication_role = origin;`);
+		});
 		await actAs(db, 1);
 		await db.query("update public.employees set primary_evaluator_id = 3 where id = 5");
 		await actAs(db, 3);
@@ -422,6 +430,12 @@ it("calculates the evaluation score exactly as the app does", async () => {
 			"insert into public.evaluation_sheets (period_id, employee_id, status) values (1, 7, 'submitted') returning id",
 		)
 	)[0].id;
+	// 突き合わせ用のシートを、ほかのテスト(評価者が数える目標の件数など)に残さない
+	onTestFinished(async () => {
+		await db.exec(`reset role; set session_replication_role = replica;
+			delete from public.evaluation_sheets where id = ${sheetId};
+			set session_replication_role = origin;`);
+	});
 	await db.exec(`
 		update public.evaluation_sheets set primary_evaluator_id = 2, secondary_evaluator_id = 3 where id = ${sheetId};
 		insert into public.common_evaluation_results (sheet_id, item_id) values (${sheetId}, 1), (${sheetId}, 2);

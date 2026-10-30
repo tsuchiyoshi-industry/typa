@@ -15,19 +15,15 @@ import type {
 	FetchEvaluationSheetInteractor,
 	FetchEvaluationSheetOutputPort,
 } from "../../application/usecases/FetchEvaluationSheetInteractor";
+import { describeSheetEditError } from "../../application/usecases/SheetEditError";
 import type {
 	UpdateEvaluationStatusInteractor,
 	UpdateEvaluationStatusOutputPort,
-} from "../../application/usecases/UpdateEvaluationStatusInteractor";
-import {
-	describeResendNotificationError,
-	describeUpdateEvaluationStatusError,
 } from "../../application/usecases/UpdateEvaluationStatusInteractor";
 import type {
 	UpdateOverallCommentInteractor,
 	UpdateOverallCommentOutputPort,
 } from "../../application/usecases/UpdateOverallCommentInteractor";
-import { describeUpdateOverallCommentError } from "../../application/usecases/UpdateOverallCommentInteractor";
 import type { EmployeeRepository } from "../../domain/repositories/EmployeeRepository";
 import type { EvaluationStatus } from "../../domain/valueObjects/EvaluationStatus";
 import type { SheetEditorViewModel } from "../presenters/SheetEditorPresenter";
@@ -157,9 +153,7 @@ export class SheetEditorController {
 				this.presenter.outputPort.overallComment,
 			);
 			if (!result.ok) {
-				this.presenter.presentOverallCommentUpdateError(
-					describeUpdateOverallCommentError(result.error),
-				);
+				this.presenter.presentOverallCommentUpdateError(describeSheetEditError(result.error));
 				return false;
 			}
 			return true;
@@ -203,7 +197,7 @@ export class SheetEditorController {
 				this.presenter.outputPort.status,
 			);
 			if (!result.ok) {
-				this.presenter.presentStatusUpdateError(describeUpdateEvaluationStatusError(result.error));
+				this.presenter.presentStatusUpdateError(describeSheetEditError(result.error));
 				return false;
 			}
 			return true;
@@ -228,7 +222,7 @@ export class SheetEditorController {
 			(delivery) => this.presenter.outputPort.status.presentNotificationDelivery?.(delivery),
 		);
 		if (!result.ok) {
-			this.presenter.presentStatusUpdateError(describeResendNotificationError(result.error));
+			this.presenter.presentStatusUpdateError(describeSheetEditError(result.error));
 		}
 	}
 

@@ -1,5 +1,5 @@
 import type { PGlite } from "@electric-sql/pglite";
-import { afterAll, beforeAll, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { actAs, createProdLikeDb } from "./prodLikeDb";
 
 let db: PGlite;
@@ -52,20 +52,25 @@ afterAll(async () => {
 	await db?.close();
 });
 
-const unchanged = async () => {
+/** 締めたシートの、修正で変わりうるものすべて。断られた修正の前後で比べる(ほかのテストの記録に寄りかからない)。 */
+const snapshot = async () => {
 	await db.exec("reset role");
-	expect(
-		await query(
-			"select first_score, second_score, period_goals->0->>'achievement' as achievement from public.milestones where sheet_id = 100",
+	return {
+		goals: await query(
+			"select sheet_id, first_score, second_score, period_goals from public.milestones where sheet_id in (100, 300) order by id",
 		),
-	).toEqual([{ first_score: 3, second_score: 3, achievement: "半減した" }]);
-	expect(await one("select count(*)::int as v from public.sheet_corrections")).toBe(0);
-	expect(
-		await one("select total_evaluation_score as v from public.evaluation_sheets where id = 100"),
-	).toBe(75);
+		sheets: await query(
+			"select id, total_evaluation_score, second_overall_comment from public.evaluation_sheets where id in (100, 300) order by id",
+		),
+		corrections: await one("select count(*)::int as v from public.sheet_corrections"),
+		audits: await one(
+			"select count(*)::int as v from public.security_audit_log where action = 'sheet.corrected'",
+		),
+	};
 };
 
 it("lets only an Admin read or correct a closed sheet, and never a sheet of the period in progress", async () => {
+	const before = await snapshot();
 	for (const employee of [2, 3, 4]) {
 		await actAs(db, employee);
 		await expect(query("select public.get_sheet_for_correction(100)")).rejects.toMatchObject({
@@ -90,7 +95,7 @@ it("lets only an Admin read or correct a closed sheet, and never a sheet of the 
 	).rejects.toMatchObject({
 		code: "P0002",
 	});
-	await unchanged();
+	expect(await snapshot()).toEqual(before);
 });
 
 it.each([
@@ -145,20 +150,21 @@ it.each([
 	],
 	[
 		"the value it already has",
-		[{ target: "goal", field: "achievement", value: "半減した" }],
+		[{ target: "goal", field: "challenge_goal", value: "受注の手戻りを減らす" }],
 		"訂正",
 		"今と同じ内容には修正できません。",
 	],
 	[
 		"a good change followed by a bad one",
 		[
-			{ target: "goal", field: "second_score", value: "4" },
+			{ target: "goal", field: "challenge_goal", value: "受注の手戻りをなくす" },
 			{ target: "goal", field: "first_score", value: "9" },
 		],
 		"訂正",
 		"点数は 1〜4",
 	],
 ])("writes nothing for %s", async (_label, changes, reason, message) => {
+	const before = await snapshot();
 	await actAs(db, 1);
 	const withIds = (changes as Record<string, unknown>[]).map(({ targetIdOf, ...change }) =>
 		change.target === "goal"
@@ -166,7 +172,7 @@ it.each([
 			: change,
 	);
 	await expect(correct(100, withIds, reason as string)).rejects.toThrow(message as string);
-	await unchanged();
+	expect(await snapshot()).toEqual(before);
 });
 
 it("has no second score to correct on a sheet without a secondary evaluator", async () => {
@@ -174,92 +180,6 @@ it("has no second score to correct on a sheet without a secondary evaluator", as
 	await expect(
 		correct(300, [{ target: "goal", targetId: goal300, field: "second_score", value: "3" }]),
 	).rejects.toThrow("二次評価者を置かないシートには、二次評価点はありません。");
-});
-
-it("records each correction and recalculates the finalized result with the allocation it was finalized with", async () => {
-	await db.exec(
-		"reset role; update public.evaluation_settings set objective_allocation = 50, common_allocation = 50",
-	);
-	await actAs(db, 1);
-	expect(
-		await one("select public.correct_closed_sheet(100, $1, '二次評価の転記ミス') as v", [
-			JSON.stringify([
-				{ target: "goal", targetId: goal100, field: "second_score", value: "4" },
-				{ target: "goal", targetId: goal100, field: "achievement", value: "7割減らした" },
-				{ target: "common", targetId: 2, field: "second_score", value: "4" },
-				{ target: "sheet", field: "second_overall_comment", value: "訂正後の総評" },
-			]),
-		]),
-	).toBe(4);
-	await db.exec("reset role");
-	expect(
-		await query(
-			"select target, goal_number, item_title, field, before_value, after_value, reason, corrected_by from public.sheet_corrections order by id",
-		),
-	).toEqual([
-		{
-			target: "goal",
-			goal_number: 1,
-			item_title: null,
-			field: "second_score",
-			before_value: "3",
-			after_value: "4",
-			reason: "二次評価の転記ミス",
-			corrected_by: 1,
-		},
-		{
-			target: "goal",
-			goal_number: 1,
-			item_title: null,
-			field: "achievement",
-			before_value: "半減した",
-			after_value: "7割減らした",
-			reason: "二次評価の転記ミス",
-			corrected_by: 1,
-		},
-		{
-			target: "common",
-			goal_number: null,
-			item_title: "専門性",
-			field: "second_score",
-			before_value: "3",
-			after_value: "4",
-			reason: "二次評価の転記ミス",
-			corrected_by: 1,
-		},
-		{
-			target: "sheet",
-			goal_number: null,
-			item_title: null,
-			field: "second_overall_comment",
-			before_value: "二次の総評",
-			after_value: "訂正後の総評",
-			reason: "二次評価の転記ミス",
-			corrected_by: 1,
-		},
-	]);
-	// 目標 4/4 → 20 点、共通評価 (2×3 + 3×4)/20 → 72 点。配点は確定時の 20/80 のまま
-	expect(
-		await query(
-			"select status, total_evaluation_score, objective_allocation, common_allocation, final_rank_letter || final_rank_level as rank, second_overall_comment from public.evaluation_sheets where id = 100",
-		),
-	).toEqual([
-		{
-			status: "finalized",
-			total_evaluation_score: 92,
-			objective_allocation: 20,
-			common_allocation: 80,
-			rank: await one(
-				"select left(public.evaluation_rank(92), 1) || case right(public.evaluation_rank(92), 1) when '+' then 'plus' when '-' then 'minus' else 'none' end as v",
-			),
-			second_overall_comment: "訂正後の総評",
-		},
-	]);
-	expect(
-		await one(
-			"select count(*)::int as v from public.security_audit_log where action = 'sheet.corrected'",
-		),
-	).toBe(1);
 });
 
 it("still keeps every other write away from a closed sheet", async () => {
@@ -285,36 +205,125 @@ it("still keeps every other write away from a closed sheet", async () => {
 	});
 });
 
-it("shows a correction only to those who may see the corrected item", async () => {
-	await actAs(db, 1);
-	await correct(300, [
-		{ target: "goal", targetId: goal300, field: "first_score", value: "2" },
-		{ target: "goal", targetId: goal300, field: "achievement", value: "期限内に返した" },
-	]);
-	// 評価せずに締めた下書きの一次評価点は、本人には見せない(修正も見せない)。目標の文言の修正は見せる
-	expect((await correctionsSeenBy(6, 300))?.map((c) => c.field)).toEqual(["achievement"]);
-	expect((await correctionsSeenBy(2, 300))?.map((c) => c.field)).toEqual([
-		"first_score",
-		"achievement",
-	]);
-	expect(await correctionsSeenBy(5, 300)).toBeUndefined();
-	// 評価確定のシートは、本人にもすべての修正を見せる
-	expect(
-		(await correctionsSeenBy(4, 100))?.map((c) => `${c.field}:${c.before}→${c.after}`),
-	).toEqual([
-		"second_score:3→4",
-		"achievement:半減した→7割減らした",
-		"second_score:3→4",
-		"second_overall_comment:二次の総評→訂正後の総評",
-	]);
-	// DB は値を返す範囲の修正を返す(評価確定後は一次評価者にも二次評価を返す)。
-	// 一次評価者に二次評価を見せないのは、画面の EvaluationSheetAccessPolicy が値と修正の両方で決める
-	expect((await correctionsSeenBy(2, 100))?.map((c) => c.field)).toHaveLength(4);
-	// Admin は修正の画面ですべて読む
-	await actAs(db, 1);
-	expect(
-		(
-			await one<{ corrections: Correction[] }>("select public.get_sheet_for_correction(300) as v")
-		).corrections.map((c) => c.field),
-	).toEqual(["first_score", "achievement"]);
+// 修正を記録し、その記録を誰に見せるか。後の段が前の段の記録を読むので、順番どおりに流す
+describe("recording corrections and showing them", { shuffle: false }, () => {
+	it("records each correction and recalculates the finalized result with the allocation it was finalized with", async () => {
+		await db.exec(
+			"reset role; update public.evaluation_settings set objective_allocation = 50, common_allocation = 50",
+		);
+		await actAs(db, 1);
+		expect(
+			await one("select public.correct_closed_sheet(100, $1, '二次評価の転記ミス') as v", [
+				JSON.stringify([
+					{ target: "goal", targetId: goal100, field: "second_score", value: "4" },
+					{ target: "goal", targetId: goal100, field: "achievement", value: "7割減らした" },
+					{ target: "common", targetId: 2, field: "second_score", value: "4" },
+					{ target: "sheet", field: "second_overall_comment", value: "訂正後の総評" },
+				]),
+			]),
+		).toBe(4);
+		await db.exec("reset role");
+		expect(
+			await query(
+				"select target, goal_number, item_title, field, before_value, after_value, reason, corrected_by from public.sheet_corrections order by id",
+			),
+		).toEqual([
+			{
+				target: "goal",
+				goal_number: 1,
+				item_title: null,
+				field: "second_score",
+				before_value: "3",
+				after_value: "4",
+				reason: "二次評価の転記ミス",
+				corrected_by: 1,
+			},
+			{
+				target: "goal",
+				goal_number: 1,
+				item_title: null,
+				field: "achievement",
+				before_value: "半減した",
+				after_value: "7割減らした",
+				reason: "二次評価の転記ミス",
+				corrected_by: 1,
+			},
+			{
+				target: "common",
+				goal_number: null,
+				item_title: "専門性",
+				field: "second_score",
+				before_value: "3",
+				after_value: "4",
+				reason: "二次評価の転記ミス",
+				corrected_by: 1,
+			},
+			{
+				target: "sheet",
+				goal_number: null,
+				item_title: null,
+				field: "second_overall_comment",
+				before_value: "二次の総評",
+				after_value: "訂正後の総評",
+				reason: "二次評価の転記ミス",
+				corrected_by: 1,
+			},
+		]);
+		// 目標 4/4 → 20 点、共通評価 (2×3 + 3×4)/20 → 72 点。配点は確定時の 20/80 のまま
+		expect(
+			await query(
+				"select status, total_evaluation_score, objective_allocation, common_allocation, final_rank_letter || final_rank_level as rank, second_overall_comment from public.evaluation_sheets where id = 100",
+			),
+		).toEqual([
+			{
+				status: "finalized",
+				total_evaluation_score: 92,
+				objective_allocation: 20,
+				common_allocation: 80,
+				rank: await one(
+					"select left(public.evaluation_rank(92), 1) || case right(public.evaluation_rank(92), 1) when '+' then 'plus' when '-' then 'minus' else 'none' end as v",
+				),
+				second_overall_comment: "訂正後の総評",
+			},
+		]);
+		expect(
+			await one(
+				"select count(*)::int as v from public.security_audit_log where action = 'sheet.corrected'",
+			),
+		).toBe(1);
+	});
+
+	it("shows a correction only to those who may see the corrected item", async () => {
+		await actAs(db, 1);
+		await correct(300, [
+			{ target: "goal", targetId: goal300, field: "first_score", value: "2" },
+			{ target: "goal", targetId: goal300, field: "achievement", value: "期限内に返した" },
+		]);
+		// 評価せずに締めた下書きの一次評価点は、本人には見せない(修正も見せない)。目標の文言の修正は見せる
+		expect((await correctionsSeenBy(6, 300))?.map((c) => c.field)).toEqual(["achievement"]);
+		expect((await correctionsSeenBy(2, 300))?.map((c) => c.field)).toEqual([
+			"first_score",
+			"achievement",
+		]);
+		expect(await correctionsSeenBy(5, 300)).toBeUndefined();
+		// 評価確定のシートは、本人にもすべての修正を見せる
+		expect(
+			(await correctionsSeenBy(4, 100))?.map((c) => `${c.field}:${c.before}→${c.after}`),
+		).toEqual([
+			"second_score:3→4",
+			"achievement:半減した→7割減らした",
+			"second_score:3→4",
+			"second_overall_comment:二次の総評→訂正後の総評",
+		]);
+		// DB は値を返す範囲の修正を返す(評価確定後は一次評価者にも二次評価を返す)。
+		// 一次評価者に二次評価を見せないのは、画面の EvaluationSheetAccessPolicy が値と修正の両方で決める
+		expect((await correctionsSeenBy(2, 100))?.map((c) => c.field)).toHaveLength(4);
+		// Admin は修正の画面ですべて読む
+		await actAs(db, 1);
+		expect(
+			(
+				await one<{ corrections: Correction[] }>("select public.get_sheet_for_correction(300) as v")
+			).corrections.map((c) => c.field),
+		).toEqual(["first_score", "achievement"]);
+	});
 });

@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { sheet } from "../../test/fixtures";
 import { Milestone } from "../entities/Milestone";
 import { describeMilestoneError } from "../entities/MilestoneError";
-import { EvaluationStatus } from "./EvaluationStatus";
 import { addPeriodGoal, MAX_PERIOD_GOALS, toPeriodGoals } from "./PeriodGoal";
 
 const task = (description: string, achievement = "") => ({ description, achievement });
@@ -171,43 +169,5 @@ describe("milestone text", () => {
 			"期中目標があるときは",
 		);
 		expect(describeMilestoneError({ kind: "periodGoalsMalformed" })).toContain("0〜4件");
-	});
-});
-
-describe("evaluation status", () => {
-	it("starts scoring only once the achievements are submitted", () => {
-		expect(EvaluationStatus.ALL.filter((s) => s.isEvaluationStarted()).map(String)).toEqual([
-			"submitted",
-			"first_evaluated",
-			"finalized",
-		]);
-		expect(EvaluationStatus.ALL.filter((s) => s.isSentToEvaluators()).map(String)).not.toContain(
-			"draft",
-		);
-	});
-
-	it("names who handed the sheet to whom in each status", () => {
-		expect(
-			Object.fromEntries(EvaluationStatus.ALL.map((s) => [s.toString(), s.handoff()])),
-		).toEqual({
-			draft: { from: "primary", to: "subject" },
-			goals_submitted: { from: "subject", to: "primary" },
-			goals_confirmed: { from: "primary", to: "subject" },
-			submitted: { from: "subject", to: "primary" },
-			first_evaluated: { from: "primary", to: "secondary" },
-			finalized: null,
-		});
-	});
-});
-
-describe("sheet status change", () => {
-	it("copies the sheet with only the status changed", () => {
-		const before = sheet(EvaluationStatus.GOALS_SUBMITTED);
-		const after = before.withStatus(EvaluationStatus.DRAFT);
-		expect(after.status).toBe(EvaluationStatus.DRAFT);
-		expect(before.status).toBe(EvaluationStatus.GOALS_SUBMITTED);
-		const { status: _a, ...rest } = after;
-		const { status: _b, ...original } = before;
-		expect(rest).toEqual(original);
 	});
 });

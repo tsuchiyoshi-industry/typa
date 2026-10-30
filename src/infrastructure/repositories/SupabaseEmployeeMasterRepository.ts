@@ -95,9 +95,9 @@ export class SupabaseEmployeeMasterRepository implements EmployeeMasterRepositor
 			.select("id, grade_name")
 			.order("id");
 
+		// 読めなかった等級を「選べる等級が無い」と見せない
 		if (error || !data) {
-			console.error("Error loading grades:", error);
-			return [];
+			throw error ?? new Error("等級を読み込めませんでした。");
 		}
 
 		return (data as GradeRow[]).map((grade) => ({ id: grade.id, name: grade.grade_name }));
@@ -278,14 +278,17 @@ export class SupabaseEmployeeMasterRepository implements EmployeeMasterRepositor
 			supabase.from("employee_grades").select("id, grade_name"),
 		]);
 
-		if (employeesResult.error || !employeesResult.data) {
-			console.error("Error loading employees:", employeesResult.error);
-			return [];
+		// どれかが読めなければ失敗にする。読めなかったことを「社員がいない」「全員 Employee」
+		// 「全員の等級が未設定」と見せない
+		for (const result of [employeesResult, rolesResult, gradesResult]) {
+			if (result.error || !result.data) {
+				throw result.error ?? new Error("社員マスタを読み込めませんでした。");
+			}
 		}
 
 		const employees = employeesResult.data as EmployeeRow[];
-		const roles = (rolesResult.data ?? []) as RoleRow[];
-		const grades = (gradesResult.data ?? []) as GradeRow[];
+		const roles = rolesResult.data as RoleRow[];
+		const grades = gradesResult.data as GradeRow[];
 		const employeeNames = new Map(employees.map((employee) => [employee.id, employee.name]));
 		const roleNames = new Map(roles.map((role) => [role.id, role.role_name]));
 		const gradeNames = new Map(grades.map((grade) => [grade.id, grade.grade_name]));

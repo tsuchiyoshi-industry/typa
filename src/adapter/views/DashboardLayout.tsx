@@ -12,7 +12,7 @@ import type { AccountController, CurrentUserDto } from "../controllers/AccountCo
 import type { NotificationInboxController } from "../controllers/NotificationInboxController";
 import NotificationBell from "./components/NotificationBell";
 import ThemeMenuItem from "./components/ThemeMenuItem";
-import { clearUnsavedChanges, confirmDiscard } from "./feedback";
+import { clearToasts, clearUnsavedChanges, confirmDiscard } from "./feedback";
 
 /** ログイン後の画面に共通のトップバー。ページ移動のたびに作り直さない。 */
 const DashboardLayout: Component<{
@@ -81,6 +81,7 @@ const DashboardLayout: Component<{
 			return;
 		}
 		clearUnsavedChanges();
+		clearToasts();
 		await props.controller.signOut();
 	};
 

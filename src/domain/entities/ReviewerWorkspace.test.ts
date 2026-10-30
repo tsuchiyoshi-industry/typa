@@ -1,4 +1,5 @@
 import { expect, it } from "vitest";
+import type { ReviewerRowDto } from "../../application/dtos/ReviewerWorkspaceDto";
 import { employee, period } from "../../test/fixtures";
 import { reviewerRow } from "../../test/reviewerFixture";
 import { EvaluationAllocation } from "../valueObjects/EvaluationAllocation";
@@ -9,6 +10,7 @@ import { Milestone } from "./Milestone";
 import {
 	canOpen,
 	finalScore,
+	isMyTurn,
 	reviewProgress,
 	reviewRank,
 	reviewScore,
@@ -60,20 +62,80 @@ it("derives a provisional rank from the score and prefers the confirmed rank", (
 	).toEqual({ text: "B+", confirmed: true });
 	expect(reviewRank(reviewerRow(1, { canViewFinal: false }), "final")).toBeNull();
 });
-it("tells whose turn it is from the stage and the reviewer's role", () => {
-	const cases = [
-		[reviewerRow(1, { sheetId: null, status: "missing" }), "waiting"],
-		[reviewerRow(1, { status: "draft" }), "waiting"],
-		[reviewerRow(1, submittedToPrimary), "first"],
-		[reviewerRow(1, { ...submittedToPrimary, primaryIsFinal: true }), "first"],
-		[reviewerRow(1, { status: "submitted" }), "waiting"],
-		[reviewerRow(1), "second"],
-		[reviewerRow(1, { isPrimary: true, canViewFinal: false }), "waiting"],
-		[reviewerRow(1, { status: "finalized" }), "finalized"],
-	] as const;
-	for (const [row, task] of cases) {
-		expect(reviewTask(row)).toBe(task);
-	}
+// 自分の番は、いまの状態のボールを自分の役割が持っているとき(EvaluationStatus.holder)
+const roles = {
+	primary: { isPrimary: true, canViewSecond: false, canViewFinal: false, primaryIsFinal: false },
+	secondary: { isPrimary: false, canViewSecond: true, canViewFinal: true, primaryIsFinal: false },
+	"primary as final": {
+		isPrimary: true,
+		canViewSecond: false,
+		canViewFinal: true,
+		primaryIsFinal: true,
+	},
+	"both stages": {
+		isPrimary: true,
+		canViewSecond: true,
+		canViewFinal: true,
+		primaryIsFinal: false,
+	},
+} as const;
+const turns: Record<string, Record<keyof typeof roles, string>> = {
+	missing: {
+		primary: "waiting",
+		secondary: "waiting",
+		"primary as final": "waiting",
+		"both stages": "waiting",
+	},
+	draft: {
+		primary: "waiting",
+		secondary: "waiting",
+		"primary as final": "waiting",
+		"both stages": "waiting",
+	},
+	goals_submitted: {
+		primary: "goals",
+		secondary: "waiting",
+		"primary as final": "goals",
+		"both stages": "goals",
+	},
+	goals_confirmed: {
+		primary: "waiting",
+		secondary: "waiting",
+		"primary as final": "waiting",
+		"both stages": "waiting",
+	},
+	submitted: {
+		primary: "first",
+		secondary: "waiting",
+		"primary as final": "first",
+		"both stages": "first",
+	},
+	// 二次評価者「なし」の社員の一次評価済み(以前のデータ)は、最終評価者を兼ねる一次評価者の番
+	first_evaluated: {
+		primary: "waiting",
+		secondary: "second",
+		"primary as final": "second",
+		"both stages": "second",
+	},
+	finalized: {
+		primary: "finalized",
+		secondary: "finalized",
+		"primary as final": "finalized",
+		"both stages": "finalized",
+	},
+};
+it.each(
+	Object.entries(turns).flatMap(([status, byRole]) =>
+		Object.entries(byRole).map(([role, task]) => [status, role, task] as const),
+	),
+)("at %s, the %s evaluator's task is %s", (status, role, task) => {
+	const row = reviewerRow(1, {
+		...roles[role as keyof typeof roles],
+		status: status as ReviewerRowDto["status"],
+		sheetId: status === "missing" ? null : 101,
+	});
+	expect(reviewTask(row)).toBe(task);
+	expect(isMyTurn(row)).toBe(task === "goals" || task === "first" || task === "second");
 });
 it("counts the finished stages; a subject without a secondary evaluator has four", () => {
 	const cases = [

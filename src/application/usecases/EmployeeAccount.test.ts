@@ -42,6 +42,15 @@ describe("sign in with an employee number", () => {
 		expect(status).toBe("registration_incomplete");
 		expect(auth.signOut).toHaveBeenCalledOnce();
 	});
+	it("says it could not check the account, instead of sending a registered person to register again", async () => {
+		const employees = employeeRepository();
+		employees.checkUserLinked.mockRejectedValue(new Error("network"));
+		const { auth, status } = await signIn(undefined, employees);
+		expect(status).toBe("unavailable");
+		// 紐付いているか分からないセッションも残さない
+		expect(auth.signOut).toHaveBeenCalledOnce();
+		expect(employees.findCurrentAccessState).not.toHaveBeenCalled();
+	});
 	it("explains suspension without sending the user through registration", async () => {
 		const employees = employeeRepository();
 		employees.checkUserLinked.mockResolvedValue(false);

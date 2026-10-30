@@ -19,8 +19,4 @@ export class Employee {
 	primaryIsFinalEvaluator(): boolean {
 		return this.secondaryEvaluatorId === null && this.noSecondaryEvaluator;
 	}
-
-	equals(other: Employee): boolean {
-		return this.id === other.id;
-	}
 }

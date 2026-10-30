@@ -24,14 +24,29 @@ function setup() {
 	));
 	return controller;
 }
-it("keeps normal login free of invitation codes and explains a suspended account", async () => {
+it.each([
+	["invalid_credentials", /社員番号またはパスワードが正しくありません/],
+	["account_disabled", /利用が停止されています/],
+	["unavailable", /確かめられませんでした。通信状況を確かめて/],
+	["registration_incomplete", /登録が完了していません。新規登録をやり直してください/],
+])("keeps normal login free of invitation codes and explains %s", async (status, message) => {
 	const controller = setup();
+	controller.signIn.mockResolvedValue(status);
 	expect(screen.queryByLabelText("招待コード")).toBeNull();
 	fireEvent.input(screen.getByLabelText("社員番号"), { target: { value: "E001" } });
 	fireEvent.input(screen.getByLabelText("パスワード"), { target: { value: "password" } });
 	fireEvent.click(screen.getByRole("button", { name: "ログイン" }));
-	await screen.findByText(/利用が停止されています/);
+	await screen.findByText(message);
 	expect(controller.signIn).toHaveBeenCalledWith("E001", "password");
+	if (status === "registration_incomplete") {
+		// 新規登録の1歩目へ移る
+		expect(screen.getByLabelText("メールアドレス")).toBeTruthy();
+	} else {
+		// 失敗したら、もう一度押せる
+		expect((screen.getByRole("button", { name: "ログイン" }) as HTMLButtonElement).disabled).toBe(
+			false,
+		);
+	}
 });
 it("requires a personal invitation only at first registration and preserves OTP verification on a code typo", async () => {
 	const controller = setup();

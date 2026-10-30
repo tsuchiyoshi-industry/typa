@@ -1,5 +1,5 @@
 import type { PGlite } from "@electric-sql/pglite";
-import { afterAll, beforeAll, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { actAs, createProdLikeDb } from "./prodLikeDb";
 
 let db: PGlite;
@@ -81,6 +81,69 @@ it("takes the previous period, not an older sheet, when the employee had no shee
 	expect(await previousGoals(310)).toBeNull();
 });
 
+describe("the previous evaluation period", () => {
+	// 準備の期間(2025〜2026年)より前の 1990 年代に置き、ほかの期間が候補に入らないようにする。
+	// 1995期は通年、1996期は半期、1997期は四半期。id はそろえて 900 番台。
+	const periods = (rows: [id: number, name: string, start: string, end: string][]) =>
+		db.exec(`reset role;
+			insert into public.evaluation_periods (id, period_name, start_date, end_date, is_active)
+			values ${rows.map(([id, name, start, end]) => `(${id}, '${name}', '${start}', '${end}', false)`).join(", ")}`);
+	const previousOf = (id: number) =>
+		one<number | null>("select public.previous_evaluation_period($1) as v", [id]);
+	afterEach(async () => {
+		await db.exec("reset role; delete from public.evaluation_periods where id >= 900");
+	});
+
+	it.each([
+		["the second half follows the first half of the same term", 911, 910],
+		["the first half follows the previous full-year term", 910, 900],
+		["the first quarter follows the second half of the previous term", 920, 911],
+		["a later quarter follows the quarter before it", 922, 921],
+		["there is none before the first period", 900, null],
+	])("%s", async (_label, current, previous) => {
+		await periods([
+			[900, "1995期", "1995-04-01", "1996-03-31"],
+			[910, "1996期 上期", "1996-04-01", "1996-09-30"],
+			[911, "1996期 下期", "1996-10-01", "1997-03-31"],
+			[920, "1997期 第1四半期", "1997-04-01", "1997-06-30"],
+			[921, "1997期 第2四半期", "1997-07-01", "1997-09-30"],
+			[922, "1997期 第3四半期", "1997-10-01", "1997-12-31"],
+		]);
+		expect(await previousOf(current)).toBe(previous);
+	});
+
+	it("looks further back when the period just before is missing", async () => {
+		await periods([
+			[900, "1995期", "1995-04-01", "1996-03-31"],
+			[930, "1999期", "1999-04-01", "2000-03-31"],
+		]);
+		expect(await previousOf(930)).toBe(900);
+	});
+
+	it("does not count a period that is still running when the next one starts", async () => {
+		// 移行前の通年の期と、分けた評価期間が重なっていても、前は終わったものから選ぶ
+		await periods([
+			[900, "1995期", "1995-04-01", "1996-03-31"],
+			[901, "1996期(旧)", "1996-04-01", "1997-03-20"],
+			[910, "1996期 上期", "1996-04-01", "1996-09-30"],
+			[911, "1996期 下期", "1996-10-01", "1997-03-31"],
+		]);
+		expect(await previousOf(911)).toBe(910);
+		expect(await previousOf(910)).toBe(900);
+	});
+
+	it("breaks a tie on the end date by the later start, then by the larger id", async () => {
+		await periods([
+			[940, "A", "1996-01-01", "1996-09-30"],
+			[941, "B", "1996-07-01", "1996-09-30"],
+			[943, "D", "1996-10-01", "1997-03-31"],
+		]);
+		expect(await previousOf(943)).toBe(941);
+		await periods([[942, "C", "1996-07-01", "1996-09-30"]]);
+		expect(await previousOf(943)).toBe(942);
+	});
+});
+
 it("keeps which term and part each evaluation period is", async () => {
 	// 準備で id を指定して入れた評価期間と、採番がぶつからないようにする
 	await db.exec(
@@ -126,110 +189,113 @@ it("keeps which term and part each evaluation period is", async () => {
 	);
 });
 
-it("lets the evaluators read a sheet left as a draft once its period is closed", async () => {
-	await actAs(db, 2);
-	const closed = await one<{
-		objectives: unknown[];
-		period: { allowUnfinalizedClose: boolean; termName: string; division: string; part: number };
-	}>("select public.get_sheet(100) as v");
-	expect(closed.objectives).toHaveLength(2);
-	expect(closed.period).toMatchObject({
-		allowUnfinalizedClose: false,
-		termName: "締め済み",
-		division: "full",
-		part: 1,
-	});
-	// 実施中の期間の下書きは、これまでどおり中身を見せない
-	expect(
-		(await one<{ objectives: unknown[] }>("select public.get_sheet(200) as v")).objectives,
-	).toEqual([]);
-});
-
-const states = async () =>
-	(
-		await query<{ id: number; is_active: boolean; closed: boolean }>(
-			"select id, is_active, closed_at is not null as closed from public.evaluation_periods where id in (1, 2, 4) order by id",
-		)
-	).map((row) => `${row.id}:${row.is_active ? "実施中" : row.closed ? "締め済み" : "未開始"}`);
-
-it("never starts a closed period again", async () => {
-	// 期間 4 はまだ始めていない。期間 2 は、移行のときに締め済みと分かる(実施中の期間より前に終わった)
-	await db.exec(`reset role; insert into public.evaluation_periods (id, period_name, start_date, end_date)
-		values (4, '来期', '2026-10-01', '2027-03-31')`);
-	expect(await states()).toEqual(["1:実施中", "2:締め済み", "4:未開始"]);
-	await actAs(db, 1);
-	await expect(query("select public.activate_evaluation_period(2)")).rejects.toMatchObject({
-		code: "23514",
-		message: "締めた評価期間は、もう一度開始できません。",
-	});
-	// 締めた日時はアプリから書けない
-	await expect(
-		query("update public.evaluation_periods set closed_at = null where id = 2"),
-	).rejects.toMatchObject({ code: "42501" });
-	await db.exec("reset role");
-	expect(await states()).toEqual(["1:実施中", "2:締め済み", "4:未開始"]);
-});
-
-it("closes a period with unfinalized sheets only when the Admin allowed it for that period", async () => {
-	await actAs(db, 1);
-	await expect(query("select public.activate_evaluation_period(4)")).rejects.toMatchObject({
-		code: "23514",
-		message: "未確定の評価シートが残っているため、評価期間を締められません。",
+// 実施中の期間 1 を締めて期間 4 を開始するまでの流れ。前の段の結果を次の段が使うので、順番どおりに流す
+describe("closing the period in progress and starting the next", { shuffle: false }, () => {
+	it("lets the evaluators read a sheet left as a draft once its period is closed", async () => {
+		await actAs(db, 2);
+		const closed = await one<{
+			objectives: unknown[];
+			period: { allowUnfinalizedClose: boolean; termName: string; division: string; part: number };
+		}>("select public.get_sheet(100) as v");
+		expect(closed.objectives).toHaveLength(2);
+		expect(closed.period).toMatchObject({
+			allowUnfinalizedClose: false,
+			termName: "締め済み",
+			division: "full",
+			part: 1,
+		});
+		// 実施中の期間の下書きは、これまでどおり中身を見せない
+		expect(
+			(await one<{ objectives: unknown[] }>("select public.get_sheet(200) as v")).objectives,
+		).toEqual([]);
 	});
 
-	// Admin 以外は変えられない
-	await actAs(db, 4);
-	expect(
-		await query(
-			"update public.evaluation_periods set allow_unfinalized_close = true where id = 1 returning id",
-		),
-	).toEqual([]);
+	const states = async () =>
+		(
+			await query<{ id: number; is_active: boolean; closed: boolean }>(
+				"select id, is_active, closed_at is not null as closed from public.evaluation_periods where id in (1, 2, 4) order by id",
+			)
+		).map((row) => `${row.id}:${row.is_active ? "実施中" : row.closed ? "締め済み" : "未開始"}`);
 
-	await actAs(db, 1);
-	await query("update public.evaluation_periods set allow_unfinalized_close = true where id = 1");
-	expect(await one("select public.activate_evaluation_period(4) as v")).toBe(true);
-	await db.exec("reset role");
-	expect(await states()).toEqual(["1:締め済み", "2:締め済み", "4:実施中"]);
-	// 締めたシートは下書きのまま残る
-	expect(await one("select status as v from public.evaluation_sheets where id = 200")).toBe(
-		"draft",
-	);
-	// 締めた評価期間には戻れない(締めの取り消しもしない)
-	await actAs(db, 1);
-	await expect(query("select public.activate_evaluation_period(1)")).rejects.toMatchObject({
-		code: "23514",
+	it("never starts a closed period again", async () => {
+		// 期間 4 はまだ始めていない。期間 2 は、移行のときに締め済みと分かる(実施中の期間より前に終わった)
+		await db.exec(`reset role; insert into public.evaluation_periods (id, period_name, start_date, end_date)
+			values (4, '来期', '2026-10-01', '2027-03-31')`);
+		expect(await states()).toEqual(["1:実施中", "2:締め済み", "4:未開始"]);
+		await actAs(db, 1);
+		await expect(query("select public.activate_evaluation_period(2)")).rejects.toMatchObject({
+			code: "23514",
+			message: "締めた評価期間は、もう一度開始できません。",
+		});
+		// 締めた日時はアプリから書けない
+		await expect(
+			query("update public.evaluation_periods set closed_at = null where id = 2"),
+		).rejects.toMatchObject({ code: "42501" });
+		await db.exec("reset role");
+		expect(await states()).toEqual(["1:実施中", "2:締め済み", "4:未開始"]);
 	});
-});
 
-it("refuses periods the app could not read, so one bad row never hides the whole list", async () => {
-	await db.exec("reset role");
-	const insert = (columns: string, values: string) =>
-		query(
-			`insert into public.evaluation_periods (period_name, start_date, end_date, ${columns}) values ('壊れた期間', '2030-04-01', '2031-03-31', ${values})`,
+	it("closes a period with unfinalized sheets only when the Admin allowed it for that period", async () => {
+		await actAs(db, 1);
+		await expect(query("select public.activate_evaluation_period(4)")).rejects.toMatchObject({
+			code: "23514",
+			message: "未確定の評価シートが残っているため、評価期間を締められません。",
+		});
+
+		// Admin 以外は変えられない
+		await actAs(db, 4);
+		expect(
+			await query(
+				"update public.evaluation_periods set allow_unfinalized_close = true where id = 1 returning id",
+			),
+		).toEqual([]);
+
+		await actAs(db, 1);
+		await query("update public.evaluation_periods set allow_unfinalized_close = true where id = 1");
+		expect(await one("select public.activate_evaluation_period(4) as v")).toBe(true);
+		await db.exec("reset role");
+		expect(await states()).toEqual(["1:締め済み", "2:締め済み", "4:実施中"]);
+		// 締めたシートは下書きのまま残る
+		expect(await one("select status as v from public.evaluation_sheets where id = 200")).toBe(
+			"draft",
 		);
-	// 実施中の評価期間を、締め済みにはできない
-	await expect(
-		query("update public.evaluation_periods set closed_at = now() where id = 4"),
-	).rejects.toMatchObject({ code: "23514" });
-	// 期の名前が長すぎる、区切りの番号が無い、終了日が開始日より前
-	await expect(insert("term_name", `'${"期".repeat(41)}'`)).rejects.toMatchObject({
-		code: "23514",
+		// 締めた評価期間には戻れない(締めの取り消しもしない)
+		await actAs(db, 1);
+		await expect(query("select public.activate_evaluation_period(1)")).rejects.toMatchObject({
+			code: "23514",
+		});
 	});
-	await expect(insert("division, part", "'half', 3")).rejects.toMatchObject({ code: "23514" });
-	await expect(insert("division", "'monthly'")).rejects.toMatchObject({ code: "23514" });
-	await expect(
-		query(
-			"insert into public.evaluation_periods (period_name, start_date, end_date) values ('逆さま', '2031-03-31', '2030-04-01')",
-		),
-	).rejects.toMatchObject({ code: "23514" });
-	// 期の名前が空白だけなら、評価期間の名前を使う
-	await insert("term_name", "'   '");
-	expect(
-		await one(
-			"select term_name as v from public.evaluation_periods where period_name = '壊れた期間'",
-		),
-	).toBe("壊れた期間");
-	await db.exec("delete from public.evaluation_periods where period_name = '壊れた期間'");
+
+	it("refuses periods the app could not read, so one bad row never hides the whole list", async () => {
+		await db.exec("reset role");
+		const insert = (columns: string, values: string) =>
+			query(
+				`insert into public.evaluation_periods (period_name, start_date, end_date, ${columns}) values ('壊れた期間', '2030-04-01', '2031-03-31', ${values})`,
+			);
+		// 実施中の評価期間を、締め済みにはできない
+		await expect(
+			query("update public.evaluation_periods set closed_at = now() where id = 4"),
+		).rejects.toMatchObject({ code: "23514" });
+		// 期の名前が長すぎる、区切りの番号が無い、終了日が開始日より前
+		await expect(insert("term_name", `'${"期".repeat(41)}'`)).rejects.toMatchObject({
+			code: "23514",
+		});
+		await expect(insert("division, part", "'half', 3")).rejects.toMatchObject({ code: "23514" });
+		await expect(insert("division", "'monthly'")).rejects.toMatchObject({ code: "23514" });
+		await expect(
+			query(
+				"insert into public.evaluation_periods (period_name, start_date, end_date) values ('逆さま', '2031-03-31', '2030-04-01')",
+			),
+		).rejects.toMatchObject({ code: "23514" });
+		// 期の名前が空白だけなら、評価期間の名前を使う
+		await insert("term_name", "'   '");
+		expect(
+			await one(
+				"select term_name as v from public.evaluation_periods where period_name = '壊れた期間'",
+			),
+		).toBe("壊れた期間");
+		await db.exec("delete from public.evaluation_periods where period_name = '壊れた期間'");
+	});
 });
 
 it("returns nothing when there is no sheet", async () => {

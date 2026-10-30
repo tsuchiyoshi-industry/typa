@@ -82,6 +82,27 @@ it("sends the rows with their Excel line numbers, skipping empty rows and normal
 	);
 });
 
+it("sends the common evaluation rows the same way, numbers normalized and comments as written", async () => {
+	const header = CSV_HEADERS.common.join(",");
+	const { importRows } = await run(null, `${header}\n\nE1,社員1, ３１ ,協調性,４,, 計画どおり \n`);
+	expect(importRows).toHaveBeenCalledWith(
+		[],
+		[
+			{
+				line: 3,
+				employeeNo: "E1",
+				name: "社員1",
+				itemId: "31",
+				itemTitle: "協調性",
+				firstScore: "4",
+				secondScore: "",
+				comment: " 計画どおり ",
+			},
+		],
+		false,
+	);
+});
+
 it("refuses a file with the wrong header without asking the database", async () => {
 	const { result, importRows } = await run(`${CSV_HEADERS.common.join(",")}\n`, "社員番号,名前\n");
 	expect(importRows).not.toHaveBeenCalled();

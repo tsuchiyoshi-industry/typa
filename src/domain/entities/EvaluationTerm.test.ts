@@ -97,9 +97,7 @@ describe("dividing a term into evaluation periods", () => {
 		const plans = term("2026-04-01", "2027-03-31", PeriodDivision.HALF).divide(true);
 		expect(plans.map((plan) => plan.allowUnfinalizedClose)).toEqual([true, true]);
 		expect(plans.map((plan) => plan.part.number)).toEqual([1, 2]);
-		expect(
-			plans.every((plan) => plan.term.equals(expectOk(TermName.from("26期"), describePeriodError))),
-		).toBe(true);
+		expect(plans.map((plan) => plan.term.toString())).toEqual(["26期", "26期"]);
 	});
 
 	it("covers the whole term without gaps or overlaps, whatever day it starts on", () => {
@@ -112,13 +110,13 @@ describe("dividing a term into evaluation periods", () => {
 					.divide(false)
 					.map((plan) => plan.range);
 				expect(ranges).toHaveLength(division.parts);
-				expect(ranges[0].start.equals(start)).toBe(true);
-				expect(ranges[ranges.length - 1].end.equals(end)).toBe(true);
+				expect(ranges[0].start.compare(start)).toBe(0);
+				expect(ranges[ranges.length - 1].end.compare(end)).toBe(0);
 				ranges.forEach((range, i) => {
 					expect(range.end.isBefore(range.start)).toBe(false);
 					// 前の評価期間の翌日から始まる
 					if (i > 0) {
-						expect(range.start.previousDay().equals(ranges[i - 1].end)).toBe(true);
+						expect(range.start.previousDay().compare(ranges[i - 1].end)).toBe(0);
 					}
 				});
 			}

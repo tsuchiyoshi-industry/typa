@@ -61,8 +61,4 @@ export class EmployeeProfile {
 				(includeGrade && this.gradeId == null))
 		);
 	}
-
-	equals(other: EmployeeProfile): boolean {
-		return this.id === other.id;
-	}
 }

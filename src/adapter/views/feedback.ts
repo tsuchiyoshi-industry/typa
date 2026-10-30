@@ -36,6 +36,12 @@ export function dismissToast(id: number): void {
 	}, 160);
 }
 
+/** 出ているトーストをすべて消す。ログアウトのとき、次にログインする人(共有PC)に前の人の通知を残さない。 */
+export function clearToasts(): void {
+	setToasts([]);
+	setLeavingToasts(new Set<number>());
+}
+
 /** エラーは読み落とさないよう、閉じるまで残す。それ以外は数秒で消える(ボタン付きは押す間を長めにとる)。 */
 export function showToast(
 	kind: ToastKind,

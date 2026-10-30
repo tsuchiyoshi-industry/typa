@@ -5,12 +5,8 @@ const latestFirst = (a: EvaluationPeriod, b: EvaluationPeriod) =>
 	b.range.end.compare(a.range.end) || b.range.start.compare(a.range.start) || b.id - a.id;
 
 /**
- * 会社のすべての評価期間。期(年度)と評価期間の関係をここで決める。
- *   - 当期: 実施中の評価期間が属する期の、すべての評価期間(半期制なら上期も下期も)。
- *     分けた評価期間はそれぞれ独立していて、期としてまとめて評価したり平均したりはしない。
- *   - 前の評価期間: その評価期間が始まる前に終わった評価期間のうち、いちばん新しいもの。
- *     下期なら当期の上期、上期なら前期の下期(前期が通年なら前期、四半期なら第4四半期)。
- *     あいだの評価期間が無ければさらに前、1つも無ければ無し。
+ * 会社のすべての評価期間。新しい順に並べ、実施中の評価期間と、名前の重なりを引く。
+ * 前の評価期間(前期の目標を引き継ぐ元)は DB の previous_evaluation_period が決める。
  */
 export class EvaluationCalendar {
 	private readonly periods: readonly EvaluationPeriod[];
@@ -30,16 +26,6 @@ export class EvaluationCalendar {
 
 	active(): EvaluationPeriod | null {
 		return this.periods.find((period) => period.isActive) ?? null;
-	}
-
-	/** period と同じ期の評価期間。時期の早い順(上期、下期)。 */
-	termOf(period: EvaluationPeriod): EvaluationPeriod[] {
-		return this.periods.filter((other) => other.isInSameTermAs(period)).reverse();
-	}
-
-	/** 前の評価期間。無ければ null。 */
-	previousOf(period: EvaluationPeriod): EvaluationPeriod | null {
-		return this.periods.find((other) => other.range.endsBefore(period.range)) ?? null;
 	}
 
 	/** その名前の評価期間がすでにある(exceptId の評価期間は数えない)。 */

@@ -1,5 +1,6 @@
 import type { PeriodError } from "../entities/PeriodError";
 import { err, ok, type Result } from "../Result";
+import { charLength } from "./textLength";
 
 /** 期(年度)の名前。「26期」のように、Admin が会社の呼び方で付ける。前後の空白は持たない。 */
 export class TermName {
@@ -12,14 +13,10 @@ export class TermName {
 		if (!name) {
 			return err({ kind: "termNameMissing" });
 		}
-		if (name.length > TermName.MAX_LENGTH) {
+		if (charLength(name) > TermName.MAX_LENGTH) {
 			return err({ kind: "termNameTooLong", max: TermName.MAX_LENGTH });
 		}
 		return ok(new TermName(name));
-	}
-
-	equals(other: TermName): boolean {
-		return this.value === other.value;
 	}
 
 	toString(): string {

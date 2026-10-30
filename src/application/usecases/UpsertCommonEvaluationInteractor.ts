@@ -2,10 +2,7 @@ import { err, ok, type Result } from "../../domain/Result";
 import type { CommonEvaluationRepository } from "../../domain/repositories/CommonEvaluationRepository";
 import type { EvaluationSheetRepository } from "../../domain/repositories/EvaluationSheetRepository";
 import { EvaluationSheetAccessPolicy } from "../../domain/services/EvaluationSheetAccessPolicy";
-import {
-	describeSheetAccessError,
-	type SheetAccessError,
-} from "../../domain/services/SheetAccessError";
+import type { SheetAccessError } from "../../domain/services/SheetAccessError";
 import { Score } from "../../domain/valueObjects/Score";
 import type { OutputPort } from "../ports/OutputPort";
 import type { FallibleUseCase } from "../ports/UseCase";
@@ -35,21 +32,6 @@ export type UpsertCommonEvaluationError =
 	| { kind: "sheetNotFound" }
 	| { kind: "commonItemInvalid" }
 	| { kind: "scoreOutOfRange" };
-
-export function describeUpsertCommonEvaluationError(error: UpsertCommonEvaluationError): string {
-	switch (error.kind) {
-		case "sheetNotFound":
-			return "評価シートが見つかりません。";
-		case "commonItemInvalid":
-			return "共通評価項目が不正または重複しています。";
-		case "scoreOutOfRange":
-			return "共通評価の評価点が範囲外です。";
-		case "periodClosed":
-		case "forbidden":
-		case "transitionForbidden":
-			return describeSheetAccessError(error);
-	}
-}
 
 export class UpsertCommonEvaluationInteractor
 	implements

@@ -81,6 +81,13 @@ Vitest の Node 側は `forks`、最大2ワーカー、ファイルごとの分�
 
 PGlite の初期化は `beforeAll`、終了は `afterAll` に置きます。`SchemaInventorySql.test.ts` は初期化まで5秒のテスト本体に含めていたため、起動時間だけで失敗していました。他のDBテストと同じ60秒のセットアップ枠へ移し、テスト本体の5秒制限は維持しています。全体のタイムアウト延長やリトライで失敗を隠す設定は入れません。
 
+テストはファイルの中で毎回ちがう順に流れます（`sequence.shuffle`）。前のテストが残した行や設定に寄りかかるテストは、順番しだいで落ちます。落ちたときは出力の seed を `bun run test -- --sequence.seed=<seed>` に渡すと、同じ順で再現できます。
+
+- 同じ PGlite を使う SQL テストは、テストで変えた行を `rollbackAfterTest(db)`（`src/test/prodLikeDb.ts`）か `onTestFinished` で戻すか、ほかのテストが使わない行で確かめます。「書き込まない」ことは、呼ぶ前と後の状態を比べて確かめます（初めの状態とは比べない）。
+- 前の段の結果を次の段が使う一連の流れ（下書きから確定まで、など）は、`describe("…", { shuffle: false }, () => …)` にまとめて、順番に意味があることを示します。
+- 何も確かめないテストは失敗にします（`expect.requireAssertions`）。
+- 画面をまたいで残る状態（トースト、未保存の印、確認ダイアログ）は、`afterEach` で `clearToasts()`・`clearUnsavedChanges()`・`settleConfirm(false)` を呼んで片付けます。
+
 ## 遡及処理の保守
 
 Admin のユーザーメニュー「遡及処理」（`/retroactive`）は、1つのシートに対する4つの操作をまとめた画面です。以前の「特権操作」の画面は統合しました。

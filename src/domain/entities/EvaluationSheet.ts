@@ -52,7 +52,7 @@ export class EvaluationSheet {
 		public readonly commonEvaluationScoreTotals: EvaluationScoreTotals,
 		public readonly allocatedScores: EvaluationAllocatedScores,
 		public readonly status: EvaluationStatus,
-		/** 確定時に保存したランク。未確定の段階では undefined、または過去の手入力値が残っていることがある。 */
+		/** 確定時に保存したランク。未確定の段階では使わない(いまの点数から決める)。 */
 		public readonly finalEvaluationRank?: EvaluationRank,
 		public readonly firstEvaluationRank?: EvaluationRank,
 		/** 評価点の配点。確定済みのシートは確定時の配点、それ以外は現在の設定。 */
@@ -369,9 +369,5 @@ export class EvaluationSheet {
 			// 下書きを離れると、DB が理由を消す
 			status.isDraft() ? this.goalReturnReason : "",
 		);
-	}
-
-	equals(other: EvaluationSheet): boolean {
-		return this.sheetId === other.sheetId;
 	}
 }

@@ -2,10 +2,7 @@ import { err, ok, type Result } from "../../domain/Result";
 import type { EmployeeRepository } from "../../domain/repositories/EmployeeRepository";
 import type { EvaluationSheetRepository } from "../../domain/repositories/EvaluationSheetRepository";
 import { EvaluationSheetAccessPolicy } from "../../domain/services/EvaluationSheetAccessPolicy";
-import {
-	describeSheetAccessError,
-	type SheetAccessError,
-} from "../../domain/services/SheetAccessError";
+import type { SheetAccessError } from "../../domain/services/SheetAccessError";
 import type { EvaluationSheetDto } from "../dtos/EvaluationSheetDto";
 import { toEvaluationSheetDto } from "../dtos/EvaluationSheetMapper";
 import type { OutputPort } from "../ports/OutputPort";
@@ -27,12 +24,6 @@ export interface UpdateOverallCommentResponse {
 export interface UpdateOverallCommentOutputPort extends OutputPort<UpdateOverallCommentResponse> {}
 
 export type UpdateOverallCommentError = SheetAccessError | { kind: "sheetNotFound" };
-
-export function describeUpdateOverallCommentError(error: UpdateOverallCommentError): string {
-	return error.kind === "sheetNotFound"
-		? "評価シートが見つかりません。"
-		: describeSheetAccessError(error);
-}
 
 export class UpdateOverallCommentInteractor
 	implements

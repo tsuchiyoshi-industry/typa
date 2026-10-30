@@ -15,7 +15,7 @@ export interface RequestedChange {
 }
 
 /** 直す内容の1つ。今の値(修正前)を、シートから読んで持つ。 */
-export class PlannedCorrection {
+class PlannedCorrection {
 	constructor(
 		readonly field: CorrectionField,
 		readonly targetId: number | null,

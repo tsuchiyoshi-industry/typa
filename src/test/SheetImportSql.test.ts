@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import type { PGlite } from "@electric-sql/pglite";
 import { afterAll, beforeAll, expect, it } from "vitest";
-import { actAs, createProdLikeDb } from "./prodLikeDb";
+import { actAs, createProdLikeDb, rollbackAfterTest } from "./prodLikeDb";
 
 let db: PGlite;
 const wordingMigration = readFileSync(
@@ -61,8 +61,27 @@ afterAll(async () => {
 	await db?.close();
 });
 
-it("can safely reapply the wording migration", async () => {
+it("uses goal-submission wording for an empty goal, also after the wording migration is applied again", async () => {
+	// 文言の移行は何度当てても同じ結果になる
 	await db.exec(wordingMigration);
+	await rollbackAfterTest(db);
+	// 取込のテストが作った社員 4 のシートは、この確認の間だけ消す(終わると元に戻る)
+	await db.exec(`reset role; set session_replication_role = replica;
+		delete from public.evaluation_sheets where period_id = 1 and employee_id = 4;
+		set session_replication_role = origin;`);
+	const [{ id }] = await query<{ id: number }>(
+		"insert into public.evaluation_sheets (period_id, employee_id, status) values (1, 4, 'draft') returning id",
+	);
+	await query(
+		"insert into public.milestones (sheet_id, goal_number, challenge_goal, period_goals) values ($1, 1, '', '[]'::jsonb)",
+		[id],
+	);
+	await actAs(db, 4);
+	await expect(
+		query("update public.evaluation_sheets set status = 'goals_submitted' where id = $1", [id]),
+	).rejects.toThrow(
+		"チャレンジ目標が空欄の目標は送信・確定できません。入力して保存するか、不要なタブを削除してください。",
+	);
 });
 
 it("lets only an Admin read the template or import", async () => {
@@ -93,6 +112,14 @@ it("lists the employees who can still be imported, with the common items of thei
 });
 
 it("rejects every row when one is wrong, naming the file and line, and writes nothing", async () => {
+	// 書かないことは、取り込む前と後の比較で確かめる(ほかのテストの取込もシートを作る)
+	const written = async () => {
+		await db.exec("reset role");
+		return query(
+			"select s.id, s.status, m.goal_number, m.challenge_goal from public.evaluation_sheets s left join public.milestones m on m.sheet_id = s.id where s.employee_id in (4, 6) order by s.id, m.goal_number",
+		);
+	};
+	const before = await written();
 	await actAs(db, 1);
 	const result = await runImport(
 		[
@@ -121,36 +148,18 @@ it("rejects every row when one is wrong, naming the file and line, and writes no
 		"common:2 項目ID「99」は、この社員の等級の共通評価項目ではありません。",
 		"common:3 項目名が「協調性」と違います。項目IDを確かめてください。",
 	]);
-	await db.exec("reset role");
-	expect(await query("select 1 from public.evaluation_sheets where employee_id in (4, 6)")).toEqual(
-		[],
-	);
-});
-
-it("uses goal-submission wording when an empty goal is submitted", async () => {
-	await db.exec("reset role");
-	const [{ id }] = await query<{ id: number }>(
-		"insert into public.evaluation_sheets (period_id, employee_id, status) values (1, 4, 'draft') returning id",
-	);
-	await query(
-		"insert into public.milestones (sheet_id, goal_number, challenge_goal, period_goals) values ($1, 1, '', '[]'::jsonb)",
-		[id],
-	);
-
-	try {
-		await actAs(db, 4);
-		await expect(
-			query("update public.evaluation_sheets set status = 'goals_submitted' where id = $1", [id]),
-		).rejects.toThrow(
-			"チャレンジ目標が空欄の目標は送信・確定できません。入力して保存するか、不要なタブを削除してください。",
-		);
-	} finally {
-		await db.exec("reset role");
-		await query("delete from public.evaluation_sheets where id = $1", [id]);
-	}
+	expect(await written()).toEqual(before);
 });
 
 it("creates draft sheets with goals, scores and comments, and replaces them on a second import", async () => {
+	// 監査の記録は、このテストの取込の分だけを数える(ほかのテストの取込も同じ表に残る)
+	const imports = async () => {
+		await db.exec("reset role");
+		return (
+			await query("select action from public.security_audit_log where action = 'sheets.imported'")
+		).length;
+	};
+	const importsBefore = await imports();
 	await actAs(db, 1);
 	const goals = [
 		goal(2, "E4", "1", { name: "社員4", firstScore: "4", secondScore: "3" }),
@@ -212,9 +221,8 @@ it("creates draft sheets with goals, scores and comments, and replaces them on a
 		await query(`select goal_number from public.milestones m join public.evaluation_sheets s on s.id = m.sheet_id
 			where s.employee_id = 4`),
 	).toEqual([{ goal_number: 3 }]);
-	expect(
-		await query("select action from public.security_audit_log where action = 'sheets.imported'"),
-	).toHaveLength(2);
+	// 確かめるだけ(apply なし)の取込は記録しない。書いた2回だけ
+	expect((await imports()) - importsBefore).toBe(2);
 });
 
 it("says so when there is nothing to import", async () => {

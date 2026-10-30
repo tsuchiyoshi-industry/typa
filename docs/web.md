@@ -32,15 +32,14 @@ TYPA はブラウザでも使えます。Windows のデスクトップ版と同�
    | `CLOUDFLARE_API_TOKEN`  | 2 で作ったトークン                                             |
    | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare のアカウント ID（ダッシュボードの概要の右側にある） |
 
-4. **リリースを1回流します。** `deploy-web` が終わると `https://typa.pages.dev`（名前が使われていれば、ダッシュボードに出る別の名前）で開けます。ログインと PDF 出力を確かめます。
+4. **リリースを1回流します。** `deploy-web` が終わると `https://typa-8ta.pages.dev`（プロジェクトに割り当てられた名前）で開けます。ログインと PDF 出力を確かめます。
 5. **独自ドメインをつなぎます。** Pages のプロジェクトの **Custom domains** → **Set up a custom domain** に `typa.tyco.co.jp` を入れます。**先にここで登録してから**、`tyco.co.jp` の DNS（Cloudflare の外で管理）に CNAME を足します。向け先は GitHub ではなく Pages です。
 
    ```text
-   typa.tyco.co.jp. 3600 IN CNAME typa.pages.dev.
+   typa.tyco.co.jp. 3600 IN CNAME typa-8ta.pages.dev.
    ```
 
    ダッシュボードの表示が **Active** になると、証明書も自動で出て HTTPS で開けます。
-6. **Supabase に URL を足します。** **Authentication** → **URL Configuration** の **Site URL**・**Redirect URLs** に `https://typa.tyco.co.jp` を足します。
 
 ## 公開の流れ
 

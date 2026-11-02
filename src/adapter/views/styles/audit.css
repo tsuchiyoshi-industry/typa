@@ -1,0 +1,635 @@
+/* 監査ログ — 人事の帳簿。日ごとの綴りに、誰が・何に・何をしたかを一行ずつ記す。
+   強調は一箇所だけ: Admin が通常の手順を越えた操作に押す朱の検印。ほかは墨と紙のトークンのまま静かに保つ。
+   新しい仕様(コンテナクエリ・:has()・::details-content・@starting-style・scroll-state)は、
+   無い環境でも読める形を先に書き、上に重ねる。 */
+
+.audit-page {
+	/* トップバー(dashboard.css の --topbar-height)の下に日付の見出しを留める */
+	--audit-stick: 3.5rem;
+	display: grid;
+	/* 列は中身(記録の原文など)の幅に引きずられず、画面の幅に収まる */
+	grid-template-columns: minmax(0, 1fr);
+	gap: 1.5rem;
+	max-width: 72rem;
+	min-width: 0;
+}
+
+.audit-lead {
+	max-width: 46rem;
+	margin: 0.5rem 0 0;
+	color: var(--hr-text-muted);
+	font-size: 0.875rem;
+	line-height: 1.8;
+	text-wrap: pretty;
+}
+
+.audit-notice {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.75rem 1rem;
+	margin: 0;
+	padding: 0.875rem 1rem;
+	color: var(--hr-danger-text);
+	font-size: 0.875rem;
+	background: var(--hr-surface);
+	border: 1px solid var(--hr-border-strong);
+	border-radius: var(--hr-radius-md);
+}
+
+.audit-notice p {
+	margin: 0;
+}
+
+/* ----- 絞り込み ----- */
+
+.audit-filters__form {
+	display: grid;
+	gap: 1rem;
+}
+
+.audit-filters {
+	display: grid;
+	gap: 1rem;
+	padding: 1rem 1.125rem 1.125rem;
+	background: var(--hr-surface);
+	border: 1px solid var(--hr-border);
+	border-radius: var(--hr-radius-lg);
+	box-shadow: var(--hr-shadow);
+}
+
+.audit-filters__top {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.75rem;
+}
+
+/* 種類は一つだけ選ぶ札。選んだ札は墨で塗る(ダークでは生成りの塗りに藍墨の文字) */
+.audit-kinds {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.375rem;
+	margin: 0;
+	padding: 0;
+	border: 0;
+}
+
+.audit-kind {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	min-height: 2.25rem;
+	padding: 0 0.875rem;
+	color: var(--hr-text-muted);
+	font-size: 0.8125rem;
+	font-weight: 600;
+	background: var(--hr-bg-elevated);
+	border: 1px solid var(--hr-border);
+	border-radius: 999px;
+	cursor: pointer;
+	transition:
+		color 0.15s ease,
+		background-color 0.15s ease,
+		border-color 0.15s ease;
+}
+
+.audit-kind input {
+	position: absolute;
+	inset: 0;
+	margin: 0;
+	opacity: 0;
+	cursor: inherit;
+}
+
+.audit-kind:hover {
+	color: var(--hr-text);
+	border-color: var(--hr-border-strong);
+}
+
+.audit-kind:has(input:checked) {
+	color: var(--hr-surface);
+	background: var(--hr-text);
+	border-color: var(--hr-text);
+}
+
+.audit-kind:has(input:focus-visible) {
+	outline: 2px solid var(--hr-accent-hover);
+	outline-offset: 2px;
+}
+
+.audit-filters__fields {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+	align-items: end;
+	gap: 0.875rem 1rem;
+}
+
+.audit-field {
+	display: grid;
+	gap: 0.3rem;
+	min-width: 0;
+}
+
+.audit-field--range {
+	grid-column: span 2;
+}
+
+.audit-field__label {
+	color: var(--hr-text-muted);
+	font-size: 0.75rem;
+	font-weight: 600;
+	letter-spacing: 0.04em;
+}
+
+.audit-range {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+.audit-range input {
+	flex: 1;
+	min-width: 0;
+	/* 社員の選択欄と同じ高さにそろえ、見出しの行をそろえる */
+	min-height: 42px;
+	padding: 0 0.625rem;
+	color: var(--hr-text);
+	font-size: 0.82rem;
+	font-variant-numeric: tabular-nums;
+	background: var(--hr-surface);
+	border: 1px solid var(--hr-border-input);
+	border-radius: 7px;
+}
+
+.audit-range input:invalid {
+	border-color: var(--hr-danger);
+}
+
+/* 「すべて」は未設定ではないので、社員マスタの未設定のような破線にしない */
+.audit-field .evaluator-combobox.unset input {
+	border-style: solid;
+}
+
+.audit-range__dash {
+	color: var(--hr-text-muted);
+}
+
+.audit-clear,
+.audit-retry,
+.audit-more__button {
+	flex: none;
+	justify-self: start;
+	min-height: 2.25rem;
+	padding: 0 0.875rem;
+	color: var(--hr-text);
+	font-size: 0.8125rem;
+	font-weight: 600;
+	background: var(--hr-bg-elevated);
+	border: 1px solid var(--hr-border);
+	border-radius: var(--hr-radius-sm);
+	transition:
+		color 0.15s ease,
+		border-color 0.15s ease,
+		background-color 0.15s ease;
+}
+
+.audit-clear:hover,
+.audit-retry:hover,
+.audit-more__button:hover:not(:disabled) {
+	color: var(--hr-link);
+	background: var(--hr-accent-muted);
+	border-color: var(--hr-accent);
+}
+
+.audit-more__button:disabled {
+	opacity: 0.55;
+	cursor: progress;
+}
+
+/* ----- 帳簿 ----- */
+
+.audit-ledger {
+	container: ledger / inline-size;
+	display: grid;
+	gap: 1.75rem;
+	min-width: 0;
+}
+
+.audit-empty {
+	display: grid;
+	justify-items: start;
+	gap: 0.75rem;
+	padding: 2rem 1.25rem;
+	color: var(--hr-text-muted);
+	font-size: 0.9rem;
+	background: var(--hr-surface);
+	border: 1px dashed var(--hr-border-strong);
+	border-radius: var(--hr-radius-lg);
+}
+
+.audit-empty p {
+	margin: 0;
+}
+
+/* 一日分の綴り。画面の外の日は描かない(記録が何百件でも、スクロールが重くならない) */
+.audit-day {
+	content-visibility: auto;
+	contain-intrinsic-size: auto 32rem;
+}
+
+/* 条件を変えて読み直す間は、前の結果を薄くして残す(消すと画面が跳ねる) */
+.audit-ledger[aria-busy="true"] .audit-day {
+	opacity: 0.5;
+	transition: opacity 0.2s ease 0.15s;
+}
+
+.audit-day__head {
+	container-type: scroll-state;
+	position: sticky;
+	top: var(--audit-stick);
+	z-index: 2;
+	margin: 0 0 0.5rem;
+	font-size: 0.9375rem;
+	font-weight: 650;
+	letter-spacing: 0.02em;
+}
+
+.audit-day__head time {
+	display: block;
+	padding: 0.4rem 0.125rem;
+	background: var(--hr-bg);
+	border-radius: var(--hr-radius-sm);
+	transition:
+		box-shadow 0.2s ease,
+		padding 0.2s ease;
+}
+
+/* 見出しが上に貼り付いたときだけ、下の行と離れて見えるよう面を浮かせる */
+@container scroll-state(stuck: top) {
+	.audit-day__head time {
+		padding-inline: 0.75rem;
+		background: color-mix(in srgb, var(--hr-bg) 86%, transparent);
+		backdrop-filter: blur(8px);
+		box-shadow: var(--hr-shadow-overlay);
+	}
+}
+
+.audit-day__entries {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	background: var(--hr-surface);
+	border: 1px solid var(--hr-border);
+	border-radius: var(--hr-radius-lg);
+	box-shadow: var(--hr-shadow);
+}
+
+/* 一件: 時刻 | 何をしたか | 誰が | 検印。印の列は、押していない行でも幅を残して列をそろえる */
+.audit-entry {
+	display: grid;
+	grid-template-columns: 3.5rem minmax(0, 1fr) minmax(8rem, 13rem) 3rem;
+	grid-template-areas: "time main actor seal";
+	column-gap: 1.25rem;
+	padding: 0.95rem 1.125rem;
+}
+
+.audit-entry + .audit-entry {
+	border-top: 1px solid var(--hr-border);
+}
+
+.audit-entry__time {
+	grid-area: time;
+	padding-top: 0.05rem;
+	color: var(--hr-text-muted);
+	font-size: 0.875rem;
+	font-variant-numeric: tabular-nums;
+	letter-spacing: 0.02em;
+}
+
+.audit-entry__main {
+	grid-area: main;
+	display: grid;
+	gap: 0.45rem;
+	min-width: 0;
+}
+
+.audit-entry__title {
+	margin: 0;
+	color: var(--hr-text);
+	font-size: 0.9375rem;
+	font-weight: 650;
+	line-height: 1.5;
+	text-wrap: balance;
+}
+
+.audit-entry__subject {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 0.15rem 0.875rem;
+	margin: 0;
+	font-size: 0.8125rem;
+}
+
+.audit-entry__period,
+.audit-entry__missing {
+	color: var(--hr-text-muted);
+}
+
+.audit-entry__open {
+	font-weight: 600;
+}
+
+.audit-person {
+	color: var(--hr-text);
+	font-weight: 600;
+}
+
+.audit-person small {
+	margin-left: 0.4em;
+	color: var(--hr-text-muted);
+	font-size: 0.75rem;
+	font-weight: 500;
+	font-variant-numeric: tabular-nums;
+}
+
+.audit-entry__actor {
+	grid-area: actor;
+	display: grid;
+	align-content: start;
+	gap: 0.1rem;
+	margin: 0;
+	font-size: 0.8125rem;
+	text-align: right;
+}
+
+.audit-entry__label {
+	color: var(--hr-text-muted);
+	font-size: 0.6875rem;
+	letter-spacing: 0.06em;
+}
+
+/* 変更前は消し線、変更後は加筆。矢印は文字ではなく線で描き、読み上げには「から」を渡す */
+.audit-changes {
+	display: grid;
+	gap: 0.2rem;
+	margin: 0;
+	font-size: 0.8125rem;
+}
+
+.audit-changes__row {
+	display: grid;
+	grid-template-columns: 7.5rem minmax(0, 1fr);
+	gap: 0.75rem;
+}
+
+.audit-changes dt {
+	color: var(--hr-text-muted);
+}
+
+.audit-changes dd {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.25rem 0.5rem;
+	margin: 0;
+	min-width: 0;
+}
+
+.audit-changes del {
+	color: var(--hr-text-muted);
+	text-decoration-color: color-mix(in srgb, var(--hr-text-muted) 70%, transparent);
+	text-decoration-thickness: 1px;
+}
+
+.audit-changes ins {
+	color: var(--hr-text);
+	font-weight: 600;
+	text-decoration: none;
+}
+
+.audit-changes__to {
+	inline-size: 0.875rem;
+	block-size: 0.5rem;
+	background: currentColor;
+	color: var(--hr-text-muted);
+	clip-path: polygon(0 42%, 70% 42%, 70% 0, 100% 50%, 70% 100%, 70% 58%, 0 58%);
+}
+
+.audit-facts {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.25rem 1.25rem;
+	margin: 0;
+	font-size: 0.8125rem;
+}
+
+.audit-facts div {
+	display: flex;
+	gap: 0.4rem;
+}
+
+.audit-facts dt {
+	color: var(--hr-text-muted);
+}
+
+.audit-facts dd {
+	margin: 0;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+.audit-reason {
+	display: flex;
+	gap: 0.625rem;
+	margin: 0;
+	font-size: 0.8125rem;
+	line-height: 1.7;
+}
+
+.audit-reason__label {
+	flex: none;
+	padding-top: 0.1rem;
+	color: var(--hr-text-muted);
+	font-size: 0.6875rem;
+	letter-spacing: 0.06em;
+}
+
+.audit-reason q {
+	quotes: "「" "」";
+	color: var(--hr-text);
+	text-wrap: pretty;
+	overflow-wrap: anywhere;
+}
+
+/* 記録の原文。開け閉めは高さごと動かす(::details-content と interpolate-size のある環境だけ) */
+.audit-raw {
+	interpolate-size: allow-keywords;
+	font-size: 0.75rem;
+}
+
+.audit-raw summary {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+	width: fit-content;
+	color: var(--hr-link);
+	cursor: pointer;
+	list-style: none;
+}
+
+.audit-raw summary::-webkit-details-marker {
+	display: none;
+}
+
+.audit-raw summary::before {
+	content: "";
+	inline-size: 0.4rem;
+	block-size: 0.4rem;
+	border-right: 1.5px solid currentColor;
+	border-bottom: 1.5px solid currentColor;
+	rotate: -45deg;
+	transition: rotate 0.2s ease;
+}
+
+.audit-raw[open] summary::before {
+	rotate: 45deg;
+}
+
+.audit-raw::details-content {
+	block-size: 0;
+	overflow: clip;
+	transition:
+		block-size 0.25s ease,
+		content-visibility 0.25s allow-discrete;
+}
+
+.audit-raw[open]::details-content {
+	block-size: auto;
+}
+
+.audit-raw pre {
+	max-block-size: 18rem;
+	margin: 0.5rem 0 0;
+	padding: 0.75rem 0.875rem;
+	overflow: auto;
+	color: var(--hr-text);
+	font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+	line-height: 1.6;
+	tab-size: 2;
+	white-space: pre;
+	background: var(--hr-bg-elevated);
+	border: 1px solid var(--hr-border);
+	border-radius: var(--hr-radius-sm);
+}
+
+/* ----- 検印 ----- */
+/* 印影は彫った明朝で、二重の輪。わずかに傾け、ライトでは紙に沈むよう乗算で重ねる */
+.audit-seal {
+	grid-area: seal;
+	justify-self: center;
+	display: grid;
+	place-items: center;
+	inline-size: 2.625rem;
+	aspect-ratio: 1;
+	color: var(--hr-danger-text);
+	font-family: "Yu Mincho", "YuMincho", "Hiragino Mincho ProN", "Noto Serif JP", serif;
+	font-size: 1.2rem;
+	font-weight: 700;
+	line-height: 1;
+	background: color-mix(in srgb, var(--hr-danger) 8%, transparent);
+	border: 2px solid currentColor;
+	border-radius: 50%;
+	box-shadow:
+		inset 0 0 0 2px var(--hr-surface),
+		inset 0 0 0 3px currentColor;
+	rotate: -8deg;
+	mix-blend-mode: multiply;
+	/* 朱肉のむら。左上を濃く、右下へわずかに掠れる */
+	mask: radial-gradient(circle at 32% 28%, #000 58%, rgb(0 0 0 / 0.72) 100%);
+	transition:
+		scale 0.24s cubic-bezier(0.2, 0.9, 0.3, 1.2),
+		opacity 0.18s ease;
+}
+
+/* 記録を読み込んだとき(利用者の操作のあと)だけ、印を一度押す */
+@starting-style {
+	.audit-seal {
+		scale: 1.35;
+		opacity: 0;
+	}
+}
+
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme="light"]) .audit-seal {
+		mix-blend-mode: normal;
+		background: color-mix(in srgb, var(--hr-danger) 12%, transparent);
+	}
+}
+
+:root[data-theme="dark"] .audit-seal {
+	mix-blend-mode: normal;
+	background: color-mix(in srgb, var(--hr-danger) 12%, transparent);
+}
+
+/* 印のある行は、理由が判断の材料なので少し強く出す */
+.audit-entry--sealed .audit-reason q {
+	font-weight: 600;
+}
+
+/* ----- 続き ----- */
+
+.audit-more {
+	display: grid;
+	justify-items: center;
+	gap: 0.5rem;
+	padding-top: 0.25rem;
+}
+
+.audit-more .audit-more__button {
+	justify-self: center;
+	min-width: 16rem;
+}
+
+/* ----- 狭い幅(帳簿の幅で決める。画面の幅ではない) ----- */
+
+@container ledger (width < 46rem) {
+	.audit-entry {
+		grid-template-columns: auto minmax(0, 1fr) auto;
+		grid-template-areas:
+			"time actor seal"
+			"main main main";
+		row-gap: 0.5rem;
+		column-gap: 0.875rem;
+	}
+
+	.audit-entry__actor {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		gap: 0.4rem;
+		text-align: left;
+	}
+
+	.audit-changes__row {
+		grid-template-columns: 6rem minmax(0, 1fr);
+	}
+}
+
+@media (width < 40rem) {
+	.audit-field--range {
+		grid-column: auto;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.audit-seal,
+	.audit-raw::details-content,
+	.audit-raw summary::before,
+	.audit-day__head time,
+	.audit-ledger[aria-busy="true"] .audit-day {
+		transition: none;
+	}
+}

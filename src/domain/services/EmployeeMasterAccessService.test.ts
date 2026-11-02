@@ -16,6 +16,7 @@ const ADMIN_ONLY = {
 	canViewAllSheets: access.canViewAllSheets,
 	canResetRegistrations: access.canResetRegistrations,
 	canManageEmployeeAccess: access.canManageEmployeeAccess,
+	canViewAuditLog: access.canViewAuditLog,
 };
 
 describe("employee master access", () => {

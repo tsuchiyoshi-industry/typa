@@ -276,6 +276,36 @@ test("a sheet goes from the employee through both evaluators to a final rank", a
 		await expect(page.getByRole("link", { name: /部下の一覧を見ながら/ })).toHaveCount(0);
 		await signOut(page);
 	});
+
+	await test.step("Admin は監査ログで、このシートを誰が進めたかを読む", async () => {
+		await signIn(page, ADMIN);
+		await page.getByRole("button", { name: "ユーザーメニュー" }).click();
+		await page.getByRole("link", { name: "監査ログ" }).click();
+		await page.getByRole("radio", { name: "評価の進行" }).check();
+		await page.getByRole("combobox", { name: "対象の社員" }).click();
+		await page.getByRole("option", { name: /Release test 4/ }).click();
+		const entry = (title: string) =>
+			page
+				.getByRole("listitem")
+				.filter({ has: page.getByRole("heading", { name: title, exact: true }) });
+		await expect(entry("評価を確定").first()).toContainText("Release test 3");
+		await expect(entry("一次評価を確定").first()).toContainText("Release test 2");
+		await expect(entry("目標を送信").first()).toContainText("Release test 4");
+		// 通常の進行には検印を押さない
+		await expect(entry("評価を確定").first().getByRole("img")).toHaveCount(0);
+		await signOut(page);
+	});
+
+	await test.step("Admin 以外は、URL を直接開いても監査ログを読めない", async () => {
+		await signIn(page, "RELEASE002");
+		await page.getByRole("button", { name: "ユーザーメニュー" }).click();
+		await expect(page.getByRole("link", { name: "監査ログ" })).toHaveCount(0);
+		await page.keyboard.press("Escape");
+		await page.goto("/audit-log");
+		await expect(page.getByRole("alert")).toContainText("Admin のみ");
+		await expect(page.getByRole("listitem")).toHaveCount(0);
+		await signOut(page);
+	});
 });
 
 test("zero period goals records achievement on the challenge and primary evaluation can finalize it", async ({

@@ -4,6 +4,7 @@ import CircleQuestionMark from "lucide-solid/icons/circle-question-mark";
 import LogOut from "lucide-solid/icons/log-out";
 import Menu from "lucide-solid/icons/menu";
 import PackageOpen from "lucide-solid/icons/package-open";
+import ScrollText from "lucide-solid/icons/scroll-text";
 import Settings from "lucide-solid/icons/settings";
 import ShieldAlert from "lucide-solid/icons/shield-alert";
 import X from "lucide-solid/icons/x";
@@ -160,6 +161,12 @@ const DashboardLayout: Component<{
 								>
 									<ShieldAlert size={18} />
 									<span>遡及処理</span>
+								</A>
+							</Show>
+							<Show when={user()?.canViewAuditLog}>
+								<A href="/audit-log" class="user-menu-item" onClick={() => setUserMenuOpen(false)}>
+									<ScrollText size={18} />
+									<span>監査ログ</span>
 								</A>
 							</Show>
 							<A href="/help" class="user-menu-item" onClick={() => setUserMenuOpen(false)}>

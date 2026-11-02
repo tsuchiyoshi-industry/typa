@@ -132,6 +132,7 @@ it("keeps the top bar usable when the current user cannot be read", async () => 
 	expect(view.getByRole("link", { name: "ヘルプ" })).toBeTruthy();
 	expect(view.queryByRole("link", { name: "設定" })).toBeNull();
 	expect(view.queryByRole("link", { name: "遡及処理" })).toBeNull();
+	expect(view.queryByRole("link", { name: "監査ログ" })).toBeNull();
 	expect(within(view.nav()).queryByRole("link", { name: "部下の評価" })).toBeNull();
 	expect(view.current()).toEqual(["評価シート"]);
 });
@@ -198,3 +199,17 @@ it.each([true, false])(
 		expect(links).not.toContain("特権操作");
 	},
 );
+
+it.each([true, false])("offers 監査ログ only to Admin (%s)", async (allowed) => {
+	const view = setup("/", async () => ({ name: "管理者", canViewAuditLog: allowed }));
+	await view.findByText("管理者");
+	fireEvent.click(view.getByRole("button", { name: "ユーザーメニュー" }));
+	const link = view.queryByRole("link", { name: "監査ログ" });
+	expect(link !== null).toBe(allowed);
+	if (link) {
+		expect(link.getAttribute("href")).toBe("/audit-log");
+		fireEvent.click(link);
+		// 選んだらメニューを閉じる
+		await waitFor(() => expect(view.queryByRole("link", { name: "監査ログ" })).toBeNull());
+	}
+});

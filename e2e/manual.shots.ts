@@ -417,6 +417,12 @@ test("manual screenshots", async ({ page }) => {
 		await shot(page, "admin", "15-retroactive-confirm");
 		await correcting.getByRole("button", { name: "修正を記録する" }).click();
 		await expect(page.getByRole("region", { name: /このシートの修正の記録\(2件\)/ })).toBeVisible();
+
+		// 監査ログ: いま直した記録が、検印つきで残っている
+		await menu(page, "監査ログ");
+		await page.getByRole("radio", { name: "遡及処理" }).check();
+		await expect(page.getByRole("img", { name: "検印：締め後修正" }).first()).toBeVisible();
+		await shot(page.locator(".audit-page"), "admin", "16-audit-log");
 		await signOut(page);
 	});
 

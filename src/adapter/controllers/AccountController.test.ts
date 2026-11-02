@@ -30,12 +30,18 @@ const executive = new EmployeeProfile(
 );
 
 describe("the top bar for the signed-in employee", () => {
-	// 基本設計 6.1: 部下の評価は評価者になれる人、設定は Admin。遡及処理と導入処理も Admin だけ
+	// 基本設計 6.1: 部下の評価は評価者になれる人、設定は Admin。遡及処理・導入処理・監査ログも Admin だけ
 	it.each([
 		[
 			"an Admin",
 			profile("Admin"),
-			{ canReview: true, canViewSettings: true, canRunSetup: true, canCorrectClosedSheets: true },
+			{
+				canReview: true,
+				canViewSettings: true,
+				canRunSetup: true,
+				canCorrectClosedSheets: true,
+				canViewAuditLog: true,
+			},
 		],
 		[
 			"a Reviewer",
@@ -45,6 +51,7 @@ describe("the top bar for the signed-in employee", () => {
 				canViewSettings: false,
 				canRunSetup: false,
 				canCorrectClosedSheets: false,
+				canViewAuditLog: false,
 			},
 		],
 		[
@@ -55,6 +62,7 @@ describe("the top bar for the signed-in employee", () => {
 				canViewSettings: false,
 				canRunSetup: false,
 				canCorrectClosedSheets: false,
+				canViewAuditLog: false,
 			},
 		],
 		[
@@ -65,6 +73,7 @@ describe("the top bar for the signed-in employee", () => {
 				canViewSettings: false,
 				canRunSetup: false,
 				canCorrectClosedSheets: false,
+				canViewAuditLog: false,
 			},
 		],
 	])("offers %s only what they may use", async (_label, person, menu) => {

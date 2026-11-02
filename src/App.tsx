@@ -11,6 +11,7 @@ import {
 	Suspense,
 } from "solid-js";
 import { AccountController } from "./adapter/controllers/AccountController";
+import { AuditLogController } from "./adapter/controllers/AuditLogController";
 import { ChallengeEvaluationController } from "./adapter/controllers/ChallengeEvaluationController";
 import { CommonEvaluationController } from "./adapter/controllers/CommonEvaluationController";
 import { EmployeeMasterController } from "./adapter/controllers/EmployeeMasterController";
@@ -74,6 +75,7 @@ import { UpdateSmtpSettingsInteractor } from "./application/usecases/UpdateSmtpS
 import { UpsertCommonEvaluationInteractor } from "./application/usecases/UpsertCommonEvaluationInteractor";
 import type { AuthSession } from "./domain/repositories/AuthRepository";
 import { SupabaseAuthRepository } from "./infrastructure/auth/SupabaseAuthRepository";
+import { SupabaseAuditLogRepository } from "./infrastructure/repositories/SupabaseAuditLogRepository";
 import { SupabaseCommonEvaluationRepository } from "./infrastructure/repositories/SupabaseCommonEvaluationRepository";
 import { SupabaseEmailNotificationRepository } from "./infrastructure/repositories/SupabaseEmailNotificationRepository";
 import { SupabaseEmployeeMasterRepository } from "./infrastructure/repositories/SupabaseEmployeeMasterRepository";
@@ -96,6 +98,7 @@ import { WebSheetPdfGateway } from "./infrastructure/repositories/WebSheetPdfGat
 
 // ログイン後の画面のコードは、ログイン画面では読み込まない。
 // 紐付けを確かめた時点でまとめて読み込み、開いたあとで読み込み画面を挟まない。
+const AuditLogView = lazy(() => import("./adapter/views/AuditLogView"));
 const EmployeeMasterView = lazy(() => import("./adapter/views/EmployeeMasterView"));
 const EmployeePreRegistrationView = lazy(
 	() => import("./adapter/views/EmployeePreRegistrationView"),
@@ -109,6 +112,7 @@ const SetupView = lazy(() => import("./adapter/views/SetupView"));
 const SheetEditorView = lazy(() => import("./adapter/views/SheetEditorView"));
 const SheetListView = lazy(() => import("./adapter/views/SheetListView"));
 const protectedViews = [
+	AuditLogView,
 	EmployeeMasterView,
 	EmployeePreRegistrationView,
 	HelpView,
@@ -155,6 +159,12 @@ const retroactiveCorrectionController = new RetroactiveCorrectionController(
 		employeeMasterRepository,
 	),
 	new ChangeSheetGradeInteractor(new SupabaseSheetGradeRepository(), employeeMasterRepository),
+);
+const auditLogController = new AuditLogController(
+	employeeMasterRepository,
+	evaluationPeriodRepository,
+	evaluationSheetRepository,
+	new SupabaseAuditLogRepository(),
 );
 const settingsController = new SettingsController(
 	evaluationSettingsRepository,
@@ -458,6 +468,10 @@ const App: Component = () => {
 						component={() => (
 							<RetroactiveCorrectionView controller={retroactiveCorrectionController} />
 						)}
+					/>
+					<Route
+						path="/audit-log"
+						component={() => <AuditLogView controller={auditLogController} />}
 					/>
 					<Route path="/help" component={HelpView} />
 					<Route path="*404" component={NotFound} />

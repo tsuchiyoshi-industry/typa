@@ -52,3 +52,6 @@ export const canResetRegistrations = adminOnly;
 
 /** 招待コードの発行と、利用の停止・再開(誰がアプリを使えるか)は Admin だけが行える。 */
 export const canManageEmployeeAccess = adminOnly;
+
+/** 監査ログ(誰がいつ何を変えたか)を読めるのは Admin だけ。DB の行ポリシーも、利用中の Admin にしか返さない。 */
+export const canViewAuditLog = adminOnly;

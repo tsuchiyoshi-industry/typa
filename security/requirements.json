@@ -43,6 +43,11 @@
 			"condition": "Suspension removes access using the exact same previously accepted access token"
 		},
 		{
+			"id": "AUTH-REVOKE",
+			"asvs": ["V7.4.1"],
+			"condition": "After logging out one session, its unexpired access token can neither identify the employee nor read their own row, while the same person's other session keeps working"
+		},
+		{
 			"id": "FLOW-APPROVAL",
 			"asvs": ["V2.3.1"],
 			"condition": "The owner cannot skip goal approval or replay submission; state and notification counts obey the workflow"

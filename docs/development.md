@@ -73,8 +73,9 @@ VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 
 - 新しい環境の構築、Auth、SMTP、Edge Function の配置は [Supabase 環境の構築手順](supabase-setup.md) を参照してください。
 - 既存環境への SQL 適用順とリリースの検証コマンドは [リリース前検証](release-readiness.md) を参照してください。アプリのビルド・配布だけでは本番 DB と Edge Function は更新されません。
-- CIのDB検証ジョブは、新規構築・移行後の両DBで実Auth/APIの13項目とZAP Automation Frameworkを必須実行します。[要件と証跡](security-verification.md#ciの必須セキュリティ要件)を参照してください。MFAや本番設定などの未検証範囲は、合格した要件と区別して記録します。
+- CIのDB検証ジョブは、新規構築・移行後の両DBで実Auth/APIの14項目とZAP Automation Frameworkを必須実行します。[要件と証跡](security-verification.md#ciの必須セキュリティ要件)を参照してください。MFAや本番設定などの未検証範囲は、合格した要件と区別して記録します。
 - 各 SQL の目的と互換性の経緯は [マイグレーションの変更経緯](migration-history.md) に移しました。
+- Web 版を公開する前に `202611020001_session_revocation.sql` を本番へ適用してください。ログアウト・セッションの取り消しの後に残ったアクセストークンを DB が断るのは、この SQL からです（アプリの更新だけでは効きません）。
 - 通知の方法は Admin が設定画面で選びます（アプリ内通知が既定）。アプリ内通知は、状態の変更と同じトランザクションで DB のトリガーが `notifications` に作り、画面上部のベルで読みます。
 - メールのときは `supabase/functions/notify-sheet` が送信します。アプリは関数名とシートIDを渡し、サーバーが認可・宛先の決定・重複防止を行います。メールアドレスとSMTP認証情報はアプリに返しません。SMTP 設定も、この関数が送信テストに成功したときだけ保存します。
 

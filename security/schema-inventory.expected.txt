@@ -261,7 +261,7 @@ FUNCTION claim_sheet_notification(bigint,uuid) definer=true anon=false authentic
 FUNCTION complete_registration(uuid) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=51a558c15fdca9d3101bb7a8986d7997
 FUNCTION complete_sheet_notification(uuid,boolean) definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=9d51da334f904c5621f5a5509f12867f
 FUNCTION correct_closed_sheet(bigint,jsonb,text) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=8f616d944bcc9a4cfe6521d1768b7caa
-FUNCTION current_employee_id() definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=f866dcd8deb02f126510b1fcd1a01399
+FUNCTION current_employee_id() definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=55180234512a7ec8091025fed5d92154
 FUNCTION current_employee_is_admin() definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=793effd96290231797771133af3cd59a
 FUNCTION current_employee_role() definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=68b599a7cc77b870e99bac0726b006ae
 FUNCTION employee_auth_email(text) definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=4243f657a68a388892d58f4c34eb6059
@@ -387,42 +387,42 @@ INDEX CREATE UNIQUE INDEX security_audit_log_pkey ON public.security_audit_log U
 INDEX CREATE UNIQUE INDEX sheet_corrections_pkey ON public.sheet_corrections USING btree (id)
 INDEX CREATE UNIQUE INDEX sheet_notification_deliveries_pkey ON public.sheet_notification_deliveries USING btree (sheet_id, revision)
 INDEX CREATE UNIQUE INDEX workspace_settings_pkey ON public.workspace_settings USING btree (id)
-POLICY common_evaluation_items | enabled employee required | {authenticated} | ALL | using (current_employee_id() IS NOT NULL) | check (current_employee_id() IS NOT NULL)
+POLICY common_evaluation_items | enabled employee required | {authenticated} | ALL | using (( SELECT current_employee_id() AS current_employee_id) IS NOT NULL) | check (( SELECT current_employee_id() AS current_employee_id) IS NOT NULL)
 POLICY common_evaluation_items | select c | {authenticated} | SELECT | using true | check -
-POLICY common_evaluation_results | enabled employee required | {authenticated} | ALL | using (current_employee_id() IS NOT NULL) | check (current_employee_id() IS NOT NULL)
+POLICY common_evaluation_results | enabled employee required | {authenticated} | ALL | using (( SELECT current_employee_id() AS current_employee_id) IS NOT NULL) | check (( SELECT current_employee_id() AS current_employee_id) IS NOT NULL)
 POLICY common_evaluation_results | evaluators add common evaluation in their stage | {authenticated} | INSERT | using - | check (sheet_access(sheet_id) = ANY (ARRAY['first'::text, 'second'::text]))
 POLICY common_evaluation_results | evaluators change common evaluation in their stage | {authenticated} | UPDATE | using (sheet_access(sheet_id) = ANY (ARRAY['first'::text, 'second'::text])) | check (sheet_access(sheet_id) = ANY (ARRAY['first'::text, 'second'::text]))
 POLICY common_evaluation_results | evaluators read common evaluation | {authenticated} | SELECT | using (sheet_access(sheet_id) = ANY (ARRAY['first'::text, 'second'::text, 'read'::text, 'subject:finalized'::text])) | check -
-POLICY employee_grades | enabled employee required | {authenticated} | ALL | using (current_employee_id() IS NOT NULL) | check (current_employee_id() IS NOT NULL)
+POLICY employee_grades | enabled employee required | {authenticated} | ALL | using (( SELECT current_employee_id() AS current_employee_id) IS NOT NULL) | check (( SELECT current_employee_id() AS current_employee_id) IS NOT NULL)
 POLICY employee_grades | select | {authenticated} | SELECT | using true | check -
 POLICY employees | Admin maintains the employee master | {authenticated} | UPDATE | using current_employee_is_admin() | check current_employee_is_admin()
 POLICY employees | employees read the people they work with | {authenticated} | SELECT | using ((( SELECT current_employee_role() AS current_employee_role) = ANY (ARRAY['Admin'::text, 'Reviewer'::text])) OR (id IN ( SELECT visible_employee_ids() AS visible_employee_ids))) | check -
-POLICY employees | enabled employee required | {authenticated} | ALL | using (current_employee_id() IS NOT NULL) | check (current_employee_id() IS NOT NULL)
-POLICY evaluation_periods | enabled employee required | {authenticated} | ALL | using (current_employee_id() IS NOT NULL) | check (current_employee_id() IS NOT NULL)
+POLICY employees | enabled employee required | {authenticated} | ALL | using (( SELECT current_employee_id() AS current_employee_id) IS NOT NULL) | check (( SELECT current_employee_id() AS current_employee_id) IS NOT NULL)
+POLICY evaluation_periods | enabled employee required | {authenticated} | ALL | using (( SELECT current_employee_id() AS current_employee_id) IS NOT NULL) | check (( SELECT current_employee_id() AS current_employee_id) IS NOT NULL)
 POLICY evaluation_periods | only Admin adds evaluation periods | {authenticated} | INSERT | using - | check (current_employee_is_admin() AND (NOT is_active))
 POLICY evaluation_periods | only Admin deletes evaluation periods | {authenticated} | DELETE | using current_employee_is_admin() | check -
 POLICY evaluation_periods | only Admin edits evaluation periods | {authenticated} | UPDATE | using current_employee_is_admin() | check true
 POLICY evaluation_periods | periods select | {authenticated} | SELECT | using true | check -
-POLICY evaluation_settings | enabled employee required | {authenticated} | ALL | using (current_employee_id() IS NOT NULL) | check (current_employee_id() IS NOT NULL)
+POLICY evaluation_settings | enabled employee required | {authenticated} | ALL | using (( SELECT current_employee_id() AS current_employee_id) IS NOT NULL) | check (( SELECT current_employee_id() AS current_employee_id) IS NOT NULL)
 POLICY evaluation_settings | evaluation settings are readable when signed in | {authenticated} | SELECT | using true | check -
-POLICY evaluation_settings | only Admin changes evaluation settings | {authenticated} | UPDATE | using (EXISTS ( SELECT 1 FROM (employees caller JOIN roles caller_role ON ((caller_role.id = caller.role_id))) WHERE ((caller.user_id = auth.uid()) AND (caller_role.role_name = 'Admin'::text)))) | check true
+POLICY evaluation_settings | only Admin changes evaluation settings | {authenticated} | UPDATE | using current_employee_is_admin() | check true
 POLICY evaluation_sheets | an employee creates their own sheet | {authenticated} | INSERT | using - | check (employee_id = ( SELECT current_employee_id() AS current_employee_id))
-POLICY evaluation_sheets | enabled employee required | {authenticated} | ALL | using (current_employee_id() IS NOT NULL) | check (current_employee_id() IS NOT NULL)
+POLICY evaluation_sheets | enabled employee required | {authenticated} | ALL | using (( SELECT current_employee_id() AS current_employee_id) IS NOT NULL) | check (( SELECT current_employee_id() AS current_employee_id) IS NOT NULL)
 POLICY evaluation_sheets | subject and evaluators change a sheet | {authenticated} | UPDATE | using (((( SELECT current_employee_id() AS current_employee_id) = employee_id) OR (( SELECT current_employee_id() AS current_employee_id) = primary_evaluator_id)) OR (( SELECT current_employee_id() AS current_employee_id) = secondary_evaluator_id)) | check (((( SELECT current_employee_id() AS current_employee_id) = employee_id) OR (( SELECT current_employee_id() AS current_employee_id) = primary_evaluator_id)) OR (( SELECT current_employee_id() AS current_employee_id) = secondary_evaluator_id))
 POLICY evaluation_sheets | subject and evaluators read a sheet | {authenticated} | SELECT | using ((((( SELECT current_employee_id() AS current_employee_id) = employee_id) OR (( SELECT current_employee_id() AS current_employee_id) = primary_evaluator_id)) OR (( SELECT current_employee_id() AS current_employee_id) = secondary_evaluator_id)) OR ((status = 'finalized'::text) AND is_current_evaluator_of((employee_id)::integer))) | check -
-POLICY milestones | enabled employee required | {authenticated} | ALL | using (current_employee_id() IS NOT NULL) | check (current_employee_id() IS NOT NULL)
+POLICY milestones | enabled employee required | {authenticated} | ALL | using (( SELECT current_employee_id() AS current_employee_id) IS NOT NULL) | check (( SELECT current_employee_id() AS current_employee_id) IS NOT NULL)
 POLICY milestones | subject adds goals to a draft | {authenticated} | INSERT | using - | check (sheet_access(sheet_id) = 'subject:draft'::text)
 POLICY milestones | subject and evaluators change goals in their stage | {authenticated} | UPDATE | using (sheet_access(sheet_id) = ANY (ARRAY['subject:draft'::text, 'subject:goals_submitted'::text, 'subject:goals_confirmed'::text, 'first'::text, 'second'::text])) | check (sheet_access(sheet_id) = ANY (ARRAY['subject:draft'::text, 'subject:goals_submitted'::text, 'subject:goals_confirmed'::text, 'first'::text, 'second'::text]))
 POLICY milestones | subject and evaluators read goals | {authenticated} | SELECT | using (sheet_access(sheet_id) IS NOT NULL) | check -
 POLICY milestones | subject removes goals from a draft | {authenticated} | DELETE | using (sheet_access(sheet_id) = 'subject:draft'::text) | check -
 POLICY notifications | recipients mark their notifications | {authenticated} | UPDATE | using (recipient_employee_id = current_employee_id()) | check (recipient_employee_id = current_employee_id())
 POLICY notifications | recipients read their notifications | {authenticated} | SELECT | using (recipient_employee_id = current_employee_id()) | check -
-POLICY roles | enabled employee required | {authenticated} | ALL | using (current_employee_id() IS NOT NULL) | check (current_employee_id() IS NOT NULL)
+POLICY roles | enabled employee required | {authenticated} | ALL | using (( SELECT current_employee_id() AS current_employee_id) IS NOT NULL) | check (( SELECT current_employee_id() AS current_employee_id) IS NOT NULL)
 POLICY roles | roles select all | {authenticated} | SELECT | using true | check -
 POLICY security_audit_log | Admin reads audit log | {authenticated} | SELECT | using current_employee_is_admin() | check -
-POLICY workspace_settings | enabled employee required | {authenticated} | ALL | using (current_employee_id() IS NOT NULL) | check (current_employee_id() IS NOT NULL)
-POLICY workspace_settings | only Admin changes workspace settings | {authenticated} | UPDATE | using (EXISTS ( SELECT 1 FROM (employees caller JOIN roles caller_role ON ((caller_role.id = caller.role_id))) WHERE ((caller.user_id = auth.uid()) AND (caller_role.role_name = 'Admin'::text)))) | check true
-POLICY workspace_settings | only Admin reads workspace settings | {authenticated} | SELECT | using (EXISTS ( SELECT 1 FROM (employees caller JOIN roles caller_role ON ((caller_role.id = caller.role_id))) WHERE ((caller.user_id = auth.uid()) AND (caller_role.role_name = 'Admin'::text)))) | check -
+POLICY workspace_settings | enabled employee required | {authenticated} | ALL | using (( SELECT current_employee_id() AS current_employee_id) IS NOT NULL) | check (( SELECT current_employee_id() AS current_employee_id) IS NOT NULL)
+POLICY workspace_settings | only Admin changes workspace settings | {authenticated} | UPDATE | using current_employee_is_admin() | check true
+POLICY workspace_settings | only Admin reads workspace settings | {authenticated} | SELECT | using current_employee_is_admin() | check -
 SCHEMA public anon usage=true
 SCHEMA public authenticated usage=true
 SCHEMA public service_role usage=true

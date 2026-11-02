@@ -34,8 +34,9 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Resolve version and tag
@@ -65,9 +66,9 @@ jobs:
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: latest
+          bun-version-file: package.json
 
       - name: Validate packaged versions and existing tag
         shell: bash
@@ -91,12 +92,14 @@ jobs:
       contents: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: latest
+          bun-version-file: package.json
 
       - name: Install frontend dependencies
         shell: bash
@@ -104,17 +107,17 @@ jobs:
 
       # checks が撮ったマニュアルの写真と PDF。写真はアプリのヘルプに入り、PDF はリリースに添える
       - name: Download manual
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: manual
           path: docs/manual
 
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
 
       # Restore the release-profile dependencies saved by checks / rust in this run.
       - name: Cargo cache
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           shared-key: windows-tauri
           save-if: false
@@ -232,7 +235,7 @@ jobs:
           cat latest.json
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
         with:
           tag_name: ${{ needs.metadata.outputs.tag }}
           # workflow_dispatch ではタグがまだない。git push で打つと、前回のリリースから
@@ -261,31 +264,33 @@ jobs:
       deployments: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: latest
+          bun-version-file: package.json
 
       - name: Install frontend dependencies
         run: bun install --frozen-lockfile
 
       # 写真はアプリのヘルプに入る(デスクトップ版と同じ)
       - name: Download manual
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: manual
           path: docs/manual
 
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           targets: wasm32-unknown-unknown
 
       # checks の E2E が保存した WASM 用の依存を使う
       - name: Cargo cache
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           shared-key: wasm-pdf
           save-if: false
@@ -306,8 +311,18 @@ jobs:
           test -f dist/typa-pdf.wasm.gz
           test ! -e dist/404.html
 
+      # 公開する前に、配る中身に秘密やソースマップが混ざっていないかを見る(VITE_* の検査をすり抜けた直書きも拾う)。
+      # service_role の JWT は base64 なので、3通りのずれ方の断片で探す
+      - name: Check the build has no secrets or source maps
+        run: |
+          set -euo pipefail
+          if find dist -name '*.map' | grep .; then echo "Source maps must not be published"; exit 1; fi
+          if grep -rlE 'sb_secret_[A-Za-z0-9_-]{16,}|-----BEGIN [A-Z ]*PRIVATE KEY|InNlcnZpY2Vfcm9sZ|zZXJ2aWNlX3JvbG|c2VydmljZV9yb2xl|sourceMappingURL' dist; then
+            echo "The web build contains a secret or a source map reference"; exit 1
+          fi
+
       - name: Deploy to Cloudflare Pages
-        uses: cloudflare/wrangler-action@v4
+        uses: cloudflare/wrangler-action@953926a2e2182532811c01a25e53647d93bf07c0 # v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

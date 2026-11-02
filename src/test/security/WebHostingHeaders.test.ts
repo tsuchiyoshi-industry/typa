@@ -64,6 +64,18 @@ it("forbids framing, sniffing and leaking the URL to other sites", () => {
 	expect(everyPage.get("x-frame-options")).toBe("DENY");
 	expect(everyPage.get("x-content-type-options")).toBe("nosniff");
 	expect(everyPage.get("referrer-policy")).toBe("no-referrer");
+	// 別のサイトから window.open で開かれても、開いた側からこの画面に触らせない
+	expect(everyPage.get("cross-origin-opener-policy")).toBe("same-origin");
+});
+
+it("keeps browsers on HTTPS for a year, so the first request cannot be downgraded either", () => {
+	const hsts = everyPage.get("strict-transport-security") ?? "";
+	expect(Number(hsts.match(/max-age=(\d+)/)?.[1])).toBeGreaterThanOrEqual(31_536_000);
+	expect(hsts).toContain("includeSubDomains");
+});
+
+it("keeps every deployment, including pages.dev and preview URLs, out of search engines", () => {
+	expect(everyPage.get("x-robots-tag")).toBe("noindex, nofollow");
 });
 
 it("checks for a new PDF module on every load, since its name does not change between releases", () => {

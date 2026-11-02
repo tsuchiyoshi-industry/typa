@@ -293,6 +293,27 @@ try {
 			sql(`update public.employees set is_enabled=true where id=${owner.id}`);
 		}
 	});
+	await check("AUTH-REVOKE", async () => {
+		// 別のセッションでログインし、そのセッションだけをログアウトする。手元に残った同じアクセストークンは
+		// 期限前でも通らず、同じ人のほかのセッションはそのまま使える
+		const client = createClient(base, jwt("anon"), {
+			auth: { persistSession: false, autoRefreshToken: false },
+		});
+		clients.push(client);
+		const login = await client.auth.signInWithPassword({ email: other.email, password });
+		assert.ok(!login.error && login.data.session, "Second password login failed");
+		const { access_token: token, refresh_token: refresh } = login.data.session;
+		secrets.push(token, refresh);
+		const self = (accessToken: string) =>
+			call(`employees?select=id&id=eq.${other.id}`, accessToken, "GET");
+		assert.equal((await rpc("current_employee_id", token)).body, other.id);
+		assert.deepEqual((await self(token)).body, [{ id: other.id }]);
+		assert.ok(!(await client.auth.signOut({ scope: "local" })).error, "Logout failed");
+		assert.equal((await rpc("current_employee_id", token)).body, null);
+		assert.deepEqual((await self(token)).body, []);
+		assert.equal((await rpc("current_employee_id", other.token)).body, other.id);
+		assert.deepEqual((await self(other.token)).body, [{ id: other.id }]);
+	});
 	await check("FLOW-APPROVAL", async () => {
 		const before = sheetSnapshot();
 		for (const status of ["submitted", "first_evaluated", "finalized"]) {

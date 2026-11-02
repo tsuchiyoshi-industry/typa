@@ -52,6 +52,10 @@ TYPA はブラウザでも使えます。Windows のデスクトップ版と同�
 
 - ヘッダーは [public/_headers](../public/_headers) にあります。CSP はデスクトップ版と同じ範囲（自分自身と Supabase だけにつなぐ）に、PDF の WASM のための `'wasm-unsafe-eval'` を足したものです。ほかのサイトの枠（iframe）に入れることは禁止しています。`src/test/security/WebHostingHeaders.test.ts` が、デスクトップ版の接続先とずれていないかを確かめます。
 - インラインのスクリプトは CSP で止まるので、`index.html` に書きません（テーマの切り替えは `public/theme.js`）。
+- HTTPS を1年間ブラウザに覚えさせ（HSTS）、検索エンジンには載せません（`X-Robots-Tag`。`pages.dev` やデプロイごとの URL も同じ）。
+- **デプロイごとの URL（`<hash>.typa-8ta.pages.dev`）は、古い版も消えずに開けます。** Pages の **Settings** → **General** で **Access policy** を有効にし、Cloudflare Access で開ける人を絞ります。これは本番の `typa-8ta.pages.dev` と `typa.tyco.co.jp` は守りません。どの URL から開いても、読み書きできる範囲は DB が決めます。
+- 公開する前に、配る中身にソースマップ・秘密鍵・service_role の鍵がないことを release.yml が確かめます。
+- ログアウトすると、そのセッションのアクセストークンは期限前でも DB が断ります（`202611020001_session_revocation.sql`）。公開後の確認項目と本番の Auth の推奨設定は [セキュリティ検証](security-verification.md#web版で前提が変わること) にあります。
 - **共有 PC では、ブラウザにパスワードを保存させないでください。** 次に使う人がそのままログインできてしまいます。デスクトップ版は自動入力を切ってありますが、ブラウザは画面側から止めきれません。Chrome なら管理用のポリシー `PasswordManagerEnabled` を無効にするのが確実です。使い終わったらログアウトするよう案内します。
 
 ## 困ったとき

@@ -30,7 +30,7 @@
   docker exec -i supabase_db_typa psql -U postgres -d typa_e2e -v ON_ERROR_STOP=1 -q -At < security/schema-inventory.sql > security/schema-inventory.expected.txt
   git diff security/schema-inventory.expected.txt       # 意図した行だけが変わったか
   ```
-- [ ] 新しい Admin 専用 RPC は `scripts/verifySecurity.ts` の `ACCESS-BFLA`（Admin 以外が呼べないこと）に足す。要件そのものを増やすときは `security/requirements.json` と `docs/security-verification.md` も
+- [ ] 新しい Admin 専用 RPC は `scripts/verifySecurity.ts` の `ACCESS-BFLA`（Admin 以外が呼べないこと）に足す。要件そのものを増やすときは `security/requirements.json` と `docs/security-verification.md`、管理者向けの説明 `src/adapter/viewmodels/securityAssurance.ts` も
 - [ ] JSON を返す関数（`get_sheet_overview` など）に項目を足したら、リポジトリの型（`src/domain/repositories/*`）とテストの fixture（`src/test/fixtures.ts`、`*Overview*.test.ts` など）も
 - [ ] CI の database ジョブと同じ検証をローカルで流す
 

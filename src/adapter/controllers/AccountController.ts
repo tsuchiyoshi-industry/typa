@@ -15,6 +15,7 @@ import {
 	canEditSettings,
 	canRunSetup,
 	canViewAuditLog,
+	canViewSecurityAssurance,
 } from "../../domain/services/EmployeeMasterAccessService";
 
 /** トップバーに出す、ログイン中の社員。 */
@@ -29,6 +30,8 @@ export interface CurrentUserDto {
 	canCorrectClosedSheets: boolean;
 	/** 監査ログ。Admin だけ。 */
 	canViewAuditLog: boolean;
+	/** セキュリティの担保。Admin だけ。 */
+	canViewSecurity: boolean;
 }
 
 /** ログイン画面の操作。ログインと登録の手順は use case が持ち、画面は結果に応じた表示だけをする。 */
@@ -62,6 +65,7 @@ export class AccountController {
 				canRunSetup: canRunSetup(person.role),
 				canCorrectClosedSheets: canCorrectClosedSheets(person.role),
 				canViewAuditLog: canViewAuditLog(person.role),
+				canViewSecurity: canViewSecurityAssurance(person.role),
 			}
 		);
 	}

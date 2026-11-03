@@ -213,3 +213,16 @@ it.each([true, false])("offers 監査ログ only to Admin (%s)", async (allowed)
 		await waitFor(() => expect(view.queryByRole("link", { name: "監査ログ" })).toBeNull());
 	}
 });
+
+it.each([true, false])("offers セキュリティ only to Admin (%s)", async (allowed) => {
+	const view = setup("/", async () => ({ name: "管理者", canViewSecurity: allowed }));
+	await view.findByText("管理者");
+	fireEvent.click(view.getByRole("button", { name: "ユーザーメニュー" }));
+	const link = view.queryByRole("link", { name: "セキュリティ" });
+	expect(link !== null).toBe(allowed);
+	if (link) {
+		expect(link.getAttribute("href")).toBe("/security");
+		fireEvent.click(link);
+		await waitFor(() => expect(view.queryByRole("link", { name: "セキュリティ" })).toBeNull());
+	}
+});

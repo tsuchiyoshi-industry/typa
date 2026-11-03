@@ -7,6 +7,7 @@ import PackageOpen from "lucide-solid/icons/package-open";
 import ScrollText from "lucide-solid/icons/scroll-text";
 import Settings from "lucide-solid/icons/settings";
 import ShieldAlert from "lucide-solid/icons/shield-alert";
+import ShieldCheck from "lucide-solid/icons/shield-check";
 import X from "lucide-solid/icons/x";
 import { type Component, createSignal, For, type JSX, onCleanup, onMount, Show } from "solid-js";
 import type { AccountController, CurrentUserDto } from "../controllers/AccountController";
@@ -167,6 +168,12 @@ const DashboardLayout: Component<{
 								<A href="/audit-log" class="user-menu-item" onClick={() => setUserMenuOpen(false)}>
 									<ScrollText size={18} />
 									<span>監査ログ</span>
+								</A>
+							</Show>
+							<Show when={user()?.canViewSecurity}>
+								<A href="/security" class="user-menu-item" onClick={() => setUserMenuOpen(false)}>
+									<ShieldCheck size={18} />
+									<span>セキュリティ</span>
 								</A>
 							</Show>
 							<A href="/help" class="user-menu-item" onClick={() => setUserMenuOpen(false)}>

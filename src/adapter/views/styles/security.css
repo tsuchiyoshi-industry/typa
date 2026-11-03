@@ -1,0 +1,226 @@
+/* セキュリティの担保(Admin だけ)。検査の一覧を、検査 ID とともに静かに並べる。 */
+.assurance {
+	width: 100%;
+	max-width: 1120px;
+	margin: 0 auto;
+}
+.assurance .assurance-lead {
+	max-width: 48em;
+	font-size: 0.9375rem;
+	line-height: 1.9;
+}
+.assurance-refused {
+	margin: 1.5rem 0 0;
+	padding: 0.875rem 1rem;
+	border: 1px solid var(--hr-danger);
+	border-radius: var(--hr-radius-md);
+	background: var(--hr-surface);
+	color: var(--hr-danger-text);
+	font-size: 0.875rem;
+}
+
+/* 数字で示す要点 */
+.assurance-facts {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 12px;
+	margin: 2rem 0 0;
+}
+.assurance-facts > div {
+	padding: 1rem 1.25rem;
+	border: 1px solid var(--hr-border);
+	border-radius: var(--hr-radius-lg);
+	background: var(--hr-surface);
+}
+.assurance-facts dt {
+	color: var(--hr-text-muted);
+	font-size: 0.8125rem;
+	line-height: 1.5;
+}
+.assurance-facts dd {
+	margin: 0.375rem 0 0;
+	font-size: 2.5rem;
+	font-weight: 300;
+	line-height: 1.1;
+	font-variant-numeric: tabular-nums;
+}
+.assurance-facts small {
+	margin-left: 0.25rem;
+	font-size: 0.9375rem;
+	font-weight: 500;
+}
+
+/* 節 */
+.assurance-section {
+	margin-top: 3.5rem;
+}
+.assurance-section h2 {
+	margin: 0 0 0.5rem;
+	font-size: 1.25rem;
+	letter-spacing: 0.02em;
+}
+.assurance-section__lead {
+	max-width: 48em;
+	margin: 0 0 1.25rem;
+	color: var(--hr-text-muted);
+	font-size: 0.9375rem;
+	line-height: 1.85;
+}
+.assurance-group h3 {
+	margin: 1.75rem 0 0.75rem;
+	font-size: 1rem;
+}
+
+/* 必須の検査 */
+.assurance-checks,
+.assurance-attacks,
+.assurance-watch,
+.assurance-limits {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 12px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+.assurance-watch {
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.assurance-checks > li,
+.assurance-attacks > li,
+.assurance-watch > li {
+	padding: 1.125rem 1.25rem;
+	border: 1px solid var(--hr-border);
+	border-radius: var(--hr-radius-lg);
+	background: var(--hr-surface);
+}
+/* 担保していない範囲は、点線の枠で「守りの外」を示す */
+.assurance-limits > li {
+	padding: 1.125rem 1.25rem;
+	border: 1px dashed var(--hr-border-input);
+	border-radius: var(--hr-radius-lg);
+}
+.assurance-checks h4,
+.assurance-watch h3,
+.assurance-limits h3 {
+	margin: 0 0 0.375rem;
+	font-size: 1rem;
+	line-height: 1.6;
+}
+.assurance-checks p,
+.assurance-attacks p,
+.assurance-watch p,
+.assurance-limits p {
+	margin: 0;
+	font-size: 0.875rem;
+	line-height: 1.85;
+}
+.assurance-checks .assurance-checks__ids {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.375rem 0.625rem;
+	margin-top: 0.75rem;
+	color: var(--hr-text-muted);
+	font-size: 0.75rem;
+}
+.assurance-checks__ids code {
+	padding: 0.1rem 0.5rem;
+	border: 1px solid var(--hr-border-strong);
+	border-radius: var(--hr-radius-sm);
+	background: var(--hr-bg-elevated);
+	color: var(--hr-text);
+	font-size: 0.75rem;
+	font-weight: 600;
+}
+
+/* 人事評価ならではの不正 */
+.assurance-table-wrap {
+	overflow-x: auto;
+	border: 1px solid var(--hr-border);
+	border-radius: var(--hr-radius-lg);
+	background: var(--hr-surface);
+}
+.assurance-table {
+	width: 100%;
+	min-width: 720px;
+	border-collapse: collapse;
+	font-size: 0.875rem;
+	line-height: 1.8;
+}
+.assurance-table th,
+.assurance-table td {
+	padding: 0.875rem 1.125rem;
+	border-bottom: 1px solid var(--hr-border);
+	text-align: left;
+	vertical-align: top;
+}
+.assurance-table thead th {
+	color: var(--hr-text-muted);
+	font-size: 0.8125rem;
+	font-weight: 600;
+	white-space: nowrap;
+}
+.assurance-table tbody th {
+	width: 30%;
+	font-weight: 650;
+}
+.assurance-table tbody td:last-child {
+	width: 24%;
+	color: var(--hr-text-muted);
+}
+.assurance-table tbody tr:last-child th,
+.assurance-table tbody tr:last-child td {
+	border-bottom: 0;
+}
+
+/* よく知られた攻撃 */
+.assurance-attacks strong {
+	font-size: 1rem;
+}
+.assurance-coverage {
+	display: inline-block;
+	margin: 0 0 0.5rem 0.625rem;
+	padding: 0 0.5rem;
+	border: 1px solid var(--hr-border-strong);
+	border-radius: 999px;
+	font-size: 0.75rem;
+	line-height: 1.7;
+	white-space: nowrap;
+	vertical-align: 0.1em;
+}
+.assurance-coverage--every {
+	border-color: var(--hr-success);
+	color: var(--hr-success-text);
+}
+.assurance-coverage--config {
+	border-color: var(--hr-accent);
+	color: var(--hr-link);
+}
+.assurance-coverage--design {
+	color: var(--hr-text-muted);
+}
+
+.assurance-standard {
+	margin: 1.5rem 0 0;
+	color: var(--hr-text-muted);
+	font-size: 0.8125rem;
+	line-height: 1.8;
+}
+
+@media (max-width: 900px) {
+	.assurance-facts {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+	.assurance-checks,
+	.assurance-attacks,
+	.assurance-watch,
+	.assurance-limits {
+		grid-template-columns: minmax(0, 1fr);
+	}
+}
+@media (max-width: 480px) {
+	.assurance-facts {
+		grid-template-columns: minmax(0, 1fr);
+	}
+}

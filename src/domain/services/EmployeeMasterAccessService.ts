@@ -55,3 +55,9 @@ export const canManageEmployeeAccess = adminOnly;
 
 /** 監査ログ(誰がいつ何を変えたか)を読めるのは Admin だけ。DB の行ポリシーも、利用中の Admin にしか返さない。 */
 export const canViewAuditLog = adminOnly;
+
+/**
+ * セキュリティの担保(CI の検査で何を確かめているか、何を確かめていないか)を読めるのは Admin だけ。
+ * 中身は秘密ではないが、確かめていない範囲まで載せるので、運用を決める人に限る。
+ */
+export const canViewSecurityAssurance = adminOnly;

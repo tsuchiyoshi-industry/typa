@@ -19,6 +19,7 @@ import { EvaluationPeriodController } from "./adapter/controllers/EvaluationPeri
 import { NotificationInboxController } from "./adapter/controllers/NotificationInboxController";
 import { RetroactiveCorrectionController } from "./adapter/controllers/RetroactiveCorrectionController";
 import { ReviewerWorkspaceController } from "./adapter/controllers/ReviewerWorkspaceController";
+import { SecurityAssuranceController } from "./adapter/controllers/SecurityAssuranceController";
 import { SettingsController } from "./adapter/controllers/SettingsController";
 import { SheetEditorController } from "./adapter/controllers/SheetEditorController";
 import { SheetImportController } from "./adapter/controllers/SheetImportController";
@@ -108,6 +109,7 @@ const ReviewerWorkspaceView = lazy(() => import("./adapter/views/ReviewerWorkspa
 const SettingsView = lazy(() => import("./adapter/views/SettingsView"));
 const SheetImportView = lazy(() => import("./adapter/views/SheetImportView"));
 const RetroactiveCorrectionView = lazy(() => import("./adapter/views/RetroactiveCorrectionView"));
+const SecurityAssuranceView = lazy(() => import("./adapter/views/SecurityAssuranceView"));
 const SetupView = lazy(() => import("./adapter/views/SetupView"));
 const SheetEditorView = lazy(() => import("./adapter/views/SheetEditorView"));
 const SheetListView = lazy(() => import("./adapter/views/SheetListView"));
@@ -117,6 +119,7 @@ const protectedViews = [
 	EmployeePreRegistrationView,
 	HelpView,
 	ReviewerWorkspaceView,
+	SecurityAssuranceView,
 	SettingsView,
 	SetupView,
 	SheetImportView,
@@ -166,6 +169,7 @@ const auditLogController = new AuditLogController(
 	evaluationSheetRepository,
 	new SupabaseAuditLogRepository(),
 );
+const securityAssuranceController = new SecurityAssuranceController(employeeMasterRepository);
 const settingsController = new SettingsController(
 	evaluationSettingsRepository,
 	employeeMasterRepository,
@@ -472,6 +476,10 @@ const App: Component = () => {
 					<Route
 						path="/audit-log"
 						component={() => <AuditLogView controller={auditLogController} />}
+					/>
+					<Route
+						path="/security"
+						component={() => <SecurityAssuranceView controller={securityAssuranceController} />}
 					/>
 					<Route
 						path="/help"

@@ -4,7 +4,7 @@
 
 ## CIの必須セキュリティ要件
 
-機械可読の正本は [security/requirements.json](../security/requirements.json)。`required` の各行に要件ID、ASVSの関連番号、合格条件を定義し、[verifySecurity.ts](../scripts/verifySecurity.ts) が同じIDで実行結果を出す。未実行・失敗・重複・未知のIDがあると全体を失敗させる。ASVS番号に対応付けたテストはその要件の限定的な証拠であり、関連番号の要件全体への適合を宣言するものではない。
+機械可読の正本は [security/requirements.json](../security/requirements.json)。`required` の各行に要件ID、ASVSの関連番号、合格条件を定義し、[verifySecurity.ts](../scripts/verifySecurity.ts) が同じIDで実行結果を出す。未実行・失敗・重複・未知のIDがあると全体を失敗させる。管理者向けの画面「セキュリティ」（`/security`、Admin のみ）は同じ正本から検査IDとASVS番号を読み、平易な説明を [securityAssurance.ts](../src/adapter/viewmodels/securityAssurance.ts) に置く。`required` を増減して説明が対応しないと `securityAssurance.test.ts` が落ちる。ASVS番号に対応付けたテストはその要件の限定的な証拠であり、関連番号の要件全体への適合を宣言するものではない。
 
 [DB検証ジョブ](../.github/workflows/database.yml) は従来のSQL・実Auth・UI検証に加え、新規構築の `typa_release_fresh` と移行後の `typa_release_verify` の両方に、以下の14チェックを必須で実行する。
 

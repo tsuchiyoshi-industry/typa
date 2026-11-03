@@ -46,6 +46,22 @@ describe("ボールを持っている人", () => {
 		});
 	});
 
+	it("その状態へ進めた人(movedBy)。評価の確定は二次評価者で、渡す先が無い", () => {
+		expect(
+			Object.fromEntries(EvaluationStatus.ALL.map((s) => [s.toString(), s.movedBy()])),
+		).toEqual({
+			draft: "primary",
+			goals_submitted: "subject",
+			goals_confirmed: "primary",
+			submitted: "subject",
+			first_evaluated: "primary",
+			finalized: "secondary",
+		});
+		for (const status of EvaluationStatus.ALL) {
+			expect(status.handoff()?.from ?? status.movedBy()).toBe(status.movedBy());
+		}
+	});
+
 	it("状態を受け取る相手(handoff の to)は、その状態のボールの持ち主と同じ", () => {
 		for (const status of EvaluationStatus.ALL) {
 			expect(status.handoff()?.to ?? null).toBe(status.holder());

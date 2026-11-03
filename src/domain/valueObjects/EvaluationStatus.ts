@@ -121,7 +121,12 @@ export class EvaluationStatus {
 	 */
 	handoff(): { from: SheetActor; to: SheetActor } | null {
 		const to = this.holder();
-		return to && { from: MOVED_BY[this.value], to };
+		return to && { from: this.movedBy(), to };
+	}
+
+	/** この状態へ進める(戻す)人。評価確定は二次評価者(二次評価者なしの社員では一次評価者が代わる)。 */
+	movedBy(): SheetActor {
+		return MOVED_BY[this.value];
 	}
 
 	label(): string {

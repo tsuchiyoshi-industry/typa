@@ -333,7 +333,9 @@ test("manual screenshots", async ({ page }) => {
 		await expect(page.getByRole("region", { name: "あなたのプロフィール" })).toBeVisible();
 		await shot(page, "user", "13-profile");
 		await menu(page, "ヘルプ");
-		await expect(page.getByRole("heading", { name: "ヘルプ", level: 1 })).toBeVisible();
+		await expect(
+			page.getByRole("heading", { name: "評価のしくみと使い方", level: 1 }),
+		).toBeVisible();
 		await shot(page, "user", "14-help");
 		await signOut(page);
 	});

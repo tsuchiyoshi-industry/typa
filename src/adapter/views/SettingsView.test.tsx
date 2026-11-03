@@ -187,38 +187,20 @@ describe("settings", () => {
 });
 
 describe("help", () => {
-	const renderHelp = () =>
-		render(() => (
-			<MemoryRouter>
-				{/* 画面写真は CI が撮るので、手元には無いことがある。写真の代わりを渡す */}
-				<Route path="/" component={() => <HelpView shot={(name) => `/shots/${name}.png`} />} />
-			</MemoryRouter>
-		));
-	it("guides employees without loading administrative settings", () => {
+	// 画面写真は CI が撮るので、手元には無いことがある。写真の代わりを渡す
+	const renderHelp = () => render(() => <HelpView shot={(name) => `/shots/${name}.png`} />);
+	it("explains the score with the default allocation as an example when no settings are given", () => {
 		const view = renderHelp();
-		expect(view.getByRole("button", { name: /記入方法/ }).getAttribute("aria-pressed")).toBe(
-			"true",
-		);
-		expect(view.getByRole("link", { name: "評価シート一覧へ" }).getAttribute("href")).toBe("/");
-		expect(view.getByRole("heading", { name: "記入・送信の手順" })).toBeTruthy();
-		expect(
-			view.getByText(
-				"保存はチャレンジ目標ごとに行います。期中目標は各チャレンジ目標に0〜4件。0件の場合はチャレンジ目標に達成状況を記入します。",
-			),
-		).toBeTruthy();
-		expect(view.getByRole("button", { name: "目標の入力と保存を拡大" })).toBeTruthy();
-		expect(view.queryByText("社員マスタと権限")).toBeNull();
+		expect(view.getByText("配点の例（実際の配点は管理者が設定）")).toBeTruthy();
+		expect(view.getByText(/1枚に1件以上/)).toBeTruthy();
+		expect(view.queryByText(/いまの配点/)).toBeNull();
 	});
 	it("explains where requests arrive, for either way the administrator chose", () => {
 		const view = renderHelp();
-		const how = view.getByText("評価の依頼の知らせ方");
-		fireEvent.click(how);
-		const answer = how.closest("details")?.textContent ?? "";
-		expect(answer).toContain("画面上部のベル");
-		expect(answer).toContain("管理者");
+		const notice = view.getByRole("region", { name: "通知" }).textContent ?? "";
+		expect(notice).toContain("画面上部のベル");
+		expect(notice).toContain("管理者がメールを選んだとき");
 		expect(view.getByText("ベルの未読")).toBeTruthy();
-		// 送信の手順は、通知メールを選べるのはメールのときだけと案内する
-		expect(view.queryByText(/確認画面で通知メールの有無を選び、/)).toBeNull();
 	});
 	it("explains plainly why a mail server may be refused, and why mail is never sent unencrypted", () => {
 		const view = renderHelp();
@@ -234,21 +216,5 @@ describe("help", () => {
 		const plain = answerOf("暗号化しないで送れないのか");
 		expect(plain).toContain("パスワード");
 		expect(plain).toContain("送りません");
-	});
-	it("switches the steps, examples, questions and destination for reviewers", () => {
-		const view = renderHelp();
-		fireEvent.click(view.getByRole("button", { name: /評価方法/ }));
-		expect(view.getByRole("button", { name: /評価方法/ }).getAttribute("aria-pressed")).toBe(
-			"true",
-		);
-		expect(view.getByRole("heading", { name: "評価・確定の手順" })).toBeTruthy();
-		expect(view.getByRole("link", { name: "部下の評価へ" }).getAttribute("href")).toBe("/review");
-		const question = view.getByText("確定に必要な入力");
-		fireEvent.click(question);
-		expect(question.closest("details")?.open).toBe(true);
-		expect(view.queryByRole("button", { name: "目標の入力と保存を拡大" })).toBeNull();
-		fireEvent.click(view.getByRole("button", { name: /記入方法/ }));
-		expect(view.getByRole("button", { name: "目標の入力と保存を拡大" })).toBeTruthy();
-		expect(view.queryByText("確定に必要な入力")).toBeNull();
 	});
 });

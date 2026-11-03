@@ -244,3 +244,19 @@ it("describes the rank thresholds from the same table that decides the rank", ()
 		"95%以上 S / 90% A / 80% B+ / 60% B / 50% B- / 40% C / それ未満 D",
 	);
 });
+
+it("lists the rank bands from the top, each starting where its rank begins", () => {
+	const bands = EvaluationRank.bands();
+	expect(bands.map(({ minimum, rank }) => `${minimum} ${rank.toDisplayText()}`)).toEqual([
+		"95 S",
+		"90 A",
+		"80 B+",
+		"60 B",
+		"50 B-",
+		"40 C",
+		"0 D",
+	]);
+	for (const { minimum, rank } of bands) {
+		expect(EvaluationRank.fromScoreRate(minimum)).toEqual(rank);
+	}
+});

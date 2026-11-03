@@ -42,6 +42,16 @@ export class EvaluationRank {
 		return [...steps, "それ未満 D"].join(" / ");
 	}
 
+	/** ランクの区切り。上のランクから、そのランクになる得点率の下限と組にする(D は 0 から)。 */
+	static bands(): readonly { minimum: number; rank: EvaluationRank }[] {
+		return [...SCORE_RATE_THRESHOLDS, [0, "D", "none"] as const].map(
+			([minimum, letter, level]) => ({
+				minimum,
+				rank: new EvaluationRank(letter, level),
+			}),
+		);
+	}
+
 	static fromScore(score: number, fullScore: number): EvaluationRank {
 		return EvaluationRank.fromScoreRate(fullScore > 0 ? (score / fullScore) * 100 : 0);
 	}

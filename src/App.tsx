@@ -473,7 +473,10 @@ const App: Component = () => {
 						path="/audit-log"
 						component={() => <AuditLogView controller={auditLogController} />}
 					/>
-					<Route path="/help" component={HelpView} />
+					<Route
+						path="/help"
+						component={() => <HelpView settings={() => settingsController.load()} />}
+					/>
 					<Route path="*404" component={NotFound} />
 				</Route>
 			</Router>

@@ -37,6 +37,7 @@ import {
 	confirmDiscard,
 	hasUnsavedChanges,
 	showToast,
+	trackSaving,
 	trackUnsaved,
 } from "./feedback";
 import { createSheetStatusActions } from "./sheetStatusActions";
@@ -156,6 +157,7 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 		viewModel().updatingStatus;
 	createEffect(() => props.onSavingChange?.(saving()));
 	onCleanup(() => props.onSavingChange?.(false));
+	trackSaving("sheet-editor", saving);
 
 	// 未保存の入力があるままページを離れようとしたら確認する
 	useBeforeLeave((event) => {

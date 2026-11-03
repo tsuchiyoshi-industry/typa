@@ -1,4 +1,4 @@
-import { createEffect, createSignal, onCleanup } from "solid-js";
+import { createEffect, createSignal, onCleanup, type Setter } from "solid-js";
 
 // --- トースト通知 ---------------------------------------------------
 
@@ -127,13 +127,13 @@ export function clearUnsavedChanges(): void {
 	setUnsavedKeys(new Set<string>());
 }
 
-function setUnsaved(key: string, dirty: boolean): void {
-	setUnsavedKeys((prev) => {
-		if (prev.has(key) === dirty) {
+function toggleKey(setKeys: Setter<ReadonlySet<string>>, key: string, on: boolean): void {
+	setKeys((prev) => {
+		if (prev.has(key) === on) {
 			return prev;
 		}
 		const next = new Set(prev);
-		if (dirty) {
+		if (on) {
 			next.add(key);
 		} else {
 			next.delete(key);
@@ -144,8 +144,21 @@ function setUnsaved(key: string, dirty: boolean): void {
 
 /** コンポーネント内で呼ぶ。isDirty が真の間、離脱・終了時に確認が入る。 */
 export function trackUnsaved(key: string, isDirty: () => boolean): void {
-	createEffect(() => setUnsaved(key, isDirty()));
-	onCleanup(() => setUnsaved(key, false));
+	createEffect(() => toggleKey(setUnsavedKeys, key, isDirty()));
+	onCleanup(() => toggleKey(setUnsavedKeys, key, false));
+}
+
+// --- 保存中 ---------------------------------------------------------
+
+const [savingKeys, setSavingKeys] = createSignal<ReadonlySet<string>>(new Set());
+
+/** 送り出した保存・状態の変更が、まだ終わっていないか。ログアウトすると届かなくなる。 */
+export const isSaving = () => savingKeys().size > 0;
+
+/** コンポーネント内で呼ぶ。isSaving が真の間は、ログアウトを待ってもらう。 */
+export function trackSaving(key: string, saving: () => boolean): void {
+	createEffect(() => toggleKey(setSavingKeys, key, saving()));
+	onCleanup(() => toggleKey(setSavingKeys, key, false));
 }
 
 /**

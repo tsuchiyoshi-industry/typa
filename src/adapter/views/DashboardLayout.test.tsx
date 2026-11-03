@@ -5,7 +5,14 @@ import { createRoot, createSignal } from "solid-js";
 import { afterEach, expect, it, vi } from "vitest";
 import type { AccountController } from "../controllers/AccountController";
 import DashboardLayout from "./DashboardLayout";
-import { clearUnsavedChanges, settleConfirm, showToast, toasts, trackUnsaved } from "./feedback";
+import {
+	clearUnsavedChanges,
+	settleConfirm,
+	showToast,
+	toasts,
+	trackSaving,
+	trackUnsaved,
+} from "./feedback";
 
 afterEach(() => {
 	cleanup();
@@ -159,6 +166,28 @@ it("does not sign out while the user keeps unsaved input", async () => {
 	await Promise.resolve();
 	await Promise.resolve();
 	expect(view.controller.signOut).not.toHaveBeenCalled();
+	dispose();
+});
+
+// ログアウトするとそのセッションでは書けなくなるので、送り出した保存・確定が届かずに終わる
+it("does not sign out until the change being saved has finished", async () => {
+	const view = setup("/", async () => ({ name: "山田" }));
+	const [saving, setSaving] = createSignal(true);
+	const dispose = createRoot((dispose) => {
+		trackSaving("test", saving);
+		return dispose;
+	});
+	await view.findByText("山田");
+	fireEvent.click(view.getByRole("button", { name: "ユーザーメニュー" }));
+	fireEvent.click(view.getByRole("button", { name: "ログアウト" }));
+	await Promise.resolve();
+	expect(view.controller.signOut).not.toHaveBeenCalled();
+	expect(toasts().map((toast) => toast.message)).toContain("保存が完了するまでお待ちください");
+
+	setSaving(false);
+	fireEvent.click(view.getByRole("button", { name: "ユーザーメニュー" }));
+	fireEvent.click(view.getByRole("button", { name: "ログアウト" }));
+	await waitFor(() => expect(view.controller.signOut).toHaveBeenCalledOnce());
 	dispose();
 });
 

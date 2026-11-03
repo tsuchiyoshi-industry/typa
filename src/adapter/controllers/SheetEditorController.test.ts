@@ -92,6 +92,53 @@ it("takes permissions from the sheet it shows, and drops them while another shee
 	expect(presenter.viewModel().canEditSecond).toBe(false);
 });
 
+describe("状態の変更", () => {
+	function setup(employeeId: number | null) {
+		const presenter = createRoot(() => createSheetEditorPresenter());
+		presenter.outputPort.sheet.present(response(101));
+		const repository = employeeRepository();
+		let signedIn!: () => void;
+		repository.findCurrentEmployeeId.mockReturnValue(
+			new Promise((resolve) => {
+				signedIn = () => resolve({ data: employeeId, error: null });
+			}),
+		);
+		const execute = vi.fn().mockResolvedValue({ ok: true });
+		type Args = ConstructorParameters<typeof SheetEditorController>;
+		const controller = new SheetEditorController(
+			{} as Args[0],
+			{} as Args[1],
+			{} as Args[2],
+			{} as Args[3],
+			{} as Args[4],
+			{ execute } as unknown as Args[5],
+			presenter,
+			repository,
+		);
+		return { presenter, controller, execute, signedIn: () => signedIn() };
+	}
+
+	// 確定を押した直後から「変更中」にする。ログアウトや画面の移動が、この間に割り込まないように
+	it("counts as updating from the moment it starts, before the session is read", async () => {
+		const { presenter, controller, execute, signedIn } = setup(3);
+		const updating = controller.updateStatus(EvaluationStatus.GOALS_SUBMITTED);
+		expect(presenter.viewModel().updatingStatus).toBe(true);
+		signedIn();
+		expect(await updating).toBe(true);
+		expect(execute).toHaveBeenCalledOnce();
+	});
+
+	it("stops updating and says why when nobody is signed in", async () => {
+		const { presenter, controller, execute, signedIn } = setup(null);
+		const updating = controller.updateStatus(EvaluationStatus.GOALS_SUBMITTED);
+		signedIn();
+		expect(await updating).toBe(false);
+		expect(presenter.viewModel().updatingStatus).toBe(false);
+		expect(presenter.viewModel().statusUpdateError).toBe("ログインが必要です。");
+		expect(execute).not.toHaveBeenCalled();
+	});
+});
+
 describe("新規作成", () => {
 	const period = (id: number, isActive = true) =>
 		({ id, periodName: `${id}期`, isActive }) as EvaluationPeriodDto;

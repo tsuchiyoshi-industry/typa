@@ -157,6 +157,7 @@ test("manual screenshots", async ({ page }) => {
 		});
 		await page.getByRole("button", { name: "目標を送信する" }).click();
 		await confirm(page, "目標を送信しますか？", "目標を送信する");
+		await expect(page.getByText(/一次評価者による目標の確認を待っています。/)).toBeVisible();
 		await signOut(page);
 	});
 
@@ -222,6 +223,7 @@ test("manual screenshots", async ({ page }) => {
 				await shot(page, "user", "18-request-evaluation");
 			}
 			await confirm(page, "一次評価を依頼しますか？", "一次評価を依頼する");
+			await expect(page.getByText("一次評価者の評価を待っています。")).toBeVisible();
 			await signOut(page);
 		}
 	});

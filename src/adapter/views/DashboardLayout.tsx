@@ -14,7 +14,7 @@ import type { AccountController, CurrentUserDto } from "../controllers/AccountCo
 import type { NotificationInboxController } from "../controllers/NotificationInboxController";
 import NotificationBell from "./components/NotificationBell";
 import ThemeMenuItem from "./components/ThemeMenuItem";
-import { clearToasts, clearUnsavedChanges, confirmDiscard } from "./feedback";
+import { clearToasts, clearUnsavedChanges, confirmDiscard, isSaving, showToast } from "./feedback";
 
 /** ログイン後の画面に共通のトップバー。ページ移動のたびに作り直さない。 */
 const DashboardLayout: Component<{
@@ -79,6 +79,11 @@ const DashboardLayout: Component<{
 
 	const handleLogout = async () => {
 		setUserMenuOpen(false);
+		// ログアウトするとそのセッションでは書けなくなり、送り出した保存・確定が届かずに終わる
+		if (isSaving()) {
+			showToast("info", "保存が完了するまでお待ちください");
+			return;
+		}
 		if (!(await confirmDiscard())) {
 			return;
 		}

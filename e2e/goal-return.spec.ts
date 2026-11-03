@@ -239,6 +239,8 @@ test("an evaluator sends goals back with a reason that only the subject reads, a
 		await reason.fill(SECOND_REASON);
 		await send.click();
 		await expect(dialog).toBeHidden();
+		// 戻し終えてからログアウトする(ログアウトしたセッションでは書けない)
+		await expect(page.getByText(`${NAME} さんに差し戻しました`)).toBeVisible();
 		await signOut(page);
 
 		await signIn(page, "RELEASE005");

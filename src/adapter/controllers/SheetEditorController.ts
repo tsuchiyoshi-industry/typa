@@ -177,6 +177,8 @@ export class SheetEditorController {
 			return false;
 		}
 
+		// 押した直後から変更中にする(ログアウトや画面の移動を、送り出す前に割り込ませない)
+		this.presenter.beginStatusUpdate();
 		const currentEmployeeId = await this.requireCurrentEmployeeId(
 			this.presenter.presentStatusUpdateError,
 		);
@@ -184,7 +186,6 @@ export class SheetEditorController {
 			return false;
 		}
 
-		this.presenter.beginStatusUpdate();
 		try {
 			const result = await this.updateStatusUseCase.execute(
 				{

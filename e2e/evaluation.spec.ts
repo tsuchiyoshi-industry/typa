@@ -116,6 +116,8 @@ test("a sheet goes from the employee through both evaluators to a final rank", a
 		await expect(page.getByRole("button", { name: "目標を編集" })).toBeVisible();
 		await page.getByRole("button", { name: "目標を送信する" }).click();
 		await confirm(page, "目標を送信しますか？", "目標を送信する");
+		// 送信が届いてからログアウトする(ログアウトしたセッションでは書けない)
+		await expect(page.getByText(/一次評価者による目標の確認を待っています。/)).toBeVisible();
 		await signOut(page);
 		await signIn(page, "RELEASE002");
 		sheet = await openSubordinate(page);
@@ -175,10 +177,17 @@ test("a sheet goes from the employee through both evaluators to a final rank", a
 		const request = inbox.getByRole("link", {
 			name: /Release test 4さんの一次評価の依頼が届きました.*一次評価をお願いします/,
 		});
+		// 既読は画面を先に変えてから保存する。保存が済む前に読み直すと未読に戻るので、応答を待つ
+		const markedRead = page.waitForResponse(
+			(response) =>
+				response.url().includes("/rest/v1/notifications") &&
+				response.request().method() === "PATCH",
+		);
 		await request.click();
 		await expect(page).toHaveURL(/\/sheet\/\d+$/);
 		await expect(page.getByText(GOAL)).toBeVisible();
 		await expect(page.getByRole("button", { name: "通知", exact: true })).toBeVisible();
+		expect((await markedRead).ok()).toBe(true);
 		// 読み直しても既読のまま(DB に保存されている)
 		await page.reload();
 		await expect(page.getByRole("button", { name: "通知", exact: true })).toBeVisible();
@@ -320,6 +329,7 @@ test("zero period goals records achievement on the challenge and primary evaluat
 	await page.getByRole("button", { name: "目標を保存" }).click();
 	await page.getByRole("button", { name: "目標を送信する" }).click();
 	await confirm(page, "目標を送信しますか？", "目標を送信する");
+	await expect(page.getByText(/一次評価者による目標の確認を待っています。/)).toBeVisible();
 	await signOut(page);
 	await signIn(page, "RELEASE002");
 	await page
@@ -345,6 +355,7 @@ test("zero period goals records achievement on the challenge and primary evaluat
 	await expect(page.getByRole("tabpanel")).toContainText("テーマに対する実績を記入した");
 	await page.getByRole("button", { name: "一次評価を依頼する" }).click();
 	await confirm(page, "一次評価を依頼しますか？", "一次評価を依頼する");
+	await expect(page.getByText("一次評価者の評価を待っています。")).toBeVisible();
 	await signOut(page);
 	await signIn(page, "RELEASE002");
 	await page

@@ -233,9 +233,9 @@ test("a term is divided, its first half closed with goals only, and its challeng
 			.click();
 		const own = page.getByRole("region", { name: "自分の評価シート" });
 		const row = own.getByRole("row").filter({ hasText: "評価確定" });
-		// 評価点 75 点のランク。点数は出さない
-		await expect(row.getByRole("cell").first()).toHaveText("B");
-		await expect(row).not.toContainText("75");
+		// 確定時は 75 点(B)。遡及処理で目標の二次評価を 3 → 4 に直したので 80 点(B+)。点数は出さない
+		await expect(row.getByRole("cell").first()).toHaveText("B+");
+		await expect(row).not.toContainText("80");
 		// シートのページへは移れない。URL を直接開いても、サーバーが目標も評価も返さない
 		await expect(own.getByRole("link")).toHaveCount(0);
 		const rest = await restAs(4);

@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { fc, it } from "@fast-check/vitest";
+import { describe, expect } from "vitest";
 import { Milestone } from "../entities/Milestone";
 import { describeMilestoneError } from "../entities/MilestoneError";
 import { addPeriodGoal, MAX_PERIOD_GOALS, toPeriodGoals } from "./PeriodGoal";
@@ -27,22 +28,43 @@ describe("period goals", () => {
 		});
 	});
 
-	it.each([
-		["not an array", "[]"],
-		["null task", [null]],
-		["missing achievement", [{ description: "a" }]],
-		["number", [{ description: 1, achievement: "" }]],
-		["extra key", [{ description: "a", achievement: "", done: true }]],
-	])("reports malformed input as such (%s)", (_, value) => {
+	const wellFormed = fc.record({ description: fc.string(), achievement: fc.string() });
+	const isWellFormed = (goal: unknown) =>
+		!!goal &&
+		typeof goal === "object" &&
+		!Array.isArray(goal) &&
+		Object.keys(goal).sort().join() === "achievement,description" &&
+		typeof (goal as { description: unknown }).description === "string" &&
+		typeof (goal as { achievement: unknown }).achievement === "string";
+
+	// 保存値や画面から来る値は、JSON にできるものなら何でも来うる
+	it.prop(
+		[fc.oneof(fc.jsonValue(), fc.array(fc.oneof(wellFormed, fc.jsonValue()), { maxLength: 4 }))],
+		{
+			examples: [
+				["[]"],
+				[[null]],
+				[[{ description: "a" }]],
+				[[{ description: 1, achievement: "" }]],
+				[[{ description: "a", achievement: "", done: true }]],
+			],
+		},
+	)("reports anything but a list of tasks as malformed", (value) => {
+		fc.pre(!(Array.isArray(value) && value.every(isWellFormed)));
 		expect(failure(toPeriodGoals(value))).toEqual({ kind: "periodGoalsMalformed" });
 	});
 
-	it("copies the tasks so a caller cannot change them afterwards", () => {
-		const input = [task("a", "x")];
-		const copied = toPeriodGoals(input);
-		input[0].achievement = "changed";
-		expect(copied.ok && copied.value[0].achievement).toBe("x");
-	});
+	it.prop([fc.array(wellFormed, { maxLength: MAX_PERIOD_GOALS })])(
+		"keeps the tasks in order and copies them so a caller cannot change them afterwards",
+		(input) => {
+			const before = structuredClone(input);
+			const copied = toPeriodGoals(input);
+			for (const goal of input) {
+				goal.achievement = `${goal.achievement}changed`;
+			}
+			expect(copied).toEqual({ ok: true, value: before });
+		},
+	);
 
 	it("moves the challenge achievement into the first task instead of dropping it", () => {
 		expect(addPeriodGoal([], "テーマの実績")).toEqual({

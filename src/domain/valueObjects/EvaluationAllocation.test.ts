@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { fc, it } from "@fast-check/vitest";
+import { describe, expect } from "vitest";
 import { toSheetExportDataDto } from "../../application/dtos/ExportSheetMapper";
 import { commonResult, employee, milestone, period } from "../../test/fixtures";
 import { reviewerRow } from "../../test/reviewerFixture";
@@ -20,32 +21,52 @@ const calculate = (scores: number[], allocation = EvaluationAllocation.DEFAULT) 
 	);
 
 describe("configurable allocation", () => {
-	it.each([
-		[0, 100],
-		[20, 80],
-		[31, 69],
-		[100, 0],
-	])("accepts %s / %s", (objective, common) => {
-		expect(EvaluationAllocation.of(objective, common)).toMatchObject({ objective, common });
-	});
-	it.each([
-		[50, 60],
-		[-1, 101],
-		[101, -1],
-		[20.5, 79.5],
-		[NaN, 80],
-		[Infinity, 0],
-	])("rejects %s / %s", (objective, common) => {
+	it.prop([fc.integer({ min: 0, max: 100 })], { examples: [[0], [31], [100]] })(
+		"accepts any split of 100 points into whole numbers",
+		(objective) => {
+			expect(EvaluationAllocation.of(objective, 100 - objective)).toMatchObject({
+				objective,
+				common: 100 - objective,
+			});
+		},
+	);
+	const anyNumber = fc.oneof(fc.integer({ min: -200, max: 200 }), fc.double());
+	it.prop([anyNumber, anyNumber], {
+		examples: [
+			[50, 60],
+			[-1, 101],
+			[101, -1],
+			[20.5, 79.5],
+			[Number.NaN, 80],
+			[Number.POSITIVE_INFINITY, 0],
+		],
+	})("rejects anything else", (objective, common) => {
+		fc.pre(
+			!(
+				Number.isInteger(objective) &&
+				Number.isInteger(common) &&
+				objective >= 0 &&
+				common >= 0 &&
+				objective + common === 100
+			),
+		);
 		expect(() => EvaluationAllocation.of(objective, common)).toThrow();
 	});
-	it.each([
-		[[4], 20],
-		[[4, 4], 20],
-		[[2, 2], 10],
-		[[3, 4], 18],
-		[[], 0],
-	])("uses actual goal count for %j", (scores, expected) => {
-		expect(calculate(scores).objectiveEvaluationScore).toBe(expected);
+	// 目標の数で割る。目標が 1 つでも 4 つでも、すべて 4 なら配点を満額
+	it.prop([fc.integer({ min: 0, max: 4 }), fc.integer({ min: 1, max: 8 })], {
+		examples: [
+			[4, 1],
+			[4, 3],
+			[4, 4],
+			[2, 2],
+		],
+	})("uses the actual goal count", (score, count) => {
+		expect(calculate(Array(count).fill(score)).objectiveEvaluationScore).toBe(
+			Math.round((20 * score) / 4),
+		);
+	});
+	it("awards nothing for no goals", () => {
+		expect(calculate([]).objectiveEvaluationScore).toBe(0);
 	});
 	it("multiplies the exact fraction before rounding even after restoring saved totals", () => {
 		const allocation = EvaluationAllocation.of(31, 69);
@@ -64,16 +85,18 @@ describe("configurable allocation", () => {
 			).objectiveEvaluationScore,
 		).toBe(19);
 	});
-	it.each([1, 2, 9])("normalizes common evaluation with %s items of unequal weight", (count) => {
-		// 配点は係数。どの項目も一次 2・二次 4(満点)で評価すれば、項目数や配点に関係なく 50% と 100%
-		const results = Array.from({ length: count }, (_, i) =>
+	// 配点は係数。どの項目も一次 2・二次 4(満点)で評価すれば、項目数や配点に関係なく 50% と 100%
+	it.prop([fc.array(fc.integer({ min: 1, max: 20 }), { minLength: 1, maxLength: 12 })], {
+		examples: [[[2]], [[2, 4]], [[2, 4, 6, 8, 10, 12, 14, 16, 18]]],
+	})("normalizes common evaluation whatever the number and weights of items", (weights) => {
+		const results = weights.map((weight, i) =>
 			CommonEvaluationResult.create({
 				id: i,
 				sheetId: 100,
 				itemId: i,
 				firstScore: 2,
 				secondScore: 4,
-				item: new CommonEvaluationItem(i, "項目", "説明", (i + 1) * 2, 1),
+				item: new CommonEvaluationItem(i, "項目", "説明", weight, 1),
 			}),
 		);
 		const totals = EvaluationScoreTotals.fromCommonEvaluationResults(results);
@@ -186,23 +209,65 @@ describe("configurable allocation", () => {
 		});
 	});
 });
-it("rounds an exact half point up even when dividing first would fall just short of it", () => {
-	// 7 / 10 × 45 は 31.5 点。先に割ると 31.499999… になり 31 点に切り捨てられる
-	expect(EvaluationAllocation.fromTotal(45, 7, 10)).toBe(32);
-	expect(EvaluationAllocation.fromTotal(85, 14, 20)).toBe(60);
-	expect(EvaluationAllocation.fromTotal(20, 7, 8)).toBe(18);
-	expect(EvaluationAllocation.fromTotal(80, 5, 6)).toBe(67);
-	expect(EvaluationAllocation.fromTotal(80, 3, 0)).toBe(0);
-});
+// 7 / 10 × 45 は 31.5 点。先に割ると 31.499999… になり 31 点に切り捨てられる。
+// 小数を使わず、整数だけで「r が score × allocation / maximum の四捨五入(0.5 は切り上げ)か」を確かめる
+it.prop(
+	[
+		fc.integer({ min: 0, max: 100 }),
+		fc
+			.integer({ min: 1, max: 400 })
+			.chain((max) => fc.tuple(fc.integer({ min: 0, max }), fc.constant(max))),
+	],
+	{
+		examples: [
+			[45, [7, 10]],
+			[85, [14, 20]],
+			[20, [7, 8]],
+			[80, [5, 6]],
+		],
+	},
+)(
+	"rounds to the nearest point, an exact half up, without falling short",
+	(allocation, [score, maximum]) => {
+		const points = EvaluationAllocation.fromTotal(allocation, score, maximum);
+		const twice = 2 * score * allocation;
+		expect(twice).toBeGreaterThanOrEqual((2 * points - 1) * maximum);
+		expect(twice).toBeLessThan((2 * points + 1) * maximum);
+		expect(points).toBeLessThanOrEqual(allocation);
+	},
+);
 
-// Three/four goals must use 12/16 as the denominator throughout the calculation path.
-it.each([
-	{ scores: [1, 2, 4], allocation: 6, rate: 58, points: 4 },
-	{ scores: [1, 2, 3, 4], allocation: 31, rate: 63, points: 19 },
-])(
-	"calculates both stages, reviewer totals, persistence and export for $scores",
-	async ({ scores, allocation: objectiveAllocation, rate, points }) => {
+it.prop([fc.integer({ min: 0, max: 100 }), fc.nat()])(
+	"awards nothing when there is no full score",
+	(allocation, score) => {
+		expect(EvaluationAllocation.fromTotal(allocation, score, 0)).toBe(0);
+	},
+);
+
+// 目標の数(3 つなら 12、4 つなら 16 が満点)を、計算のどの経路でも分母に使う。
+// シート・部下の一覧・保存値・PDF が同じ点数になる
+it.prop(
+	[
+		fc.array(fc.integer({ min: 1, max: 4 }), { minLength: 1, maxLength: 6 }),
+		fc.integer({ min: 0, max: 100 }),
+	],
+	{
+		examples: [
+			[[1, 2, 4], 6],
+			[[1, 2, 3, 4], 31],
+		],
+	},
+)(
+	"calculates both stages, reviewer totals, persistence and export the same way",
+	(scores, objectiveAllocation) => {
 		const allocation = EvaluationAllocation.of(objectiveAllocation, 100 - objectiveAllocation);
+		const maximum = scores.length * 4;
+		const rate = Math.round((scores.reduce((total, score) => total + score, 0) / maximum) * 100);
+		const points = EvaluationAllocation.fromTotal(
+			objectiveAllocation,
+			scores.reduce((total, score) => total + score, 0),
+			maximum,
+		);
 		const objectives = scores.map((score, index) =>
 			Milestone.restore({
 				id: 11 + index,
@@ -274,10 +339,13 @@ it.each([
 		expect(exported.objectiveEvaluationScore).toBe(String(points));
 	},
 );
-it.each([3, 4])("awards the same full allocation with %s goals all rated four", (count) => {
-	expect(calculate(Array(count).fill(4))).toMatchObject({
-		objectiveSecondRate: 100,
-		objectiveEvaluationScore: 20,
-		totalEvaluationScore: 100,
-	});
-});
+it.prop([fc.integer({ min: 1, max: 8 })], { examples: [[3], [4]] })(
+	"awards the same full allocation however many goals are all rated four",
+	(count) => {
+		expect(calculate(Array(count).fill(4))).toMatchObject({
+			objectiveSecondRate: 100,
+			objectiveEvaluationScore: 20,
+			totalEvaluationScore: 100,
+		});
+	},
+);

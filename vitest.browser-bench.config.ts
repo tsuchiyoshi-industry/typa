@@ -15,6 +15,8 @@ export default defineConfig({
 	},
 	test: {
 		name: "chromium-performance",
+		// 実行は下の Chromium。Solid プラグインによる jsdom の自動設定を防ぐ。
+		environment: "node",
 		include: benchFiles,
 		testTimeout: 120_000,
 		fileParallelism: false,

@@ -1,4 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { fc, it } from "@fast-check/vitest";
+import { describe, expect } from "vitest";
+import { textBetween } from "../../test/arbitraries";
 import { PrivilegedSheetOperation } from "../entities/PrivilegedSheetOperation";
 import { SheetGradeChange } from "../entities/SheetGradeChange";
 import { CorrectionField } from "./CorrectionField";
@@ -16,6 +18,15 @@ it("counts characters the way the database does", () => {
 	expect(charLength(EMOJI)).toBe(1);
 	expect(charLength("𠮷野家")).toBe(3);
 });
+
+it.prop([fc.string({ unit: "binary" }), fc.string({ unit: "binary" })])(
+	"counts one per code point, so joining texts adds their lengths",
+	(a, b) => {
+		expect(charLength(a + b)).toBe(charLength(a) + charLength(b));
+		expect(charLength(a)).toBe(Array.from(a).length);
+		expect(charLength(a)).toBeLessThanOrEqual(a.length);
+	},
+);
 
 const correctionText = CorrectionField.of("goal", "achievement");
 const periodGoals = CorrectionField.of("goal", "period_goals");
@@ -61,11 +72,17 @@ describe.each([
 			}).ok,
 	],
 ])("%s", (_label, max, accepts) => {
-	it(`accepts ${max} characters even when every one is an emoji`, () => {
-		expect(accepts(EMOJI.repeat(max))).toBe(true);
-	});
-	it(`refuses ${max + 1} characters`, () => {
-		expect(accepts(EMOJI.repeat(max + 1))).toBe(false);
-		expect(accepts("あ".repeat(max + 1))).toBe(false);
-	});
+	// 境界(ちょうど上限・上限 + 1)は、すべて絵文字の例を必ず試す
+	it.prop([textBetween(1, max)], { examples: [[EMOJI.repeat(max)], [EMOJI]] })(
+		`accepts 1 to ${max} characters, counting an emoji as one`,
+		(text) => {
+			expect(accepts(text)).toBe(true);
+		},
+	);
+	it.prop([textBetween(max + 1, max + 50)], { examples: [[EMOJI.repeat(max + 1)]] })(
+		`refuses more than ${max} characters`,
+		(text) => {
+			expect(accepts(text)).toBe(false);
+		},
+	);
 });

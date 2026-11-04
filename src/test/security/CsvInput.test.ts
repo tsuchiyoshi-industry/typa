@@ -1,9 +1,47 @@
-import { expect, it, vi } from "vitest";
+import { fc, it } from "@fast-check/vitest";
+import { expect, vi } from "vitest";
 import { ImportSheetDataInteractor } from "../../application/usecases/ImportSheetDataInteractor";
 import { CSV_HEADERS, decodeCsv, parseCsv, toCsv } from "../../application/usecases/sheetImportCsv";
 
 // ASVS v5.0.0 V1.2.10 / V5.2.1–2. 出力先のExcelも信頼境界に含める。
-it.each([
+const roundTrip = (rows: (string | number)[][]) =>
+	parseCsv(decodeCsv(new TextEncoder().encode(toCsv(rows)).buffer));
+
+// Excel が式として読み始めるセル: 先頭の制御文字、または空白に続く = + - @
+const startsFormula = (cell: string) => /^[\t\r\n\0]/.test(cell) || /^\s*[=+\-@]/.test(cell);
+
+// 式の材料・区切り・引用符・改行を多めに混ぜる。半端なサロゲートは UTF-8 にできないので作らない
+const cellText = fc.oneof(
+	fc.string({ unit: "binary" }),
+	fc
+		.array(
+			fc.constantFrom(
+				"=",
+				"+",
+				"-",
+				"@",
+				"\t",
+				"\r",
+				"\n",
+				"\0",
+				" ",
+				'"',
+				",",
+				"'",
+				"a",
+				"日",
+				"😀",
+				"1",
+			),
+		)
+		.map((chars) => chars.join("")),
+);
+const rows = fc.array(fc.array(fc.oneof(cellText, fc.integer()), { minLength: 1, maxLength: 5 }), {
+	minLength: 1,
+	maxLength: 5,
+});
+
+const FORMULAS = [
 	'=HYPERLINK("https://attacker.example","open")',
 	"+1+1",
 	"-1+1",
@@ -14,21 +52,46 @@ it.each([
 	"\0=1+1",
 	"   =1+1",
 	'="quoted,cell"',
-])("neutralizes a spreadsheet formula in exported text %j", (payload) => {
-	const cells = parseCsv(decodeCsv(new TextEncoder().encode(toCsv([[payload, "safe", 1]])).buffer));
-	expect(cells).toEqual([[`'${payload}`, "safe", "1"]]);
-});
-
-it.each([
+];
+const ORDINARY = [
 	"日本語",
 	'say "hello", world',
 	"normal\r\nmultiline",
 	"https://example.jp",
 	"123",
 	"'already text",
-])("preserves ordinary exported text %j", (value) => {
-	expect(parseCsv(decodeCsv(new TextEncoder().encode(toCsv([[value]])).buffer))).toEqual([[value]]);
-});
+];
+
+it.prop([rows], { examples: [...FORMULAS, ...ORDINARY].map((cell) => [[[cell, "safe", 1]]]) })(
+	"exports every cell so that Excel reads none of them as a formula, and reads each back as written",
+	(written) => {
+		const read = roundTrip(written);
+		expect(read).toHaveLength(written.length);
+		read.forEach((row, r) => {
+			expect(row).toHaveLength(written[r].length);
+			row.forEach((cell, c) => {
+				const value = written[r][c];
+				// 数値は数値のまま(-1 は Excel でも数)。文字列は式として読まれない
+				if (typeof value === "number") {
+					expect(cell).toBe(String(value));
+					return;
+				}
+				expect(startsFormula(cell)).toBe(false);
+				// 変えるのは、式になりうるセルの先頭に ' を足すことだけ
+				expect(cell).toBe(startsFormula(value) ? `'${value}` : value);
+			});
+		});
+	},
+);
+
+it.prop([fc.constantFrom(...FORMULAS), fc.integer()])(
+	"neutralizes each known formula payload",
+	(payload, number) => {
+		expect(roundTrip([[payload, "safe", number]])).toEqual([
+			[`'${payload}`, "safe", String(number)],
+		]);
+	},
+);
 
 function setup() {
 	const importRows = vi.fn().mockResolvedValue({ errors: [], summary: null, applied: false });

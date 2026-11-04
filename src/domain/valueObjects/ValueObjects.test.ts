@@ -1,4 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { fc, it } from "@fast-check/vitest";
+import { describe, expect } from "vitest";
+import { blank, textBetween } from "../../test/arbitraries";
 import { commonResult, employee, milestone, period } from "../../test/fixtures";
 import { EvaluationSheet } from "../entities/EvaluationSheet";
 import { Comment } from "./Comment";
@@ -19,20 +21,42 @@ describe("value objects and immutable entities", () => {
 	it("validates rank even when runtime values bypass TypeScript", () => {
 		expect(() => EvaluationRank.from("X", "none")).toThrow("Invalid evaluation rank");
 	});
-	// 小数を切り捨てて受け付けない(2.9 を 2 として保存しない)
-	it.each([NaN, Infinity, -Infinity, -1, 5, 2.9, "3"])("rejects invalid score %s", (value) => {
+	// 小数を切り捨てて受け付けない(2.9 を 2 として保存しない)。数でない値(画面や API から来た "3")も断る
+	it.prop(
+		[
+			fc.oneof(
+				fc.integer({ max: -1 }),
+				fc.integer({ min: Score.MAX + 1 }),
+				fc.double().filter((value) => !Number.isInteger(value)),
+				fc.anything().filter((value) => typeof value !== "number"),
+			),
+		],
+		{ examples: [[Number.NaN], [Number.POSITIVE_INFINITY], [2.9], ["3"]] },
+	)("rejects anything but an integer from 0 to 4", (value) => {
 		expect(Score.isValid(value)).toBe(false);
 		expect(() => Score.from(value as number)).toThrow("点数は 0〜4 の整数");
 	});
-	it.each([0, 1, 4])("accepts score %s", (value) => {
+	it.prop([fc.integer({ min: 0, max: Score.MAX })])("accepts an integer from 0 to 4", (value) => {
 		expect(Score.isValid(value)).toBe(true);
 		expect(Score.from(value).toNumber()).toBe(value);
 	});
 	it.each([undefined, null])("treats a missing score (%s) as unrated", (value) => {
 		expect(Score.fromOptional(value).toNumber()).toBe(0);
 	});
-	it.each([null, undefined, "", "   "])("normalizes empty comment %s", (value) =>
-		expect(Comment.from(value).toString()).toBe(""),
+	it.prop([fc.constantFrom(null, undefined), blank])(
+		"normalizes an empty or blank comment to empty",
+		(missing, spaces) => {
+			expect(Comment.from(missing).toString()).toBe("");
+			expect(Comment.from(spaces).toString()).toBe("");
+		},
+	);
+	it.prop([blank, textBetween(1, 80), blank])(
+		"keeps a comment as written, without the spaces around it, and does so only once",
+		(before, comment, after) => {
+			const trimmed = Comment.from(`${before}${comment}${after}`);
+			expect(trimmed.toString()).toBe(comment);
+			expect(Comment.from(trimmed.toString())).toEqual(trimmed);
+		},
 	);
 	it("keeps statuses to the known values in the order a sheet moves through them", () => {
 		expect(EvaluationStatus.ALL.map(String)).toEqual([...EVALUATION_STATUS_VALUES]);
@@ -63,28 +87,37 @@ describe("value objects and immutable entities", () => {
 		);
 		expect(status.isFinalized()).toBe(value === "finalized");
 	});
-	it.each([
-		[100, "S"],
-		[95, "S"],
-		[94.9, "A"],
-		[90, "A"],
-		[89, "B+"],
-		[80, "B+"],
-		[79, "B"],
-		[60, "B"],
-		[59, "B-"],
-		[50, "B-"],
-		[49, "C"],
-		[40, "C"],
-		[39, "D"],
-		[0, "D"],
-	])("decides the rank mechanically from a score rate of %s%% as %s", (rate, rank) => {
-		expect(EvaluationRank.fromScoreRate(rate).toDisplayText()).toBe(rank);
+	// 区切りの数字そのものは、末尾の bands() / describeThresholds() のテストで固定する
+	const position = (rank: EvaluationRank) =>
+		EvaluationRank.bands().findIndex((band) => band.rank.toDisplayText() === rank.toDisplayText());
+	it.prop([fc.double({ min: 0, max: 100, noNaN: true })], {
+		examples: [[95], [94.9], [80], [79.999], [40], [39.5], [0]],
+	})("gives a rate the rank of the highest band it reaches", (rate) => {
+		const reached = EvaluationRank.bands().filter((band) => rate >= band.minimum);
+		expect(EvaluationRank.fromScoreRate(rate)).toEqual(reached[0].rank);
 	});
-	it("rates a score against the full score, and treats no full score as zero", () => {
-		expect(EvaluationRank.fromScore(19, 20).toDisplayText()).toBe("S");
-		expect(EvaluationRank.fromScore(58, 100).toDisplayText()).toBe("B-");
-		expect(EvaluationRank.fromScore(5, 0).toDisplayText()).toBe("D");
+	it.prop([
+		fc.double({ min: 0, max: 100, noNaN: true }),
+		fc.double({ min: 0, max: 100, noNaN: true }),
+	])("never ranks a higher score rate below a lower one", (a, b) => {
+		const [low, high] = a <= b ? [a, b] : [b, a];
+		expect(position(EvaluationRank.fromScoreRate(high))).toBeLessThanOrEqual(
+			position(EvaluationRank.fromScoreRate(low)),
+		);
+	});
+	it.prop([fc.nat(400), fc.integer({ min: 1, max: 400 }), fc.integer({ min: 2, max: 50 })], {
+		examples: [
+			[19, 20, 2],
+			[58, 100, 3],
+		],
+	})("rates a score against the full score, whatever the scale", (score, full, times) => {
+		expect(EvaluationRank.fromScore(score * times, full * times)).toEqual(
+			EvaluationRank.fromScore(score, full),
+		);
+		expect(EvaluationRank.fromScore(full, full).toDisplayText()).toBe("S");
+	});
+	it.prop([fc.nat(), fc.integer({ max: 0 })])("treats no full score as zero", (score, full) => {
+		expect(EvaluationRank.fromScore(score, full).toDisplayText()).toBe("D");
 	});
 	it("round trips ranks through display text", () => {
 		for (const text of ["S", "A", "B+", "B", "B-", "C", "D"]) {
@@ -177,6 +210,45 @@ describe("value objects and immutable entities", () => {
 			EvaluationScoreTotals.fromValues({}),
 		);
 		expect(EvaluationAllocatedScores.fromValues({}).totalEvaluationScore).toBe(0);
+	});
+	const weighted = fc.array(
+		fc.record({
+			weight: fc.integer({ min: 1, max: 20 }),
+			firstScore: fc.integer({ min: 0, max: Score.MAX }),
+			secondScore: fc.integer({ min: 0, max: Score.MAX }),
+		}),
+		{ maxLength: 30 },
+	);
+	it.prop([weighted])("adds weight × score and keeps the rate between 0 and 100", (items) => {
+		const totals = EvaluationScoreTotals.fromWeightedScores(items);
+		const sum = (score: (item: (typeof items)[number]) => number) =>
+			items.reduce((total, item) => total + item.weight * score(item), 0);
+		expect(totals.firstTotalScore).toBe(sum((item) => item.firstScore));
+		expect(totals.secondTotalScore).toBe(sum((item) => item.secondScore));
+		for (const rate of [totals.firstTotalRate, totals.secondTotalRate]) {
+			expect(Number.isInteger(rate) && rate >= 0 && rate <= 100).toBe(true);
+		}
+	});
+	it.prop([weighted.filter((items) => items.length > 0)])(
+		"rates full marks as 100% and no marks as 0%, whatever the weights",
+		(items) => {
+			const full = EvaluationScoreTotals.fromWeightedScores(
+				items.map((item) => ({ ...item, firstScore: Score.MAX, secondScore: 0 })),
+			);
+			expect([full.firstTotalRate, full.secondTotalRate]).toEqual([100, 0]);
+		},
+	);
+	// 保存値の読み込み。欠けた値・負の値・無限・NaN は 0、小数は四捨五入する
+	it.prop([fc.oneof(fc.double(), fc.integer(), fc.constantFrom(null, undefined))], {
+		examples: [[Number.NaN], [Number.POSITIVE_INFINITY], [-1], [null], [undefined], [1.6]],
+	})("normalizes a stored total to a non-negative integer", (value) => {
+		const restored = EvaluationScoreTotals.fromValues({ firstTotalScore: value }).firstTotalScore;
+		expect(Number.isInteger(restored) && restored >= 0).toBe(true);
+		if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
+			expect(restored).toBe(Math.round(value));
+		} else {
+			expect(restored).toBe(0);
+		}
 	});
 	it.each([NaN, Infinity, -1, null, undefined])("normalizes stored totals %s", (value) => {
 		expect(

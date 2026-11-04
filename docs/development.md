@@ -92,6 +92,27 @@ PGlite の初期化は `beforeAll`、終了は `afterAll` に置きます。`Sch
 - 何も確かめないテストは失敗にします（`expect.requireAssertions`）。
 - 画面をまたいで残る状態（トースト、未保存の印、確認ダイアログ）は、`afterEach` で `clearToasts()`・`clearUnsavedChanges()`・`settleConfirm(false)` を呼んで片付けます。
 
+### プロパティベーステスト（fast-check）
+
+入力がいくらでもありうる規則（文字数の上限、空白の除去、日付の解析と計算、点数・得点率・ランク、配点、期の分割、CSV の書き出しと読み込み、保存値の形の確認）は、例を並べず、`@fast-check/vitest` の `it.prop` で「どんな値でも成り立つこと」を書きます。値は毎回ちがうものが 100 通り作られ、落ちると最小の反例まで縮めて出します。
+
+```ts
+import { fc, it } from "@fast-check/vitest";
+
+it.prop([blank, textBetween(1, 200), blank], { examples: [["　", "理由", "\n"]] })(
+	"keeps the reason without surrounding spaces",
+	(before, reason, after) => {
+		expect(GoalReturnReason.from(`${before}${reason}${after}`).ok).toBe(true);
+	},
+);
+```
+
+- 共通の値の作り方は `src/test/arbitraries.ts` にあります（絵文字・𠮷 などのサロゲートペアを混ぜた文字列、全角空白を含む空白、実在する日付）。文字数は DB の `char_length` と同じくコードポイントで数えるので、文字列は必ずここから作ります。
+- 境界や、過去に壊れた値は `examples` に入れて毎回試します。業務のきまりそのもの（ランクの区切りの数字、「1/31 の 1 か月後は 2/28」）は、読んで分かる例のテストとしても残します。
+- 期待値は実装を写さず、別の作りと比べるか（日付は JavaScript の `Date`、丸めは整数だけの不等式）、性質で書きます（往復で元に戻る、順序を保つ、経路がちがっても同じ点数）。
+- 権限（役割 × 状態）や失敗の種類のように、場合が少なく決まっているものは、乱数で抜き出さず `it.each` で全部並べます。SQL・画面・E2E の手順のテストも例で書きます。
+- 落ちたときは、出力の `seed` と `path` を `it.prop([...], { seed, path, endOnFailure: true })` に渡すと、同じ値で再現できます。直したら、その反例を `examples` に足します。
+
 ## 遡及処理の保守
 
 Admin のユーザーメニュー「遡及処理」（`/retroactive`）は、1つのシートに対する4つの操作をまとめた画面です。以前の「特権操作」の画面は統合しました。

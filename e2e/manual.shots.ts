@@ -137,7 +137,7 @@ test("manual screenshots", async ({ page }) => {
 	test.setTimeout(240_000);
 	await test.step("利用者: ログインと新規登録", async () => {
 		await page.goto("/login");
-		await expect(page.getByRole("heading", { name: "ログイン" })).toBeVisible();
+		await expect(page.getByRole("heading", { name: "ログイン", exact: true })).toBeVisible();
 		await shot(page, "user", "01-login");
 		await page.getByRole("button", { name: "新規登録" }).click();
 		await page.getByLabel("メールアドレス").fill("watanabe@release.example");

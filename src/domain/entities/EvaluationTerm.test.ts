@@ -1,4 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { fc, it } from "@fast-check/vitest";
+import { describe, expect } from "vitest";
+import { calendarDateText } from "../../test/arbitraries";
 import { expectOk } from "../Result";
 import { CalendarDate } from "../valueObjects/CalendarDate";
 import { DateRange } from "../valueObjects/DateRange";
@@ -100,26 +102,49 @@ describe("dividing a term into evaluation periods", () => {
 		expect(plans.map((plan) => plan.term.toString())).toEqual(["26期", "26期"]);
 	});
 
-	it("covers the whole term without gaps or overlaps, whatever day it starts on", () => {
-		// 2028 年(うるう年)の毎日を開始日にして、1年の期を分ける
-		for (let day = 0; day < 366; day++) {
-			const start = date(new Date(Date.UTC(2028, 0, 1 + day)).toISOString().slice(0, 10));
-			const end = start.addMonths(12).previousDay();
-			for (const division of PeriodDivision.ALL) {
-				const ranges = term(start.toString(), end.toString(), division)
-					.divide(false)
-					.map((plan) => plan.range);
-				expect(ranges).toHaveLength(division.parts);
-				expect(ranges[0].start.compare(start)).toBe(0);
-				expect(ranges[ranges.length - 1].end.compare(end)).toBe(0);
-				ranges.forEach((range, i) => {
-					expect(range.end.isBefore(range.start)).toBe(false);
-					// 前の評価期間の翌日から始まる
-					if (i > 0) {
-						expect(range.start.previousDay().compare(ranges[i - 1].end)).toBe(0);
-					}
+	// 開始日はどの日でも(月末・うるう日も)、期の長さは 1 日から 2 年あまりまで
+	const starts = calendarDateText.filter((text) => text >= "1950-01-01" && text <= "9000-12-31");
+	it.prop([starts, fc.integer({ min: 0, max: 800 }), fc.constantFrom(...PeriodDivision.ALL)], {
+		examples: [
+			["2028-02-29", 365, PeriodDivision.QUARTER],
+			["2026-08-31", 364, PeriodDivision.HALF],
+		],
+	})(
+		"covers the whole term without gaps or overlaps, or refuses only when a period would be empty",
+		(startText, days, division) => {
+			const start = date(startText);
+			const end = date(
+				new Date(Date.parse(`${startText}T00:00:00Z`) + days * 86_400_000)
+					.toISOString()
+					.slice(0, 10),
+			);
+			const result = EvaluationTerm.of(
+				expectOk(TermName.from("26期"), describePeriodError),
+				expectOk(DateRange.of(start, end), describePeriodError),
+				division,
+			);
+			// 最後の評価期間の開始日が、終了日より後になるときだけ空になる
+			const lastStart = start.addMonths(division.monthsPerPart * (division.parts - 1));
+			if (end.isBefore(lastStart)) {
+				expect(result).toMatchObject({
+					ok: false,
+					error: { kind: "termTooShort", division: division.label },
 				});
+				return;
 			}
-		}
-	});
+			const ranges = expectOk(result, describePeriodError)
+				.divide(false)
+				.map((plan) => plan.range);
+			expect(ranges).toHaveLength(division.parts);
+			expect(ranges[0].start.compare(start)).toBe(0);
+			expect(ranges[ranges.length - 1].end.compare(end)).toBe(0);
+			ranges.forEach((range, i) => {
+				expect(range.end.isBefore(range.start)).toBe(false);
+				// 前の評価期間の翌日から始まる
+				if (i > 0) {
+					expect(range.start.previousDay().compare(ranges[i - 1].end)).toBe(0);
+				}
+			});
+		},
+	);
 });

@@ -44,7 +44,7 @@ export async function signIn(page: Page, employeeNo: string, password = PASSWORD
 export async function signOut(page: Page) {
 	await page.getByRole("button", { name: "ユーザーメニュー" }).click();
 	await page.getByRole("button", { name: "ログアウト" }).click();
-	await expect(page.getByRole("heading", { name: "ログイン" })).toBeVisible();
+	await expect(page.getByRole("heading", { name: "ログイン", exact: true })).toBeVisible();
 }
 
 /**

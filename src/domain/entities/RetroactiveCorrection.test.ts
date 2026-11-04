@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { fc, it } from "@fast-check/vitest";
+import { describe, expect } from "vitest";
 import { commonResult, milestone, period, sheet } from "../../test/fixtures";
 import { EvaluationSheetAccessPolicy } from "../services/EvaluationSheetAccessPolicy";
 import { CorrectionField } from "../valueObjects/CorrectionField";
@@ -48,9 +49,32 @@ describe("correction field and reason", () => {
 		);
 	});
 
-	it.each(["0", "5", "", "3.5", " 3", "三", "4 "])("rejects score %j", (score) => {
-		expect(failure(field("goal", "first_score").validate(score))).toEqual({ kind: "scoreInvalid" });
+	// 締め後に直す点数は 1〜4 だけ(未評価の 0 には戻さない)。前後の空白・小数・全角も断る
+	it.prop(
+		[
+			fc.constantFrom("first_score", "second_score"),
+			fc.string().filter((score) => !["1", "2", "3", "4"].includes(score)),
+		],
+		{
+			examples: [
+				["first_score", "0"],
+				["first_score", "5"],
+				["first_score", ""],
+				["first_score", "3.5"],
+				["first_score", " 3"],
+				["first_score", "三"],
+				["first_score", "4 "],
+			],
+		},
+	)("rejects any score other than 1 to 4", (name, score) => {
+		expect(failure(field("goal", name).validate(score))).toEqual({ kind: "scoreInvalid" });
 	});
+	it.prop([fc.constantFrom("first_score", "second_score"), fc.integer({ min: 1, max: 4 })])(
+		"accepts a score of 1 to 4",
+		(name, score) => {
+			expect(field("goal", name).validate(String(score)).ok).toBe(true);
+		},
+	);
 
 	it("limits text to 2000 characters, also in each task, and shows empty values readably", () => {
 		const text = field("goal", "achievement");

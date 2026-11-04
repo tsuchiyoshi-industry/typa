@@ -360,14 +360,11 @@ const SheetListView: Component<SheetListViewProps> = (props) => {
 	// 読んだ結果もビューモデルに入るので、ビューモデル全体ではなく、この2つが変わったときだけ読む
 	const admin = createMemo(() => props.viewModel().overviewIndex !== null);
 	createEffect(
-		on(
-			[admin, periodId],
-			([admin, id]) => {
-				if (admin && id !== undefined) {
-					void props.controller.loadOverview(id);
-				}
-			},
-		),
+		on([admin, periodId], ([admin, id]) => {
+			if (admin && id !== undefined) {
+				void props.controller.loadOverview(id);
+			}
+		}),
 	);
 	/** 絞り込んだ段。期間を替えてその段のシートが無くなったら、絞り込みを外す。 */
 	const stage = createMemo(() =>

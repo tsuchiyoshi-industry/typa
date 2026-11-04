@@ -6,7 +6,7 @@ import { assertLocalSupabaseReady } from "./localSupabase";
 
 const target = process.argv[2];
 assert.ok(
-	["typa_release_verify", "typa_release_fresh", "typa_e2e"].includes(target),
+	["typa_release_verify", "typa_release_fresh", "typa_e2e", "typa_bench"].includes(target),
 	"Only isolated release databases may be prepared.",
 );
 assertLocalSupabaseReady();

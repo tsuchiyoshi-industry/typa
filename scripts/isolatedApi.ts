@@ -5,7 +5,12 @@ import { createServer } from "node:http";
 import { resolve } from "node:path";
 
 /** Databases that may be wiped and exposed. The application's own `postgres` DB never is. */
-export const ISOLATED_DATABASES = ["typa_release_verify", "typa_release_fresh", "typa_e2e"];
+export const ISOLATED_DATABASES = [
+	"typa_release_verify",
+	"typa_release_fresh",
+	"typa_e2e",
+	"typa_bench",
+];
 
 const docker = (...args: string[]) => {
 	const result = spawnSync("docker", args, { encoding: "utf8" });
@@ -35,7 +40,7 @@ export const isolatedSql = (database: string, statement: string) => {
 		{ input: statement, encoding: "utf8" },
 	);
 	if (result.status !== 0) {
-		throw new Error("Isolated fixture SQL failed");
+		throw new Error(`Isolated fixture SQL failed: ${result.stderr.trim()}`);
 	}
 	return result.stdout.trim();
 };

@@ -127,6 +127,24 @@ it("shows each period's state and offers to start only a period that has not sta
 	expect(view.getAllByRole("button", { name: /を開始する$/ })).toHaveLength(1);
 });
 
+it("offers to start the period that is preparing, while nothing is in progress", async () => {
+	const preparing = { ...next, state: "preparing" as const, stateLabel: "準備中" };
+	const closedCurrent = {
+		...current,
+		isActive: false,
+		state: "closed" as const,
+		stateLabel: "締め済み",
+	};
+	const { view } = setup((controller) =>
+		controller.load.mockResolvedValue([preparing, closedCurrent, previous]),
+	);
+	await view.findByText("準備中");
+	expect(rowOf(view, "来期").textContent).toContain("準備中");
+	expect(
+		view.getAllByRole("button", { name: /を開始する$/ }).map((b) => b.getAttribute("aria-label")),
+	).toEqual(["来期を開始する"]);
+});
+
 it("explains a failed load and offers no operation until it loads again", async () => {
 	const { controller, view } = setup((mock) =>
 		mock.load.mockRejectedValueOnce(new Error('column "closed_at" does not exist')),

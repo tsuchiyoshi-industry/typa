@@ -14,6 +14,13 @@ export type PeriodError =
 	| { kind: "alreadyClosed"; periodName: string }
 	/** 評価が確定していないシートが残っていて、締めてよいとされていない。 */
 	| { kind: "unfinishedSheets"; periodName: string; count: number; detail: string }
+	/** 締めようとしたが、実施中の評価期間が無い。 */
+	| { kind: "noActivePeriod" }
+	/** 実施中の評価期間を締める前に、次を開始しようとした。 */
+	| { kind: "closeBeforeStart"; periodName: string }
+	/** 準備中(次に開始する)でない評価期間を開始しようとした。 */
+	| { kind: "notPreparing"; periodName: string; preparingName: string }
+	| { kind: "periodNotFound" }
 	| { kind: "activeCannotBeDeleted" }
 	| { kind: "hasSheets"; periodName: string; count: number };
 
@@ -39,6 +46,14 @@ export function describePeriodError(error: PeriodError): string {
 			return `「${error.periodName}」は締め済みのため、もう一度開始することはできません。`;
 		case "unfinishedSheets":
 			return `「${error.periodName}」に未確定の評価シートが ${error.count} 件あります（${error.detail}）。すべての評価を確定してから締めてください。評価を確定せずに締めるには、この期間を編集して「評価が確定していなくても締められる」をオンにしてください。`;
+		case "noActivePeriod":
+			return "実施中の評価期間がないため、締められません。";
+		case "closeBeforeStart":
+			return `「${error.periodName}」を締めてから、次の評価期間を開始してください。`;
+		case "notPreparing":
+			return `次に開始できるのは、準備中の「${error.preparingName}」です。「${error.periodName}」はその後に開始してください。`;
+		case "periodNotFound":
+			return "評価期間が見つかりません。";
 		case "activeCannotBeDeleted":
 			return "実施中の評価期間は削除できません。";
 		case "hasSheets":

@@ -19,7 +19,7 @@ export class EvaluationPeriod {
 		readonly term: TermName,
 		readonly part: PeriodPart,
 		readonly range: DateRange,
-		/** 未開始・実施中・締め済み。実施中の評価期間は常に1つ。 */
+		/** 未開始・準備中・実施中・締め済み。実施中の評価期間は常に1つ。準備中は暦が決める。 */
 		readonly state: PeriodState,
 		/** 評価が確定していないシートが残っていても締めてよい期間か(Admin が決める)。 */
 		readonly allowUnfinalizedClose: boolean,
@@ -69,6 +69,23 @@ export class EvaluationPeriod {
 	/** 実施中か。シートの作成・記入・評価・確定は、実施中の評価期間でだけできる。 */
 	get isActive(): boolean {
 		return this.state === PeriodState.ACTIVE;
+	}
+
+	/** 準備中か。前の評価期間を締めた後、次に開始する評価期間(EvaluationCalendar が決める)。 */
+	get isPreparing(): boolean {
+		return this.state === PeriodState.PREPARING;
+	}
+
+	/** 状態だけを変えた評価期間。暦が準備中を決めるとき、締め・開始の結果を作るときに使う。 */
+	inState(state: PeriodState): EvaluationPeriod {
+		return new EvaluationPeriod(
+			this.id,
+			this.term,
+			this.part,
+			this.range,
+			state,
+			this.allowUnfinalizedClose,
+		);
 	}
 
 	/** 締め済みか。締めた評価期間のシートは誰も変更できず、評価期間をもう一度開始することもできない。 */

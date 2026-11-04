@@ -261,7 +261,9 @@ const EvaluationPeriodSettings: Component<EvaluationPeriodSettingsProps> = (prop
 											</td>
 											<td>
 												<div class="period-actions">
-													<Show when={period.state === "not_started"}>
+													<Show
+														when={period.state === "not_started" || period.state === "preparing"}
+													>
 														<button
 															type="button"
 															class="secondary-action"

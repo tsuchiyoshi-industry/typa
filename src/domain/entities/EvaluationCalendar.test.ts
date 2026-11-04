@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { expectOk } from "../Result";
 import { CalendarDate } from "../valueObjects/CalendarDate";
 import { DateRange } from "../valueObjects/DateRange";
+import { PeriodState } from "../valueObjects/PeriodState";
 import { SheetCountsByStatus } from "../valueObjects/SheetCountsByStatus";
 import { TermName } from "../valueObjects/TermName";
 import { EvaluationCalendar } from "./EvaluationCalendar";
@@ -225,5 +226,105 @@ describe("evaluation calendar", () => {
 		expect(calendar.hasPeriodNamed("26期 上期")).toBe(true);
 		expect(calendar.hasPeriodNamed("26期 上期", first26.id)).toBe(false);
 		expect(calendar.hasPeriodNamed("28期")).toBe(false);
+	});
+});
+
+// 業務のきまり: 評価期間を締めると、次に実施する評価期間は「準備中」になる(自動では始まらない)。
+// 準備中の間に、管理者が等級の変更などを済ませ、準備中の評価期間を開始する。
+describe("preparing the next period between closing and starting", () => {
+	const closedHalf = (id: number) =>
+		period("26期", "half", 2, "2026-10-01", "2027-03-31", { id, isClosed: true });
+	const quarter = (part: number, start: string, end: string, id: number) =>
+		period("27期", "quarter", part, start, end, { id });
+	const q1 = quarter(1, "2027-04-01", "2027-06-30", 101);
+	const q2 = quarter(2, "2027-07-01", "2027-09-30", 102);
+	const between = new EvaluationCalendar([q2, closedHalf(100), q1]);
+	const stateOf = (c: EvaluationCalendar, id: number) => c.find(id)?.state.toString();
+
+	it("prepares nothing while a period is active", () => {
+		expect(calendar.preparing()).toBeNull();
+		expect(calendar.find(quarters27[0].id)?.state).toBe(PeriodState.NOT_STARTED);
+	});
+
+	it("prepares only the earliest period not yet started once nothing is active", () => {
+		expect(between.preparing()?.id).toBe(101);
+		expect(between.find(101)?.isPreparing).toBe(true);
+		expect(stateOf(between, 101)).toBe("preparing");
+		expect(stateOf(between, 102)).toBe("not_started");
+		expect(between.all().filter((p) => p.isPreparing)).toHaveLength(1);
+		// 準備中は、実施中でも締め済みでもない
+		expect(between.find(101)?.isActive).toBe(false);
+		expect(between.find(101)?.isClosed).toBe(false);
+	});
+
+	it("breaks a tie on the start date by the older id", () => {
+		const twin = quarter(1, "2027-04-01", "2027-06-30", 99);
+		expect(new EvaluationCalendar([q1, twin, closedHalf(100)]).preparing()?.id).toBe(99);
+	});
+
+	it("prepares nothing when every period is closed", () => {
+		expect(new EvaluationCalendar([closedHalf(100)]).preparing()).toBeNull();
+	});
+
+	it("closes the active period and moves the next one to preparing, without starting it", () => {
+		const closed = expectOk(calendar.close(SheetCountsByStatus.NONE), describePeriodError);
+		expect(closed.active()).toBeNull();
+		expect(closed.find(second26.id)?.isClosed).toBe(true);
+		expect(closed.preparing()?.id).toBe(quarters27[0].id);
+		// 元の暦は変わらない
+		expect(calendar.active()?.id).toBe(second26.id);
+	});
+
+	it("refuses to close while sheets are unfinished, unless the period allows it", () => {
+		const unfinished = SheetCountsByStatus.from({ submitted: 2, finalized: 5 });
+		const refused = calendar.close(unfinished);
+		expect(refused.ok).toBe(false);
+		expect(!refused.ok && refused.error.kind).toBe("unfinishedSheets");
+		const lenient = new EvaluationCalendar([
+			period("26期", "half", 2, "2026-10-01", "2027-03-31", {
+				id: 7,
+				isActive: true,
+				allowUnfinalizedClose: true,
+			}),
+		]);
+		expect(lenient.close(unfinished).ok).toBe(true);
+	});
+
+	it("refuses to close when nothing is active", () => {
+		const refused = between.close(SheetCountsByStatus.NONE);
+		expect(!refused.ok && refused.error).toEqual({ kind: "noActivePeriod" });
+		expect(!refused.ok && describePeriodError(refused.error)).toBe(
+			"実施中の評価期間がないため、締められません。",
+		);
+	});
+
+	it("starts only the preparing period, and only after the active one is closed", () => {
+		const whileActive = calendar.start(quarters27[0].id);
+		expect(!whileActive.ok && whileActive.error).toEqual({
+			kind: "closeBeforeStart",
+			periodName: "26期 下期",
+		});
+		const skipping = between.start(102);
+		expect(!skipping.ok && skipping.error).toEqual({
+			kind: "notPreparing",
+			periodName: "27期 第2四半期",
+			preparingName: "27期 第1四半期",
+		});
+		const reopening = between.start(100);
+		expect(!reopening.ok && reopening.error.kind).toBe("alreadyClosed");
+		const unknown = between.start(999);
+		expect(!unknown.ok && unknown.error).toEqual({ kind: "periodNotFound" });
+		for (const refused of [whileActive, skipping, reopening, unknown]) {
+			expect(refused.ok || describePeriodError(refused.error).length > 0).toBe(true);
+		}
+	});
+
+	it("goes around the whole cycle: active, closed with the next preparing, then the next active", () => {
+		const closed = expectOk(calendar.close(SheetCountsByStatus.NONE), describePeriodError);
+		const started = expectOk(closed.start(quarters27[0].id), describePeriodError);
+		expect(started.active()?.id).toBe(quarters27[0].id);
+		expect(started.preparing()).toBeNull();
+		expect(started.find(second26.id)?.isClosed).toBe(true);
+		expect(started.find(quarters27[1].id)?.state).toBe(PeriodState.NOT_STARTED);
 	});
 });

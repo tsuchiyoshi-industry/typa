@@ -27,7 +27,7 @@ export class CreateEvaluationSheetInteractor
 		request: CreateEvaluationSheetRequest,
 		outputPort: CreateEvaluationSheetOutputPort,
 	): Promise<void> {
-		// 締めた期間にも、まだ始めていない期間にも、シートは作れない(DB側でも拒否する)
+		// 作れるのは実施中の評価期間だけ。締めた期間にも、未開始・準備中の期間にも作れない(DB側でも拒否する)
 		const period = await this.evaluationPeriodRepository.findById(request.periodId);
 		if (!period?.isActive) {
 			throw new Error("評価シートを作成できるのは、実施中の評価期間だけです。");

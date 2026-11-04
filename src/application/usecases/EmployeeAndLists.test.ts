@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { EvaluationStatus } from "../../domain/valueObjects/EvaluationStatus";
+import { PeriodState } from "../../domain/valueObjects/PeriodState";
 import {
 	employeeRepository,
 	masterRepository,
@@ -504,6 +505,21 @@ describe("sheet creation orchestration", () => {
 		await expect(
 			new CreateEvaluationSheetInteractor(sheets, periodRepository()).execute(
 				{ periodId, employeeId: 1 },
+				out,
+			),
+		).rejects.toThrow("実施中の評価期間だけ");
+		expect(sheets.createOrGetSheet).not.toHaveBeenCalled();
+		expect(out.present).not.toHaveBeenCalled();
+	});
+	// 業務のきまり: シートを作れるのは実施中の評価期間だけ。準備中(締めた後、次を開始する前)も作れない
+	it("creates no sheet in a period that is preparing to start", async () => {
+		const sheets = sheetRepository();
+		const periods = periodRepository();
+		periods.findById.mockResolvedValue(period(false).inState(PeriodState.PREPARING));
+		const out = output<never>();
+		await expect(
+			new CreateEvaluationSheetInteractor(sheets, periods).execute(
+				{ periodId: 3, employeeId: 1 },
 				out,
 			),
 		).rejects.toThrow("実施中の評価期間だけ");

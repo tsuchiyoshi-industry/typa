@@ -12,7 +12,7 @@ import {
 } from "./EvaluationStatus";
 import { PeriodDivision } from "./PeriodDivision";
 import { PeriodPart } from "./PeriodPart";
-import { PeriodState } from "./PeriodState";
+import { PERIOD_STATE_VALUES, PeriodState } from "./PeriodState";
 import { SheetCountsByStatus } from "./SheetCountsByStatus";
 import { TermName } from "./TermName";
 
@@ -240,6 +240,20 @@ describe("PeriodState", () => {
 		expect(() => PeriodState.of(true, true)).toThrow(
 			"実施中の評価期間は、締め済みにはなりません。",
 		);
+	});
+
+	it("has a preparing state between closing one period and starting the next", () => {
+		expect(PeriodState.PREPARING.toString()).toBe("preparing");
+		expect(PeriodState.PREPARING.label).toBe("準備中");
+		expect(PERIOD_STATE_VALUES).toEqual(["not_started", "preparing", "active", "closed"]);
+		// 準備中は保存しない。暦(締めた後に何が実施中でないか)から決まる
+		for (const [active, closed] of [
+			[false, false],
+			[true, false],
+			[false, true],
+		] as const) {
+			expect(PeriodState.of(active, closed)).not.toBe(PeriodState.PREPARING);
+		}
 	});
 });
 

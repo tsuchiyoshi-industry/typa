@@ -31,17 +31,24 @@ describe("signing in with an employee number", () => {
 	});
 
 	it.each([
-		["an employee number that cannot be an address", domain(), "E 001"],
+		["an employee number that cannot be an address", domain(), "E 001", undefined],
 		[
 			"a company domain it cannot read",
 			domain(vi.fn().mockRejectedValue(new Error("network"))),
 			"E001",
+			"unavailable",
 		],
-	])("asks Auth nothing for %s", async (_label, repository, employeeNo) => {
-		expect(await repository.signInWithPassword(employeeNo, "pw")).toMatchObject({
-			userId: null,
-			error: expect.any(Error),
-		});
+		// 会社ドメインを消すと、誰もログインできない。パスワード違いとは言わない
+		[
+			"a company domain that is not set",
+			domain(vi.fn().mockResolvedValue("")),
+			"E001",
+			"unconfigured",
+		],
+	])("asks Auth nothing for %s", async (_label, repository, employeeNo, reason) => {
+		const result = await repository.signInWithPassword(employeeNo, "pw");
+		expect(result).toMatchObject({ userId: null, error: expect.any(Error) });
+		expect(result.reason).toBe(reason);
 		expect(auth.signInWithPassword).not.toHaveBeenCalled();
 	});
 

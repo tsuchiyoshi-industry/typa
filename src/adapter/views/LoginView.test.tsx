@@ -28,6 +28,7 @@ it.each([
 	["invalid_credentials", /社員番号またはパスワードが正しくありません/],
 	["account_disabled", /利用が停止されています/],
 	["unavailable", /確かめられませんでした。通信状況を確かめて/],
+	["unconfigured", /ログインの設定.*登録されていません。管理者に連絡してください/],
 	["registration_incomplete", /登録が完了していません。新規登録をやり直してください/],
 ])("keeps normal login free of invitation codes and explains %s", async (status, message) => {
 	const controller = setup();
@@ -79,4 +80,24 @@ it("requires a personal invitation only at first registration and preserves OTP 
 		}),
 	);
 	expect((screen.getByLabelText("認証コード") as HTMLInputElement).disabled).toBe(true);
+});
+it("sends the sign-up code to a mailbox at any domain, but only to something shaped like an address", async () => {
+	const controller = setup();
+	fireEvent.click(screen.getByRole("button", { name: "新規登録" }));
+	const send = () =>
+		screen.getByRole("button", { name: "認証コードを受け取る" }) as HTMLButtonElement;
+	for (const typo of ["", "taro", "taro@", "@gmail.com", "taro @gmail.com"]) {
+		fireEvent.input(screen.getByLabelText("メールアドレス"), { target: { value: typo } });
+		expect(send().disabled).toBe(true);
+	}
+	// 会社ドメインでなくてよい(会社ドメインはログイン用の内部アドレスにだけ使う)
+	fireEvent.input(screen.getByLabelText("メールアドレス"), {
+		target: { value: " taro.yamada@gmail.com " },
+	});
+	await waitFor(() => expect(send().disabled).toBe(false));
+	expect(screen.queryByText(/で終わる/)).toBeNull();
+	fireEvent.click(send());
+	await waitFor(() =>
+		expect(controller.sendVerificationCode).toHaveBeenCalledWith("taro.yamada@gmail.com"),
+	);
 });

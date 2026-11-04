@@ -33,11 +33,9 @@ const LoginView = (props: LoginViewProps) => {
 
 	const [viewMode, setViewMode] = createSignal<ViewMode>("login");
 
-	// 会社のメールドメイン(例: @example.jp)。DB の設定から読む
-	const [requiredDomain, setRequiredDomain] = createSignal("");
+	// 会社ドメイン(ログイン用の内部アドレスに使う)。読めなければログインできないので、先に知らせる
 	onMount(async () => {
 		const suffix = await props.controller.requiredEmailSuffix().catch(() => "");
-		setRequiredDomain(suffix);
 		if (!suffix) {
 			setErrorMessage(
 				"会社ドメインの設定を読み込めませんでした。通信状況を確認して、アプリを開き直してください。",
@@ -52,29 +50,17 @@ const LoginView = (props: LoginViewProps) => {
 			password() !== confirmPassword(),
 	);
 
-	/** ドメイン違いでボタンが押せない理由を、入力欄の下に出すための判定。 */
-	const emailDomainError = createMemo(() => {
-		const currentEmail = email().trim();
-		if (
-			!requiredDomain() ||
-			!currentEmail.includes("@") ||
-			currentEmail.endsWith(requiredDomain())
-		) {
-			return null;
-		}
-		return `${requiredDomain()} で終わる会社のメールアドレスを入力してください。`;
-	});
+	/** 認証コードの送り先。どのドメインでもよいが、メールアドレスの形になっていること。 */
+	const emailLooksValid = createMemo(() => /^[^@\s]+@[^@\s]+$/.test(email().trim()));
 
 	const isSubmitDisabled = createMemo(() => {
 		if (loading()) {
 			return true;
 		}
 
-		// 新規登録の1歩目: 認証コードの送付先は、指定ドメインで終わるメールアドレスに限る
-		// これにより、正しいドメインを打ち切るまでボタンは活性化しません
+		// 新規登録の1歩目: 認証コードの送り先は、どのドメインのメールアドレスでもよい
 		if (viewMode() === "signup") {
-			const currentEmail = email().trim();
-			return !(currentEmail && requiredDomain() && currentEmail.endsWith(requiredDomain()));
+			return !emailLooksValid();
 		}
 
 		if (!employeeNo().trim() || !password()) {
@@ -120,6 +106,10 @@ const LoginView = (props: LoginViewProps) => {
 			);
 		} else if (status === "account_disabled") {
 			setErrorMessage("利用が停止されています。再開が必要な場合は管理者に連絡してください。");
+		} else if (status === "unconfigured") {
+			setErrorMessage(
+				"ログインの設定（会社ドメイン）が登録されていません。管理者に連絡してください。",
+			);
 		} else if (status === "unavailable") {
 			setErrorMessage(
 				"ログインできるかを確かめられませんでした。通信状況を確かめて、もう一度ログインしてください。",
@@ -336,15 +326,8 @@ const LoginView = (props: LoginViewProps) => {
 									autocomplete="email"
 									value={email()}
 									onInput={(e) => setEmail(e.currentTarget.value)}
-									placeholder={requiredDomain() ? `name${requiredDomain()}` : undefined}
-									aria-invalid={emailDomainError() !== null}
 									required
 								/>
-								<Show when={emailDomainError()}>
-									<p class="field-error" role="alert">
-										{emailDomainError()}
-									</p>
-								</Show>
 							</div>
 
 							<Messages />

@@ -11,7 +11,8 @@ export interface SignInEmployeeRequest {
 /**
  * invalid_credentials: 社員番号かパスワードが違う。
  * registration_incomplete: アカウントはあるが、社員番号の紐付けの前で登録が止まっている。
- * unavailable: 社員に紐付いているかを確かめられなかった(通信の失敗など)。もう一度ログインしてもらう。
+ * unavailable: 社員に紐付いているか、会社ドメインを確かめられなかった(通信の失敗など)。もう一度ログインしてもらう。
+ * unconfigured: ログイン用アドレスの会社ドメインが未設定で、誰もログインできない。管理者が直す。
  */
 export type SignInEmployeeResponse = {
 	status:
@@ -19,7 +20,8 @@ export type SignInEmployeeResponse = {
 		| "invalid_credentials"
 		| "registration_incomplete"
 		| "account_disabled"
-		| "unavailable";
+		| "unavailable"
+		| "unconfigured";
 };
 
 export type SignInEmployeeOutputPort = OutputPort<SignInEmployeeResponse>;
@@ -36,10 +38,14 @@ export class SignInEmployeeInteractor
 		request: SignInEmployeeRequest,
 		presenter: SignInEmployeeOutputPort,
 	): Promise<void> {
-		const { userId, error } = await this.authRepository.signInWithPassword(
+		const { userId, error, reason } = await this.authRepository.signInWithPassword(
 			request.employeeNo,
 			request.password,
 		);
+		if (reason) {
+			presenter.present({ status: reason });
+			return;
+		}
 		if (error || !userId) {
 			presenter.present({ status: "invalid_credentials" });
 			return;

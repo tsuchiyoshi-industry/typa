@@ -248,7 +248,7 @@ DEFAULT PRIVILEGES postgres r {postgres=arwdDxtm/postgres,service_role=arwdDxtm/
 FUNCTION activate_evaluation_period(bigint) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=2b28850c083263a7e3af2aafdec2152d
 FUNCTION audit_employee_change() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=1b92fc898e27a17498dba2d46c272781
 FUNCTION audit_sheet_transition() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=9836b834da7683a13eed239142597e4f
-FUNCTION begin_registration(text,text) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=7521c063d5d6060717f3e4d725b6ee26
+FUNCTION begin_registration(text,text) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=afe3564dcaff2b4b9bdb76b23269cc7f
 FUNCTION can_transition_sheet(evaluation_sheets,text,integer) definer=false anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=9e15f131325486bb7a5dc1b7a8a36bfc
 FUNCTION carry_over_goal(bigint,bigint) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=a3159a0b8d0a7129ec97955f03f78d7f
 FUNCTION change_sheet_grade(bigint,smallint,smallint,text,text) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=1e618f3043788c191b268542e8fd7128
@@ -288,7 +288,7 @@ FUNCTION guard_employee_write() definer=false anon=false authenticated=false ser
 FUNCTION guard_evaluation_period_delete() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=7f0b40649c47f887526aa91a9b35bc63
 FUNCTION guard_evaluation_sheet_write() definer=false anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=432c1ba5119a9f1c06b735693d0ecff6
 FUNCTION guard_milestone_write() definer=false anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=61611f1c7e408cbca61b85143de3ab94
-FUNCTION hook_before_user_created(jsonb) definer=true anon=false authenticated=false service_role=true auth_admin=true config={"search_path=\"\""} md5=168993d16d5254dfefe8634a2eecf7e9
+FUNCTION hook_before_user_created(jsonb) definer=true anon=false authenticated=false service_role=true auth_admin=true config={"search_path=\"\""} md5=c463d14800903316bef0cbfcdab67dbf
 FUNCTION import_sheet_data(jsonb,jsonb,boolean) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=d39a21e7a5b2520c984db109a3b3a627
 FUNCTION is_current_evaluator_of(integer) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=ec3da46d3c72021039e51b463f8163e0
 FUNCTION is_privileged_sheet_operation(bigint) definer=true anon=false authenticated=false service_role=false auth_admin=false config={"search_path=\"\""} md5=2684172ec92dca68e28bfdf073fa6eb2

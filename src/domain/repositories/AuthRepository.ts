@@ -14,10 +14,18 @@ export type SignUpResult =
 export interface AuthRepository {
 	getSession(): Promise<AuthSession | null>;
 	onAuthStateChange(callback: (session: AuthSession | null) => void): () => void;
+	/**
+	 * reason: Auth に問い合わせなかった理由。unconfigured はログイン用アドレスの会社ドメインが未設定、
+	 * unavailable は会社ドメインを読めなかった(通信の失敗など)。どちらもパスワード違いではない。
+	 */
 	signInWithPassword(
 		employeeNo: string,
 		password: string,
-	): Promise<{ userId: string | null; error: Error | null }>;
+	): Promise<{
+		userId: string | null;
+		error: Error | null;
+		reason?: "unconfigured" | "unavailable";
+	}>;
 	sendEmailCode(email: string): Promise<{ error: Error | null }>;
 	/** 成功すると、そのメールアドレスの確認用セッションになる(社員にはまだ紐付かない)。 */
 	verifyEmailCode(email: string, token: string): Promise<{ error: Error | null }>;

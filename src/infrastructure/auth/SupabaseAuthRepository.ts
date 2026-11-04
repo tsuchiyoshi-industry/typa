@@ -45,8 +45,26 @@ export class SupabaseAuthRepository implements AuthRepository {
 	async signInWithPassword(
 		employeeNo: string,
 		password: string,
-	): Promise<{ userId: string | null; error: Error | null }> {
-		const email = await this.authEmail(employeeNo);
+	): ReturnType<AuthRepository["signInWithPassword"]> {
+		let domain: string;
+		try {
+			domain = await this.settings.findRequiredDomain();
+		} catch (error) {
+			console.error("Failed to load the required domain:", error);
+			return {
+				userId: null,
+				error: new Error("会社ドメインを読めませんでした。"),
+				reason: "unavailable",
+			};
+		}
+		if (!domain) {
+			return {
+				userId: null,
+				error: new Error("ログイン用アドレスの会社ドメインが登録されていません。"),
+				reason: "unconfigured",
+			};
+		}
+		const email = toAuthEmail(employeeNo, domain);
 		if (!email) {
 			return { userId: null, error: new Error("社員番号の形式が正しくありません。") };
 		}

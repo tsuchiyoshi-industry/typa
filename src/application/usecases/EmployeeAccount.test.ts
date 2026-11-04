@@ -35,6 +35,17 @@ describe("sign in with an employee number", () => {
 		expect(employees.checkUserLinked).not.toHaveBeenCalled();
 	});
 
+	it.each([
+		["unconfigured", "the company domain for login addresses is not set"],
+		["unavailable", "the company domain could not be read"],
+	] as const)("says %s, not wrong credentials, when %s", async (reason, _when) => {
+		const auth = authRepository();
+		auth.signInWithPassword.mockResolvedValue({ userId: null, error: new Error(reason), reason });
+		const { employees, status } = await signIn(auth);
+		expect(status).toBe(reason);
+		expect(employees.checkUserLinked).not.toHaveBeenCalled();
+	});
+
 	it("signs out an account that is not linked to an employee", async () => {
 		const employees = employeeRepository();
 		employees.checkUserLinked.mockResolvedValue(false);

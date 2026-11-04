@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
 import type { AuditLogRepository } from "../../domain/repositories/AuditLogRepository";
-import type { EvaluationSheetOverviewRow } from "../../domain/repositories/EvaluationSheetRepository";
 import { masterRepository, period, profile, sheetRepository } from "../../test/fixtures";
 import { AuditLogController, type AuditLogQuery } from "./AuditLogController";
 
@@ -9,8 +8,7 @@ const people = [
 	{ id: 4, userId: "u-4", name: "山田 花子", employeeNo: "E004" },
 	{ id: 7, userId: null, name: "佐藤 一郎", employeeNo: "E007" },
 ];
-const overview = (id: number, employeeId: number) =>
-	({ id, employeeId, periodId: 10, periodName: "テスト期間 上期" }) as EvaluationSheetOverviewRow;
+const indexed = (id: number, employeeId: number) => ({ id, employeeId, periodId: 10 });
 const all: AuditLogQuery = {
 	category: "all",
 	since: "",
@@ -25,7 +23,10 @@ function setup(actor = profile("Admin")) {
 	employees.findGrades.mockResolvedValue([{ id: 1, name: "一般1級" }]);
 	const periods = { findDistinctPeriods: vi.fn().mockResolvedValue([period()]) };
 	const sheets = sheetRepository();
-	sheets.findOverview.mockResolvedValue([overview(100, 4), overview(101, 4), overview(200, 7)]);
+	sheets.findOverviewIndex.mockResolvedValue({
+		periods: [{ id: 10, name: "テスト期間 上期", startDate: "2026-04-01" }],
+		sheets: [indexed(100, 4), indexed(101, 4), indexed(200, 7)],
+	});
 	const log = {
 		findPage: vi.fn<AuditLogRepository["findPage"]>().mockResolvedValue({
 			hasMore: true,
@@ -55,7 +56,7 @@ describe("who may open the audit log", () => {
 			await expect(controller.open()).rejects.toThrow("Admin");
 			expect(log.findPeople).not.toHaveBeenCalled();
 			expect(log.findPage).not.toHaveBeenCalled();
-			expect(sheets.findOverview).not.toHaveBeenCalled();
+			expect(sheets.findOverviewIndex).not.toHaveBeenCalled();
 			expect(periods.findDistinctPeriods).not.toHaveBeenCalled();
 		},
 	);
@@ -103,9 +104,11 @@ it("offers every employee as a target and only employees with an account as the 
 });
 
 it("reads the newest page and names the people in it", async () => {
-	const { controller, log } = setup();
+	const { controller, log, sheets } = setup();
 	await controller.open();
 	const page = await controller.page(all, null);
+	// シートの名寄せは軽い索引で行い、全社のシートの中身は読まない
+	expect(sheets.findOverview).not.toHaveBeenCalled();
 	expect(log.findPage).toHaveBeenCalledWith({}, null, 100);
 	expect(page.hasMore).toBe(true);
 	expect(page.next).toBe(42);

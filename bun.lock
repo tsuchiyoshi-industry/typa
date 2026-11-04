@@ -17,6 +17,7 @@
       "devDependencies": {
         "@biomejs/biome": "2.6.4",
         "@electric-sql/pglite": "^0.5.14",
+        "@faker-js/faker": "10.6.0",
         "@fast-check/vitest": "0.5.0",
         "@playwright/test": "^1.64.1",
         "@solidjs/testing-library": "^0.8.10",
@@ -107,6 +108,8 @@
     "@blazediff/core": ["@blazediff/core@1.10.0", "", {}, "sha512-AOQff0zgR7cGsZL+4E7hVkmujoPUpm0J9xzWGWZj5wCjd3gmxESXAPfKyuzs93VdpQNFhHlBhfOjrcZ+XTERtQ=="],
 
     "@electric-sql/pglite": ["@electric-sql/pglite@0.5.14", "", {}, "sha512-aAQe7iArcFB2w1xtx91l3l9trxhMzD6aZf+WnosSHNhwgp70EJz80Igw/bHnW14fUEFYWPBoQ1sGom8Xc0Jttg=="],
+
+    "@faker-js/faker": ["@faker-js/faker@10.6.0", "", {}, "sha512-3RQHgEtvL1Frl/d1cSreo7qhJ3Gk1OdNUai/CtZ8G+wYeRQnJih3s9xJ9/kgYekPQRdwgh0HXRPqMlzWGwivIQ=="],
 
     "@fast-check/vitest": ["@fast-check/vitest@0.5.0", "", { "dependencies": { "fast-check": "^3.0.0 || ^4.0.0" }, "peerDependencies": { "vitest": "^4.1.0 || ^5.0.0" } }, "sha512-Kgbj2smuq1P4OhGKuPATs5i2fAxNmGbJ/zSmTrzWhQSLUrHREbKWgv9WGbNUOXcx77q6joLVMmTygyXuwP2Bog=="],
 

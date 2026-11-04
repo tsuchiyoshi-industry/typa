@@ -302,16 +302,31 @@ const SheetListView: Component<SheetListViewProps> = (props) => {
 	);
 
 	// シートのある評価期間。新しい期間が先。件数は、下に並ぶシートの枚数
-	// (Admin は全社の一覧に自分と部下のシートも含まれるので、同じシートを二重に数えない)
+	// (Admin は全社の索引に自分と部下のシートも含まれるので、同じシートを二重に数えない)
 	const periods = createMemo(() => {
 		const byId = new Map<
 			number,
 			{ id: number; name: string; startDate: string; sheetIds: Set<number> }
 		>();
+		const index = props.viewModel().overviewIndex;
+		const indexPeriods = new Map(index?.periods.map((period) => [period.id, period]));
+		const indexed = (index?.sheets ?? []).flatMap((sheet) => {
+			const period = indexPeriods.get(sheet.periodId);
+			return period
+				? [
+						{
+							id: sheet.id,
+							periodId: sheet.periodId,
+							periodName: period.name,
+							startDate: period.startDate,
+						},
+					]
+				: [];
+		});
 		for (const sheet of [
 			...props.viewModel().mySheets,
 			...props.viewModel().subordinateSheets,
-			...(props.viewModel().overviewSheets ?? []),
+			...indexed,
 		]) {
 			const period = byId.get(sheet.periodId) ?? {
 				id: sheet.periodId,
@@ -335,7 +350,23 @@ const SheetListView: Component<SheetListViewProps> = (props) => {
 		sheets.filter((sheet) => sheet.periodId === periodId());
 	const mySheets = createMemo(() => inPeriod(props.viewModel().mySheets));
 	const subordinateSheets = createMemo(() => inPeriod(props.viewModel().subordinateSheets));
-	const overviewSheets = createMemo(() => inPeriod(props.viewModel().overviewSheets ?? []));
+	/** 選んだ期間の全社の一覧。まだ読んでいなければ undefined。 */
+	const loadedOverview = createMemo(() => {
+		const id = periodId();
+		return id === undefined ? undefined : props.viewModel().overviewSheets[id];
+	});
+	const overviewSheets = createMemo(() => loadedOverview() ?? []);
+	// 全社の一覧は、選んだ評価期間のぶんだけを読む(Admin だけ。ほかの人には索引が無い)
+	createEffect(
+		on(
+			() => [props.viewModel().overviewIndex !== null, periodId()] as const,
+			([admin, id]) => {
+				if (admin && id !== undefined) {
+					void props.controller.loadOverview(id);
+				}
+			},
+		),
+	);
 	/** 絞り込んだ段。期間を替えてその段のシートが無くなったら、絞り込みを外す。 */
 	const stage = createMemo(() =>
 		overviewSheets().some((sheet) => sheet.status === overviewStage()) ? overviewStage() : null,
@@ -494,6 +525,9 @@ const SheetListView: Component<SheetListViewProps> = (props) => {
 
 				{/* Admin だけの、全社のシートの俯瞰。行を押すと、そのシートを読み取り専用で開く。
 			    自分と部下の表の並びを変えないよう、いちばん下に置く */}
+				<Show when={props.viewModel().overviewIndex && loadedOverview() === undefined}>
+					<p class="page-note">全社の評価シートを読み込んでいます...</p>
+				</Show>
 				<Show when={overviewSheets().length > 0}>
 					<SheetTable
 						title="全社の評価シート"

@@ -123,6 +123,8 @@ it("lists each sheet with the grade it was created with", async () => {
 			gradeName: "",
 		},
 	]);
+	// 選んだ評価期間のシートだけを読む(全期間を丸ごと読まない)
+	expect(sheets.findOverview).toHaveBeenCalledExactlyOnceWith(10);
 });
 
 it("offers the grades to choose from", async () => {

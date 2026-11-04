@@ -42,6 +42,16 @@ export interface EvaluationSheetOverviewRow extends EvaluationSheetSummary {
 	secondOverallComment: string;
 }
 
+/**
+ * 全社のシートの索引(Admin 向け)。評価期間の切り替え・件数と、監査ログの名寄せに使う。
+ * 名前や評価の中身は含めない。中身は findOverview で、評価期間ごとに読む。
+ */
+export interface EvaluationSheetIndex {
+	/** すべての評価期間。新しい期間が先。 */
+	periods: { id: number; name: string; startDate: string }[];
+	sheets: { id: number; periodId: number; employeeId: number }[];
+}
+
 export interface EvaluationSheetRepository {
 	findById(sheetId: number): Promise<EvaluationSheet | null>;
 	createOrGetSheet(periodId: number, employeeId: number): Promise<number>;
@@ -64,6 +74,8 @@ export interface EvaluationSheetRepository {
 	findByOwner(employeeId: number): Promise<EvaluationSheetSummary[]>;
 	/** シートの評価者(一次・二次)がその社員であるシート。本人のシートは含まない。 */
 	findByEvaluator(employeeId: number): Promise<EvaluationSheetSummary[]>;
-	/** 全社員の評価シート(下書きを含む)の一覧。Admin だけが読める。それ以外の人が呼ぶと失敗する。 */
-	findOverview(): Promise<EvaluationSheetOverviewRow[]>;
+	/** その評価期間の、全社員の評価シート(下書きを含む)。Admin だけが読める。それ以外の人が呼ぶと失敗する。 */
+	findOverview(periodId: number): Promise<EvaluationSheetOverviewRow[]>;
+	/** 全社のシートの索引。Admin だけが読める。それ以外の人が呼ぶと失敗する。 */
+	findOverviewIndex(): Promise<EvaluationSheetIndex>;
 }

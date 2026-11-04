@@ -46,6 +46,7 @@ export class ExportSheetOverviewInteractor
 			const overview = await loadSheetOverview(
 				this.employeeMasterRepository,
 				this.evaluationSheetRepository,
+				request.periodId,
 			);
 			if (!overview) {
 				presenter.present({
@@ -54,9 +55,7 @@ export class ExportSheetOverviewInteractor
 				});
 				return;
 			}
-			const rows = overview.rows
-				.filter((row) => row.periodId === request.periodId)
-				.sort((a, b) => a.employeeNo.localeCompare(b.employeeNo));
+			const rows = [...overview.rows].sort((a, b) => a.employeeNo.localeCompare(b.employeeNo));
 			const period = rows[0];
 			if (!period) {
 				presenter.present({ success: false, message: "この評価期間の評価シートはありません。" });

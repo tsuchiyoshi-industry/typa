@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, within } from "@solidjs/testing-library";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SheetSummaryDto } from "../../application/dtos/SheetListDto";
 import type { SheetListController } from "../controllers/SheetListController";
-import type { SheetListViewModel } from "../presenters/SheetListPresenter";
+import type { SheetIndex, SheetListViewModel } from "../presenters/SheetListPresenter";
 import SheetListView from "./SheetListView";
 
 afterEach(cleanup);
@@ -25,21 +25,27 @@ const sheet = (id: number, period: 25 | 26, employeeName: string): SheetSummaryD
 	gradeName: "総合Ⅱ級",
 });
 
-const setup = (
-	overviewSheets: SheetListViewModel["overviewSheets"],
-	overrides: Partial<SheetListViewModel> = {},
-) => {
+/** Admin の全社の一覧。index は全社の索引、sheets は読み込んだ評価期間ごとのシート。 */
+type Overview = { index: SheetIndex; sheets: SheetListViewModel["overviewSheets"] };
+
+const setup = (overview: Overview | null, overrides: Partial<SheetListViewModel> = {}) => {
 	const viewModel: SheetListViewModel = {
 		loading: false,
 		activePeriodIds: [26],
 		mySheets: [sheet(1, 25, "自分"), sheet(2, 26, "自分")],
 		subordinateSheets: [sheet(3, 25, "社員A"), sheet(4, 26, "社員B"), sheet(5, 26, "社員C")],
-		overviewSheets,
+		overviewIndex: overview?.index ?? null,
+		overviewSheets: overview?.sheets ?? {},
 		errorMessage: null,
 		exportStatus: { isExporting: false, message: null, success: null, fileName: null },
 		...overrides,
 	};
-	const controller = { load: vi.fn(), exportSheet: vi.fn(), exportOverview: vi.fn() };
+	const controller = {
+		load: vi.fn(),
+		loadOverview: vi.fn(),
+		exportSheet: vi.fn(),
+		exportOverview: vi.fn(),
+	};
 	const view = render(() => (
 		<MemoryRouter>
 			<Route
@@ -75,8 +81,9 @@ it("puts my sheets and my reports' sheets under evaluation period tabs, newest p
 	expect(view.queryByText("社員B")).toBeNull();
 	expect(view.getAllByText("評価確定")).toHaveLength(2);
 	expect(view.getByRole("link", { name: "総合Ⅱ級" }).getAttribute("href")).toBe("/sheet/1");
-	// Admin 以外には、全社の一覧を出さない
+	// Admin 以外には、全社の一覧を出さず、読みもしない
 	expect(view.queryByRole("heading", { name: /全社の評価シート/ })).toBeNull();
+	expect(view.controller.loadOverview).not.toHaveBeenCalled();
 });
 
 it("adds the company-wide overview for an Admin below the two tables, whose rows open the sheet", async () => {
@@ -93,19 +100,39 @@ it("adds the company-wide overview for an Admin below the two tables, whose rows
 		finalScore: status === "finalized" ? 88 : null,
 		finalRank: status === "finalized" ? "B+" : null,
 	});
-	const view = setup([
-		// 自分(2)と部下(4)のシートも全社の一覧に含まれる
-		everyone(2, 26, "自分", "submitted"),
-		everyone(4, 26, "社員B", "submitted"),
-		everyone(8, 26, "他部署X", "draft"),
-		everyone(9, 26, "他部署Y", "finalized"),
-		{ ...everyone(7, 24 as 25, "退職者Z", "finalized"), startDate: "2024-03-25" },
-	]);
+	const view = setup({
+		// 索引には自分(2)と部下(4)のシートも含まれる。24期は自分にも部下にもシートがない
+		index: {
+			periods: [
+				{ id: 26, name: "26期", startDate: "2026-03-23" },
+				{ id: 25, name: "25期", startDate: "2025-03-24" },
+				{ id: 24, name: "24期", startDate: "2024-03-25" },
+			],
+			sheets: [
+				{ id: 2, periodId: 26, employeeId: 2 },
+				{ id: 4, periodId: 26, employeeId: 4 },
+				{ id: 8, periodId: 26, employeeId: 8 },
+				{ id: 9, periodId: 26, employeeId: 9 },
+				{ id: 7, periodId: 24, employeeId: 7 },
+			],
+		},
+		// 中身を読んだのは 26期だけ
+		sheets: {
+			26: [
+				everyone(2, 26, "自分", "submitted"),
+				everyone(4, 26, "社員B", "submitted"),
+				everyone(8, 26, "他部署X", "draft"),
+				everyone(9, 26, "他部署Y", "finalized"),
+			],
+		},
+	});
 	const tabs = within(await view.findByRole("navigation", { name: "評価期間" })).getAllByRole(
 		"button",
 	);
 	// 同じシートは二重に数えない。自分にも部下にもシートのない期間も、Admin には選べる
 	expect(tabs.map((tab) => tab.textContent)).toEqual(["26期5 件", "25期2 件", "24期1 件"]);
+	// 開いている期間の全社の一覧だけを読む
+	expect(view.controller.loadOverview).toHaveBeenCalledExactlyOnceWith(26);
 
 	const headings = view.getAllByRole("heading", { level: 2 }).map((heading) => heading.textContent);
 	expect(headings).toEqual(["自分の評価シート", "部下の評価シート", "全社の評価シートAdmin"]);
@@ -137,6 +164,13 @@ it("adds the company-wide overview for an Admin below the two tables, whose rows
 
 	fireEvent.click(within(overview).getByRole("button", { name: "一覧をPDF出力" }));
 	expect(view.controller.exportOverview).toHaveBeenCalledExactlyOnceWith(26);
+
+	// 別の期間を選ぶと、その期間の一覧を読む。届くまでは読み込み中と出し、前の期間の行を残さない
+	fireEvent.click(tabs[2]);
+	expect(view.controller.loadOverview).toHaveBeenLastCalledWith(24);
+	expect(view.getByText("全社の評価シートを読み込んでいます...")).toBeTruthy();
+	expect(view.queryByRole("heading", { name: /全社の評価シート/ })).toBeNull();
+	expect(view.queryByText("他部署X")).toBeNull();
 });
 
 describe("新規作成", () => {

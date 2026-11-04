@@ -48,6 +48,7 @@ import { ExportSheetOverviewInteractor } from "./application/usecases/ExportShee
 import { FetchCategorizedSheetsInteractor } from "./application/usecases/FetchCategorizedSheetsInteractor";
 import { FetchDistinctPeriodsInteractor } from "./application/usecases/FetchDistinctPeriodsInteractor";
 import { FetchEvaluationSheetInteractor } from "./application/usecases/FetchEvaluationSheetInteractor";
+import { FetchSheetIndexInteractor } from "./application/usecases/FetchSheetIndexInteractor";
 import { FetchSheetOverviewInteractor } from "./application/usecases/FetchSheetOverviewInteractor";
 import { ImportSheetDataInteractor } from "./application/usecases/ImportSheetDataInteractor";
 import {
@@ -263,6 +264,8 @@ const sheetListController = new SheetListController(
 	),
 	fetchDistinctPeriodsUseCase,
 	sheetListPresenter.periodsOutputPort,
+	new FetchSheetIndexInteractor(employeeMasterRepository, evaluationSheetRepository),
+	sheetListPresenter.indexOutputPort,
 );
 const sheetEditorController = new SheetEditorController(
 	fetchEvaluationSheetUseCase,

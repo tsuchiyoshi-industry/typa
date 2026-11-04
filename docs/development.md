@@ -48,6 +48,24 @@ VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 | `bun run docs:user-manual`    | [利用者](manual/user.md)・[評価者](manual/evaluator.md)・[管理者](manual/admin.md)のマニュアルの画面写真を、それぞれの権限でログインして撮り直し、`docs/manual/*.pdf` を作る。E2E と同じ `typa_e2e` を使う。写真と PDF は git に置かず、CI が E2E の後に作ってリリースに添える（写真はアプリのヘルプにも入る）。手元で確かめたいときだけ実行する。撮っていなくても、アプリはヘルプの写真なしでビルド・テストできる |
 | `bun run test:rust --release` | PDF生成などのRustテスト                                                                                                                                                                                                                                                                                                                                                                                            |
 | `bun run fix`                 | Biomeによる整形と検査                                                                                                                                                                                                                                                                                                                                                                                              |
+| `bun run seed`                | デモ用のダミーデータ `supabase/seed.sql` を Faker で作り、開発用 DB に流す。**開発用 DB の社員・評価シート・Auth ユーザーはすべて消えて置き換わる**。詳しくは下の「デモ用のダミーデータ」                                                                                                                                                                                                                          |
+
+### デモ用のダミーデータ
+
+本番のデータは見せられないので、プレゼンは開発用 Docker にダミーデータを入れて行います。`bun run seed` で `supabase/seed.sql` を作り直し、そのまま開発用 DB に流します。**開発用 DB の社員・評価シート・Auth ユーザーはすべて消えます**（本番ダンプから作った DB なら、ダンプから作り直せば戻せます）。テーブルや関数は消さず、データだけを入れ替えます。ログイン中のブラウザは、ログインし直してください。
+
+`supabase db reset` は使いません。DB を作り直してマイグレーションを当てるコマンドですが、このプロジェクトでは `config.toml` でマイグレーションを無効にしている（本番に適用履歴が無く、`db push` で全件を当てさせないため）ので、テーブルの無い DB に seed を流して失敗します。
+
+内容を変えたいとき（seed の値を変える）や、開発用 DB 以外に流すときは、2つに分けて実行します。
+
+```sh
+bun scripts/generateSeed.ts 7
+docker exec -i supabase_db_typa psql -U postgres -d postgres -v ON_ERROR_STOP=1 -q -o /dev/null < supabase/seed.sql
+```
+
+社員 610 人の組織（Admin 1・部長 12 = 二次評価者・課長 55 前後 = 一次評価者・課員。部長が一次評価者で二次評価者のいない直轄チームもある。課員のうち未登録 20・利用停止 10）と、1〜5期を上期・下期に分けた 10 の評価期間を作ります。最後の 5期 下期だけが実施中で、状態はシートごとにランダム、ほかは締め済みで全員確定です（シート 6,090 枚）。合計点・ランク・通知は、シートを下書きから1段ずつ進めて DB のトリガーに作らせます。流すのに 1 分ほどかかります。パスワードは全員 `typa-demo`、会社ドメインは `example.com` です。生成物は 7MB を超えるので git に置きません（`.gitignore`）。ログインに使う社員番号は `bun run seed` の出力に出ます。
+
+マイグレーションでテーブルや状態の決まりを変えたら、開発用 DB を消さずに隔離 DB で流せるか確かめます（`bun scripts/prepareReleaseDb.ts typa_release_fresh --replace` のあと、上の docker のコマンドの `-d postgres` を `-d typa_release_fresh` にして流す）。
 
 `test:e2e` と `docs:user-manual` はローカル Supabase が必要です。Docker Desktop を起動し、TYPA のコンテナがまだ動いていなければ、プロジェクトのルートで `bunx supabase@2.121.0 start` を実行します。Docker と PostgreSQL の起動が完了してから、`bun run docs:user-manual` を実行してください。起動前チェックで、Docker への接続、必要なコンテナ、PostgreSQL の準備状態を確認します。
 
@@ -77,6 +95,7 @@ VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 - 各 SQL の目的と互換性の経緯は [マイグレーションの変更経緯](migration-history.md) に移しました。
 - Web 版を公開する前に `202611020001_session_revocation.sql` を本番へ適用してください。ログアウト・セッションの取り消しの後に残ったアクセストークンを DB が断るのは、この SQL からです（アプリの更新だけでは効きません）。
 - `202611040001_close_then_prepare_periods.sql` は、評価期間の締めと開始を分けるアプリと**同じ作業枠で**本番へ適用してください。当てた後は古いアプリから評価期間を切り替えられず、当てる前は新しいアプリから締められません（[適用順](release-readiness.md#評価期間の締めと開始202611040001)）。
+- `202611040002_evaluator_sheet_list_speed.sql` は評価者のシート一覧を速くするだけで、読める範囲もアプリも変わりません。アプリの配布とは関係なく、いつ本番へ適用してもかまいません。
 - 通知の方法は Admin が設定画面で選びます（アプリ内通知が既定）。アプリ内通知は、状態の変更と同じトランザクションで DB のトリガーが `notifications` に作り、画面上部のベルで読みます。
 - メールのときは `supabase/functions/notify-sheet` が送信します。アプリは関数名とシートIDを渡し、サーバーが認可・宛先の決定・重複防止を行います。メールアドレスとSMTP認証情報はアプリに返しません。SMTP 設定も、この関数が送信テストに成功したときだけ保存します。
 

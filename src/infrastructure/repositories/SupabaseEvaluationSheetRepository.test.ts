@@ -120,8 +120,9 @@ describe("the overview of every sheet", () => {
 			],
 			error: null,
 		});
-		const rows = await new SupabaseEvaluationSheetRepository().findOverview();
-		expect(db.rpc).toHaveBeenCalledExactlyOnceWith("get_sheet_overview");
+		const rows = await new SupabaseEvaluationSheetRepository().findOverview(26);
+		// 頼んだ評価期間のぶんだけを読む
+		expect(db.rpc).toHaveBeenCalledExactlyOnceWith("get_sheet_overview", { p_period_id: 26 });
 		expect(rows.map((item) => [item.primaryEvaluatorName, item.secondaryEvaluatorName])).toEqual([
 			["一次", "二次"],
 			["一次", "なし"],
@@ -140,7 +141,22 @@ describe("the overview of every sheet", () => {
 	});
 	it("does not treat a refused or failed read as an empty company", async () => {
 		db.rpc.mockResolvedValue({ data: null, error: new Error("Only Admin") });
-		await expect(new SupabaseEvaluationSheetRepository().findOverview()).rejects.toThrow(
+		await expect(new SupabaseEvaluationSheetRepository().findOverview(26)).rejects.toThrow(
+			"Only Admin",
+		);
+	});
+	it("reads the light index of every sheet", async () => {
+		const index = {
+			periods: [{ id: 26, name: "26期", startDate: "2026-03-23" }],
+			sheets: [{ id: 1, periodId: 26, employeeId: 4 }],
+		};
+		db.rpc.mockResolvedValue({ data: index, error: null });
+		expect(await new SupabaseEvaluationSheetRepository().findOverviewIndex()).toEqual(index);
+		expect(db.rpc).toHaveBeenCalledExactlyOnceWith("get_sheet_index");
+	});
+	it("does not treat a refused index as an empty company", async () => {
+		db.rpc.mockResolvedValue({ data: null, error: new Error("Only Admin") });
+		await expect(new SupabaseEvaluationSheetRepository().findOverviewIndex()).rejects.toThrow(
 			"Only Admin",
 		);
 	});

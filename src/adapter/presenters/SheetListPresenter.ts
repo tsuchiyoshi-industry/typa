@@ -4,12 +4,18 @@ import type { CategorizedSheetsDto, SheetOverviewDto } from "../../application/d
 import type { ExportEvaluationSheetOutputPort } from "../../application/usecases/ExportEvaluationSheetInteractor";
 import type { FetchCategorizedSheetsOutputPort } from "../../application/usecases/FetchCategorizedSheetsInteractor";
 import type { FetchDistinctPeriodsOutputPort } from "../../application/usecases/FetchDistinctPeriodsInteractor";
+import type {
+	FetchSheetIndexOutputPort,
+	FetchSheetIndexResponse,
+} from "../../application/usecases/FetchSheetIndexInteractor";
 import type { FetchSheetOverviewOutputPort } from "../../application/usecases/FetchSheetOverviewInteractor";
 
 /** 評価期間の読み込み結果。読めなかったときは presentUnavailable で知らせる。 */
 export interface SheetListPeriodsOutputPort extends FetchDistinctPeriodsOutputPort {
 	presentUnavailable(): void;
 }
+
+export type SheetIndex = NonNullable<FetchSheetIndexResponse["index"]>;
 
 export interface SheetListViewModel {
 	loading: boolean;
@@ -20,8 +26,12 @@ export interface SheetListViewModel {
 	activePeriodIds?: number[] | null;
 	mySheets: CategorizedSheetsDto["mySheets"];
 	subordinateSheets: CategorizedSheetsDto["subordinateSheets"];
-	/** 全社の評価シート。見られない人(Admin 以外)は null。 */
-	overviewSheets: SheetOverviewDto[] | null;
+	/**
+	 * 全社のシートの索引(評価期間のタブと件数に使う)。見られない人(Admin 以外)と、読み込み前は null。
+	 */
+	overviewIndex: SheetIndex | null;
+	/** 全社の評価シート。読み込んだ評価期間のぶんだけ、評価期間の ID ごとに持つ。 */
+	overviewSheets: Partial<Record<number, SheetOverviewDto[]>>;
 	errorMessage: string | null;
 	exportStatus: {
 		isExporting: boolean;
@@ -35,6 +45,7 @@ export function createSheetListPresenter(): {
 	viewModel: () => SheetListViewModel;
 	fetchOutputPort: FetchCategorizedSheetsOutputPort;
 	overviewOutputPort: FetchSheetOverviewOutputPort;
+	indexOutputPort: FetchSheetIndexOutputPort;
 	periodsOutputPort: SheetListPeriodsOutputPort;
 	exportOutputPort: ExportEvaluationSheetOutputPort;
 	presentError: (message: string) => void;
@@ -43,7 +54,8 @@ export function createSheetListPresenter(): {
 		loading: true,
 		mySheets: [],
 		subordinateSheets: [],
-		overviewSheets: null,
+		overviewIndex: null,
+		overviewSheets: {},
 		errorMessage: null,
 		exportStatus: {
 			isExporting: false,
@@ -71,9 +83,22 @@ export function createSheetListPresenter(): {
 		},
 	};
 
+	// 評価期間ごとにしまう。遅れて届いた別の期間の結果が、いま選んでいる期間の一覧を上書きしない
 	const overviewOutputPort: FetchSheetOverviewOutputPort = {
-		present(response) {
-			setViewModel((prev) => ({ ...prev, overviewSheets: response.sheets }));
+		present({ periodId, sheets }) {
+			if (sheets === null) {
+				return;
+			}
+			setViewModel((prev) => ({
+				...prev,
+				overviewSheets: { ...prev.overviewSheets, [periodId]: sheets },
+			}));
+		},
+	};
+
+	const indexOutputPort: FetchSheetIndexOutputPort = {
+		present({ index }) {
+			setViewModel((prev) => ({ ...prev, overviewIndex: index }));
 		},
 	};
 
@@ -113,6 +138,7 @@ export function createSheetListPresenter(): {
 		viewModel,
 		fetchOutputPort,
 		overviewOutputPort,
+		indexOutputPort,
 		periodsOutputPort,
 		exportOutputPort,
 		presentError,

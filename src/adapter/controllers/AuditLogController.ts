@@ -64,7 +64,7 @@ export class AuditLogController {
 			"findCurrentEmployeeProfile" | "findGrades"
 		>,
 		private readonly periodRepository: Pick<EvaluationPeriodRepository, "findDistinctPeriods">,
-		private readonly sheetRepository: Pick<EvaluationSheetRepository, "findOverview">,
+		private readonly sheetRepository: Pick<EvaluationSheetRepository, "findOverviewIndex">,
 		private readonly log: AuditLogRepository,
 		/** 省くと端末の地域。テストでは固定する。 */
 		private readonly timeZone?: string,
@@ -77,13 +77,18 @@ export class AuditLogController {
 		if (!actor?.enabled || !canViewAuditLog(actor.role)) {
 			throw new Error("監査ログは Admin のみ利用できます。");
 		}
-		const [people, roles, grades, periods, sheets] = await Promise.all([
+		const [people, roles, grades, periods, index] = await Promise.all([
 			this.log.findPeople(),
 			this.log.findRoleNames(),
 			this.employees.findGrades(),
 			this.periodRepository.findDistinctPeriods(),
-			this.sheetRepository.findOverview(),
+			this.sheetRepository.findOverviewIndex(),
 		]);
+		const periodNames = new Map(index.periods.map((period) => [period.id, period.name]));
+		const sheets = index.sheets.map((sheet) => ({
+			...sheet,
+			periodName: periodNames.get(sheet.periodId) ?? "",
+		}));
 		this.directory = createAuditDirectory({
 			people,
 			roles,

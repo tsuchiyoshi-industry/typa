@@ -24,7 +24,8 @@ const exportPdf = () => {
 		activePeriodIds: [],
 		mySheets: [],
 		subordinateSheets: [],
-		overviewSheets: null,
+		overviewIndex: null,
+		overviewSheets: {},
 		errorMessage: null,
 		exportStatus: { isExporting: false, message: null, success: null, fileName: null },
 	});

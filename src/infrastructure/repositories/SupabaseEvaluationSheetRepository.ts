@@ -6,6 +6,7 @@ import { EvaluationSheet, type StoredSheetScores } from "../../domain/entities/E
 import { Milestone } from "../../domain/entities/Milestone";
 import { SheetCorrection } from "../../domain/entities/SheetCorrection";
 import type {
+	EvaluationSheetIndex,
 	EvaluationSheetOverviewRow,
 	EvaluationSheetRepository,
 	EvaluationSheetSummary,
@@ -371,9 +372,9 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 		return ((data ?? []) as EvaluationSheetListRow[]).map(toSheetSummary);
 	}
 
-	async findOverview(): Promise<EvaluationSheetOverviewRow[]> {
+	async findOverview(periodId: number): Promise<EvaluationSheetOverviewRow[]> {
 		// Admin であることは DB 関数が確かめる。読めなかったことを「シートが無い」として扱わない
-		const { data, error } = await supabase.rpc("get_sheet_overview");
+		const { data, error } = await supabase.rpc("get_sheet_overview", { p_period_id: periodId });
 		if (error) {
 			throw error;
 		}
@@ -387,5 +388,14 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 				secondaryEvaluatorName: secondaryEvaluator ?? (noSecondaryEvaluator ? "なし" : "未設定"),
 			}),
 		);
+	}
+
+	async findOverviewIndex(): Promise<EvaluationSheetIndex> {
+		const { data, error } = await supabase.rpc("get_sheet_index");
+		if (error) {
+			throw error;
+		}
+		const index = data as Partial<EvaluationSheetIndex> | null;
+		return { periods: index?.periods ?? [], sheets: index?.sheets ?? [] };
 	}
 }

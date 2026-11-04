@@ -228,6 +228,10 @@ try {
 				// 評価期間の締めと開始は Admin だけ(締めると次は準備中になり、開始は別の操作)
 				["close_evaluation_period", { p_period_id: 900001 }],
 				["activate_evaluation_period", { p_period_id: 900001 }],
+				// 全社のシートの一覧と索引も Admin だけ(期間を指定しても、しなくても)
+				["get_sheet_overview", { p_period_id: 900001 }],
+				["get_sheet_overview", {}],
+				["get_sheet_index", {}],
 				[
 					"privileged_sheet_operation",
 					{

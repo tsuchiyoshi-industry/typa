@@ -77,8 +77,7 @@ export class RetroactiveCorrectionController {
 
 	/** その評価期間のシート。社員番号順。 */
 	async sheets(periodId: number): Promise<MaintainedSheetRow[]> {
-		return (await this.sheetRepository.findOverview())
-			.filter((row) => row.periodId === periodId)
+		return (await this.sheetRepository.findOverview(periodId))
 			.map((row) => ({
 				sheetId: row.id,
 				employeeName: row.employeeName,

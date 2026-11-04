@@ -5,6 +5,7 @@ import { masterRepository, output, profile, sheetRepository } from "../../test/f
 import type { ExportSheetOutputDto } from "../dtos/ExportSheetDto";
 import type { SheetPdfGateway } from "../ports/SheetPdfGateway";
 import { ExportSheetOverviewInteractor } from "./ExportSheetOverviewInteractor";
+import { FetchSheetIndexInteractor, type FetchSheetIndexResponse } from "./FetchSheetIndexInteractor";
 import {
 	FetchSheetOverviewInteractor,
 	type FetchSheetOverviewResponse,
@@ -43,11 +44,22 @@ const setup = (role: string | null) => {
 	const master = masterRepository();
 	master.findCurrentEmployeeProfile.mockResolvedValue(role === null ? null : profile(role, 9));
 	const sheets = sheetRepository();
-	sheets.findOverview.mockResolvedValue([
+	const rows = [
 		row(3, 26, "E003", EvaluationStatus.FINALIZED),
 		row(1, 26, "E001", EvaluationStatus.DRAFT),
 		row(2, 25, "E002"),
-	]);
+	];
+	// DB と同じく、頼んだ評価期間のシートだけを返す
+	sheets.findOverview.mockImplementation(async (periodId) =>
+		rows.filter((sheet) => sheet.periodId === periodId),
+	);
+	sheets.findOverviewIndex.mockResolvedValue({
+		periods: [
+			{ id: 26, name: "26期: 本番", startDate: "2026-03-23" },
+			{ id: 25, name: "25期", startDate: "2025-03-24" },
+		],
+		sheets: rows.map(({ id, periodId, employeeId }) => ({ id, periodId, employeeId })),
+	});
 	const pdf = {
 		selectDestination: vi
 			.fn<SheetPdfGateway["selectDestination"]>()
@@ -72,21 +84,23 @@ describe("the overview of every employee's sheets", () => {
 		async (role) => {
 			const { master, sheets } = setup(role);
 			const out = output<FetchSheetOverviewResponse>();
-			await new FetchSheetOverviewInteractor(master, sheets).execute({}, out);
+			await new FetchSheetOverviewInteractor(master, sheets).execute({ periodId: 26 }, out);
 			expect(sheets.findOverview).not.toHaveBeenCalled();
-			expect(out.present).toHaveBeenCalledWith({ sheets: null });
+			expect(out.present).toHaveBeenCalledWith({ periodId: 26, sheets: null });
 		},
 	);
 
-	it("gives an Admin every sheet with its stage, evaluators and finalized result, drafts included", async () => {
+	it("gives an Admin every sheet of the chosen period with its stage, evaluators and finalized result, drafts included", async () => {
 		const { master, sheets } = setup("Admin");
 		const out = output<FetchSheetOverviewResponse>();
-		await new FetchSheetOverviewInteractor(master, sheets).execute({}, out);
+		await new FetchSheetOverviewInteractor(master, sheets).execute({ periodId: 26 }, out);
+		// 全期間を丸ごと読まない
+		expect(sheets.findOverview).toHaveBeenCalledExactlyOnceWith(26);
+		expect(out.present.mock.calls[0][0].periodId).toBe(26);
 		const listed = out.present.mock.calls[0][0].sheets;
 		expect(listed?.map((sheet) => [sheet.employeeNo, sheet.status])).toEqual([
 			["E003", "finalized"],
 			["E001", "draft"],
-			["E002", "submitted"],
 		]);
 		expect(listed?.[0]).toMatchObject({
 			periodId: 26,
@@ -111,7 +125,50 @@ describe("the overview of every employee's sheets", () => {
 		const { master, sheets } = setup("Admin");
 		sheets.findOverview.mockRejectedValue(new Error("DB"));
 		const out = output<FetchSheetOverviewResponse>();
-		await expect(new FetchSheetOverviewInteractor(master, sheets).execute({}, out)).rejects.toThrow(
+		await expect(
+			new FetchSheetOverviewInteractor(master, sheets).execute({ periodId: 26 }, out),
+		).rejects.toThrow("DB");
+		expect(out.present).not.toHaveBeenCalled();
+	});
+});
+
+describe("the index of every employee's sheets", () => {
+	it.each(["Reviewer", "Employee", "unknown", null])(
+		"is not read for %s, who gets no index at all",
+		async (role) => {
+			const { master, sheets } = setup(role);
+			const out = output<FetchSheetIndexResponse>();
+			await new FetchSheetIndexInteractor(master, sheets).execute({}, out);
+			expect(sheets.findOverviewIndex).not.toHaveBeenCalled();
+			expect(out.present).toHaveBeenCalledWith({ index: null });
+		},
+	);
+
+	it("gives an Admin each sheet's period and employee, and the periods' names", async () => {
+		const { master, sheets } = setup("Admin");
+		const out = output<FetchSheetIndexResponse>();
+		await new FetchSheetIndexInteractor(master, sheets).execute({}, out);
+		expect(out.present).toHaveBeenCalledWith({
+			index: {
+				periods: [
+					{ id: 26, name: "26期: 本番", startDate: "2026-03-23" },
+					{ id: 25, name: "25期", startDate: "2025-03-24" },
+				],
+				sheets: [
+					{ id: 3, periodId: 26, employeeId: 3 },
+					{ id: 1, periodId: 26, employeeId: 1 },
+					{ id: 2, periodId: 25, employeeId: 2 },
+				],
+			},
+		});
+		expect(sheets.findOverview).not.toHaveBeenCalled();
+	});
+
+	it("does not present an empty index when it cannot be read", async () => {
+		const { master, sheets } = setup("Admin");
+		sheets.findOverviewIndex.mockRejectedValue(new Error("DB"));
+		const out = output<FetchSheetIndexResponse>();
+		await expect(new FetchSheetIndexInteractor(master, sheets).execute({}, out)).rejects.toThrow(
 			"DB",
 		);
 		expect(out.present).not.toHaveBeenCalled();
@@ -132,8 +189,10 @@ describe("the overview PDF", () => {
 	);
 
 	it("lists one period in employee number order, with who issued it and when", async () => {
-		const { pdf, exporter, out } = setup("Admin");
+		const { sheets, pdf, exporter, out } = setup("Admin");
 		await exporter.execute({ periodId: 26 }, out);
+		// 出す評価期間のシートだけを読み直す
+		expect(sheets.findOverview).toHaveBeenCalledExactlyOnceWith(26);
 		// 期間名はファイル名に使えない文字を含んでいてもよい
 		expect(pdf.selectDestination).toHaveBeenCalledWith("評価シート一覧_26期_ 本番.pdf");
 		expect(pdf.generateOverview).toHaveBeenCalledWith(

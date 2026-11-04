@@ -1,5 +1,13 @@
 # マイグレーションの変更経緯
 
+## 2026-11-04: 評価者のシート一覧を速くする
+
+`202611040002_evaluator_sheet_list_speed.sql` は、`evaluation_sheets` の読み取りポリシー `subject and evaluators read a sheet` を置き換えます。これまでは、確定したシートの1行ごとに `is_current_evaluator_of` を呼んでいました（中で `current_employee_id()` を2回呼び、Auth のセッションも引く）。610 人・10 期間（6,090 枚）では、評価者の一覧（自分以外のシート。`findByEvaluator`）が 1 回 3 秒以上かかっていました。新しい関数 `current_subordinate_ids()`（呼び出した人が今の一次・二次評価者である社員。自分は除く。利用停止中・ログイン前は空）で今の部下を一度だけ集め、各行はその集合と照らします。社員マスタの `visible_employee_ids()` と同じ形です。同じデータで、評価者の一覧は 13〜41ms になりました。
+
+読める範囲は変わりません。本人・シートの評価者はどの状態でも読め、今の評価者は確定したシートだけを読めます。`is_current_evaluator_of` は `sheet_access` / `get_sheet` が1枚ずつ使うので残します。`security/schema-inventory.expected.txt` は、関数の追加とポリシーの式だけが変わります。
+
+**互換性**: アプリの変更は要りません。古いアプリにも同じ効き方をするので、いつ当ててもかまいません。`202611040001` の後に適用します。
+
 ## 2026-11-04: 評価期間の締めと開始を分ける
 
 `202611040001_close_then_prepare_periods.sql` は、これまで1つの操作だった「次の評価期間を開始し、同時に今の評価期間を締める」を2つに分けます。`close_evaluation_period` を追加し、実施中の評価期間だけを締めます（次の評価期間は開始しない）。`activate_evaluation_period` は名前を変えずに置き換え、実施中の評価期間がないときに、準備中の評価期間（まだ始めていないうち最も早く始まるもの。`preparing_evaluation_period` が決める）だけを開始します。もう実施中の評価期間を締めません。どちらも Admin（利用停止中を除く）だけが実行でき、`security_audit_log` に `period.closed` / `period.started` を記録します。記録できなければ操作ごと取り消します。締めは画面で見ていた実施中の評価期間と照合し、もう実施中でなければ `40001` で断ります。テーブル・列・行ポリシーは変わりません。`security/schema-inventory.expected.txt` は `activate_evaluation_period` の md5 と、2つの関数の追加だけが変わります。

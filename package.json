@@ -22,7 +22,8 @@
 		"typecheck": "tsc --noEmit && tsc --project tsconfig.node.json --noEmit",
 		"test:e2e": "playwright test",
 		"docs:user-manual": "playwright test -c playwright.manual.config.ts",
-		"test:rust": "cargo test --manifest-path src-tauri/Cargo.toml --locked --workspace"
+		"test:rust": "cargo test --manifest-path src-tauri/Cargo.toml --locked --workspace",
+		"seed": "bun scripts/generateSeed.ts && docker exec -i supabase_db_typa psql -U postgres -d postgres -v ON_ERROR_STOP=1 -q -o /dev/null < supabase/seed.sql"
 	},
 	"license": "MIT",
 	"packageManager": "bun@1.4.4",
@@ -48,6 +49,7 @@
 	"devDependencies": {
 		"@biomejs/biome": "2.6.4",
 		"@electric-sql/pglite": "^0.5.14",
+		"@faker-js/faker": "10.6.0",
 		"@fast-check/vitest": "0.5.0",
 		"@playwright/test": "^1.64.1",
 		"@solidjs/testing-library": "^0.8.10",

@@ -30,7 +30,7 @@
 		{
 			"id": "ACCESS-BFLA",
 			"asvs": ["V8.2.1"],
-			"condition": "Employee and Reviewer cannot change roles, issue invitations or execute privileged sheet operations"
+			"condition": "Employee and Reviewer cannot change roles, issue invitations, execute privileged sheet operations, close or start evaluation periods, or read the company-wide sheet overview and index"
 		},
 		{
 			"id": "ACCESS-FIELDS",

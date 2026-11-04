@@ -10,6 +10,10 @@ import type {
 } from "../../application/usecases/FetchCategorizedSheetsInteractor";
 import type { FetchDistinctPeriodsInteractor } from "../../application/usecases/FetchDistinctPeriodsInteractor";
 import type {
+	FetchSheetIndexInteractor,
+	FetchSheetIndexOutputPort,
+} from "../../application/usecases/FetchSheetIndexInteractor";
+import type {
 	FetchSheetOverviewInteractor,
 	FetchSheetOverviewOutputPort,
 } from "../../application/usecases/FetchSheetOverviewInteractor";
@@ -30,7 +34,12 @@ export class SheetListController {
 		private readonly exportOverviewUseCase: ExportSheetOverviewInteractor,
 		private readonly fetchPeriodsUseCase: FetchDistinctPeriodsInteractor,
 		private readonly periodsOutputPort: SheetListPeriodsOutputPort,
+		private readonly fetchIndexUseCase: FetchSheetIndexInteractor,
+		private readonly indexOutputPort: FetchSheetIndexOutputPort,
 	) {}
+
+	/** 最後に開いた評価期間の全社の一覧。読み直すとき、同じ期間も読み直す。 */
+	private overviewPeriodId: number | null = null;
 
 	async load(): Promise<void> {
 		// 互いを待たずに読む。全社の一覧(Admin)が読めなくても、自分と部下の一覧は出したままにする
@@ -39,10 +48,12 @@ export class SheetListController {
 				() => this.fetchUseCase.execute({}, this.fetchOutputPort),
 				"シート一覧の取得に失敗しました",
 			),
+			// 全社の一覧は索引だけを読み、中身は評価期間を選んでから(loadOverview)読む
 			this.attempt(
-				() => this.fetchOverviewUseCase.execute({}, this.overviewOutputPort),
+				() => this.fetchIndexUseCase.execute({}, this.indexOutputPort),
 				"全社の評価シートの取得に失敗しました",
 			),
+			this.overviewPeriodId === null ? undefined : this.loadOverview(this.overviewPeriodId),
 			// 新規作成を押せるかを決めるためだけに読む。読めなくても一覧の邪魔はしない
 			this.fetchPeriodsUseCase
 				.execute({}, this.periodsOutputPort)
@@ -66,6 +77,15 @@ export class SheetListController {
 					this.exportOutputPort,
 				),
 			"シートの出力に失敗しました",
+		);
+	}
+
+	/** その評価期間の全社の評価シートを読む(Admin だけ。ほかの人には索引が無く、画面は呼ばない)。 */
+	async loadOverview(periodId: number): Promise<void> {
+		this.overviewPeriodId = periodId;
+		await this.attempt(
+			() => this.fetchOverviewUseCase.execute({ periodId }, this.overviewOutputPort),
+			"全社の評価シートの取得に失敗しました",
 		);
 	}
 

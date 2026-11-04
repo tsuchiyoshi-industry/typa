@@ -113,6 +113,9 @@ export function sheetRepository() {
 		findByOwner: vi.fn<EvaluationSheetRepository["findByOwner"]>().mockResolvedValue([]),
 		findByEvaluator: vi.fn<EvaluationSheetRepository["findByEvaluator"]>().mockResolvedValue([]),
 		findOverview: vi.fn<EvaluationSheetRepository["findOverview"]>().mockResolvedValue([]),
+		findOverviewIndex: vi
+			.fn<EvaluationSheetRepository["findOverviewIndex"]>()
+			.mockResolvedValue({ periods: [], sheets: [] }),
 	} satisfies EvaluationSheetRepository;
 }
 export function employeeRepository() {

@@ -1,6 +1,6 @@
 import type { PGlite } from "@electric-sql/pglite";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { actAs, createProdLikeDb } from "./prodLikeDb";
+import { actAs, createProdLikeDb, rollbackAfterTest } from "./prodLikeDb";
 
 let db: PGlite;
 const query = async <T = Record<string, unknown>>(sql: string, params: unknown[] = []) =>
@@ -63,12 +63,14 @@ it("keeps previous goals from people who cannot read the draft", async () => {
 });
 
 it("takes the previous period, not an older sheet, when the employee had no sheet just before", async () => {
+	// 追加する過去の期間やシートを、後に動く締め・開始のテストに残さない。
+	await rollbackAfterTest(db);
 	// 社員 6: 期間 2 の前の期間 3 にシートがあるが、期間 2(前の評価期間)にはシートが無い
 	await db.exec(`
 		reset role;
 		set session_replication_role = replica;
-		insert into public.evaluation_periods (id, period_name, term_name, start_date, end_date, is_active)
-		values (3, '25期 上期', '25期', '2025-04-01', '2025-09-30', false);
+		insert into public.evaluation_periods (id, period_name, term_name, start_date, end_date, is_active, closed_at)
+		values (3, '25期 上期', '25期', '2025-04-01', '2025-09-30', false, now());
 		insert into public.evaluation_sheets (id, period_id, employee_id, status, primary_evaluator_id)
 		values (300, 3, 6, 'finalized', 2), (310, 1, 6, 'draft', 2);
 		insert into public.milestones (sheet_id, goal_number, challenge_goal) values (300, 1, '古い目標');

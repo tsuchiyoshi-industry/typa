@@ -5,6 +5,9 @@ import { ADMIN, closeSheetWindow, signIn, signOut } from "./support";
 
 // 利用者・評価者・管理者のマニュアル(docs/manual/*.md)の画面写真を撮り、PDF にする。
 // 写真はどれも、そのマニュアルを読む権限の人がログインした画面。合否より、資料がそろうことが目的。
+// PDF は今回撮った写真を使う。撮影に失敗したら PDF 生成も止め、古い写真を使わない。
+test.describe.configure({ mode: "serial" });
+
 const MANUALS = [
 	["user", "TYPA 利用者マニュアル"],
 	["evaluator", "TYPA 評価者マニュアル"],
@@ -335,8 +338,9 @@ test("manual screenshots", async ({ page }) => {
 		await expect(page.getByRole("region", { name: "あなたのプロフィール" })).toBeVisible();
 		await shot(page, "user", "13-profile");
 		await menu(page, "ヘルプ");
+		// 見出しの改行で、アクセシブルな名前に入る空白を許容する。
 		await expect(
-			page.getByRole("heading", { name: "評価のしくみと使い方", level: 1 }),
+			page.getByRole("heading", { name: /^評価のしくみと\s*使い方$/, level: 1 }),
 		).toBeVisible();
 		await shot(page, "user", "14-help");
 		await signOut(page);

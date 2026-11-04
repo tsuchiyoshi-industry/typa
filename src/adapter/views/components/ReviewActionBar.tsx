@@ -9,6 +9,7 @@ interface ReviewActionBarProps {
 	rank: EvaluationRankDto | undefined;
 	updating: boolean;
 	busy: boolean;
+	ready: boolean;
 	onConfirm: () => void;
 }
 
@@ -23,6 +24,7 @@ const ReviewActionBar: Component<ReviewActionBarProps> = (props) => (
 		<button
 			type="button"
 			class="primary-action finalize"
+			classList={{ "is-ready": props.ready && !props.busy && !props.updating }}
 			disabled={props.busy}
 			onClick={() => props.onConfirm()}
 		>

@@ -580,6 +580,28 @@
 	font-size: 0.8125rem;
 	white-space: nowrap;
 }
+.review-action-bar .finalize.is-ready {
+	border: 1px solid var(--hr-warning-text);
+	box-shadow: 0 0 0 2px color-mix(in srgb, var(--hr-warning) 24%, transparent);
+}
+@media (prefers-reduced-motion: no-preference) {
+	.review-action-bar .finalize.is-ready {
+		animation: review-ready-glow 2.2s ease-in-out infinite;
+	}
+}
+@keyframes review-ready-glow {
+	0%,
+	100% {
+		box-shadow:
+			0 0 0 2px color-mix(in srgb, var(--hr-warning) 18%, transparent),
+			0 0 8px color-mix(in srgb, var(--hr-warning) 30%, transparent);
+	}
+	50% {
+		box-shadow:
+			0 0 0 4px color-mix(in srgb, var(--hr-warning) 28%, transparent),
+			0 0 18px color-mix(in srgb, var(--hr-warning) 58%, transparent);
+	}
+}
 .review-empty {
 	display: flex;
 	align-items: center;

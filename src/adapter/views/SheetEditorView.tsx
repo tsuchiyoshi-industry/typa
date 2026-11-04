@@ -438,6 +438,7 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 											}
 											updating={viewModel().updatingStatus}
 											busy={saving()}
+											ready={pendingEvaluationItems().length === 0}
 											onConfirm={() =>
 												void (viewModel().canFinalizeEvaluation
 													? status.finalize()

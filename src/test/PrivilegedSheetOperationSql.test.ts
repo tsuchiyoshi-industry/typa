@@ -146,10 +146,18 @@ it("cannot forge the bypass or mutate the audit log through the normal API", asy
 		rows("select public.transition_evaluation_sheet(200,'draft')"),
 	).rejects.toMatchObject({ code: "42501" });
 	await operate(200, "changeStatus", "draft", "finalized");
+	// 下書きに戻しても、締めた評価期間のシートは本人から書き換えられない。本人には締めた期間の目標を
+	// 読ませない(行ポリシー)ので、更新は1行も当たらない。当たったとしても締めた期間のトリガーが断る
 	await actAs(db, 4);
-	await expect(
-		rows("update public.milestones set challenge_goal='changed' where sheet_id=200"),
-	).rejects.toThrow();
+	expect(
+		await rows(
+			"update public.milestones set challenge_goal='changed' where sheet_id=200 returning id",
+		),
+	).toEqual([]);
+	await db.exec("reset role");
+	expect(await rows("select challenge_goal from public.milestones where sheet_id=200")).toEqual([
+		{ challenge_goal: "" },
+	]);
 });
 it.each(["delete", "changeStatus"])(
 	"rolls %s back if the audit cannot be written",

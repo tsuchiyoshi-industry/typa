@@ -158,8 +158,14 @@ const finalized = parsed<{
 		objectivesSecondEvaluationScore: number;
 		commonEvaluationSecondEvaluationScore: number;
 	};
-}>(sql(as(4, `select public.get_sheet(${sheet});`)));
+}>(sql(as(3, `select public.get_sheet(${sheet});`)));
+// 確定した評価点は最終評価者(3)が読む。本人(4)には評価確定の後も、評価点もランクも返さない
 assert.equal(finalized.stored.totalEvaluationScore, 70);
+const seenBySubject = parsed<{ stored: Record<string, unknown>; finalRankLetter: string | null }>(
+	sql(as(4, `select public.get_sheet(${sheet});`)),
+);
+assert.deepEqual(seenBySubject.stored, {});
+assert.equal(seenBySubject.finalRankLetter, null);
 assert.equal(
 	finalized.stored.objectivesSecondEvaluationScore +
 		finalized.stored.commonEvaluationSecondEvaluationScore,

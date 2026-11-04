@@ -18,6 +18,8 @@ afterEach(() => {
 	cleanup();
 	clearUnsavedChanges();
 	settleConfirm(false);
+	window.localStorage.removeItem("typa:font-size");
+	document.documentElement.style.removeProperty("font-size");
 });
 
 const inbox = () => ({
@@ -149,6 +151,21 @@ it("hides 部下の評価 from people who cannot be evaluators, even on /review"
 	await view.findByText("社員");
 	expect(within(view.nav()).queryByRole("link", { name: "部下の評価" })).toBeNull();
 	expect(view.current()).toEqual([]);
+});
+
+it("restores font size and shows its controls directly under the theme switch", async () => {
+	window.localStorage.setItem("typa:font-size", "18");
+	const view = setup("/");
+	await view.findByText("山田");
+	expect(document.documentElement.style.fontSize).toBe("18px");
+
+	fireEvent.click(view.getByRole("button", { name: "ユーザーメニュー" }));
+	const fontControls = view
+		.getByRole("button", { name: "文字を大きくする" })
+		.closest(".user-menu-font-size");
+	expect(fontControls?.previousElementSibling?.textContent).toMatch(/明るくする|暗くする/);
+	fireEvent.click(view.getByRole("button", { name: "文字を小さくする" }));
+	expect(document.documentElement.style.fontSize).toBe("17px");
 });
 
 it("does not sign out while the user keeps unsaved input", async () => {

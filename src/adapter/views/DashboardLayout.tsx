@@ -12,9 +12,11 @@ import X from "lucide-solid/icons/x";
 import { type Component, createSignal, For, type JSX, onCleanup, onMount, Show } from "solid-js";
 import type { AccountController, CurrentUserDto } from "../controllers/AccountController";
 import type { NotificationInboxController } from "../controllers/NotificationInboxController";
+import FontSizeMenuControls from "./components/FontSizeMenuControls";
 import NotificationBell from "./components/NotificationBell";
 import ThemeMenuItem from "./components/ThemeMenuItem";
 import { clearToasts, clearUnsavedChanges, confirmDiscard, isSaving, showToast } from "./feedback";
+import { applyStoredFontSize } from "./fontSize";
 
 /** ログイン後の画面に共通のトップバー。ページ移動のたびに作り直さない。 */
 const DashboardLayout: Component<{
@@ -46,6 +48,7 @@ const DashboardLayout: Component<{
 	};
 
 	onMount(() => {
+		applyStoredFontSize();
 		document.addEventListener("click", handleClickOutside);
 		document.addEventListener("keydown", handleKeyDown);
 		void props.controller
@@ -147,6 +150,7 @@ const DashboardLayout: Component<{
 								)}
 							</Show>
 							<ThemeMenuItem />
+							<FontSizeMenuControls />
 							<Show when={user()?.canViewSettings}>
 								<A href="/settings" class="user-menu-item" onClick={() => setUserMenuOpen(false)}>
 									<Settings size={18} />

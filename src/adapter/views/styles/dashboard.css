@@ -353,6 +353,49 @@
 	text-decoration: none;
 }
 
+.user-menu-font-size {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.75rem;
+	min-inline-size: 0;
+	margin: 0;
+	border: 0;
+	padding: 0.45rem 0.75rem;
+	font-size: 0.875rem;
+}
+
+.user-menu-font-size > div {
+	display: flex;
+	align-items: center;
+	gap: 0.35rem;
+}
+
+.user-menu-font-size button {
+	width: 2rem;
+	height: 2rem;
+	display: grid;
+	place-items: center;
+	border: 1px solid var(--hr-border-input);
+	border-radius: var(--hr-radius-sm);
+}
+
+.user-menu-font-size button:hover:not(:disabled) {
+	background: var(--hr-surface-hover);
+}
+
+.user-menu-font-size button:disabled {
+	opacity: 0.45;
+	cursor: default;
+}
+
+.user-menu-font-size output {
+	min-width: 2.5rem;
+	text-align: center;
+	font-variant-numeric: tabular-nums;
+	color: var(--hr-text-muted);
+}
+
 .logout-item {
 	margin-top: 0.35rem;
 	border-top: 1px solid var(--hr-border);

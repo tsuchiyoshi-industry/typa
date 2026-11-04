@@ -67,6 +67,11 @@ export interface SheetExportDataDto {
 	secondOverallComment: string;
 	/** 評価を確定せずに締めた期間のシート。帳票は点数・ランク・評価者のコメントを「***」で伏せる。 */
 	unconfirmed: boolean;
+	/**
+	 * 出力する人が最終評価を見られない(二次評価者がいるシートの一次評価者)。帳票は二次評価・最終評価ランク・
+	 * 評価点を「***」で伏せ、その値はデータにも入れない。最終評価を見られるのは最終評価者と管理者だけ。
+	 */
+	hidesFinal: boolean;
 	/** 締め後修正(遡及処理)。帳票に赤字で載せる1件1行。点数を伏せる帳票には、文章の修正だけを載せる。 */
 	corrections: string[];
 	objectives: {

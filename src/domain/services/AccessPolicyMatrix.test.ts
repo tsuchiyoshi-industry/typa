@@ -50,25 +50,18 @@ describe("authorization matrix", () => {
 				expect(policy.canCarryOverGoal()).toBe(id === 1 && draft);
 				expect(policy.canConfirmFirstEvaluation()).toBe(id === 2 && firstStage);
 				expect(policy.canFinalizeEvaluation()).toBe(id === 3 && secondStage);
-				// 出力できるのは評価が確定したシートだけ。本人も出力できる
-				expect(policy.canExportSheet()).toBe(
-					(id === 1 || evaluator) && status === EvaluationStatus.FINALIZED,
-				);
+				// 出力できるのは評価が確定したシートだけ。本人は出力できない(評価の内容を本人に見せない)
+				expect(policy.canExportSheet()).toBe(evaluator && status === EvaluationStatus.FINALIZED);
 				// 見られる範囲(基本設計 4.2)。シートを見られる人について、何が見えるか
 				const sees = (can: boolean) => policy.canViewSheet() && can;
-				const finalized = status === EvaluationStatus.FINALIZED;
-				// 目標の点数: 評価者は送信後から、本人は評価が確定してから。二次点は二次評価者だけ
-				expect(sees(policy.canViewMilestoneFirstScore())).toBe(
-					(id === 1 && finalized) || evaluator,
-				);
-				expect(sees(policy.canViewMilestoneSecondScore())).toBe(
-					(id === 1 && finalized) || (id === 3 && evaluator),
-				);
+				// 目標の点数: 評価者は送信後から。本人には確定後も見せない。二次点は二次評価者(最終評価者)だけ
+				expect(sees(policy.canViewMilestoneFirstScore())).toBe(evaluator);
+				expect(sees(policy.canViewMilestoneSecondScore())).toBe(id === 3 && evaluator);
 				// 共通評価の二次と、評価点・最終評価ランクは二次評価者(最終評価者)だけ。本人には確定後も見せない
 				expect(sees(policy.canViewCommonEvaluationSecond())).toBe(id === 3 && evaluator);
 				expect(sees(policy.canViewFinalEvaluation())).toBe(id === 3 && evaluator);
-				// ランクは採点が始まってから(目標の確認中は出さない)
-				expect(policy.canViewEvaluationRanks()).toBe(status.isEvaluationStarted());
+				// ランクは採点が始まってから(目標の確認中は出さない)。本人には出さない
+				expect(policy.canViewEvaluationRanks()).toBe(status.isEvaluationStarted() && evaluator);
 			},
 		);
 	}
@@ -117,11 +110,10 @@ describe("authorization matrix", () => {
 			for (const id of [1, 2, 3, 4]) {
 				const loose = (closed: boolean) =>
 					EvaluationSheetAccessPolicy.for(id, sheet(status, undefined, closed, true));
-				// 関係者は全員出力できる。実施中の間は、これまでどおり確定したシートだけ
-				expect(loose(true).canExportSheet()).toBe(id !== 4);
+				// 評価者は出力できる(本人は出力できない)。実施中の間は、これまでどおり確定したシートだけ
+				expect(loose(true).canExportSheet()).toBe(id === 2 || id === 3);
 				expect(loose(false).canExportSheet()).toBe(
-					status === EvaluationStatus.FINALIZED &&
-						(id === 1 || (id !== 4 && status !== EvaluationStatus.DRAFT)),
+					status === EvaluationStatus.FINALIZED && (id === 2 || id === 3),
 				);
 			}
 		}

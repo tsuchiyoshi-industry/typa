@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { isolatedSql } from "../scripts/isolatedApi";
-import { ADMIN, closeSheetWindow, signIn, signOut } from "./support";
+import { ADMIN, closeSheetWindow, issueOtp, PASSWORD, restAs, signIn, signOut } from "./support";
 
 // 利用者・評価者・管理者のマニュアル(docs/manual/*.md)の画面写真を撮り、PDF にする。
 // 写真はどれも、そのマニュアルを読む権限の人がログインした画面。合否より、資料がそろうことが目的。
@@ -39,7 +39,10 @@ test.beforeAll(() => {
       where id in (900001,900002);
     update public.common_evaluation_item_sets set name = '一般職' where id = 9001;
     update public.employee_grades set grade_name = '一般職' where id = 9001;
-    update public.evaluation_periods set period_name = '2026年度 下期' where id = 900001;`,
+    update public.evaluation_periods set period_name = '2026年度 下期' where id = 900001;
+    -- 利用者マニュアルの新規登録で登録する社員。管理者の写真に写る未登録の 2 人(渡辺・山本)は残す
+    insert into public.employees(id,name,employee_no,role_id,grade_id)
+      values(900011,'中村 美咲','RELEASE011',(select id from public.roles where role_name='Employee'),9001);`,
 	);
 });
 
@@ -139,15 +142,38 @@ async function openReview(page: Page, name: string, employeeNo: string) {
 test("manual screenshots", async ({ page }) => {
 	test.setTimeout(240_000);
 	await test.step("利用者: ログインと新規登録", async () => {
+		// 中村 美咲(RELEASE011)は未登録。社員番号と招待コードは、管理者から事前に受け取っている
+		const NEWCOMER = "RELEASE011";
+		const MAILBOX = "nakamura@release.example";
+		const issued = await (await restAs(1))("rpc/issue_employee_invitation", {
+			p_employee_no: NEWCOMER,
+		});
+		const { code } = (await issued.json()) as { code: string };
+
 		await page.goto("/login");
 		await expect(page.getByRole("heading", { name: "ログイン", exact: true })).toBeVisible();
 		await shot(page, "user", "01-login");
 		await page.getByRole("button", { name: "新規登録" }).click();
-		await page.getByLabel("メールアドレス").fill("watanabe@release.example");
+		await page.getByLabel("メールアドレス").fill(MAILBOX);
 		await shot(page, "user", "02-register-email");
 		await page.getByRole("button", { name: "認証コードを受け取る" }).click();
+		// 送信が済むと入力欄が出る。メールに届くコードの代わりに、管理 API で発行し直したコードを打つ
 		await expect(page.getByLabel("認証コード")).toBeVisible();
-		await shot(page, "user", "03-register-code");
+		await page.getByLabel("認証コード").fill(await issueOtp(MAILBOX));
+		await page.getByLabel("社員番号").fill(NEWCOMER);
+		await page.getByLabel("招待コード").fill(code);
+		await page.getByLabel("パスワード", { exact: true }).fill(PASSWORD);
+		await page.getByLabel("パスワード（確認）").fill(PASSWORD);
+		await expect(page.getByRole("button", { name: "登録する" })).toBeEnabled();
+		// 入力欄が多く画面に収まらないので、「登録する」まで写るよう入力の枠だけを撮る
+		await shot(page.locator(".auth-card"), "user", "03-register-code");
+		await page.getByRole("button", { name: "登録する" }).click();
+		const done = page.getByRole("dialog", { name: `あなたの社員番号は「${NEWCOMER}」です` });
+		await expect(done).toBeVisible();
+		await shot(page, "user", "19-register-done");
+		await done.getByRole("button", { name: "覚えました" }).click();
+		await expect(page.getByRole("heading", { name: "評価シート一覧" })).toBeVisible();
+		await signOut(page);
 	});
 
 	await test.step("利用者(二次評価者なし): 作成・送信", async () => {
@@ -326,7 +352,9 @@ test("manual screenshots", async ({ page }) => {
 
 	await test.step("利用者: 結果・メニュー・ヘルプ", async () => {
 		await signIn(page, "RELEASE004");
-		await expect(page.getByRole("button", { name: "PDF出力" })).toBeVisible();
+		// 評価の内容は本人に見せないので、自分のシートには PDF 出力がない
+		await expect(page.getByRole("row", { name: /一般職/ })).toContainText("評価確定");
+		await expect(page.getByRole("button", { name: "PDF出力" })).toHaveCount(0);
 		await shot(page, "user", "10-sheet-list-final");
 		await page.getByRole("link", { name: /一般職/ }).click();
 		await expect(page.getByText("評価が確定しました。内容は変更できません。")).toBeVisible();

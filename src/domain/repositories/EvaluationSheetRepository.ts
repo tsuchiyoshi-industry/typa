@@ -14,6 +14,10 @@ export interface EvaluationSheetSummary {
 	periodName: string;
 	periodStart: string;
 	periodEnd: string;
+	/** 評価期間が締め済みか。 */
+	periodClosed?: boolean;
+	/** 本人の締め済みシートに限り、点数を含まない最終評価ランク。 */
+	closedRank?: string | null;
 	/** 評価を確定せずに締めた期間のシートで、確定前でも PDF に出力できる。 */
 	exportableBeforeFinalized?: boolean;
 	employeeName: string;

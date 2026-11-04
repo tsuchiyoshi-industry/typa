@@ -74,7 +74,9 @@ Deno.serve({hostname:"127.0.0.1",port:56423},createNotificationHandler(createNot
     update public.employees set user_id='${management.id}' where id=900001;
     delete from public.evaluation_sheets where employee_id=900008;
     insert into public.employees(id,name,employee_no,role_id,grade_id,primary_evaluator_id,secondary_evaluator_id)
-    values(900008,'Release API employee','RELEASE008',(select id from public.roles where role_name='Employee'),9001,900002,900003) on conflict(id) do update set user_id=null,is_enabled=true;`);
+    values(900008,'Release API employee','RELEASE008',(select id from public.roles where role_name='Employee'),9001,900002,900003) on conflict(id) do update set user_id=null,is_enabled=true;
+    insert into public.employees(id,name,employee_no,role_id,grade_id,primary_evaluator_id,secondary_evaluator_id)
+    values(900012,'Release API shared mailbox','RELEASE012',(select id from public.roles where role_name='Employee'),9001,900002,900003) on conflict(id) do update set user_id=null,is_enabled=true;`);
 	const evaluatorEmails = new Map<number, string>();
 	for (const n of [2, 3]) {
 		const email = `release-evaluator-${n}-${Date.now()}@release.example`;
@@ -186,6 +188,9 @@ Deno.serve({hostname:"127.0.0.1",port:56423},createNotificationHandler(createNot
 		employees = new SupabaseEmployeeRepository();
 	const invitation = await master.issueInvitationByEmployeeNo("RELEASE008");
 	assert.ok(invitation);
+	// 共有メールで、続けてもう一人登録する(下)
+	const secondInvitation = await master.issueInvitationByEmployeeNo("RELEASE012");
+	assert.ok(secondInvitation);
 	console.log("API: management login and invitation passed.");
 	const mailbox = `release-shared-${Date.now()}@release.example`;
 	const link = required(
@@ -374,6 +379,36 @@ Deno.serve({hostname:"127.0.0.1",port:56423},createNotificationHandler(createNot
 	assert.equal(current.allocatedScores.totalEvaluationScore, 75);
 	assert.equal(current.status.toString(), "finalized");
 	assert.equal((await supabase.from("workspace_settings").select("smtp_password")).data, null);
+	// 同じ共有メールで、別の社員がもう一度登録できる。メールのアカウントは一つのまま、通知先は両方そのメール
+	const again = required(
+		await service.auth.admin.generateLink({ type: "magiclink", email: mailbox }),
+	);
+	assert.ok(again.properties?.email_otp);
+	await registration.execute(
+		{
+			employeeNo: "RELEASE012",
+			invitationCode: secondInvitation.code,
+			email: mailbox,
+			verificationCode: again.properties.email_otp,
+			password: "ReleasePassw0rd!",
+		},
+		{
+			present: (result) => {
+				registered = result.status;
+			},
+		},
+	);
+	assert.equal(registered, "linked");
+	assert.equal(
+		sql(`select count(*) from auth.users where lower(email)='${mailbox}';
+      select string_agg(e.employee_no||'='||c.email, ',' order by e.employee_no) from public.employee_contacts c
+      join public.employees e on e.id=c.employee_id where e.id in (900008,900012);`),
+		`1
+RELEASE008=${mailbox},RELEASE012=${mailbox}`,
+	);
+	await supabase.auth.signOut({ scope: "local" });
+	assert.ok((await auth.signInWithPassword("RELEASE012", "ReleasePassw0rd!")).userId);
+	console.log("API: a second employee registered with the same shared mailbox.");
 	required(
 		await supabase.auth.signInWithPassword({
 			email: managementEmail,

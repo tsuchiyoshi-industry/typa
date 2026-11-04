@@ -622,6 +622,10 @@ html:has(.guide) {
 .dg-chip--secondary {
 	background: var(--hr-bg-elevated);
 }
+/* 管理者は全図で点線の枠 */
+.dg-chip--admin {
+	border-style: dashed;
+}
 .dg-badge {
 	display: inline-grid;
 	place-items: center;

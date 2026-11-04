@@ -255,14 +255,17 @@ test("a sheet goes from the employee through both evaluators to a final rank", a
 		await signOut(page);
 	});
 
-	await test.step("最終確定後、本人には目標の点数が見え、評価点は見えない", async () => {
+	await test.step("最終確定の後も、本人には点数も評価点も返さず、PDF も出させない", async () => {
+		// 評価の内容は本人に一切見せない(最終評価者と管理者だけ)。サーバーも返さない
 		expect(await goalScoresSeenBySubject()).toEqual(
-			expect.objectContaining({ firstScore: 4, secondScore: 3 }),
+			expect.objectContaining({ firstScore: 0, secondScore: 0 }),
 		);
 		await signIn(page, "RELEASE004");
+		await expect(page.getByRole("button", { name: "PDF出力" })).toHaveCount(0);
 		const goal = await openOwnSheet(page);
 		await expect(page.getByText("評価が確定しました。内容は変更できません。")).toBeVisible();
-		await expect(goal).toContainText(/一次評価\s*4\s*\/\s*4/);
+		await expect(goal).not.toContainText(/一次評価\s*\d/);
+		await expect(goal).not.toContainText(/二次評価\s*\d/);
 		await expect(page.getByText("75")).toHaveCount(0);
 		await signOut(page);
 	});

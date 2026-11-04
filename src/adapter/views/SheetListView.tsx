@@ -14,6 +14,7 @@ import {
 	createEffect,
 	createMemo,
 	createSignal,
+	createUniqueId,
 	For,
 	type JSX,
 	on,
@@ -68,6 +69,7 @@ const SheetTable: Component<{
 	children?: JSX.Element;
 }> = (props) => {
 	const navigate = useNavigate();
+	const headingId = createUniqueId();
 	const [sortField, setSortField] = createSignal<SortField>("updated");
 	const [sortOrder, setSortOrder] = createSignal<SortOrder>("desc");
 
@@ -109,9 +111,13 @@ const SheetTable: Component<{
 	};
 
 	return (
-		<section class="sheet-section" classList={{ "sheet-section--overview": props.overview }}>
+		<section
+			class="sheet-section"
+			classList={{ "sheet-section--overview": props.overview }}
+			aria-labelledby={headingId}
+		>
 			<div class="sheet-section-header">
-				<h2>
+				<h2 id={headingId}>
 					{props.title}
 					<Show when={props.overview}>
 						<span class="user-role" title="Admin だけに表示しています">
@@ -132,7 +138,7 @@ const SheetTable: Component<{
 							<Show when={props.showName}>
 								<SortHeader field="name" label="氏名" />
 							</Show>
-							<th>作成時の等級</th>
+							<th>{props.showName ? "作成時の等級" : "等級・最終評価ランク"}</th>
 							<SortHeader field="status" label="ステータス" />
 							<Show when={props.overview}>
 								<th>一次評価者</th>
@@ -148,6 +154,7 @@ const SheetTable: Component<{
 					<tbody>
 						<For each={sorted()}>
 							{(sheet) => {
+								const closedOwnSheet = !props.showName && sheet.periodClosed === true;
 								// 行全体がクリックできるが、キーボード操作の入口として先頭の列にリンクも置く
 								const link = (label: string) => (
 									<A
@@ -159,7 +166,15 @@ const SheetTable: Component<{
 									</A>
 								);
 								return (
-									<tr class="sheet-row" onClick={() => navigate(`/sheet/${sheet.id}`)}>
+									<tr
+										class="sheet-row"
+										classList={{ "sheet-row--read-only": closedOwnSheet }}
+										onClick={() => {
+											if (!closedOwnSheet) {
+												navigate(`/sheet/${sheet.id}`);
+											}
+										}}
+									>
 										<Show when={props.showName}>
 											<td>
 												{link(sheet.employeeName)}
@@ -167,9 +182,11 @@ const SheetTable: Component<{
 											</td>
 										</Show>
 										<td>
-											{props.showName
-												? sheet.gradeName || "—"
-												: link(sheet.gradeName || "等級未設定")}
+											{closedOwnSheet
+												? (sheet.closedRank ?? "—")
+												: props.showName
+													? sheet.gradeName || "—"
+													: link(sheet.gradeName || "等級未設定")}
 										</td>
 										<td>
 											<StatusChip status={sheet.status} />
@@ -205,7 +222,9 @@ const SheetTable: Component<{
 													</button>
 												</Show>
 											</Show>
-											<ChevronRight class="sheet-row__chevron" size={18} />
+											<Show when={!closedOwnSheet}>
+												<ChevronRight class="sheet-row__chevron" size={18} />
+											</Show>
 										</td>
 									</tr>
 								);
@@ -493,13 +512,8 @@ const SheetListView: Component<SheetListViewProps> = (props) => {
 						</Show>
 					}
 				>
-					<SheetTable
-						title="自分の評価シート"
-						sheets={mySheets()}
-						showName={false}
-						exportingId={exportingId()}
-						onExport={(sheet) => void handleExport(sheet)}
-					/>
+					{/* 評価の内容は本人に見せないので、自分のシートの PDF は出さない */}
+					<SheetTable title="自分の評価シート" sheets={mySheets()} showName={false} />
 				</Show>
 
 				<Show when={subordinateSheets().length > 0}>

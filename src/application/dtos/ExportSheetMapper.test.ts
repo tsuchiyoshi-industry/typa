@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Employee } from "../../domain/entities/Employee";
 import { EvaluationSheet } from "../../domain/entities/EvaluationSheet";
+import { EvaluationSheetAccessPolicy } from "../../domain/services/EvaluationSheetAccessPolicy";
 import { EvaluationStatus } from "../../domain/valueObjects/EvaluationStatus";
 import { commonResult, milestone, period, sheet } from "../../test/fixtures";
 import { toSheetExportDataDto } from "./ExportSheetMapper";
@@ -10,7 +11,7 @@ const finalized = () => sheet(EvaluationStatus.FINALIZED);
 describe("PDF data built from the same sheet as the screen", () => {
 	it("uses the sheet's scores, weights and rank instead of recalculating them", () => {
 		const source = finalized();
-		const data = toSheetExportDataDto(source, "等級");
+		const data = toSheetExportDataDto(source, "等級", EvaluationSheetAccessPolicy.for(3, source));
 		const scores = source.allocatedScores;
 		expect(data).toMatchObject({
 			sheetId: 100,
@@ -51,7 +52,11 @@ describe("PDF data built from the same sheet as the screen", () => {
 			commonEvaluationResults: [commonResult()],
 			status: EvaluationStatus.FINALIZED,
 		});
-		const data = toSheetExportDataDto(withoutSecondary, "等級");
+		const data = toSheetExportDataDto(
+			withoutSecondary,
+			"等級",
+			EvaluationSheetAccessPolicy.for(2, withoutSecondary),
+		);
 		expect(data.primaryIsFinalEvaluator).toBe(true);
 		expect(data.careerCourse).toBe("");
 		expect(data.objectives[0].secondScore).toBe("未評価");

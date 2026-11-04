@@ -197,20 +197,36 @@ describe("showing corrections on a sheet and in its PDF", () => {
 				"等級",
 				EvaluationSheetAccessPolicy.for(viewer, target),
 			).corrections.map((c) => c.subject);
-		expect(seenBy(1)).toEqual(["チャレンジ目標 1・達成状況", "チャレンジ目標 1・二次評価"]);
+		// 本人には、評価の修正は確定後も見せない
+		expect(seenBy(1)).toEqual(["チャレンジ目標 1・達成状況"]);
 		expect(seenBy(2)).toEqual(["チャレンジ目標 1・達成状況"]);
 		expect(seenBy(3)).toEqual(["チャレンジ目標 1・達成状況", "チャレンジ目標 1・二次評価"]);
 	});
 
 	it("prints corrections in the PDF, leaving out score corrections where scores are hidden", () => {
 		expect(
-			toSheetExportDataDto(withCorrections(EvaluationStatus.FINALIZED), "等級").corrections,
+			toSheetExportDataDto(
+				withCorrections(EvaluationStatus.FINALIZED),
+				"等級",
+				EvaluationSheetAccessPolicy.for(3, withCorrections(EvaluationStatus.FINALIZED)),
+			).corrections,
 		).toEqual([
 			"2026-10-23 チャレンジ目標 1・達成状況: 前の文 → 後の文(理由: 転記ミス)",
 			"2026-10-23 チャレンジ目標 1・二次評価: 4 → 3(理由: 転記ミス)",
 		]);
 		expect(
-			toSheetExportDataDto(withCorrections(EvaluationStatus.DRAFT), "等級").corrections,
+			toSheetExportDataDto(
+				withCorrections(EvaluationStatus.DRAFT),
+				"等級",
+				EvaluationSheetAccessPolicy.for(3, withCorrections(EvaluationStatus.DRAFT)),
+			).corrections,
+		).toEqual(["2026-10-23 チャレンジ目標 1・達成状況: 前の文 → 後の文(理由: 転記ミス)"]);
+	});
+
+	it("leaves the second evaluation's corrections out of the primary evaluator's PDF", () => {
+		const target = withCorrections(EvaluationStatus.FINALIZED);
+		expect(
+			toSheetExportDataDto(target, "等級", EvaluationSheetAccessPolicy.for(2, target)).corrections,
 		).toEqual(["2026-10-23 チャレンジ目標 1・達成状況: 前の文 → 後の文(理由: 転記ミス)"]);
 	});
 

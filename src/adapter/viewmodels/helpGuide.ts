@@ -48,7 +48,8 @@ export const STATE_GUIDE: Record<EvaluationStatusValue, { doing: string; alt?: s
 		doing: "二次評価者が一次評価を見たうえで採点し直し、総評を書きます。",
 	},
 	finalized: {
-		doing: "誰も変更できません。点数とランクを確かめ、PDF に出力します。",
+		doing:
+			"誰も変更できません。最終評価者と管理者が結果を確かめ、PDF に出力します。評価の内容は本人に公開しません。",
 	},
 };
 
@@ -71,7 +72,6 @@ export interface WritableRow {
 export const WRITABLE_ROWS: readonly WritableRow[] = [
 	{ actor: "subject", label: "目標の文言を書く", allowed: (s) => s.isDraft() },
 	{ actor: "subject", label: "達成状況を書く", allowed: (s) => s.isGoalsConfirmed() },
-	{ actor: "subject", label: "自分の点数を見る", allowed: (s) => s.isFinalized() },
 	{ actor: "primary", label: "シートを読む", allowed: (s) => s.isSentToEvaluators() },
 	{ actor: "primary", label: "目標を確定・差し戻す", allowed: (s) => s.isGoalsSubmitted() },
 	{ actor: "primary", label: "一次評価を付ける", allowed: (s) => s.isAwaitingFirstEvaluation() },

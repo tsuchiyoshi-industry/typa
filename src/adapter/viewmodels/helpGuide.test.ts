@@ -17,7 +17,6 @@ const VIEWER = { subject: 1, primary: 2, secondary: 3 } as const;
 const POLICY: Record<string, (policy: EvaluationSheetAccessPolicy) => boolean> = {
 	目標の文言を書く: (p) => p.canEditMilestoneGoal(),
 	達成状況を書く: (p) => p.canEditMilestoneAchievement(),
-	自分の点数を見る: (p) => p.canViewMilestoneFirstScore(),
 	シートを読む: (p) => p.canViewSheet(),
 	"目標を確定・差し戻す": (p) => p.canConfirmGoals(),
 	一次評価を付ける: (p) => p.canEditMilestoneFirstScore(),
@@ -35,6 +34,14 @@ it.each(WRITABLE_ROWS.map((row) => [`${row.actor} ${row.label}`, row] as [string
 		}
 	},
 );
+
+it("never offers the person evaluated their own scores, even once the sheet is finalized", () => {
+	const policy = EvaluationSheetAccessPolicy.for(VIEWER.subject, sheet(EvaluationStatus.FINALIZED));
+	expect(policy.canViewMilestoneFirstScore()).toBe(false);
+	expect(WRITABLE_ROWS.some((row) => row.actor === "subject" && row.label.includes("点数"))).toBe(
+		false,
+	);
+});
 
 it("names the next step for every state but the last", () => {
 	expect(nextStep(EvaluationStatus.DRAFT)).toEqual({ by: "subject", action: "目標を送信する" });

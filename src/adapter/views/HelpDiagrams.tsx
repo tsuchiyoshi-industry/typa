@@ -853,7 +853,7 @@ export const ScoreDiagram: Component<{
 export const VisibilityMatrix: Component = () => (
 	<div class="dg-table-wrap">
 		<table class="dg-table dg-table--visibility">
-			<caption class="visually-hidden">点数が誰に、いつ見えるか</caption>
+			<caption class="visually-hidden">評価の内容が誰に、いつ見えるか</caption>
 			<thead>
 				<tr>
 					<td />
@@ -866,21 +866,30 @@ export const VisibilityMatrix: Component = () => (
 					<th scope="row">
 						<span class="dg-chip dg-chip--subject">本人</span>
 					</th>
-					<td class="dg-hidden">点数もランクも見えません</td>
-					<td>シートに目標ごとの一次評価の点数。共通評価・総評・評価点・ランクは PDF で</td>
+					<td class="dg-hidden">見えません</td>
+					<td class="dg-hidden">
+						見えません。点数・コメント・総評・ランク・評価点は公開されず、PDF も出せません
+					</td>
 				</tr>
 				<tr>
 					<th scope="row">
 						<span class="dg-chip dg-chip--primary">一次評価者</span>
 					</th>
-					<td>自分の採点と見込みのランク。二次評価の点数は見えません</td>
-					<td>すべて（PDF にも）</td>
+					<td>自分の一次評価と見込みのランク</td>
+					<td>自分の一次評価だけ。二次評価と最終評価は見えません（PDF では「***」）</td>
 				</tr>
 				<tr>
 					<th scope="row">
 						<span class="dg-chip dg-chip--secondary">二次評価者</span>
 					</th>
 					<td>一次評価の点数・コメント・総評を見て採点</td>
+					<td>すべて（PDF にも）</td>
+				</tr>
+				<tr>
+					<th scope="row">
+						<span class="dg-chip dg-chip--admin">管理者</span>
+					</th>
+					<td>すべて（読むだけ）</td>
 					<td>すべて（PDF にも）</td>
 				</tr>
 			</tbody>
@@ -982,7 +991,10 @@ export const CorrectionDiagram: Component = () => (
 		</Who>
 		<Arrow />
 		<ul class="dg-correction__outs">
-			<li>本人・評価者のシートの上部と PDF に「締め後修正」（変更前後の内容・日時・理由）</li>
+			<li>
+				シートの上部と PDF
+				に「締め後修正」（変更前後の内容・日時・理由）。評価の修正は、その評価を見られる人にだけ
+			</li>
 			<li>監査ログに、朱の印つきで記録</li>
 		</ul>
 	</div>

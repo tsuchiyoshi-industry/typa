@@ -8,6 +8,7 @@ import { CommonEvaluationResult } from "../entities/CommonEvaluationResult";
 import { EvaluationSheet } from "../entities/EvaluationSheet";
 import { Milestone } from "../entities/Milestone";
 import { reviewScore } from "../entities/ReviewerWorkspace";
+import { EvaluationSheetAccessPolicy } from "../services/EvaluationSheetAccessPolicy";
 import { EvaluationAllocatedScores } from "./EvaluationAllocatedScores";
 import { EvaluationAllocation } from "./EvaluationAllocation";
 import { EvaluationScoreTotals } from "./EvaluationScoreTotals";
@@ -333,7 +334,11 @@ it.prop(
 			objectiveEvaluationScore: points,
 			totalEvaluationScore: points + allocation.common,
 		});
-		const exported = toSheetExportDataDto(current, "等級");
+		const exported = toSheetExportDataDto(
+			current,
+			"等級",
+			EvaluationSheetAccessPolicy.for(3, current),
+		);
 		expect(exported.objectives).toHaveLength(scores.length);
 		expect(exported.objectiveSecondRate).toBe(String(rate));
 		expect(exported.objectiveEvaluationScore).toBe(String(points));

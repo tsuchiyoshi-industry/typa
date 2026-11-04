@@ -31,7 +31,7 @@ export class ExportEvaluationSheetInteractor
 		presenter: ExportEvaluationSheetOutputPort,
 	): Promise<void> {
 		try {
-			// ① 権限チェック: 本人と評価者(一次・二次)が、評価が確定したシートを出力可能
+			// ① 権限チェック: シートの評価者(一次・二次)と管理者が、評価が確定したシートを出力できる。本人は出力できない
 			const sheet = await this.sheetRepository.findById(request.sheetId);
 			if (!sheet) {
 				presenter.present({
@@ -43,18 +43,21 @@ export class ExportEvaluationSheetInteractor
 
 			const policy = EvaluationSheetAccessPolicy.for(request.currentEmployeeId, sheet);
 			if (!policy.canExportSheet()) {
+				const exportable =
+					sheet.status.isFinalized() || sheet.evaluationPeriod.allowsExportBeforeFinalized();
 				presenter.present({
 					success: false,
-					message: policy.canViewSheet()
-						? "評価が確定したシートのみ出力できます。"
-						: "本人と評価者のみ評価シートを出力できます。",
+					message:
+						exportable || !policy.canViewSheet() || policy.isSubject()
+							? "評価シートを出力できるのは、このシートの評価者と管理者だけです。"
+							: "評価が確定したシートのみ出力できます。",
 				});
 				return;
 			}
 
-			// ② 画面と同じシートから帳票のデータを作る。誰が出力しても同じ内容になる
+			// ② 画面と同じシートから帳票のデータを作る。出力する人が見られる範囲だけを載せる
 			const gradeName = await this.employeeRepository.findGradeName(sheet.gradeId);
-			const exportData = toSheetExportDataDto(sheet, gradeName);
+			const exportData = toSheetExportDataDto(sheet, gradeName, policy);
 
 			// ③ 保存先を選択するダイアログを表示
 			const defaultName = `評価シート_${safeFileNamePart(exportData.employeeName)}_${safeFileNamePart(exportData.periodName)}.pdf`;

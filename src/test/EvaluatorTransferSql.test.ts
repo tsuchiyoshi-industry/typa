@@ -77,9 +77,10 @@ it("lets the current evaluators read an employee's finalized sheets, and nobody 
 		return { listed: Boolean(listed), sheet, goals: goals.length };
 	};
 
+	// 今の評価者は、シートの評価者でなくても目標を読める。評価(総評・点数)は、最終評価者と管理者だけ
 	expect(await past(5)).toEqual({
 		listed: true,
-		sheet: expect.objectContaining({ firstOverallComment: "前期の総評", currentEvaluatorIds: [5] }),
+		sheet: expect.objectContaining({ firstOverallComment: "", currentEvaluatorIds: [5] }),
 		goals: 1,
 	});
 	// 評価した人は外れた後も読める。無関係の人は読めない

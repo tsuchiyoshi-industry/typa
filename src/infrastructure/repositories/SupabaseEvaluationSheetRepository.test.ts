@@ -162,6 +162,68 @@ describe("the overview of every sheet", () => {
 	});
 });
 
+describe("my sheet list", () => {
+	it("loads only the caller's closed ranks separately from sheet scores", async () => {
+		const query = {
+			select: vi.fn().mockReturnThis(),
+			eq: vi.fn().mockResolvedValue({
+				data: [
+					{
+						id: 100,
+						period_id: 10,
+						employee_id: 1,
+						status: "finalized",
+						created_at: "created",
+						updated_at: "updated",
+						period: {
+							id: 10,
+							period_name: "締め済み",
+							term_name: "締め済み",
+							division: "full",
+							part: 1,
+							start_date: "2026-04-01",
+							end_date: "2026-09-30",
+							is_active: false,
+							closed_at: "2026-10-01T00:00:00Z",
+							allow_unfinalized_close: false,
+						},
+						employee: { name: "社員", employee_no: "TEST001" },
+						grade: { grade_name: "作成時の等級" },
+					},
+				],
+				error: null,
+			}),
+		};
+		db.from.mockReturnValue(query);
+		db.rpc.mockResolvedValue({
+			data: [{ sheetId: 100, rank: "A+" }],
+			error: null,
+		});
+
+		const sheets = await new SupabaseEvaluationSheetRepository().findByOwner(1);
+
+		expect(db.rpc).toHaveBeenCalledExactlyOnceWith("get_my_closed_grades");
+		expect(query.select).toHaveBeenCalledWith(expect.not.stringContaining("total_score"));
+		expect(sheets[0]).toMatchObject({
+			periodClosed: true,
+			closedRank: "A+",
+			totalScore: 0,
+		});
+	});
+
+	it("does not hide a closed-grade lookup failure as an empty list", async () => {
+		const query = {
+			select: vi.fn().mockReturnThis(),
+			eq: vi.fn().mockResolvedValue({ data: [], error: null }),
+		};
+		db.from.mockReturnValue(query);
+		db.rpc.mockResolvedValue({ data: null, error: new Error("grade lookup failed") });
+		await expect(new SupabaseEvaluationSheetRepository().findByOwner(1)).rejects.toThrow(
+			"grade lookup failed",
+		);
+	});
+});
+
 describe("reading a sheet", () => {
 	it("reads the whole sheet in one request", async () => {
 		const sheet = await find();

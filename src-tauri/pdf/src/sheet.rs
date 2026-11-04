@@ -72,6 +72,10 @@ pub struct SheetExportData {
     // 評価を確定せずに締めた期間のシート。テンプレートが点数・ランク・評価者のコメントを「***」で伏せる。
     #[serde(default)]
     unconfirmed: bool,
+    // 出力する人が最終評価を見られない(二次評価者がいるシートの一次評価者)。テンプレートが二次評価・
+    // 最終評価ランク・評価点を「***」で伏せる。値そのものも TypeScript 側で空にしてある。
+    #[serde(default)]
+    hides_final: bool,
     // 締め後修正(遡及処理)。テンプレートが赤字で1件1行に載せる。
     #[serde(default)]
     corrections: Vec<String>,
@@ -128,6 +132,7 @@ pub(super) fn to_dict(data: &SheetExportData) -> Dict {
         Value::Bool(data.primary_is_final_evaluator),
     );
     dict.insert("unconfirmed".into(), Value::Bool(data.unconfirmed));
+    dict.insert("hides_final".into(), Value::Bool(data.hides_final));
     dict.insert(
         "corrections".into(),
         Value::Array(
@@ -274,17 +279,20 @@ pub(crate) mod tests {
         let directory = std::env::temp_dir().join(format!("typa-pdf-test-{}", std::process::id()));
         fs::create_dir_all(&directory).unwrap();
         let path = directory.join("sheet.pdf");
-        // 最終評価者が二次評価者の場合・一次評価者の場合、評価を確定せずに締めた場合でテンプレートがコンパイルできること
+        // 最終評価者が二次評価者の場合・一次評価者の場合、評価を確定せずに締めた場合、
+        // 最終評価を伏せる(一次評価者が出力した)場合でテンプレートがコンパイルできること
         let results: Vec<_> = [
-            (false, false, 0),
-            (false, false, 4),
-            (true, false, 4),
-            (false, true, 4),
+            (false, false, 0, false),
+            (false, false, 4, false),
+            (true, false, 4, false),
+            (false, true, 4, false),
+            (false, false, 4, true),
         ]
         .into_iter()
-        .map(|(primary_is_final_evaluator, unconfirmed, tasks)| {
+        .map(|(primary_is_final_evaluator, unconfirmed, tasks, hides_final)| {
             let mut data = test_data(primary_is_final_evaluator);
             data.unconfirmed = unconfirmed;
+            data.hides_final = hides_final;
             data.objectives[0].achievement =
                 "チャレンジ目標に対する実績。今期はここまで取り組んだ。".into();
             let task_description = data.objectives[0].period_goals[0].description.clone();
@@ -309,8 +317,8 @@ pub(crate) mod tests {
                     fs::copy(
                         &path,
                         preview_dir.join(format!(
-                            "sheet-{}-{}-{}.pdf",
-                            primary_is_final_evaluator, unconfirmed, tasks
+                            "sheet-{}-{}-{}-{}.pdf",
+                            primary_is_final_evaluator, unconfirmed, tasks, hides_final
                         )),
                     )
                     .unwrap();

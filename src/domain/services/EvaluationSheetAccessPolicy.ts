@@ -11,6 +11,9 @@ import type { SheetAccessError } from "./SheetAccessError";
  * 二次評価者が未設定なだけの社員には最終評価者がおらず、設定されるまで確定できない。
  * 運用は「目標送信 → 目標確定 → 本人の一次評価依頼 → 一次評価 → 二次評価」の順に進み、
  * 下書き中のシートは評価者に見せない。一次評価は確定すると変更できない。
+ * 評価の内容(点数・コメント・総評・ランク・評価点)は、本人には評価確定の後も見せない。最終評価(二次評価・
+ * 最終ランク・評価点)を見られるのは最終評価者と管理者だけで、一次評価者は自分の一次評価だけを見る。
+ * 異動後の今の評価者(シートの評価者でない人)は、確定したシートの目標を読めるが、評価は見られない。
  * 記入・評価・状態の変更ができるのは、シートの評価期間が実施中の間だけ。締めた期間のシートは、
  * 閲覧と確定済みシートの出力だけになる。締めた期間のシートはもう変わらないので、下書きのままでも
  * 評価者が読める。評価を確定せずに締めてよい期間(Admin が決める)では、確定していないシートも出力できる。
@@ -139,25 +142,25 @@ export class EvaluationSheetAccessPolicy {
 		);
 	}
 
-	/** 本人は評価が確定するまで点数を見られない(評価者が保存しただけの途中の点数を見せない)。 */
+	/** 一次評価の点数は、シートの評価者(一次・二次)と管理者だけ。本人には評価確定の後も見せない。 */
 	canViewMilestoneFirstScore(): boolean {
-		return !this.viewerIsSubject || this.sheet.status.isFinalized();
+		return (
+			(!this.viewerIsSubject &&
+				(this.viewerIsPrimaryEvaluator || this.viewerIsSecondaryEvaluator)) ||
+			this.viewerIsAdminReader
+		);
 	}
 
-	/** 一次評価者は二次評価者の評価を見ることができない。本人は評価が確定してから見られる。 */
+	/** 二次評価の点数は、二次評価者(最終評価者)と管理者だけ。一次評価者と本人には、確定の後も見せない。 */
 	canViewMilestoneSecondScore(): boolean {
-		return (
-			(this.viewerIsSubject && this.sheet.status.isFinalized()) ||
-			this.viewerIsSecondaryEvaluator ||
-			this.viewerReadsRecord
-		);
+		return (!this.viewerIsSubject && this.viewerIsSecondaryEvaluator) || this.viewerIsAdminReader;
 	}
 
 	// --- 共通評価(CommonEvaluation) ---
 
-	/** 共通評価は評価者のみ閲覧可能。本人(被評価者・入力者)は閲覧不可。 */
+	/** 共通評価は、シートの評価者と管理者だけ。本人と、シートの評価者でない今の評価者は見られない。 */
 	canViewCommonEvaluation(): boolean {
-		return this.viewerIsEvaluatorOfSubmittedSheet || this.viewerReadsRecord;
+		return this.viewerIsEvaluatorOfSubmittedSheet || this.viewerIsAdminReader;
 	}
 
 	canEditCommonEvaluationFirst(): boolean {
@@ -168,9 +171,9 @@ export class EvaluationSheetAccessPolicy {
 		return this.canEditMilestoneSecondScore();
 	}
 
-	/** 一次評価者は二次評価の内容を見ることができない(自分の一次評価の出力は可能)。 */
+	/** 二次評価の内容は、二次評価者(最終評価者)と管理者だけ。一次評価者は確定の後も見られない。 */
 	canViewCommonEvaluationSecond(): boolean {
-		return (!this.viewerIsSubject && this.viewerIsSecondaryEvaluator) || this.viewerReadsRecord;
+		return (!this.viewerIsSubject && this.viewerIsSecondaryEvaluator) || this.viewerIsAdminReader;
 	}
 
 	// --- 総評・最終評価 ---
@@ -181,14 +184,20 @@ export class EvaluationSheetAccessPolicy {
 			: this.canEditCommonEvaluationSecond();
 	}
 
-	/** 評価ランクを出すか。目標の確認中は採点が始まっていないので出さない。 */
+	/**
+	 * 評価ランクを出すか。目標の確認中は採点が始まっていないので出さない。ランクも評価の内容なので、
+	 * シートの評価者と管理者にだけ出す(本人と、シートの評価者でない今の評価者には出さない)。
+	 */
 	canViewEvaluationRanks(): boolean {
-		return this.sheet.status.isEvaluationStarted();
+		return (
+			(this.viewerIsEvaluatorOfSubmittedSheet || this.viewerIsAdminReader) &&
+			this.sheet.status.isEvaluationStarted()
+		);
 	}
 
-	/** 評価点・最終評価ランクなど、最終評価の結果を見られるのは最終評価者のみ。 */
+	/** 評価点・最終評価ランクなど、最終評価の結果を見られるのは最終評価者と管理者だけ。 */
 	canViewFinalEvaluation(): boolean {
-		return (!this.viewerIsSubject && this.viewerIsFinalEvaluator) || this.viewerReadsRecord;
+		return (!this.viewerIsSubject && this.viewerIsFinalEvaluator) || this.viewerIsAdminReader;
 	}
 
 	// --- 状態の変更(送信・確定・依頼) ---
@@ -287,13 +296,14 @@ export class EvaluationSheetAccessPolicy {
 	// --- 出力(PDFエクスポート) ---
 
 	/**
-	 * 本人と評価者(一次・二次)が、評価が確定したシートを出力できる。評価関係のない人は出力できない。
-	 * 帳票は確定した評価の記録で、誰が出力しても同じ内容になる(画面のように役割で伏せない)。
+	 * シートの評価者(一次・二次)と管理者が、評価が確定したシートを出力できる。本人は出力できない(評価の内容を
+	 * 本人に見せない)。シートの評価者でない今の評価者も出力できない。帳票は見られる範囲だけを載せ、最終評価を
+	 * 見られない一次評価者の帳票では、二次評価と最終評価を伏せる。
 	 * 評価を確定せずに締めてよい期間では、締めた後なら確定していないシートも出力できる(点数とランクは伏せる)。
 	 */
 	canExportSheet(): boolean {
 		return (
-			this.canViewSheet() &&
+			(this.viewerIsEvaluatorOfSubmittedSheet || this.viewerIsAdminReader) &&
 			(this.sheet.status.isFinalized() || this.sheet.evaluationPeriod.allowsExportBeforeFinalized())
 		);
 	}

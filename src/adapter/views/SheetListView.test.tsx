@@ -58,6 +58,7 @@ const setup = (overview: Overview | null, overrides: Partial<SheetListViewModel>
 					/>
 				)}
 			/>
+			<Route path="/sheet/:id" component={() => <p>sheet-opened</p>} />
 		</MemoryRouter>
 	));
 	return { ...view, controller };
@@ -85,6 +86,31 @@ it("puts my sheets and my reports' sheets under evaluation period tabs, newest p
 	// Admin 以外には、全社の一覧を出さず、読みもしない
 	expect(view.queryByRole("heading", { name: /全社の評価シート/ })).toBeNull();
 	expect(view.controller.loadOverview).not.toHaveBeenCalled();
+});
+
+it("offers no PDF of my own sheet, even once it is finalized, and offers my reports' finalized sheets", async () => {
+	const view = setup(null);
+	const tabs = within(await view.findByRole("navigation", { name: "評価期間" })).getAllByRole(
+		"button",
+	);
+	fireEvent.click(tabs[1]);
+	const own = view.getByRole("region", { name: "自分の評価シート" });
+	// 評価の内容は本人に見せないので、自分のシートの PDF は出さない(案内も出さない)
+	expect(within(own).queryByRole("button", { name: "PDF出力" })).toBeNull();
+	expect(within(own).queryByText("確定後に PDF 出力")).toBeNull();
+	const reports = view.getByRole("region", { name: "部下の評価シート" });
+	expect(within(reports).getByRole("button", { name: "PDF出力" })).toBeTruthy();
+});
+
+it("shows only the final rank for a closed own sheet and does not offer a sheet link", async () => {
+	const closedSheet = { ...sheet(2, 26, "自分"), periodClosed: true, closedRank: "A+" };
+	const view = setup(null, { mySheets: [closedSheet], subordinateSheets: [] });
+	const own = view.getByRole("region", { name: "自分の評価シート" });
+	expect(within(own).getByText("A+")).toBeTruthy();
+	expect(within(own).queryByRole("link")).toBeNull();
+	expect(own.querySelector(".sheet-row__chevron")).toBeNull();
+	fireEvent.click(within(own).getAllByRole("row")[1]);
+	expect(view.queryByText("sheet-opened")).toBeNull();
 });
 
 it("adds the company-wide overview for an Admin below the two tables, whose rows open the sheet", async () => {

@@ -124,7 +124,6 @@ interface EvaluationSheetListRow {
 	period_id: number;
 	employee_id: number;
 	status: string;
-	total_score: number;
 	created_at: string;
 	updated_at: string;
 	period: PeriodJoinRow | PeriodJoinRow[] | null;
@@ -145,7 +144,7 @@ type OverviewRpcRow = Omit<
 
 // grade はシート作成時の等級(evaluation_sheets.grade_id)。社員の今の等級ではない
 const SHEET_LIST_SELECT =
-	"id, period_id, employee_id, status, total_score, created_at, updated_at, period:evaluation_periods!inner(id, period_name, term_name, division, part, start_date, end_date, is_active, closed_at, allow_unfinalized_close), employee:employees!inner(name, employee_no), grade:employee_grades(grade_name)";
+	"id, period_id, employee_id, status, created_at, updated_at, period:evaluation_periods!inner(id, period_name, term_name, division, part, start_date, end_date, is_active, closed_at, allow_unfinalized_close), employee:employees!inner(name, employee_no), grade:employee_grades(grade_name)";
 
 const first = <T>(joined: T | T[] | null): T | undefined =>
 	Array.isArray(joined) ? joined[0] : (joined ?? undefined);
@@ -158,12 +157,13 @@ function toSheetSummary(item: EvaluationSheetListRow): EvaluationSheetSummary {
 		periodId: item.period_id,
 		employeeId: item.employee_id,
 		status: EvaluationStatus.from(item.status),
-		totalScore: item.total_score,
+		totalScore: 0,
 		createdAt: item.created_at,
 		updatedAt: item.updated_at,
 		periodName: period?.period_name ?? "",
 		periodStart: period?.start_date ?? "",
 		periodEnd: period?.end_date ?? "",
+		periodClosed: period?.closed_at != null,
 		exportableBeforeFinalized:
 			period !== undefined &&
 			EvaluationPeriod.restore({
@@ -346,16 +346,27 @@ export class SupabaseEvaluationSheetRepository implements EvaluationSheetReposit
 	}
 
 	async findByOwner(employeeId: number): Promise<EvaluationSheetSummary[]> {
-		const { data, error } = await supabase
-			.from("evaluation_sheets")
-			.select(SHEET_LIST_SELECT)
-			.eq("employee_id", employeeId);
+		const [sheets, closedGrades] = await Promise.all([
+			supabase.from("evaluation_sheets").select(SHEET_LIST_SELECT).eq("employee_id", employeeId),
+			supabase.rpc("get_my_closed_grades"),
+		]);
 
 		// 読めなかったことを「シートが無い」として扱わない
-		if (error) {
-			throw error;
+		if (sheets.error) {
+			throw sheets.error;
 		}
-		return ((data ?? []) as EvaluationSheetListRow[]).map(toSheetSummary);
+		if (closedGrades.error) {
+			throw closedGrades.error;
+		}
+		const rankBySheetId = new Map(
+			((closedGrades.data ?? []) as { sheetId: number; rank: string }[]).map(
+				({ sheetId, rank }) => [sheetId, rank],
+			),
+		);
+		return ((sheets.data ?? []) as EvaluationSheetListRow[]).map((item) => ({
+			...toSheetSummary(item),
+			closedRank: rankBySheetId.get(item.id) ?? null,
+		}));
 	}
 
 	async findByEvaluator(employeeId: number): Promise<EvaluationSheetSummary[]> {

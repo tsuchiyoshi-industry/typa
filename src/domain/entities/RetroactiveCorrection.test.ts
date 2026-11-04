@@ -327,9 +327,10 @@ describe("who sees a correction", () => {
 
 	it("shows a correction exactly to those who may see the corrected item", () => {
 		const finalized = EvaluationStatus.FINALIZED;
-		// 本人(1): 確定後は点数も見られる。共通評価と総評は見ない
+		// 本人(1): 目標・達成状況の修正だけを見る。評価の修正は、確定後も見ない
 		expect(sees(1, finalized, "goal", "achievement")).toBe(true);
-		expect(sees(1, finalized, "goal", "second_score")).toBe(true);
+		expect(sees(1, finalized, "goal", "first_score")).toBe(false);
+		expect(sees(1, finalized, "goal", "second_score")).toBe(false);
 		expect(sees(1, finalized, "common", "first_score")).toBe(false);
 		expect(sees(1, finalized, "sheet", "second_overall_comment")).toBe(false);
 		// 一次評価者(2): 二次評価の修正は見ない

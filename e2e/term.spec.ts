@@ -194,16 +194,27 @@ test("a term is divided, its first half closed with goals only, and its challeng
 		]);
 	});
 
-	await test.step("本人は、締めた上期の確定していないシートも PDF に出せる", async () => {
+	await test.step("評価者は、締めた上期の確定していないシートも PDF に出せる(本人は出せない)", async () => {
 		await signIn(page, "RELEASE004");
 		await page
 			.getByRole("navigation", { name: "評価期間" })
 			.getByRole("button", { name: FIRST })
 			.click();
-		const row = page.getByRole("row", { name: /Release verification|上期/ }).filter({
-			hasText: "下書き",
-		});
+		// 評価の内容は本人に見せないので、自分のシートには PDF 出力がない
+		await expect(page.getByRole("button", { name: "PDF出力" })).toHaveCount(0);
+		await signOut(page);
+
+		await signIn(page, "RELEASE002");
+		await page
+			.getByRole("navigation", { name: "評価期間" })
+			.getByRole("button", { name: FIRST })
+			.click();
+		const row = page
+			.getByRole("region", { name: "部下の評価シート" })
+			.getByRole("row", { name: /Release test 4/ })
+			.filter({ hasText: "下書き" });
 		// ブラウザ版はデスクトップ版と同じ Typst のテンプレートを WASM で組み、ダウンロードする
+		// (一次評価者の帳票は、二次評価と最終評価を伏せる)
 		const downloading = page.waitForEvent("download");
 		await row.getByRole("button", { name: "PDF出力" }).click();
 		const download = await downloading;
@@ -211,9 +222,11 @@ test("a term is divided, its first half closed with goals only, and its challeng
 		const pdf = readFileSync(await download.path());
 		expect(pdf.subarray(0, 5).toString("latin1")).toBe("%PDF-");
 		await expect(page.getByText("PDFをダウンロードしました")).toBeVisible();
+		await signOut(page);
+		await signIn(page, "RELEASE004");
 	});
 
-	await test.step("本人が締めたシートを振り返ると、締め後修正が赤字で示される", async () => {
+	await test.step("本人が締めたシートを振り返ると、本文の締め後修正だけが赤字で示される", async () => {
 		await page
 			.getByRole("navigation", { name: "評価期間" })
 			.getByRole("button", { name: "Release verification" })
@@ -222,9 +235,10 @@ test("a term is divided, its first half closed with goals only, and its challeng
 			.getByRole("link", { name: /Release verification/ })
 			.first()
 			.click();
-		const notice = page.getByRole("region", { name: "締め後修正があります(2件)" });
+		// 評価(二次評価の点数)の修正は、本人には見せない
+		const notice = page.getByRole("region", { name: "締め後修正があります(1件)" });
 		await expect(notice).toContainText("チャレンジ目標 1・期中目標と達成状況");
-		await expect(notice).toContainText("チャレンジ目標 1・二次評価3 → 4");
+		await expect(notice).not.toContainText("二次評価");
 		await expect(notice).toContainText("理由: 評価会議での訂正");
 		await page.getByRole("link", { name: "TYPA 評価シート一覧へ" }).click();
 	});

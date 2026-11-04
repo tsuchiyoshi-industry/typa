@@ -1,10 +1,12 @@
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { toSheetExportDataDto } from "../../application/dtos/ExportSheetMapper";
+import { EvaluationSheetAccessPolicy } from "../../domain/services/EvaluationSheetAccessPolicy";
 import { EvaluationStatus } from "../../domain/valueObjects/EvaluationStatus";
 import { sheet } from "../../test/fixtures";
 import { TauriSheetPdfGateway } from "./TauriSheetPdfGateway";
 
+const finalized = sheet(EvaluationStatus.FINALIZED);
 beforeEach(() => vi.stubGlobal("window", {}));
 afterEach(() => {
 	clearMocks();
@@ -24,7 +26,11 @@ it("uses real Tauri invoke with mocked IPC and save dialog", async () => {
 	const gateway = new TauriSheetPdfGateway();
 	const path = await gateway.selectDestination("test.pdf");
 	expect(path).toBe("C:\\test\\sheet.pdf");
-	const data = toSheetExportDataDto(sheet(EvaluationStatus.FINALIZED), "等級");
+	const data = toSheetExportDataDto(
+		finalized,
+		"等級",
+		EvaluationSheetAccessPolicy.for(3, finalized),
+	);
 	await expect(gateway.generate(data, path as string)).resolves.toBe(path);
 	expect(ipc).toHaveBeenCalledWith("generate_pdf_with_typst", { data, outputPath: path });
 	expect(ipc.mock.calls[0][1]).toMatchObject({
@@ -58,7 +64,7 @@ it("preserves IPC rejection", async () => {
 	});
 	await expect(
 		new TauriSheetPdfGateway().generate(
-			toSheetExportDataDto(sheet(EvaluationStatus.FINALIZED), "等級"),
+			toSheetExportDataDto(finalized, "等級", EvaluationSheetAccessPolicy.for(3, finalized)),
 			"test.pdf",
 		),
 	).rejects.toThrow("Rust rejected path");

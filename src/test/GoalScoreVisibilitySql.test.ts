@@ -48,9 +48,11 @@ describe("目標の点数", () => {
 		},
 	);
 
-	it("確定したら本人にも返す", async () => {
+	it("確定した後も本人には返さない(最終評価者だけがすべてを見る)", async () => {
 		await forceStatus("finalized");
-		expect(await goal(4)).toMatchObject({ firstScore: 3, secondScore: 2 });
+		expect(await goal(4)).toMatchObject({ firstScore: 0, secondScore: 0 });
+		expect(await goal(2)).toMatchObject({ firstScore: 3, secondScore: 0 });
+		expect(await goal(3)).toMatchObject({ firstScore: 3, secondScore: 2 });
 	});
 
 	it("一次評価の点数は、テーブルから直接は読めない", async () => {

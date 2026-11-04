@@ -98,14 +98,17 @@ describe("EvaluationSheetAccessPolicy", () => {
 			);
 		};
 
-		it("確定したシートは、帳票と同じ全体を読んで出力できるが、何も変えられない", () => {
+		it("確定したシートの目標は読めるが、評価は見られず、出力も変更もできない", () => {
+			// 評価を見られるのは、シートの評価者(一次は自分の一次評価だけ)・最終評価者・管理者
 			const policy = policyFor(EvaluationStatus.FINALIZED);
 			expect(policy.canViewSheet()).toBe(true);
-			expect(policy.canViewMilestoneSecondScore()).toBe(true);
-			expect(policy.canViewCommonEvaluation()).toBe(true);
-			expect(policy.canViewCommonEvaluationSecond()).toBe(true);
-			expect(policy.canViewFinalEvaluation()).toBe(true);
-			expect(policy.canExportSheet()).toBe(true);
+			expect(policy.canViewMilestoneFirstScore()).toBe(false);
+			expect(policy.canViewMilestoneSecondScore()).toBe(false);
+			expect(policy.canViewCommonEvaluation()).toBe(false);
+			expect(policy.canViewCommonEvaluationSecond()).toBe(false);
+			expect(policy.canViewFinalEvaluation()).toBe(false);
+			expect(policy.canViewEvaluationRanks()).toBe(false);
+			expect(policy.canExportSheet()).toBe(false);
 			expect(policy.canEditMilestoneFirstScore()).toBe(false);
 			expect(policy.canEditMilestoneSecondScore()).toBe(false);
 			expect(policy.canFinalizeEvaluation()).toBe(false);
@@ -171,13 +174,18 @@ describe("EvaluationSheetAccessPolicy", () => {
 			expect(asAdmin(EvaluationStatus.FINALIZED).canExportSheet()).toBe(true);
 		});
 
-		it("自分が本人のシートは本人として見る(確定前の点数・共通評価は見えない)", () => {
-			const policy = asAdmin(EvaluationStatus.FIRST_EVALUATED, SUBJECT_ID);
-			expect(policy.viewsAsAdmin()).toBe(false);
-			expect(policy.canViewMilestoneFirstScore()).toBe(false);
-			expect(policy.canViewCommonEvaluation()).toBe(false);
-			expect(policy.canViewFinalEvaluation()).toBe(false);
-		});
+		it.each([EvaluationStatus.FIRST_EVALUATED, EvaluationStatus.FINALIZED])(
+			"自分が本人のシートは本人として見る(%s でも点数・共通評価・最終評価は見えず、出力できない)",
+			(status) => {
+				const policy = asAdmin(status, SUBJECT_ID);
+				expect(policy.viewsAsAdmin()).toBe(false);
+				expect(policy.canViewMilestoneFirstScore()).toBe(false);
+				expect(policy.canViewMilestoneSecondScore()).toBe(false);
+				expect(policy.canViewCommonEvaluation()).toBe(false);
+				expect(policy.canViewFinalEvaluation()).toBe(false);
+				expect(policy.canExportSheet()).toBe(false);
+			},
+		);
 
 		it("自分が一次評価者のシートは一次評価者として見る(二次評価は見えず、下書きも開けない)", () => {
 			const policy = asAdmin(EvaluationStatus.FIRST_EVALUATED, PRIMARY_EVALUATOR_ID);
@@ -185,6 +193,47 @@ describe("EvaluationSheetAccessPolicy", () => {
 			expect(policy.canViewMilestoneSecondScore()).toBe(false);
 			expect(policy.canViewCommonEvaluationSecond()).toBe(false);
 			expect(asAdmin(EvaluationStatus.DRAFT, PRIMARY_EVALUATOR_ID).canViewSheet()).toBe(false);
+		});
+	});
+
+	describe("評価確定の後も、評価の内容は本人に見せない", () => {
+		it("本人には、点数・共通評価・総評・ランク・評価点のどれも見せず、出力もさせない", () => {
+			const policy = EvaluationSheetAccessPolicy.for(
+				SUBJECT_ID,
+				buildSheet(EvaluationStatus.FINALIZED),
+			);
+			expect(policy.canViewSheet()).toBe(true);
+			expect(policy.canViewMilestoneFirstScore()).toBe(false);
+			expect(policy.canViewMilestoneSecondScore()).toBe(false);
+			expect(policy.canViewCommonEvaluation()).toBe(false);
+			expect(policy.canViewCommonEvaluationSecond()).toBe(false);
+			expect(policy.canViewFinalEvaluation()).toBe(false);
+			expect(policy.canViewEvaluationRanks()).toBe(false);
+			expect(policy.canExportSheet()).toBe(false);
+		});
+
+		it("二次評価者がいるとき、一次評価者は確定後も自分の一次評価だけを見て、最終評価は見ない", () => {
+			const policy = EvaluationSheetAccessPolicy.for(
+				PRIMARY_EVALUATOR_ID,
+				buildSheet(EvaluationStatus.FINALIZED),
+			);
+			expect(policy.canViewMilestoneFirstScore()).toBe(true);
+			expect(policy.canViewCommonEvaluation()).toBe(true);
+			expect(policy.canViewMilestoneSecondScore()).toBe(false);
+			expect(policy.canViewCommonEvaluationSecond()).toBe(false);
+			expect(policy.canViewFinalEvaluation()).toBe(false);
+			// 出力はできる(最終評価の欄は帳票で伏せる)
+			expect(policy.canExportSheet()).toBe(true);
+		});
+
+		it("最終評価者(二次評価者)はすべてを見る", () => {
+			const policy = EvaluationSheetAccessPolicy.for(
+				SECONDARY_EVALUATOR_ID,
+				buildSheet(EvaluationStatus.FINALIZED),
+			);
+			expect(policy.canViewMilestoneSecondScore()).toBe(true);
+			expect(policy.canViewCommonEvaluationSecond()).toBe(true);
+			expect(policy.canViewFinalEvaluation()).toBe(true);
 		});
 
 		it("Admin でなければ、関わらないシートは見られない", () => {

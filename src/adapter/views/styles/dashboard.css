@@ -965,6 +965,10 @@
 	cursor: pointer;
 }
 
+.sheet-row--read-only {
+	cursor: default;
+}
+
 .sheet-row__link {
 	font-weight: 600;
 	color: var(--hr-text);

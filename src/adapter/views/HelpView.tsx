@@ -94,7 +94,7 @@ const IMAGES = {
 	overall: page("evaluator/05-overall", "総評"),
 	confirm: page("evaluator/06-confirm-first", "一次評価の確定"),
 	second: page("evaluator/09-second-score", "二次評価の採点"),
-	result: page("user/10-sheet-list-final", "評価結果の PDF 出力"),
+	result: page("evaluator/12-sheet-list", "部下の評価シートの PDF 出力"),
 	periodSwitch: page("admin/07-period-switch", "評価期間を締める確認"),
 	corrections: {
 		shot: "user/16-corrections",
@@ -303,7 +303,7 @@ const FAQ: { title: string; items: [string, string][] }[] = [
 			],
 			[
 				"締め済みの評価期間",
-				"締め済みのシートは閲覧用です。評価確定のシートは PDF 出力できます。未確定のまま締める設定の期間では、未確定のシートも出力でき、点数・ランク・評価コメントは「***」で表示されます。",
+				"締め済みのシートは閲覧用です。評価者と管理者は、評価確定のシートを PDF 出力できます（本人は出力できません）。未確定のまま締める設定の期間では、未確定のシートも出力でき、点数・ランク・評価コメントは「***」で表示されます。",
 			],
 		],
 	},
@@ -726,15 +726,15 @@ const HelpView: Component<{ shot?: ShotSource; settings?: () => Promise<HelpSett
 					</Slide>
 					<Slide
 						chapter="score"
-						title="誰に、いつ見えるか"
-						lead="確定前のランクは、入力中の点数から計算した見込みとして薄く表示されます。"
+						title="評価の内容は、本人には公開しない"
+						lead="評価確定の後も、本人には点数・コメント・総評・ランク・評価点を見せません。最終評価を見られるのは、最終評価者と管理者だけです。"
 						aside={screenshot(IMAGES.result)}
 					>
 						<VisibilityMatrix />
 						<Notes
 							items={[
-								"PDF は「評価シート一覧」の「PDF出力」から。本人は「自分の評価シート」、評価者は「部下の評価シート」から出せ、誰が出しても同じ内容です。",
-								"評価確定になる前は「確定後に PDF 出力」と表示されます。",
+								"PDF は、評価者と管理者が「評価シート一覧」の「部下の評価シート」から出します。見られる範囲だけが載り、一次評価者の PDF では二次評価と最終評価を「***」で伏せます。",
+								"評価確定になる前は「確定後に PDF 出力」と表示されます。確定前のランクは、入力中の点数から計算した見込みとして薄く表示されます。",
 							]}
 						/>
 					</Slide>

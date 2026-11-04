@@ -11,8 +11,11 @@
 // 評価を確定せずに締めた期間のシート。点数・ランク・評価者のコメントを「***」で伏せる
 // (マークアップの * と取り違えないよう、文字列で書く)
 #let unconfirmed = inputs.at("unconfirmed", default: false)
+// 出力する人が最終評価を見られない(二次評価者がいるシートの一次評価者)。二次評価・最終評価ランク・評価点を伏せる
+#let hides-final = inputs.at("hides_final", default: false)
 #let mark = text(fill: muted, "***")
-#let result(body) = if unconfirmed { mark } else { body }
+// 評価集計欄・評価合計点の値はどれも最終評価のもの
+#let result(body) = if unconfirmed or hides-final { mark } else { body }
 #let comment(value) = if unconfirmed { "***" } else { value }
 #let empty(value) = if value == "" {
   blank
@@ -27,6 +30,9 @@
 } else {
   value
 }
+// 二次評価の点数・総評。最終評価を見られない人の帳票では伏せる
+#let second-score(value) = if hides-final { mark } else { score(value) }
+#let second-comment(value) = if hides-final { "***" } else { comment(value) }
 
 #let fixed(value, height, size: 5.15pt, fill: black) = block(
   width: 100%,
@@ -60,8 +66,11 @@
 #let fixed-green-score(value, height) = table.cell(fill: sheet-green, align: center + horizon)[
   #fixed-center(score(value), height, size: 5.4pt, fill: red)
 ]
+#let fixed-green-second-score(value, height) = table.cell(fill: sheet-green, align: center + horizon)[
+  #fixed-center(second-score(value), height, size: 5.4pt, fill: red)
+]
 #let centered(body) = table.cell(align: center + horizon)[#body]
-#let final-rank(value) = if unconfirmed {
+#let final-rank(value) = if unconfirmed or hides-final {
   mark
 } else if value == "" {
   text(fill: muted)[未決定]
@@ -159,7 +168,7 @@
       fixed-green-cell(obj.achievements, auto),
       fixed-center-cell(1, 13mm),
       fixed-green-score(obj.first_score, 13mm),
-      fixed-green-score(obj.second_score, 13mm),
+      fixed-green-second-score(obj.second_score, 13mm),
     )).flatten()
   )
 }
@@ -204,7 +213,7 @@
       ],
       centered[#item.weight],
       table.cell(fill: sheet-green, align: center + horizon)[#red-score(item.first_score)],
-      table.cell(fill: sheet-green, align: center + horizon)[#red-score(item.second_score)],
+      table.cell(fill: sheet-green, align: center + horizon)[#text(fill: red)[#second-score(item.second_score)]],
     )).flatten()
   )
 }
@@ -234,7 +243,7 @@
     title-cell[【一次評価者】コメント欄],
     title-cell[【二次評価者】コメント欄],
     table.cell(fill: sheet-green)[#fixed(comment(inputs.first_overall_comment), 18mm, size: 5pt)],
-    table.cell(fill: sheet-green)[#fixed(comment(inputs.second_overall_comment), 18mm, size: 5pt)],
+    table.cell(fill: sheet-green)[#fixed(second-comment(inputs.second_overall_comment), 18mm, size: 5pt)],
   ),
   align(bottom)[
     #table(
@@ -270,6 +279,9 @@
     #if unconfirmed [
       #v(2pt)
       #text(size: 5pt, fill: muted, "*** 評価を確定せずに締めた期間のため、評価の欄は記載していません。")
+    ] else if hides-final [
+      #v(2pt)
+      #text(size: 5pt, fill: muted, "*** 二次評価と最終評価は、最終評価者と管理者だけが確認できます。")
     ]
   ],
 )

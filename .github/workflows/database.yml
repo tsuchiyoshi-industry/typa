@@ -52,6 +52,20 @@ jobs:
           path: supabase/.temp/security-evidence/
           if-no-files-found: error
           retention-days: 14
+      # 画面側の bench では測れない、RLS と DB 関数の速さ。610 人・6,090 枚のダミーデータで、
+      # アプリと同じ問い合わせを権限ごとに投げる。1 秒を超えたら失敗する
+      - name: Measure database latency with 610 employees
+        run: |
+          bun scripts/prepareReleaseDb.ts typa_bench
+          bun scripts/benchDb.ts typa_bench
+      - name: Preserve database latency
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: db-benchmark-results
+          path: .vitest/bench/db-results.json
+          if-no-files-found: warn
+          retention-days: 14
       - name: Cache Playwright browsers
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:

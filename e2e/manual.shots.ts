@@ -368,7 +368,7 @@ test("manual screenshots", async ({ page }) => {
 		await shot(page.getByRole("region", { name: "チャレンジ目標の数" }), "admin", "09-max-goals");
 		await shot(page.getByRole("region", { name: "通知", exact: true }), "admin", "10-smtp");
 
-		// 期を上期・下期に分けて追加し、上期を始める(2026年度 下期は同時に締められる)
+		// 期を上期・下期に分けて追加し、2026年度 下期を締めて(上期は準備中になる)、上期を始める
 		const periods = page.getByRole("region", { name: "評価期間", exact: true });
 		await expect(periods).toBeVisible();
 		await periods.getByLabel("期の名前").fill("2027年度");
@@ -378,11 +378,17 @@ test("manual screenshots", async ({ page }) => {
 		await expect(periods.getByRole("list", { name: "追加される評価期間" })).toBeVisible();
 		await shot(periods, "admin", "06-periods");
 		await periods.getByRole("button", { name: "追加する" }).click();
-		await periods.getByRole("button", { name: "2027年度 上期を開始する" }).click();
-		const switching = page.getByRole("dialog", { name: /を締めて/ });
-		await expect(switching).toBeVisible();
+		await periods.getByRole("button", { name: /を締める$/ }).click();
+		const closing = page.getByRole("dialog", { name: /を締めますか？$/ });
+		await expect(closing).toBeVisible();
 		await shot(page, "admin", "07-period-switch");
-		await switching.getByRole("button", { name: "締めて、次の期間を開始する" }).click();
+		await closing.getByRole("button", { name: "締める" }).click();
+		await expect(periods.getByRole("row", { name: /2027年度 上期/ })).toContainText("準備中");
+		await periods.getByRole("button", { name: "2027年度 上期を開始する" }).click();
+		const starting = page.getByRole("dialog", { name: "「2027年度 上期」を開始しますか？" });
+		await expect(starting).toBeVisible();
+		await shot(page, "admin", "17-period-start");
+		await starting.getByRole("button", { name: "この期間を開始する" }).click();
 		await expect(periods.getByRole("row", { name: /2027年度 上期/ })).toContainText("実施中");
 
 		// 導入処理: 実施中の評価期間(2027年度 上期)へのデータ取込。確かめるところまで

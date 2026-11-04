@@ -83,14 +83,26 @@ export class SupabaseEvaluationPeriodRepository implements EvaluationPeriodRepos
 		);
 	}
 
+	async close(periodId: number): Promise<boolean> {
+		// is_active と closed_at はクライアントから直接更新できない。Admin の確認、未確定のシートの確認、
+		// 締めと監査の記録を、DB関数がひとつのトランザクションで行う
+		const { data, error } = await supabase.rpc("close_evaluation_period", {
+			p_period_id: periodId,
+		});
+		if (error) {
+			console.error("Error closing evaluation period:", error);
+			return false;
+		}
+		return data === true;
+	}
+
 	async activate(periodId: number): Promise<boolean> {
-		// is_active はクライアントから直接更新できない。Admin の確認、未確定のシートの確認、
-		// 実施中の期間の入れ替えを、DB関数がひとつのトランザクションで行う
+		// 開始できるのは準備中の評価期間だけ(実施中の評価期間があれば DB が断る)。監査の記録も同じトランザクション
 		const { data, error } = await supabase.rpc("activate_evaluation_period", {
 			p_period_id: periodId,
 		});
 		if (error) {
-			console.error("Error activating evaluation period:", error);
+			console.error("Error starting evaluation period:", error);
 			return false;
 		}
 		return data === true;

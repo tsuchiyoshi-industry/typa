@@ -334,6 +334,42 @@ it("summarizes an import by the period and its counts", () => {
 	});
 });
 
+it("names the period closed, how its sheets were left, and the period now preparing", () => {
+	expect(
+		describe_({
+			action: "period.closed",
+			entityId: 10,
+			details: {
+				periodName: "26期 上期",
+				finalizedSheets: 11,
+				unfinishedSheets: 1,
+				allowUnfinalizedClose: true,
+				preparingPeriodId: 99,
+			},
+		}),
+	).toMatchObject({
+		category: "period",
+		title: "評価期間を締めた",
+		seal: null,
+		subject: { person: null, periodName: "26期 上期", sheetId: null, missing: null },
+		facts: [
+			{ label: "評価確定のシート", value: "11件" },
+			{ label: "未確定のまま締めたシート", value: "1件" },
+		],
+	});
+});
+
+it("names the period started", () => {
+	expect(
+		describe_({ action: "period.started", entityId: 11, details: { periodName: "26期 下期" } }),
+	).toMatchObject({
+		category: "period",
+		title: "評価期間を開始した",
+		seal: null,
+		subject: { person: null, periodName: "26期 下期", sheetId: null, missing: null },
+	});
+});
+
 it("shows an action from a newer database as written, with its record", () => {
 	const entry = describe_({ action: "period.renamed", entityId: 3, details: { to: "27期" } });
 	expect(entry).toMatchObject({ category: "other", title: "period.renamed", seal: null });

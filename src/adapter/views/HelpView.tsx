@@ -95,7 +95,7 @@ const IMAGES = {
 	confirm: page("evaluator/06-confirm-first", "一次評価の確定"),
 	second: page("evaluator/09-second-score", "二次評価の採点"),
 	result: page("user/10-sheet-list-final", "評価結果の PDF 出力"),
-	periodSwitch: page("admin/07-period-switch", "評価期間の切り替え"),
+	periodSwitch: page("admin/07-period-switch", "評価期間を締める確認"),
 	corrections: {
 		shot: "user/16-corrections",
 		caption: "締め後修正の記録",

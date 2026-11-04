@@ -245,7 +245,7 @@ CONSTRAINT workspace_settings workspace_settings_smtp_user_check CHECK ((smtp_us
 DEFAULT PRIVILEGES postgres S {postgres=rwU/postgres,service_role=rwU/postgres}
 DEFAULT PRIVILEGES postgres f {postgres=X/postgres,service_role=X/postgres}
 DEFAULT PRIVILEGES postgres r {postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres}
-FUNCTION activate_evaluation_period(bigint) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=30739f3cb7d03fcdd2bdf3364a71eac2
+FUNCTION activate_evaluation_period(bigint) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=2b28850c083263a7e3af2aafdec2152d
 FUNCTION audit_employee_change() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=1b92fc898e27a17498dba2d46c272781
 FUNCTION audit_sheet_transition() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=9836b834da7683a13eed239142597e4f
 FUNCTION begin_registration(text,text) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=7521c063d5d6060717f3e4d725b6ee26
@@ -258,6 +258,7 @@ FUNCTION check_evaluation_completion() definer=true anon=false authenticated=fal
 FUNCTION check_milestone_achievement_placement() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=b191362f9bd785b62a624c107bd5bab0
 FUNCTION check_user_limit() definer=true anon=false authenticated=false service_role=true auth_admin=false config=- md5=71d1ea349152ed5ab2cd3514f88b5681
 FUNCTION claim_sheet_notification(bigint,uuid) definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=c842799d2bdf95306f531fe83bdceafa
+FUNCTION close_evaluation_period(bigint) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=9efafb3ed92beefb66d2410dde968322
 FUNCTION complete_registration(uuid) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=51a558c15fdca9d3101bb7a8986d7997
 FUNCTION complete_sheet_notification(uuid,boolean) definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=9d51da334f904c5621f5a5509f12867f
 FUNCTION correct_closed_sheet(bigint,jsonb,text) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=8f616d944bcc9a4cfe6521d1768b7caa
@@ -298,6 +299,7 @@ FUNCTION milestone_achievements(jsonb) definer=false anon=false authenticated=tr
 FUNCTION next_evaluator_of(evaluation_sheets) definer=false anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=4f72eac31123b01f3e9259692372d001
 FUNCTION notify_next_evaluator() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=ed7fa5b2098f40a5e9e8de80d064417c
 FUNCTION pre_register_employee(text,text,smallint,text,text,text,boolean) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=a0740d9a885fbba877b743feb5bca6b5
+FUNCTION preparing_evaluation_period() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=a14901875595f46ae823f23a830bd937
 FUNCTION previous_evaluation_period(bigint) definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=7aeaaf43cfa45f1bd1ffefd3322e2af6
 FUNCTION previous_evaluation_sheet(bigint) definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=c2111e15a539aa409c4bbdc1caca02ee
 FUNCTION privileged_sheet_operation(bigint,text,text,text,text) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=45ea790324810f1f301903e00f11d5f9

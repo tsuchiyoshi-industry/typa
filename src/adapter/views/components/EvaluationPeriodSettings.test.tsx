@@ -47,6 +47,14 @@ const next = {
 	stateLabel: "未開始",
 	allowUnfinalizedClose: true,
 };
+/** 今期を締めた後の来期(準備中)と、締めた今期。 */
+const preparingNext = { ...next, state: "preparing" as const, stateLabel: "準備中" };
+const closedCurrent = {
+	...current,
+	isActive: false,
+	state: "closed" as const,
+	stateLabel: "締め済み",
+};
 // 分け方の計算(プレビュー)は、保存を伴わないので本物を使う
 const real = new EvaluationPeriodController(
 	...([{}, {}, {}, {}] as unknown as ConstructorParameters<typeof EvaluationPeriodController>),
@@ -59,12 +67,27 @@ function controllerMock() {
 		load: vi.fn().mockResolvedValue([next, current, previous]),
 		save: vi.fn().mockResolvedValue({ success: true, message: "保存しました" }),
 		remove: vi.fn().mockResolvedValue({ success: true, message: "削除しました" }),
-		close: vi
+		close: vi.fn().mockImplementation(async (_id: number, confirmed: boolean) =>
+			confirmed
+				? {
+						status: "closed",
+						message:
+							"「今期」を締めました。「来期」は準備中です。等級の変更などを済ませてから開始してください。",
+					}
+				: {
+						status: "ready",
+						closing: current,
+						preparing: preparingNext,
+						finalizedSheets: 12,
+						unfinishedSheets: 0,
+					},
+		),
+		start: vi
 			.fn()
 			.mockImplementation(async (_id: number, confirmed: boolean) =>
 				confirmed
-					? { status: "closed", message: "「今期」を締め、「来期」を開始しました。" }
-					: { status: "ready", closing: current, next, finalizedSheets: 12, unfinishedSheets: 0 },
+					? { status: "started", message: "「来期」を開始しました。" }
+					: { status: "ready", next: preparingNext },
 			),
 	};
 }
@@ -86,11 +109,12 @@ it("closes the period in progress only after a confirmation that lists what to c
 	expect(view.queryByRole("button", { name: "今期を削除" })).toBeNull();
 
 	vi.mocked(confirmAction).mockResolvedValueOnce(false);
-	fireEvent.click(view.getByRole("button", { name: "来期を開始する" }));
+	fireEvent.click(view.getByRole("button", { name: "今期を締める" }));
 	await waitFor(() => expect(confirmAction).toHaveBeenCalledTimes(1));
 	const request = vi.mocked(confirmAction).mock.calls[0][0];
 	expect(request).toMatchObject({
-		title: "「今期」を締めて、「来期」を開始しますか？",
+		title: "「今期」を締めますか？",
+		confirmLabel: "締める",
 		tone: "danger",
 	});
 	const notes = request.details?.join("\n") ?? "";
@@ -98,51 +122,77 @@ it("closes the period in progress only after a confirmation that lists what to c
 		"12 件",
 		"誰も変更できません",
 		"作成漏れ",
-		"等級",
-		"評価者",
+		"自動では始まりません",
+		"「来期」は準備中",
 		"もう一度開始することはできません",
 	]) {
 		expect(notes).toContain(note);
 	}
-	// 確認でやめたら、何も切り替えない
+	// 確認でやめたら、何も締めない
 	await waitFor(() => expect(controller.load).toHaveBeenCalledTimes(2));
-	expect(controller.close).toHaveBeenCalledExactlyOnceWith(3, false);
+	expect(controller.close).toHaveBeenCalledExactlyOnceWith(2, false);
 
-	fireEvent.click(view.getByRole("button", { name: "来期を開始する" }));
-	await waitFor(() => expect(controller.close).toHaveBeenLastCalledWith(3, true));
+	fireEvent.click(view.getByRole("button", { name: "今期を締める" }));
+	await waitFor(() => expect(controller.close).toHaveBeenLastCalledWith(2, true));
 	await waitFor(() =>
-		expect(showToast).toHaveBeenCalledWith("success", "「今期」を締め、「来期」を開始しました。"),
+		expect(showToast).toHaveBeenCalledWith(
+			"success",
+			"「今期」を締めました。「来期」は準備中です。等級の変更などを済ませてから開始してください。",
+		),
 	);
 	await waitFor(() => expect(controller.load).toHaveBeenCalledTimes(3));
+	// 締めても、次の期間は開始しない
+	expect(controller.start).not.toHaveBeenCalled();
 });
 
-it("shows each period's state and offers to start only a period that has not started", async () => {
+it("offers only what can be done now: closing the period in progress, and nothing to start yet", async () => {
 	const { view } = setup();
 	await view.findByText("実施中");
 	expect(rowOf(view, "前期").textContent).toContain("締め済み");
 	expect(rowOf(view, "来期").textContent).toContain("未開始");
-	// 締めた評価期間も、実施中の評価期間も、開始するボタンを出さない
-	expect(view.queryByRole("button", { name: "前期を開始する" })).toBeNull();
-	expect(view.queryByRole("button", { name: "今期を開始する" })).toBeNull();
-	expect(view.getAllByRole("button", { name: /を開始する$/ })).toHaveLength(1);
+	// 実施中の期間があるうちは、どの期間も開始できない(先に締める)
+	expect(view.queryAllByRole("button", { name: /を開始する$/ })).toHaveLength(0);
+	expect(
+		view.getAllByRole("button", { name: /を締める$/ }).map((b) => b.getAttribute("aria-label")),
+	).toEqual(["今期を締める"]);
 });
 
 it("offers to start the period that is preparing, while nothing is in progress", async () => {
-	const preparing = { ...next, state: "preparing" as const, stateLabel: "準備中" };
-	const closedCurrent = {
-		...current,
-		isActive: false,
-		state: "closed" as const,
-		stateLabel: "締め済み",
-	};
 	const { view } = setup((controller) =>
-		controller.load.mockResolvedValue([preparing, closedCurrent, previous]),
+		controller.load.mockResolvedValue([preparingNext, closedCurrent, previous]),
 	);
 	await view.findByText("準備中");
 	expect(rowOf(view, "来期").textContent).toContain("準備中");
 	expect(
 		view.getAllByRole("button", { name: /を開始する$/ }).map((b) => b.getAttribute("aria-label")),
 	).toEqual(["来期を開始する"]);
+	expect(view.queryAllByRole("button", { name: /を締める$/ })).toHaveLength(0);
+});
+
+it("starts the preparing period after a confirmation about grades and new sheets", async () => {
+	const { controller, view } = setup((mock) =>
+		mock.load.mockResolvedValue([preparingNext, closedCurrent, previous]),
+	);
+	fireEvent.click(await view.findByRole("button", { name: "来期を開始する" }));
+	await waitFor(() => expect(confirmAction).toHaveBeenCalledTimes(1));
+	const request = vi.mocked(confirmAction).mock.calls[0][0];
+	expect(request).toMatchObject({
+		title: "「来期」を開始しますか？",
+		confirmLabel: "この期間を開始する",
+	});
+	const notes = request.details?.join("\n") ?? "";
+	for (const note of ["新規作成", "等級", "評価者"]) {
+		expect(notes).toContain(note);
+	}
+	await waitFor(() => expect(controller.start).toHaveBeenLastCalledWith(3, true));
+	expect(controller.start.mock.calls).toEqual([
+		[3, false],
+		[3, true],
+	]);
+	await waitFor(() =>
+		expect(showToast).toHaveBeenCalledWith("success", "「来期」を開始しました。"),
+	);
+	expect(controller.close).not.toHaveBeenCalled();
 });
 
 it("explains a failed load and offers no operation until it loads again", async () => {
@@ -153,44 +203,55 @@ it("explains a failed load and offers no operation until it loads again", async 
 	expect(alert.textContent).toContain(
 		'評価期間を読み込めませんでした。(column "closed_at" does not exist)',
 	);
-	expect(view.queryAllByRole("button", { name: /を開始する$|を編集$|を削除$/ })).toHaveLength(0);
+	expect(
+		view.queryAllByRole("button", { name: /を開始する$|を締める$|を編集$|を削除$/ }),
+	).toHaveLength(0);
 	fireEvent.click(view.getByRole("button", { name: "再読み込み" }));
 	await view.findByText("実施中");
 	expect(view.queryByRole("alert")).toBeNull();
 	expect(controller.load).toHaveBeenCalledTimes(2);
 });
 
-it("tells the Admin when the database refuses the switch after confirmation", async () => {
+it("tells the Admin when the database refuses to close after confirmation", async () => {
 	const { controller, view } = setup((mock) =>
 		mock.close.mockImplementation(async (_id: number, confirmed: boolean) =>
 			confirmed
-				? { status: "rejected", message: "締めた評価期間は、もう一度開始できません。" }
-				: { status: "ready", closing: current, next, finalizedSheets: 1, unfinishedSheets: 0 },
+				? {
+						status: "rejected",
+						message: "この評価期間は実施中ではないため、締められません。画面を開き直してください。",
+					}
+				: {
+						status: "ready",
+						closing: current,
+						preparing: preparingNext,
+						finalizedSheets: 1,
+						unfinishedSheets: 0,
+					},
 		),
 	);
-	fireEvent.click(await view.findByRole("button", { name: "来期を開始する" }));
+	fireEvent.click(await view.findByRole("button", { name: "今期を締める" }));
 	await waitFor(() =>
 		expect(showToast).toHaveBeenCalledWith(
 			"error",
-			"評価期間を切り替えられませんでした",
-			"締めた評価期間は、もう一度開始できません。",
+			"評価期間を締められませんでした",
+			"この評価期間は実施中ではないため、締められません。画面を開き直してください。",
 		),
 	);
 	// 一覧は読み直して、DB の状態を出す
 	await waitFor(() => expect(controller.load).toHaveBeenCalledTimes(2));
 });
 
-it("starts nothing twice when the button is pressed repeatedly", async () => {
+it("closes nothing twice when the button is pressed repeatedly", async () => {
 	const { controller, view } = setup();
-	const start = await view.findByRole("button", { name: "来期を開始する" });
-	fireEvent.click(start);
-	fireEvent.click(start);
-	fireEvent.click(start);
-	await waitFor(() => expect(controller.close).toHaveBeenCalledWith(3, true));
+	const close = await view.findByRole("button", { name: "今期を締める" });
+	fireEvent.click(close);
+	fireEvent.click(close);
+	fireEvent.click(close);
+	await waitFor(() => expect(controller.close).toHaveBeenCalledWith(2, true));
 	await waitFor(() => expect(controller.load).toHaveBeenCalledTimes(2));
 	expect(controller.close.mock.calls).toEqual([
-		[3, false],
-		[3, true],
+		[2, false],
+		[2, true],
 	]);
 });
 
@@ -220,16 +281,36 @@ it("does not ask for confirmation while unfinalized sheets remain", async () => 
 		status: "rejected",
 		message: "「今期」に未確定の評価シートが 3 件あります。",
 	});
-	fireEvent.click(await view.findByRole("button", { name: "来期を開始する" }));
+	fireEvent.click(await view.findByRole("button", { name: "今期を締める" }));
 	await waitFor(() =>
 		expect(showToast).toHaveBeenCalledWith(
 			"error",
-			"評価期間を切り替えられません",
+			"評価期間を締められません",
 			"「今期」に未確定の評価シートが 3 件あります。",
 		),
 	);
 	expect(confirmAction).not.toHaveBeenCalled();
-	expect(controller.close).toHaveBeenCalledExactlyOnceWith(3, false);
+	expect(controller.close).toHaveBeenCalledExactlyOnceWith(2, false);
+});
+
+it("tells the Admin when starting is refused, and starts nothing", async () => {
+	const { controller, view } = setup((mock) => {
+		mock.load.mockResolvedValue([preparingNext, closedCurrent, previous]);
+		mock.start.mockImplementation(async (_id: number, confirmed: boolean) =>
+			confirmed
+				? { status: "rejected", message: "次に開始できるのは、準備中の評価期間だけです。" }
+				: { status: "ready", next: preparingNext },
+		);
+	});
+	fireEvent.click(await view.findByRole("button", { name: "来期を開始する" }));
+	await waitFor(() =>
+		expect(showToast).toHaveBeenCalledWith(
+			"error",
+			"評価期間を開始できませんでした",
+			"次に開始できるのは、準備中の評価期間だけです。",
+		),
+	);
+	await waitFor(() => expect(controller.load).toHaveBeenCalledTimes(2));
 });
 
 it("explains why a term cannot be divided instead of listing periods", async () => {

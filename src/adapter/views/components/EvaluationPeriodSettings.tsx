@@ -7,7 +7,7 @@ import { confirmAction, showToast } from "../feedback";
 interface EvaluationPeriodSettingsProps {
 	controller: Pick<
 		EvaluationPeriodController,
-		"load" | "save" | "remove" | "close" | "preview" | "divisions"
+		"load" | "save" | "remove" | "close" | "start" | "preview" | "divisions"
 	>;
 }
 
@@ -19,35 +19,36 @@ const EMPTY_FORM = {
 	allowUnfinalizedClose: false,
 };
 
-/** 期間締めの前に、Admin に確かめてもらうこと。 */
+/** 締める前に、Admin に確かめてもらうこと。締めても次の評価期間は始まらず、準備中になる。 */
 const closingNotes = (
-	closing: string | null,
-	next: string,
+	closing: string,
+	preparing: string | null,
 	finalizedSheets: number,
 	unfinishedSheets: number,
 ): string[] => [
-	...(closing
-		? [
-				unfinishedSheets > 0
-					? `「${closing}」の評価シートのうち ${unfinishedSheets} 件は、評価が確定していません。この期間は確定せずに締められる設定なので、そのままの状態で締めます。PDF では、点数とランクを「***」で伏せます。`
-					: `「${closing}」の評価シートは ${finalizedSheets} 件で、すべて評価が確定しています。未確定のシートはありません。`,
-				`締めた後は、「${closing}」の評価シートを誰も変更できません。閲覧と PDF 出力は引き続きできます。`,
-				`「${closing}」のシートをまだ作成していない社員がいても、締めた後は作成できません。作成漏れがないか、先に確認してください。`,
-			]
-		: []),
-	`評価シートの作成・記入・評価・確定ができるのは「${next}」だけになります。「${next}」のシートは自動では作られず、各社員が「新規作成」から作成します。`,
-	`シートの等級は作成時のもので固定されます。昇級などの等級の変更は、社員が「${next}」のシートを作成する前に、社員マスタで済ませてください。`,
-	`評価者（一次・二次）の付け替えは、未確定のシートにだけ反映されます。確定済みのシートは、評価した人のまま変わりません。「${next}」の評価者は、評価が始まる前に社員マスタで見直してください。`,
-	"評価点の配点は期間ごとではなく共通の設定です。確定済みのシートは、確定時の配点のまま変わりません。",
+	unfinishedSheets > 0
+		? `「${closing}」の評価シートのうち ${unfinishedSheets} 件は、評価が確定していません。この期間は確定せずに締められる設定なので、そのままの状態で締めます。PDF では、点数とランクを「***」で伏せます。`
+		: `「${closing}」の評価シートは ${finalizedSheets} 件で、すべて評価が確定しています。未確定のシートはありません。`,
+	`締めた後は、「${closing}」の評価シートを誰も変更できません。閲覧と PDF 出力は引き続きできます。`,
+	`「${closing}」のシートをまだ作成していない社員がいても、締めた後は作成できません。作成漏れがないか、先に確認してください。`,
+	preparing
+		? `締めても、次の評価期間は自動では始まりません。「${preparing}」は準備中になり、開始するまで誰もシートを作れません。`
+		: "締めても、次の評価期間は自動では始まりません。次に開始する評価期間がまだないので、締めた後に追加してください。",
+	"準備中の間に、昇級などの等級の変更と評価者の見直しを社員マスタで済ませてから、次の評価期間を開始してください。",
 	"利用中の社員の画面には、画面を開き直したときに反映されます。",
-	...(closing
-		? [
-				`締めた「${closing}」は、もう一度開始することはできません。締める前に、上の内容を確かめてください。`,
-			]
-		: []),
+	`締めた「${closing}」は、もう一度開始することはできません。締める前に、上の内容を確かめてください。`,
 ];
 
-/** Admin が評価期間を追加・変更・削除し、期間を締めて次の期間を始める。 */
+/** 開始する前に、Admin に確かめてもらうこと。 */
+const startingNotes = (next: string): string[] => [
+	`評価シートの作成・記入・評価・確定ができるのは「${next}」だけになります。「${next}」のシートは自動では作られず、各社員が「新規作成」から作成します。`,
+	`シートの等級は作成時のもので固定されます。昇級などの等級の変更は、社員が「${next}」のシートを作成する前に、社員マスタで済ませてください。`,
+	`評価者（一次・二次）の付け替えは、未確定のシートにだけ反映されます。「${next}」の評価者は、評価が始まる前に社員マスタで見直してください。`,
+	"評価点の配点は期間ごとではなく共通の設定です。確定済みのシートは、確定時の配点のまま変わりません。",
+	"利用中の社員の画面には、画面を開き直したときに反映されます。",
+];
+
+/** Admin が評価期間を追加・変更・削除し、実施中の期間を締め、準備中の期間を開始する。 */
 const EvaluationPeriodSettings: Component<EvaluationPeriodSettingsProps> = (props) => {
 	const [periods, setPeriods] = createSignal<EvaluationPeriodDto[]>([]);
 	const [loading, setLoading] = createSignal(true);
@@ -160,39 +161,65 @@ const EvaluationPeriodSettings: Component<EvaluationPeriodSettingsProps> = (prop
 			showToast(result.success ? "success" : "error", result.message);
 		});
 
-	const close = (next: EvaluationPeriodDto) =>
+	const close = (period: EvaluationPeriodDto) =>
 		run(async () => {
 			// 未確定のシートが残っていないかを先に確かめる。残っていれば、確認には進まない
-			const preview = await props.controller.close(next.id, false);
+			const preview = await props.controller.close(period.id, false);
 			if (preview.status !== "ready") {
-				showToast("error", "評価期間を切り替えられません", preview.message);
+				showToast("error", "評価期間を締められません", preview.message);
 				return;
 			}
-			const closing = preview.closing?.periodName ?? null;
 			const confirmed = await confirmAction({
-				title: closing
-					? `「${closing}」を締めて、「${next.periodName}」を開始しますか？`
-					: `「${next.periodName}」を開始しますか？`,
-				message: "実施中の評価期間は常に1つです。次の点を確認してください。",
+				title: `「${preview.closing.periodName}」を締めますか？`,
+				message: "締めても、次の評価期間は自動では始まりません。次の点を確認してください。",
 				details: closingNotes(
-					closing,
-					next.periodName,
+					preview.closing.periodName,
+					preview.preparing?.periodName ?? null,
 					preview.finalizedSheets,
 					preview.unfinishedSheets,
 				),
-				confirmLabel: closing ? "締めて、次の期間を開始する" : "この期間を開始する",
+				confirmLabel: "締める",
 				tone: "danger",
 			});
 			if (!confirmed) {
 				return;
 			}
-			const result = await props.controller.close(next.id, true);
+			const result = await props.controller.close(period.id, true);
 			if (result.status === "closed") {
 				showToast("success", result.message);
 			} else {
 				showToast(
 					"error",
-					"評価期間を切り替えられませんでした",
+					"評価期間を締められませんでした",
+					result.status === "rejected" ? result.message : undefined,
+				);
+			}
+		});
+
+	const start = (period: EvaluationPeriodDto) =>
+		run(async () => {
+			const preview = await props.controller.start(period.id, false);
+			if (preview.status !== "ready") {
+				showToast("error", "評価期間を開始できません", preview.message);
+				return;
+			}
+			const confirmed = await confirmAction({
+				title: `「${preview.next.periodName}」を開始しますか？`,
+				message:
+					"開始すると、社員がこの評価期間のシートを作れるようになります。次の点を確認してください。",
+				details: startingNotes(preview.next.periodName),
+				confirmLabel: "この期間を開始する",
+			});
+			if (!confirmed) {
+				return;
+			}
+			const result = await props.controller.start(period.id, true);
+			if (result.status === "started") {
+				showToast("success", result.message);
+			} else {
+				showToast(
+					"error",
+					"評価期間を開始できませんでした",
 					result.status === "rejected" ? result.message : undefined,
 				);
 			}
@@ -202,12 +229,11 @@ const EvaluationPeriodSettings: Component<EvaluationPeriodSettingsProps> = (prop
 		<section class="info-card" aria-labelledby="period-heading">
 			<h2 id="period-heading">評価期間</h2>
 			<p>
-				実施中の評価期間は常に 1
-				つです。評価シートの作成・記入・評価・確定ができるのは実施中の期間だけで、締めた期間のシートは閲覧と
+				実施中の評価期間は1つまでです。評価シートの作成・記入・評価・確定ができるのは実施中の期間だけで、締めた期間のシートは閲覧と
 				PDF 出力だけになります。
 			</p>
 			<p class="allocation-note">
-				次の期間を開始すると、実施中の期間は同時に締められます。未確定の評価シートが残っている間は締められません(期間ごとに、確定せずに締めることを認められます)。
+				評価期間は「締める」と「開始する」を分けて行います。締めると、次の評価期間は準備中になり、自動では始まりません。等級の変更などを済ませてから開始してください。未確定の評価シートが残っている間は締められません(期間ごとに、確定せずに締めることを認められます)。
 			</p>
 
 			<Show when={error()}>
@@ -261,15 +287,24 @@ const EvaluationPeriodSettings: Component<EvaluationPeriodSettingsProps> = (prop
 											</td>
 											<td>
 												<div class="period-actions">
-													<Show
-														when={period.state === "not_started" || period.state === "preparing"}
-													>
+													<Show when={period.isActive}>
+														<button
+															type="button"
+															class="secondary-action"
+															disabled={busy()}
+															aria-label={`${period.periodName}を締める`}
+															onClick={() => void close(period)}
+														>
+															この期間を締める
+														</button>
+													</Show>
+													<Show when={period.state === "preparing"}>
 														<button
 															type="button"
 															class="secondary-action"
 															disabled={busy()}
 															aria-label={`${period.periodName}を開始する`}
-															onClick={() => void close(period)}
+															onClick={() => void start(period)}
 														>
 															この期間を開始する
 														</button>

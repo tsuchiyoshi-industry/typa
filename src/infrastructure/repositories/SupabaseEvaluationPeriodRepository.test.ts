@@ -147,11 +147,21 @@ describe("changing evaluation periods", () => {
 		expect(await repository.delete(4)).toBe(false);
 	});
 
-	it("closes a period only through the audited database function", async () => {
+	it("starts a period only through the audited database function", async () => {
 		db.rpc.mockResolvedValue(ok(true));
 		expect(await new SupabaseEvaluationPeriodRepository().activate(4)).toBe(true);
 		expect(db.rpc).toHaveBeenCalledWith("activate_evaluation_period", { p_period_id: 4 });
 		db.rpc.mockResolvedValue(failed);
 		expect(await new SupabaseEvaluationPeriodRepository().activate(4)).toBe(false);
+	});
+
+	it("closes a period only through the audited database function, which starts nothing", async () => {
+		db.rpc.mockResolvedValue(ok(true));
+		expect(await new SupabaseEvaluationPeriodRepository().close(2)).toBe(true);
+		expect(db.rpc).toHaveBeenCalledExactlyOnceWith("close_evaluation_period", { p_period_id: 2 });
+		db.rpc.mockResolvedValue(failed);
+		expect(await new SupabaseEvaluationPeriodRepository().close(2)).toBe(false);
+		db.rpc.mockResolvedValue(ok(false));
+		expect(await new SupabaseEvaluationPeriodRepository().close(2)).toBe(false);
 	});
 });

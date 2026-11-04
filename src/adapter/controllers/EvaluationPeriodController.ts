@@ -16,6 +16,11 @@ import {
 	type SaveEvaluationPeriodInteractor,
 	type SaveEvaluationPeriodRequest,
 } from "../../application/usecases/SaveEvaluationPeriodInteractor";
+import {
+	describeStartEvaluationPeriodError,
+	type StartEvaluationPeriodInteractor,
+	type StartEvaluationPeriodResponse,
+} from "../../application/usecases/StartEvaluationPeriodInteractor";
 import { EvaluationCalendar } from "../../domain/entities/EvaluationCalendar";
 import { describePeriodError } from "../../domain/entities/PeriodError";
 import type { EvaluationPeriodRepository } from "../../domain/repositories/EvaluationPeriodRepository";
@@ -26,13 +31,14 @@ export type EvaluationPeriodPreview =
 	| { periods: { periodName: string; startDate: string; endDate: string }[] }
 	| { error: string };
 
-/** 設定画面の「評価期間」。追加・変更・削除と、期間締め。 */
+/** 設定画面の「評価期間」。追加・変更・削除と、締め・開始(締めると次は準備中になり、開始は別の操作)。 */
 export class EvaluationPeriodController {
 	constructor(
 		private readonly periodRepository: EvaluationPeriodRepository,
 		private readonly saveUseCase: SaveEvaluationPeriodInteractor,
 		private readonly deleteUseCase: DeleteEvaluationPeriodInteractor,
 		private readonly closeUseCase: CloseEvaluationPeriodInteractor,
+		private readonly startUseCase: StartEvaluationPeriodInteractor,
 	) {}
 
 	/** 区切り方の選択肢。 */
@@ -94,15 +100,15 @@ export class EvaluationPeriodController {
 		return response;
 	}
 
-	/** confirmed が false なら、締められるかを確かめるだけ(確認ダイアログに出す内容を受け取る)。 */
-	async close(nextPeriodId: number, confirmed: boolean): Promise<CloseEvaluationPeriodResponse> {
+	/** 実施中の期間を締める。confirmed が false なら、締められるかを確かめるだけ(確認ダイアログに出す内容を受け取る)。 */
+	async close(periodId: number, confirmed: boolean): Promise<CloseEvaluationPeriodResponse> {
 		let response: CloseEvaluationPeriodResponse = {
 			status: "rejected",
-			message: "評価期間を切り替えられませんでした。",
+			message: "評価期間を締められませんでした。",
 		};
 		try {
 			const result = await this.closeUseCase.execute(
-				{ nextPeriodId, confirmed },
+				{ periodId, confirmed },
 				{ present: (value) => (response = value) },
 			);
 			if (!result.ok) {
@@ -113,6 +119,29 @@ export class EvaluationPeriodController {
 			}
 		} catch (error) {
 			console.error("Error closing evaluation period:", error);
+		}
+		return response;
+	}
+
+	/** 準備中の期間を開始する。confirmed が false なら、開始できるかを確かめるだけ。 */
+	async start(periodId: number, confirmed: boolean): Promise<StartEvaluationPeriodResponse> {
+		let response: StartEvaluationPeriodResponse = {
+			status: "rejected",
+			message: "評価期間を開始できませんでした。",
+		};
+		try {
+			const result = await this.startUseCase.execute(
+				{ periodId, confirmed },
+				{ present: (value) => (response = value) },
+			);
+			if (!result.ok) {
+				return {
+					status: "rejected",
+					message: describeStartEvaluationPeriodError(result.error),
+				};
+			}
+		} catch (error) {
+			console.error("Error starting evaluation period:", error);
 		}
 		return response;
 	}

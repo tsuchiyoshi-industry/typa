@@ -17,7 +17,9 @@ const RECORDED_BY_DB = [
 		readdirSync(migrations)
 			.map((file) => readFileSync(new URL(file, migrations), "utf8"))
 			.filter((sql) => sql.includes("insert into public.security_audit_log"))
-			.flatMap((sql) => [...sql.matchAll(/'((?:employee|sheets?)\.[a-z_]+)'/g)].map((m) => m[1])),
+			.flatMap((sql) =>
+				[...sql.matchAll(/'((?:employee|sheets?|period)\.[a-z_]+)'/g)].map((m) => m[1]),
+			),
 	),
 ];
 
@@ -25,6 +27,7 @@ it("reads the recorded actions from the migrations", () => {
 	// 読み取りが壊れて 0 件になり、下の照合が素通りしないように
 	expect(RECORDED_BY_DB).toContain("sheet.status");
 	expect(RECORDED_BY_DB).toContain("sheet.privileged_delete");
+	expect(RECORDED_BY_DB).toContain("period.closed");
 });
 
 describe("audit event categories", () => {
@@ -46,6 +49,8 @@ describe("audit event categories", () => {
 		["sheet.privileged_delete", "override"],
 		["sheet.corrected", "override"],
 		["sheets.imported", "import"],
+		["period.closed", "period"],
+		["period.started", "period"],
 	])("files %s under %s", (action, category) => {
 		expect(auditCategoryOf(action)).toBe(category);
 	});

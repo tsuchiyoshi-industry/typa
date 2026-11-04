@@ -237,7 +237,7 @@ describe("closing the period in progress and starting the next", { shuffle: fals
 
 	it("closes a period with unfinalized sheets only when the Admin allowed it for that period", async () => {
 		await actAs(db, 1);
-		await expect(query("select public.activate_evaluation_period(4)")).rejects.toMatchObject({
+		await expect(query("select public.close_evaluation_period(1)")).rejects.toMatchObject({
 			code: "23514",
 			message: "未確定の評価シートが残っているため、評価期間を締められません。",
 		});
@@ -252,6 +252,11 @@ describe("closing the period in progress and starting the next", { shuffle: fals
 
 		await actAs(db, 1);
 		await query("update public.evaluation_periods set allow_unfinalized_close = true where id = 1");
+		// 締めると次は準備中(自動では始まらない)。準備中の評価期間を開始する
+		expect(await one("select public.close_evaluation_period(1) as v")).toBe(true);
+		await db.exec("reset role");
+		expect(await states()).toEqual(["1:締め済み", "2:締め済み", "4:未開始"]);
+		await actAs(db, 1);
 		expect(await one("select public.activate_evaluation_period(4) as v")).toBe(true);
 		await db.exec("reset role");
 		expect(await states()).toEqual(["1:締め済み", "2:締め済み", "4:実施中"]);

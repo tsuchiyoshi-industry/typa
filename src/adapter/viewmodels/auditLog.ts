@@ -295,6 +295,13 @@ export function describeAuditRecord(
 			sheetId: sheet ? (entry.entityId as number) : null,
 			missing: person || periodName ? null : `削除されたシート（ID ${entry.entityId}）`,
 		};
+	} else if (entry.action.startsWith("period.")) {
+		view.subject = {
+			person: null,
+			periodName: text(details.periodName) ?? directory.periods.get(entry.entityId ?? -1) ?? null,
+			sheetId: null,
+			missing: null,
+		};
 	} else if (entry.action === "sheets.imported") {
 		view.subject = {
 			person: null,
@@ -350,6 +357,19 @@ export function describeAuditRecord(
 		case "sheet.corrected":
 			view.title = "締め後修正";
 			view.facts = counted("直した項目", details.changes);
+			break;
+		case "period.closed":
+			view.title = "評価期間を締めた";
+			view.facts = [
+				...counted("評価確定のシート", details.finalizedSheets),
+				// 未確定のまま締められるのは、Admin がその期間に認めたときだけ
+				...((count(details.unfinishedSheets) ?? 0) > 0
+					? counted("未確定のまま締めたシート", details.unfinishedSheets)
+					: []),
+			];
+			break;
+		case "period.started":
+			view.title = "評価期間を開始した";
 			break;
 		case "sheets.imported":
 			view.title = "評価データを取込";

@@ -69,6 +69,7 @@ const renderSettings = (
 							save: vi.fn(),
 							remove: vi.fn(),
 							close: vi.fn(),
+							start: vi.fn(),
 							preview: vi.fn(),
 							divisions: [],
 						}}

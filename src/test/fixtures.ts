@@ -250,6 +250,7 @@ export function periodRepository() {
 		update: vi.fn<EvaluationPeriodRepository["update"]>().mockResolvedValue(true),
 		delete: vi.fn<EvaluationPeriodRepository["delete"]>().mockResolvedValue(true),
 		activate: vi.fn<EvaluationPeriodRepository["activate"]>().mockResolvedValue(true),
+		close: vi.fn<EvaluationPeriodRepository["close"]>().mockResolvedValue(true),
 		countSheetsByStatus: vi
 			.fn<EvaluationPeriodRepository["countSheetsByStatus"]>()
 			.mockImplementation(async (id) => SheetCountsByStatus.from(id === 3 ? {} : { finalized: 4 })),

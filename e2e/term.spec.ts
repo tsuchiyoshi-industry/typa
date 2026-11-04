@@ -44,13 +44,20 @@ test("a term is divided, its first half closed with goals only, and its challeng
 		await expect(page.getByRole("row", { name: new RegExp(SECOND) })).toBeVisible();
 	});
 
-	await test.step("上期を開始する(それまでの評価期間はすべて確定済みなので締められる)", async () => {
+	await test.step("今の評価期間を締めると、上期は準備中になり、自動では始まらない", async () => {
+		// 実施中の評価期間があるうちは、どの評価期間も開始できない
+		await expect(page.getByRole("button", { name: /を開始する$/ })).toHaveCount(0);
+		await page.getByRole("button", { name: "Release verificationを締める" }).click();
+		await confirm(page, "「Release verification」を締めますか？", "締める");
+		await expect(page.getByRole("row", { name: new RegExp(FIRST) })).toContainText("準備中");
+		await expect(page.getByRole("row", { name: new RegExp(SECOND) })).toContainText("未開始");
+		// 準備中を飛ばして、下期を開始することはできない(API から直接頼んでも断る)
+		await expect(page.getByRole("button", { name: `${SECOND}を開始する` })).toHaveCount(0);
+	});
+
+	await test.step("準備中の上期を開始する", async () => {
 		await page.getByRole("button", { name: `${FIRST}を開始する` }).click();
-		await confirm(
-			page,
-			`「Release verification」を締めて、「${FIRST}」を開始しますか？`,
-			"締めて、次の期間を開始する",
-		);
+		await confirm(page, `「${FIRST}」を開始しますか？`, "この期間を開始する");
 		await expect(page.getByRole("row", { name: new RegExp(FIRST) })).toContainText("実施中");
 	});
 
@@ -156,18 +163,16 @@ test("a term is divided, its first half closed with goals only, and its challeng
 		await expect(page.getByRole("heading", { name: "取り込みました" })).toBeVisible();
 	});
 
-	await test.step("評価が確定していないまま、上期を締めて下期を開始する", async () => {
+	await test.step("評価が確定していないまま上期を締め、準備中の下期を開始する", async () => {
 		await openFromUserMenu(page, "設定");
-		await page.getByRole("button", { name: `${SECOND}を開始する` }).click();
-		const dialog = page.getByRole("dialog", {
-			name: `「${FIRST}」を締めて、「${SECOND}」を開始しますか？`,
-		});
+		await page.getByRole("button", { name: `${FIRST}を締める` }).click();
+		const dialog = page.getByRole("dialog", { name: `「${FIRST}」を締めますか？` });
 		await expect(dialog).toContainText("1 件は、評価が確定していません");
-		await confirm(
-			page,
-			`「${FIRST}」を締めて、「${SECOND}」を開始しますか？`,
-			"締めて、次の期間を開始する",
-		);
+		await expect(dialog).toContainText(`「${SECOND}」は準備中になり`);
+		await confirm(page, `「${FIRST}」を締めますか？`, "締める");
+		await expect(page.getByRole("row", { name: new RegExp(SECOND) })).toContainText("準備中");
+		await page.getByRole("button", { name: `${SECOND}を開始する` }).click();
+		await confirm(page, `「${SECOND}」を開始しますか？`, "この期間を開始する");
 		await expect(page.getByRole("row", { name: new RegExp(SECOND) })).toContainText("実施中");
 		await signOut(page);
 	});

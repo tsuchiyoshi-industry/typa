@@ -29,6 +29,11 @@ import {
 	type EvaluationPeriodChangeResponse,
 	SaveEvaluationPeriodInteractor,
 } from "./SaveEvaluationPeriodInteractor";
+import {
+	describeStartEvaluationPeriodError,
+	StartEvaluationPeriodInteractor,
+	type StartEvaluationPeriodResponse,
+} from "./StartEvaluationPeriodInteractor";
 import { UpdateEvaluationStatusInteractor } from "./UpdateEvaluationStatusInteractor";
 import { UpdateMilestoneInteractor } from "./UpdateMilestoneInteractor";
 import { UpdateOverallCommentInteractor } from "./UpdateOverallCommentInteractor";
@@ -57,42 +62,43 @@ const writes = (periods: ReturnType<typeof periodRepository>) => [
 	periods.update,
 	periods.delete,
 	periods.activate,
+	periods.close,
 ];
 
+// 業務のきまり: 評価期間は「締める」と「開始する」を分けて行う。締めると次の評価期間は準備中になり、
+// 管理者が等級の変更などを済ませてから、準備中の評価期間を開始する。
 describe("closing an evaluation period", () => {
-	const close = async (
-		context: ReturnType<typeof setup>,
-		nextPeriodId: number,
-		confirmed: boolean,
-	) => {
+	const close = async (context: ReturnType<typeof setup>, periodId: number, confirmed: boolean) => {
 		const out = output<CloseEvaluationPeriodResponse>();
 		const result = await new CloseEvaluationPeriodInteractor(
 			context.periods,
 			context.employees,
-		).execute({ nextPeriodId, confirmed }, out);
+		).execute({ periodId, confirmed }, out);
 		if (!result.ok) {
 			return { status: "rejected", message: describeCloseEvaluationPeriodError(result.error) };
 		}
-		return out.present.mock.calls[0][0];
+		return out.present.mock.lastCall?.[0];
 	};
 
-	it("first reports what would be closed without changing anything, then switches on confirmation", async () => {
+	it("first reports what closing would do, then closes on confirmation and leaves the next one preparing", async () => {
 		const context = setup();
-		expect(await close(context, 3, false)).toEqual({
+		expect(await close(context, 2, false)).toEqual({
 			status: "ready",
 			closing: expect.objectContaining({ id: 2, periodName: "今期" }),
-			next: expect.objectContaining({ id: 3, periodName: "来期" }),
+			preparing: expect.objectContaining({ id: 3, periodName: "来期", state: "preparing" }),
 			finalizedSheets: 4,
 			unfinishedSheets: 0,
 		});
-		expect(context.periods.activate).not.toHaveBeenCalled();
+		expect(context.periods.close).not.toHaveBeenCalled();
 
-		expect(await close(context, 3, true)).toEqual({
+		expect(await close(context, 2, true)).toEqual({
 			status: "closed",
-			message: "「今期」を締め、「来期」を開始しました。",
+			message:
+				"「今期」を締めました。「来期」は準備中です。等級の変更などを済ませてから開始してください。",
 		});
-		// 実施中の期間は、次の期間を実施中にするのと同時に締められる(1回の操作)
-		expect(context.periods.activate).toHaveBeenCalledExactlyOnceWith(3);
+		expect(context.periods.close).toHaveBeenCalledExactlyOnceWith(2);
+		// 締めても、次の評価期間は開始しない
+		expect(context.periods.activate).not.toHaveBeenCalled();
 	});
 
 	it.each([false, true])(
@@ -102,13 +108,13 @@ describe("closing an evaluation period", () => {
 			context.periods.countSheetsByStatus.mockResolvedValue(
 				SheetCountsByStatus.from({ draft: 2, first_evaluated: 1, finalized: 7 }),
 			);
-			expect(await close(context, 3, confirmed)).toEqual({
+			expect(await close(context, 2, confirmed)).toEqual({
 				status: "rejected",
 				message:
 					"「今期」に未確定の評価シートが 3 件あります（下書き 2 件・二次評価待ち 1 件）。すべての評価を確定してから締めてください。評価を確定せずに締めるには、この期間を編集して「評価が確定していなくても締められる」をオンにしてください。",
 			});
 			expect(context.periods.countSheetsByStatus).toHaveBeenCalledWith(2);
-			expect(context.periods.activate).not.toHaveBeenCalled();
+			expect(context.periods.close).not.toHaveBeenCalled();
 		},
 	);
 
@@ -130,89 +136,209 @@ describe("closing an evaluation period", () => {
 		context.periods.countSheetsByStatus.mockResolvedValue(
 			SheetCountsByStatus.from({ draft: 2, submitted: 1, finalized: 7 }),
 		);
-		expect(await close(context, 3, false)).toMatchObject({
+		expect(await close(context, 2, false)).toMatchObject({
 			status: "ready",
 			finalizedSheets: 7,
 			unfinishedSheets: 3,
 		});
-		expect(await close(context, 3, true)).toMatchObject({ status: "closed" });
-		expect(context.periods.activate).toHaveBeenCalledExactlyOnceWith(3);
+		expect(await close(context, 2, true)).toMatchObject({ status: "closed" });
+		expect(context.periods.close).toHaveBeenCalledExactlyOnceWith(2);
 	});
 
-	it("never starts a closed period again, so a closing cannot be undone by reopening", async () => {
+	it("refuses a period that is no longer the one in progress, so a stale screen closes nothing", async () => {
 		const context = setup();
-		expect(await close(context, 1, false)).toEqual({
+		for (const [periodId, name] of [
+			[3, "来期"],
+			[1, "前期"],
+		] as const) {
+			expect(await close(context, periodId, true)).toEqual({
+				status: "rejected",
+				message: `「${name}」は実施中ではないため、締められません。画面を開き直してください。`,
+			});
+		}
+		expect(await close(context, 999, true)).toEqual({
 			status: "rejected",
-			message: "「前期」は締め済みのため、もう一度開始することはできません。",
+			message: "評価期間が見つかりませんでした。",
 		});
-		expect(await close(context, 1, true)).toMatchObject({ status: "rejected" });
-		expect(context.periods.activate).not.toHaveBeenCalled();
+		expect(context.periods.countSheetsByStatus).not.toHaveBeenCalled();
+		expect(context.periods.close).not.toHaveBeenCalled();
 	});
 
-	it("reports a failure to read the sheets or to switch, without switching", async () => {
+	it("says when there is no period to prepare next", async () => {
+		const context = setup();
+		const [previous, current] = await context.periods.findDistinctPeriods();
+		context.periods.findDistinctPeriods.mockResolvedValue([previous, current]);
+		expect(await close(context, 2, false)).toMatchObject({ status: "ready", preparing: null });
+		expect(await close(context, 2, true)).toEqual({
+			status: "closed",
+			message:
+				"「今期」を締めました。次に開始する評価期間はまだありません。評価期間を追加してから開始してください。",
+		});
+	});
+
+	it("reports a failure to read, or a close the database refused, without closing", async () => {
 		const context = setup();
 		const controller = new EvaluationPeriodController(
 			context.periods,
 			new SaveEvaluationPeriodInteractor(context.periods, context.employees),
 			new DeleteEvaluationPeriodInteractor(context.periods, context.employees),
 			new CloseEvaluationPeriodInteractor(context.periods, context.employees),
+			new StartEvaluationPeriodInteractor(context.periods, context.employees),
 		);
 		context.periods.countSheetsByStatus.mockRejectedValueOnce(new Error("network"));
-		expect(await controller.close(3, true)).toEqual({
+		expect(await controller.close(2, true)).toEqual({
 			status: "rejected",
-			message: "評価期間を切り替えられませんでした。",
+			message: "評価期間を締められませんでした。",
 		});
-		context.periods.activate.mockRejectedValueOnce(new Error("network"));
-		expect(await controller.close(3, true)).toMatchObject({ status: "rejected" });
-		// 読み込みに失敗した評価期間は、開始の対象にしない
 		context.periods.findDistinctPeriods.mockRejectedValueOnce(new Error("network"));
-		expect(await controller.close(3, true)).toMatchObject({ status: "rejected" });
-		expect(context.periods.activate).toHaveBeenCalledOnce();
+		expect(await controller.close(2, true)).toMatchObject({ status: "rejected" });
+		expect(context.periods.close).not.toHaveBeenCalled();
+		context.periods.close.mockRejectedValueOnce(new Error("network"));
+		expect(await controller.close(2, true)).toMatchObject({ status: "rejected" });
+		context.periods.close.mockResolvedValueOnce(false);
+		expect(await controller.close(2, true)).toEqual({
+			status: "rejected",
+			message: "評価期間を締められませんでした。",
+		});
+		expect(context.periods.activate).not.toHaveBeenCalled();
 	});
 
 	it.each(["Reviewer", "Employee", null])("is for an Admin only (%s)", async (role) => {
 		const context = setup(role);
-		expect(await close(context, 3, true)).toMatchObject({ status: "rejected" });
-		expect(context.periods.activate).not.toHaveBeenCalled();
+		expect(await close(context, 2, true)).toEqual({
+			status: "rejected",
+			message: "評価期間を締められるのは Admin のみです。",
+		});
+		expect(context.periods.close).not.toHaveBeenCalled();
 		expect(context.periods.countSheetsByStatus).not.toHaveBeenCalled();
 	});
+});
 
-	it("rejects an unknown period, the period already in progress, and a switch the database refused", async () => {
+describe("starting an evaluation period", () => {
+	const start = async (context: ReturnType<typeof setup>, periodId: number, confirmed: boolean) => {
+		const out = output<StartEvaluationPeriodResponse>();
+		const result = await new StartEvaluationPeriodInteractor(
+			context.periods,
+			context.employees,
+		).execute({ periodId, confirmed }, out);
+		if (!result.ok) {
+			return { status: "rejected", message: describeStartEvaluationPeriodError(result.error) };
+		}
+		return out.present.mock.lastCall?.[0];
+	};
+	/** 今期を締めた後(来期が準備中、その先に再来期)。 */
+	const afterClosing = (context: ReturnType<typeof setup>) => {
+		const period = (id: number, termName: string, startDate: string, isClosed = false) =>
+			EvaluationPeriod.restore({
+				id,
+				termName,
+				startDate,
+				endDate: `${Number(startDate.slice(0, 4)) + 1}-03-31`,
+				isActive: false,
+				isClosed,
+			});
+		context.periods.findDistinctPeriods.mockResolvedValue([
+			period(1, "前期", "2025-04-01", true),
+			period(2, "今期", "2026-04-01", true),
+			period(3, "来期", "2027-04-01"),
+			period(4, "再来期", "2028-04-01"),
+		]);
+	};
+
+	it("starts the preparing period after confirmation", async () => {
 		const context = setup();
-		expect(await close(context, 999, true)).toMatchObject({ status: "rejected" });
-		expect(await close(context, 2, true)).toEqual({
+		afterClosing(context);
+		expect(await start(context, 3, false)).toEqual({
+			status: "ready",
+			next: expect.objectContaining({ id: 3, periodName: "来期", state: "preparing" }),
+		});
+		expect(context.periods.activate).not.toHaveBeenCalled();
+		expect(await start(context, 3, true)).toEqual({
+			status: "started",
+			message: "「来期」を開始しました。",
+		});
+		expect(context.periods.activate).toHaveBeenCalledExactlyOnceWith(3);
+		// 開始は締めない
+		expect(context.periods.close).not.toHaveBeenCalled();
+	});
+
+	it("refuses to start while a period is still in progress", async () => {
+		const context = setup();
+		expect(await start(context, 3, true)).toEqual({
+			status: "rejected",
+			message: "「今期」を締めてから、次の評価期間を開始してください。",
+		});
+		expect(await start(context, 2, true)).toEqual({
 			status: "rejected",
 			message: "「今期」は既に実施中です。",
 		});
 		expect(context.periods.activate).not.toHaveBeenCalled();
-		context.periods.activate.mockResolvedValue(false);
-		expect(await close(context, 3, true)).toMatchObject({ status: "rejected" });
 	});
 
-	it("starts the very first period without closing anything, when none is in progress yet", async () => {
+	it("starts only the preparing period, never a later one, a closed one or an unknown one", async () => {
 		const context = setup();
-		const first = EvaluationPeriod.restore({
-			id: 3,
-			termName: "来期",
-			startDate: "2027-04-01",
-			endDate: "2028-03-31",
-			isActive: false,
+		afterClosing(context);
+		expect(await start(context, 4, true)).toEqual({
+			status: "rejected",
+			message: "次に開始できるのは、準備中の「来期」です。「再来期」はその後に開始してください。",
 		});
-		context.periods.findDistinctPeriods.mockResolvedValue([first]);
-		expect(await close(context, 3, false)).toEqual({
-			status: "ready",
-			closing: null,
-			next: expect.objectContaining({ id: 3 }),
-			finalizedSheets: 0,
-			unfinishedSheets: 0,
+		expect(await start(context, 2, true)).toEqual({
+			status: "rejected",
+			message: "「今期」は締め済みのため、もう一度開始することはできません。",
 		});
-		// 締める期間が無いので、シートを数えに行かない
-		expect(context.periods.countSheetsByStatus).not.toHaveBeenCalled();
-		expect(await close(context, 3, true)).toEqual({
-			status: "closed",
-			message: "「来期」を開始しました。",
+		expect(await start(context, 999, true)).toEqual({
+			status: "rejected",
+			message: "評価期間が見つかりません。",
 		});
+		expect(context.periods.activate).not.toHaveBeenCalled();
+	});
+
+	it("starts the very first period, when none has been in progress yet", async () => {
+		const context = setup();
+		context.periods.findDistinctPeriods.mockResolvedValue([
+			EvaluationPeriod.restore({
+				id: 3,
+				termName: "来期",
+				startDate: "2027-04-01",
+				endDate: "2028-03-31",
+				isActive: false,
+			}),
+		]);
+		expect(await start(context, 3, false)).toMatchObject({ status: "ready" });
+		expect(await start(context, 3, true)).toMatchObject({ status: "started" });
 		expect(context.periods.activate).toHaveBeenCalledExactlyOnceWith(3);
+	});
+
+	it("reports a start the database refused or that failed on the way", async () => {
+		const context = setup();
+		afterClosing(context);
+		const controller = new EvaluationPeriodController(
+			context.periods,
+			new SaveEvaluationPeriodInteractor(context.periods, context.employees),
+			new DeleteEvaluationPeriodInteractor(context.periods, context.employees),
+			new CloseEvaluationPeriodInteractor(context.periods, context.employees),
+			new StartEvaluationPeriodInteractor(context.periods, context.employees),
+		);
+		context.periods.activate.mockResolvedValueOnce(false);
+		expect(await controller.start(3, true)).toEqual({
+			status: "rejected",
+			message: "評価期間を開始できませんでした。",
+		});
+		context.periods.activate.mockRejectedValueOnce(new Error("network"));
+		expect(await controller.start(3, true)).toEqual({
+			status: "rejected",
+			message: "評価期間を開始できませんでした。",
+		});
+	});
+
+	it.each(["Reviewer", "Employee", null])("is for an Admin only (%s)", async (role) => {
+		const context = setup(role);
+		afterClosing(context);
+		expect(await start(context, 3, true)).toEqual({
+			status: "rejected",
+			message: "評価期間を開始できるのは Admin のみです。",
+		});
+		expect(context.periods.activate).not.toHaveBeenCalled();
 	});
 });
 
@@ -467,6 +593,7 @@ describe("adding, editing and deleting evaluation periods", () => {
 			new SaveEvaluationPeriodInteractor(context.periods, context.employees),
 			new DeleteEvaluationPeriodInteractor(context.periods, context.employees),
 			new CloseEvaluationPeriodInteractor(context.periods, context.employees),
+			new StartEvaluationPeriodInteractor(context.periods, context.employees),
 		);
 		context.periods.create.mockRejectedValueOnce(new Error("network"));
 		expect(await controller.save(nextTerm)).toEqual({

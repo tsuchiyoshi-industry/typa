@@ -225,6 +225,9 @@ try {
 			for (const [name, args] of [
 				["set_employee_role", { p_employee_no: `SECURITY${owner.id}`, p_role_name: "Admin" }],
 				["issue_employee_invitation", { p_employee_no: "RELEASE007" }],
+				// 評価期間の締めと開始は Admin だけ(締めると次は準備中になり、開始は別の操作)
+				["close_evaluation_period", { p_period_id: 900001 }],
+				["activate_evaluation_period", { p_period_id: 900001 }],
 				[
 					"privileged_sheet_operation",
 					{

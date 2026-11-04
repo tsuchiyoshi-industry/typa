@@ -17,6 +17,7 @@ const KINDS: { value: AuditCategory | "all"; label: string }[] = [
 	{ value: "all", label: "すべて" },
 	{ value: "account", label: "社員・アカウント" },
 	{ value: "workflow", label: "評価の進行" },
+	{ value: "period", label: "評価期間" },
 	{ value: "override", label: "遡及処理" },
 	{ value: "import", label: "取込" },
 ];

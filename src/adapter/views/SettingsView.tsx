@@ -14,7 +14,7 @@ interface SettingsViewProps {
 	controller: SettingsController;
 	periodController: Pick<
 		EvaluationPeriodController,
-		"load" | "save" | "remove" | "close" | "preview" | "divisions"
+		"load" | "save" | "remove" | "close" | "start" | "preview" | "divisions"
 	>;
 	smtpController: Pick<SmtpSettingsController, "load" | "save" | "chooseChannel">;
 }

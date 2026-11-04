@@ -61,6 +61,7 @@ import { RegisterEmployeeAccountInteractor } from "./application/usecases/Regist
 import { ResetEmployeeRegistrationInteractor } from "./application/usecases/ResetEmployeeRegistrationInteractor";
 import { SaveEvaluationPeriodInteractor } from "./application/usecases/SaveEvaluationPeriodInteractor";
 import { SignInEmployeeInteractor } from "./application/usecases/SignInEmployeeInteractor";
+import { StartEvaluationPeriodInteractor } from "./application/usecases/StartEvaluationPeriodInteractor";
 import { UpdateEmployeeEnabledInteractor } from "./application/usecases/UpdateEmployeeEnabledInteractor";
 import { UpdateEmployeeEvaluatorInteractor } from "./application/usecases/UpdateEmployeeEvaluatorInteractor";
 import { UpdateEmployeeGradeInteractor } from "./application/usecases/UpdateEmployeeGradeInteractor";
@@ -181,6 +182,7 @@ const evaluationPeriodController = new EvaluationPeriodController(
 	new SaveEvaluationPeriodInteractor(evaluationPeriodRepository, employeeMasterRepository),
 	new DeleteEvaluationPeriodInteractor(evaluationPeriodRepository, employeeMasterRepository),
 	new CloseEvaluationPeriodInteractor(evaluationPeriodRepository, employeeMasterRepository),
+	new StartEvaluationPeriodInteractor(evaluationPeriodRepository, employeeMasterRepository),
 );
 const emailNotificationRepository = new SupabaseEmailNotificationRepository();
 const notificationInboxController = new NotificationInboxController(

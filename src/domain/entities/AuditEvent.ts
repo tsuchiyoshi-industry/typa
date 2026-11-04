@@ -1,14 +1,15 @@
 /**
  * 監査ログ(security_audit_log)の記録の種類。記録は DB が操作と同じトランザクションで書き、アプリは読むだけ。
- * account: 社員・アカウント / workflow: 評価の進行 / override: Admin が通常の手順を越えた操作(遡及処理) /
- * import: データの取込。
+ * account: 社員・アカウント / workflow: 評価の進行 / period: 評価期間の締めと開始 /
+ * override: Admin が通常の手順を越えた操作(遡及処理) / import: データの取込。
  */
-export const AUDIT_CATEGORIES = ["account", "workflow", "override", "import"] as const;
+export const AUDIT_CATEGORIES = ["account", "workflow", "period", "override", "import"] as const;
 export type AuditCategory = (typeof AUDIT_CATEGORIES)[number];
 
 const ACTIONS: Record<AuditCategory, readonly string[]> = {
 	account: ["employee.invited", "employee.pre_registered", "employee.updated"],
 	workflow: ["sheet.status"],
+	period: ["period.closed", "period.started"],
 	override: [
 		"sheet.corrected",
 		"sheet.privileged_status",

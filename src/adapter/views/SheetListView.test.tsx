@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { MemoryRouter, Route } from "@solidjs/router";
 import { cleanup, fireEvent, render, within } from "@solidjs/testing-library";
+import { createSignal } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SheetSummaryDto } from "../../application/dtos/SheetListDto";
 import type { SheetListController } from "../controllers/SheetListController";
@@ -171,6 +172,59 @@ it("adds the company-wide overview for an Admin below the two tables, whose rows
 	expect(view.getByText("全社の評価シートを読み込んでいます...")).toBeTruthy();
 	expect(view.queryByRole("heading", { name: /全社の評価シート/ })).toBeNull();
 	expect(view.queryByText("他部署X")).toBeNull();
+});
+
+it("reads a period's company-wide sheets once, not again each time they arrive", async () => {
+	const [viewModel, setViewModel] = createSignal<SheetListViewModel>({
+		loading: false,
+		activePeriodIds: [26],
+		mySheets: [],
+		subordinateSheets: [],
+		overviewIndex: {
+			periods: [{ id: 26, name: "26期", startDate: "2026-03-23" }],
+			sheets: [{ id: 8, periodId: 26, employeeId: 8 }],
+		},
+		overviewSheets: {},
+		errorMessage: null,
+		exportStatus: { isExporting: false, message: null, success: null, fileName: null },
+	});
+	// 本物の presenter と同じく、読んだ結果をビューモデルに入れる
+	const loadOverview = vi.fn(async (periodId: number) => {
+		setViewModel((current) => ({
+			...current,
+			overviewSheets: {
+				...current.overviewSheets,
+				[periodId]: [
+					{
+						...sheet(8, 26, "他部署X"),
+						primaryEvaluator: "井上 部長",
+						secondaryEvaluator: "なし",
+						finalScore: null,
+						finalRank: null,
+					},
+				],
+			},
+		}));
+	});
+	const controller = { load: vi.fn(), loadOverview, exportSheet: vi.fn(), exportOverview: vi.fn() };
+	const view = render(() => (
+		<MemoryRouter>
+			<Route
+				path="/"
+				component={() => (
+					<SheetListView
+						controller={controller as unknown as SheetListController}
+						viewModel={viewModel}
+					/>
+				)}
+			/>
+		</MemoryRouter>
+	));
+	expect(await view.findByText("他部署X")).toBeTruthy();
+	// ほかの欄が変わっても(出力の結果など)読み直さない
+	setViewModel((current) => ({ ...current, errorMessage: null, loading: false }));
+	await Promise.resolve();
+	expect(loadOverview).toHaveBeenCalledExactlyOnceWith(26);
 });
 
 describe("新規作成", () => {

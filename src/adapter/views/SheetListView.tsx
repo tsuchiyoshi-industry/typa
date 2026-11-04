@@ -356,10 +356,12 @@ const SheetListView: Component<SheetListViewProps> = (props) => {
 		return id === undefined ? undefined : props.viewModel().overviewSheets[id];
 	});
 	const overviewSheets = createMemo(() => loadedOverview() ?? []);
-	// 全社の一覧は、選んだ評価期間のぶんだけを読む(Admin だけ。ほかの人には索引が無い)
+	// 全社の一覧は、選んだ評価期間のぶんだけを読む(Admin だけ。ほかの人には索引が無い)。
+	// 読んだ結果もビューモデルに入るので、ビューモデル全体ではなく、この2つが変わったときだけ読む
+	const admin = createMemo(() => props.viewModel().overviewIndex !== null);
 	createEffect(
 		on(
-			() => [props.viewModel().overviewIndex !== null, periodId()] as const,
+			[admin, periodId],
 			([admin, id]) => {
 				if (admin && id !== undefined) {
 					void props.controller.loadOverview(id);

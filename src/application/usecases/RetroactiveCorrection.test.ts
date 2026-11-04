@@ -139,14 +139,15 @@ describe("choosing what to correct", () => {
 				employeeName: `社員${id}`,
 				status: EvaluationStatus.FINALIZED,
 			}) as EvaluationSheetOverviewRow;
+		const rows = [row(3, 1, "E3"), row(2, 2, "E2"), row(1, 1, "E1")];
+		// DB と同じく、頼んだ評価期間のシートだけを返す
+		const findOverview = vi.fn(async (periodId: number) =>
+			rows.filter((sheet) => sheet.periodId === periodId),
+		);
 		const controller = new RetroactiveCorrectionController(
 			employees,
 			periodRepository(),
-			{
-				findOverview: vi
-					.fn()
-					.mockResolvedValue([row(3, 1, "E3"), row(2, 2, "E2"), row(1, 1, "E1")]),
-			},
+			{ findOverview },
 			corrections,
 			{} as CorrectClosedSheetInteractor,
 			{} as PrivilegedSheetOperationInteractor,
@@ -158,6 +159,7 @@ describe("choosing what to correct", () => {
 				.map((entry) => entry.periodName),
 		).toEqual(["前期"]);
 		expect((await controller.sheets(1)).map((s) => s.employeeNo)).toEqual(["E1", "E3"]);
+		expect(findOverview).toHaveBeenCalledExactlyOnceWith(1);
 	});
 });
 

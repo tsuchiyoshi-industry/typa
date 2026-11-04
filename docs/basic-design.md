@@ -359,6 +359,7 @@ DB も同じ絞り込みを行います。評価シートは DB 関数 `get_shee
 - 列は氏名（部下の表のみ）、作成時の等級、ステータス、最終更新。評価期間はタブで分かるので列にしない。列見出しで並べ替えられる。既定は最終更新の新しい順。
 - どちらの表でも、評価確定のシートに「PDF出力」ボタンが出る。
 - Admin には、二つの表の下に「全社の評価シート」を出す（見出しに Admin の札）。選んだ評価期間の全社員のシートが、下書きも含めて並ぶ。列は氏名、作成時の等級、ステータス、一次評価者、二次評価者、最終評価（確定したシートの評価点と評価ランク）、最終更新。一次評価ランクと総評は、この表には出さない（一覧の PDF にだけ載せる）。
+  - 全期間のシートを一度には読まない。評価期間のタブと件数は全社のシートの索引（`get_sheet_index`）で作り、表の中身は選んだ評価期間のぶんだけ読む（`get_sheet_overview(p_period_id)`）。届くまでは「全社の評価シートを読み込んでいます...」と出す。
   - 表の上に、どの段に何枚あるかを帯（幅がその段の割合）と件数で示す。件数を押すとその段だけに絞り込み、もう一度押すと解除する。
   - 行を押すと、そのシートを読み取り専用で開く（シート画面に「Admin として閲覧しています」と出す）。行ごとの「PDF出力」はない。
   - 「一覧をPDF出力」で、選んだ評価期間の全シートの一覧を PDF にする（絞り込みにかかわらず全件。[11.1](#111-全社の評価シート一覧)）。
@@ -409,7 +410,7 @@ DB も同じ絞り込みを行います。評価シートは DB 関数 `get_shee
 **監査ログ**
 - 読むだけの画面。DB が操作と同じトランザクションで書いた `security_audit_log` を、ID の新しい順に100件ずつ読む（キーセットのページ送り）。
 - 種類（社員・アカウント / 評価の進行 / 遡及処理 / 取込）、対象の社員、操作した人、期間（日付。終わりの日を含む）で絞り込む。対象の社員は、その社員の `employee.*` の記録、その社員の残っているシートの `sheet.*` の記録、`details.employeeId` にその社員を残した記録（削除・等級の変更など）。
-- 記録の中の ID（操作したアカウント、社員、シート、評価者、等級、権限、評価期間）は、画面を開いたときに一度だけ読んだ社員・権限・等級・評価期間と全社のシート一覧（`get_sheet_overview`）で名前にする。分からないものは推測せず「不明なアカウント」「削除されたシート（ID n）」と示す。
+- 記録の中の ID（操作したアカウント、社員、シート、評価者、等級、権限、評価期間）は、画面を開いたときに一度だけ読んだ社員・権限・等級・評価期間と全社のシートの索引（`get_sheet_index`）で名前にする。分からないものは推測せず「不明なアカウント」「削除されたシート（ID n）」と示す。
 - 遡及処理（締め後修正・特権での状態変更・削除・等級の変更）の記録にだけ検印を出す。変えた項目は変更前を消し線（`del`）、変更後を加筆（`ins`）で示す。記録の原文（`details` の JSON）は文字として出す。
 - アプリが知らない種類の記録も、種類名と原文のまま出す（新しい DB と古いアプリの組み合わせで記録を隠さない）。
 
@@ -543,20 +544,20 @@ flowchart TB
 
 ### 7.5 リポジトリと外部接続
 
-| インターフェース（domain / application） | 実装                                   | 接続先                                                                                                                                                          |
-| ---------------------------------------- | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `AuthRepository`                         | `SupabaseAuthRepository`               | Supabase Auth                                                                                                                                                   |
-| `EmployeeRepository`                     | `SupabaseEmployeeRepository`           | `employees`、`employee_grades`、RPC（新規登録の開始と完了）                                                                                                     |
-| `EmployeeMasterRepository`               | `SupabaseEmployeeMasterRepository`     | `employees`、`roles`、`employee_grades`、RPC                                                                                                                    |
-| `EvaluationSheetRepository`              | `SupabaseEvaluationSheetRepository`    | RPC `get_sheet`（シート1枚の読み取り）・`get_sheet_overview`、`evaluation_sheets`（一覧、作成、集計・総評の更新）、状態変更は RPC `transition_evaluation_sheet` |
-| `MilestoneRepository`                    | `SupabaseMilestoneRepository`          | `milestones`（書き込みのみ。保存後の内容は `get_sheet` で読み直す）                                                                                             |
-| `CommonEvaluationRepository`             | `SupabaseCommonEvaluationRepository`   | RPC `save_common_evaluation`（全項目を1回で保存）                                                                                                               |
-| `EvaluationPeriodRepository`             | `SupabaseEvaluationPeriodRepository`   | `evaluation_periods`、RPC（締め、開始、シートの状態別件数）                                                                                                     |
-| `EvaluationSettingsRepository`           | `SupabaseEvaluationSettingsRepository` | `evaluation_settings`                                                                                                                                           |
-| `WorkspaceSettingsRepository`            | `SupabaseWorkspaceSettingsRepository`  | `workspace_settings`、RPC（会社ドメイン）                                                                                                                       |
-| `ReviewerWorkspaceRepository`            | `SupabaseReviewerWorkspaceRepository`  | RPC `get_reviewer_workspace`                                                                                                                                    |
-| `EmailNotificationRepository`            | `SupabaseEmailNotificationRepository`  | Edge Function `notify-sheet`                                                                                                                                    |
-| `SheetPdfGateway`                        | `TauriSheetPdfGateway`                 | 保存ダイアログ、Tauri コマンド `generate_pdf_with_typst`・`generate_sheet_overview_pdf`                                                                         |
+| インターフェース（domain / application） | 実装                                   | 接続先                                                                                                                                                                                             |
+| ---------------------------------------- | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AuthRepository`                         | `SupabaseAuthRepository`               | Supabase Auth                                                                                                                                                                                      |
+| `EmployeeRepository`                     | `SupabaseEmployeeRepository`           | `employees`、`employee_grades`、RPC（新規登録の開始と完了）                                                                                                                                        |
+| `EmployeeMasterRepository`               | `SupabaseEmployeeMasterRepository`     | `employees`、`roles`、`employee_grades`、RPC                                                                                                                                                       |
+| `EvaluationSheetRepository`              | `SupabaseEvaluationSheetRepository`    | RPC `get_sheet`（シート1枚の読み取り）・`get_sheet_overview`（評価期間ごと）・`get_sheet_index`、`evaluation_sheets`（一覧、作成、集計・総評の更新）、状態変更は RPC `transition_evaluation_sheet` |
+| `MilestoneRepository`                    | `SupabaseMilestoneRepository`          | `milestones`（書き込みのみ。保存後の内容は `get_sheet` で読み直す）                                                                                                                                |
+| `CommonEvaluationRepository`             | `SupabaseCommonEvaluationRepository`   | RPC `save_common_evaluation`（全項目を1回で保存）                                                                                                                                                  |
+| `EvaluationPeriodRepository`             | `SupabaseEvaluationPeriodRepository`   | `evaluation_periods`、RPC（締め、開始、シートの状態別件数）                                                                                                                                        |
+| `EvaluationSettingsRepository`           | `SupabaseEvaluationSettingsRepository` | `evaluation_settings`                                                                                                                                                                              |
+| `WorkspaceSettingsRepository`            | `SupabaseWorkspaceSettingsRepository`  | `workspace_settings`、RPC（会社ドメイン）                                                                                                                                                          |
+| `ReviewerWorkspaceRepository`            | `SupabaseReviewerWorkspaceRepository`  | RPC `get_reviewer_workspace`                                                                                                                                                                       |
+| `EmailNotificationRepository`            | `SupabaseEmailNotificationRepository`  | Edge Function `notify-sheet`                                                                                                                                                                       |
+| `SheetPdfGateway`                        | `TauriSheetPdfGateway`                 | 保存ダイアログ、Tauri コマンド `generate_pdf_with_typst`・`generate_sheet_overview_pdf`                                                                                                            |
 
 Tauri コマンド（[src-tauri/src/lib.rs](../src-tauri/src/lib.rs)）:
 
@@ -697,7 +698,8 @@ erDiagram
 | `reset_employee_registration(employee_no)`                 | Admin                                                          | `employees.user_id` を null に戻し、Auth ユーザー・通知先・登録途中のトークンを削除する。紐付けの前で止まったログイン用アカウントも削除する。自分自身は不可                                                                                                                                          |
 | `activate_evaluation_period(period_id)`                    | Admin                                                          | 期間締め。指定した期間を実施中にし、それまでの実施中の期間を締める。締める期間に未確定のシートがあれば拒否する                                                                                                                                                                                       |
 | `get_evaluation_period_sheet_counts(period_id)`            | Admin                                                          | その期間の評価シートの、状態ごとの件数（内容は返さない）                                                                                                                                                                                                                                             |
-| `get_sheet_overview()`                                     | Admin                                                          | 全期間・全社員の評価シートの一覧。期間、社員、作成時の等級、状態、シートの評価者、更新日時、確定した一次評価ランク・最終評価ランク・評価点、一次・二次の総評。下書きも含む                                                                                                                           |
+| `get_sheet_overview(p_period_id)`                          | Admin                                                          | その評価期間の全社員の評価シートの一覧（省くと全期間。古いアプリ向け）。期間、社員、作成時の等級、状態、シートの評価者、更新日時、確定した一次評価ランク・最終評価ランク・評価点、一次・二次の総評。下書きも含む                                                                                     |
+| `get_sheet_index()`                                        | Admin                                                          | 全社のシートの索引。シートの ID・評価期間・社員と、評価期間の名前・開始日だけ。評価期間のタブと件数、監査ログの名寄せに使う                                                                                                                                                                          |
 | `get_required_domain()`                                    | 誰でも（ログイン前を含む）                                     | 会社のメールドメイン。ログイン画面が使う                                                                                                                                                                                                                                                             |
 | `issue_employee_invitation(employee_no)`                   | Admin                                                          | 有効・未登録の社員に7日間の招待コードを発行。再発行は旧コードと登録途中のトークンを無効にする                                                                                                                                                                                                        |
 | `set_employee_enabled(employee_no, enabled)`               | Admin                                                          | 利用停止・再開。最後の利用可能 Admin を保護する                                                                                                                                                                                                                                                      |
@@ -855,7 +857,7 @@ Admin が、評価シート一覧の「全社の評価シート」から出力�
 - ランクは、その段の評価が確定するまで「—」（確定前の点数からの見込みは載せない）。コメントは、書かれていれば確定前でも載る。
 - ステータスは、6つの升目をいまの段まで塗った印と表示名で示す。白黒で印刷しても進み具合が分かる。表示名（下書き / 目標確認待ち / 振り返り待ち / 一次評価待ち / 二次評価待ち / 評価確定）はテンプレートが持ち、画面と同じ言葉にする。
 - 氏名などは評価シートの帳票と同じく Typst の入力値として渡し、マークアップとしては解釈されない。
-- 項目を足すときは、`get_sheet_overview`（マイグレーション。`202610080017` が現在の定義）、`EvaluationSheetOverviewRow`、`ExportSheetDto.ts`、`ExportSheetOverviewInteractor.ts`、`lib.rs`、`sheet_overview.typ` を合わせて変更します。
+- 項目を足すときは、`get_sheet_overview`（マイグレーション。`202611040003` が現在の定義）、`EvaluationSheetOverviewRow`、`ExportSheetDto.ts`、`ExportSheetOverviewInteractor.ts`、`lib.rs`、`sheet_overview.typ` を合わせて変更します。
 
 ---
 

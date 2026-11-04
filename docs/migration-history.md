@@ -1,5 +1,11 @@
 # マイグレーションの変更経緯
 
+## 2026-11-04: 全社のシート一覧を評価期間ごとに読む
+
+`202611040003_sheet_overview_by_period.sql` は `get_sheet_overview()` を `get_sheet_overview(p_period_id bigint default null)` に置き換え、`get_sheet_index()` を足します。これまでの全社のシート一覧は全期間のシートを丸ごと返し、610 人・10 期間（6,090 枚）で 3.5MB ありました。一覧を開くたび、締め後の修正で評価期間を選ぶたび、一覧の PDF を出すたびに送っていました。`p_period_id` を渡すとその評価期間だけを返し（同じデータで 331KB）、省けば従来どおり全期間を返します。`get_sheet_index()` は、シートの ID・評価期間・社員と、評価期間の名前・開始日だけを返します（285KB）。評価期間のタブと件数、監査ログの名寄せに使います。どちらも Admin（利用停止中を除く）だけが実行でき、ほかの人には `42501` で断ります。引数のない版を残すと、引数なしの呼び出しが2つの版のどちらにも当てはまり PostgREST が選べないので、`drop function` してから作ります。`security/schema-inventory.expected.txt` は、関数の追加と `get_sheet_overview` の引数・md5 だけが変わります。
+
+**互換性**: 当てた後も、古いアプリ（引数なしで呼ぶ）はこれまでどおり全期間を受け取ります。新しいアプリは `get_sheet_index` と `p_period_id` を使うので、SQL を当てる前は全社の一覧・監査ログ・締め後の修正が開けません。アプリより先に当ててください。`202611040002` の後に適用します。
+
 ## 2026-11-04: 評価者のシート一覧を速くする
 
 `202611040002_evaluator_sheet_list_speed.sql` は、`evaluation_sheets` の読み取りポリシー `subject and evaluators read a sheet` を置き換えます。これまでは、確定したシートの1行ごとに `is_current_evaluator_of` を呼んでいました（中で `current_employee_id()` を2回呼び、Auth のセッションも引く）。610 人・10 期間（6,090 枚）では、評価者の一覧（自分以外のシート。`findByEvaluator`）が 1 回 3 秒以上かかっていました。新しい関数 `current_subordinate_ids()`（呼び出した人が今の一次・二次評価者である社員。自分は除く。利用停止中・ログイン前は空）で今の部下を一度だけ集め、各行はその集合と照らします。社員マスタの `visible_employee_ids()` と同じ形です。同じデータで、評価者の一覧は 13〜41ms になりました。

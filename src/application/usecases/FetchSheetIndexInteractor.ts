@@ -29,7 +29,10 @@ export class FetchSheetIndexInteractor
 		private readonly evaluationSheetRepository: EvaluationSheetRepository,
 	) {}
 
-	async execute(_request: FetchSheetIndexRequest, outputPort: FetchSheetIndexOutputPort): Promise<void> {
+	async execute(
+		_request: FetchSheetIndexRequest,
+		outputPort: FetchSheetIndexOutputPort,
+	): Promise<void> {
 		const viewer = await overviewViewer(this.employeeMasterRepository);
 		outputPort.present({
 			index: viewer ? await this.evaluationSheetRepository.findOverviewIndex() : null,

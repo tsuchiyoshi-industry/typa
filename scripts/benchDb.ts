@@ -21,7 +21,21 @@ if (seeded.status !== 0) {
 }
 const loaded = spawnSync(
 	"docker",
-	["exec", "-i", "supabase_db_typa", "psql", "-U", "postgres", "-d", database, "-v", "ON_ERROR_STOP=1", "-q", "-o", "/dev/null"],
+	[
+		"exec",
+		"-i",
+		"supabase_db_typa",
+		"psql",
+		"-U",
+		"postgres",
+		"-d",
+		database,
+		"-v",
+		"ON_ERROR_STOP=1",
+		"-q",
+		"-o",
+		"/dev/null",
+	],
 	{ input: readFileSync("supabase/seed.sql"), encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
 );
 if (loaded.status !== 0) {
@@ -72,7 +86,10 @@ try {
 		const login = await fetch(`${api.base}/auth/v1/token?grant_type=password`, {
 			method: "POST",
 			headers: { apikey: anon, "content-type": "application/json" },
-			body: JSON.stringify({ email: `typa-${employeeNo.toLowerCase()}@example.com`, password: "typa-demo" }),
+			body: JSON.stringify({
+				email: `typa-${employeeNo.toLowerCase()}@example.com`,
+				password: "typa-demo",
+			}),
 		});
 		if (!login.ok) {
 			throw new Error(`${who} がログインできません: ${login.status} ${await login.text()}`);
@@ -82,7 +99,10 @@ try {
 			["本人のシート一覧", `evaluation_sheets?select=${LIST}&employee_id=eq.${id}`],
 			["評価者のシート一覧", `evaluation_sheets?select=${LIST}&employee_id=neq.${id}`],
 			["評価者ワークスペース", "rpc/get_reviewer_workspace", { p_period_id: activePeriod }],
-			["通知", "notifications?select=id,sheet_id,kind,employee_name,period_name,created_at,read_at&order=created_at.desc&limit=50"],
+			[
+				"通知",
+				"notifications?select=id,sheet_id,kind,employee_name,period_name,created_at,read_at&order=created_at.desc&limit=50",
+			],
 			["アクセス状態", "rpc/get_current_employee_access_state", {}],
 		];
 		if (sheet !== "0") {
@@ -92,9 +112,16 @@ try {
 		if (who === "Admin") {
 			cases.push(["全社のシート索引", "rpc/get_sheet_index", {}]);
 			cases.push(["全社のシート(1期間)", "rpc/get_sheet_overview", { p_period_id: activePeriod }]);
-			cases.push(["期間の件数", "rpc/get_evaluation_period_sheet_counts", { p_period_id: activePeriod }]);
+			cases.push([
+				"期間の件数",
+				"rpc/get_evaluation_period_sheet_counts",
+				{ p_period_id: activePeriod },
+			]);
 			cases.push(["社員マスタ", "employees?select=*&order=employee_no"]);
-			cases.push(["監査ログ", "security_audit_log?select=id,occurred_at,actor_user_id,action,entity_id,details&order=id.desc&limit=51"]);
+			cases.push([
+				"監査ログ",
+				"security_audit_log?select=id,occurred_at,actor_user_id,action,entity_id,details&order=id.desc&limit=51",
+			]);
 		}
 		for (const [query, path, body] of cases) {
 			const runs: number[] = [];

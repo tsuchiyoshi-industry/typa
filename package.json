@@ -18,6 +18,7 @@
 		"test:watch": "vitest",
 		"bench": "vitest bench --run -c vitest.bench.config.ts",
 		"bench:browser": "vitest bench --run -c vitest.browser-bench.config.ts",
+		"bench:db": "bun scripts/prepareReleaseDb.ts typa_bench --replace && bun scripts/benchDb.ts typa_bench",
 		"test:coverage": "vitest run --coverage",
 		"typecheck": "tsc --noEmit && tsc --project tsconfig.node.json --noEmit",
 		"test:e2e": "playwright test",

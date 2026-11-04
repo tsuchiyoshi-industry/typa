@@ -73,9 +73,10 @@ export class FetchCategorizedSheetsInteractor
 		// 4. DTOへ変換して出力
 		outputPort.present({
 			mySheets: mySheets.map(toSheetSummaryDto),
-			// 下書き中のシートは評価者に見せない
+			// 下書き中のシートは評価者に見せない。締めた期間の下書きはもう変わらないので見せる
+			// (EvaluationSheetAccessPolicy と同じ。評価者は締めた期間の下書きを開いて読み、出力できる)
 			subordinateSheets: subordinateSheets
-				.filter((summary) => !summary.status.isDraft())
+				.filter((summary) => !summary.status.isDraft() || summary.periodClosed === true)
 				.map(toSheetSummaryDto),
 		});
 	}

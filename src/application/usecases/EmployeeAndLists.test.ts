@@ -350,6 +350,37 @@ describe("lists and permission queries", () => {
 		expect(out.present).toHaveBeenCalledWith({ mySheets: [], subordinateSheets: [] });
 		expect(sheets.findByOwner).not.toHaveBeenCalled();
 	});
+	// 業務のきまり: 下書きは評価者に見せない。ただし締めた期間の下書きはもう変わらないので、評価者も読める
+	// (EvaluationSheetAccessPolicy と同じ)。一覧にも、その評価期間のタブにも出す
+	it("lists a report's draft only once its period is closed", async () => {
+		const employees = employeeRepository();
+		const sheets = sheetRepository();
+		const draft = (id: number, periodClosed: boolean) => ({
+			id,
+			periodId: id,
+			employeeId: 4,
+			status: EvaluationStatus.DRAFT,
+			totalScore: 0,
+			createdAt: "created",
+			updatedAt: "updated",
+			periodName: periodClosed ? "締めた期間" : "実施中の期間",
+			periodStart: "start",
+			periodEnd: "end",
+			periodClosed,
+			employeeName: "部下",
+			employeeNo: "E004",
+			gradeName: "等級",
+		});
+		sheets.findByOwner.mockResolvedValue([]);
+		sheets.findByEvaluator.mockResolvedValue([draft(1, false), draft(2, true)]);
+		const out = output<never>();
+		await new FetchCategorizedSheetsInteractor(employees, sheets).execute({}, out);
+		expect(
+			(
+				out.present.mock.calls[0][0] as { subordinateSheets: { id: number }[] }
+			).subordinateSheets.map((sheet) => sheet.id),
+		).toEqual([2]);
+	});
 	it.each([{ evaluated: 0 }, { evaluated: 1 }])(
 		"lists own sheets and the sheets that name the current employee as evaluator %j",
 		async ({ evaluated }) => {

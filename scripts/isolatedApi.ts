@@ -15,7 +15,7 @@ export const ISOLATED_DATABASES = [
 const docker = (...args: string[]) => {
 	const result = spawnSync("docker", args, { encoding: "utf8" });
 	if (result.status !== 0) {
-		throw new Error(`Docker operation failed: ${args[0]}`);
+		throw new Error(`Docker operation failed: ${args[0]}\n${result.stderr ?? ""}`.trim());
 	}
 	return result.stdout.trim();
 };

@@ -65,6 +65,8 @@ async function openSubordinate(page: Page) {
 }
 
 test("a sheet goes from the employee through both evaluators to a final rank", async ({ page }) => {
+	// 4人が入れ替わりでログインする。ログアウトのたびにページを読み直す(前の人の状態を捨てる)ので長い
+	test.slow();
 	await test.step("本人が目標を書いて送信する", async () => {
 		await signIn(page, "RELEASE004");
 		await page.getByRole("link", { name: "新規作成" }).click();

@@ -26,6 +26,11 @@ export async function fillPreRegistration(page: Page, employeeNo: string, name: 
 
 export async function signIn(page: Page, employeeNo: string, password = PASSWORD) {
 	await page.goto("/login");
+	await submitSignIn(page, employeeNo, password);
+}
+
+/** いま出ているログイン画面から、ページを開き直さずにログインする。 */
+export async function submitSignIn(page: Page, employeeNo: string, password = PASSWORD) {
 	await page.getByLabel("社員番号").fill(employeeNo);
 	await page.getByLabel("パスワード", { exact: true }).fill(password);
 	await authRequest(async () => {

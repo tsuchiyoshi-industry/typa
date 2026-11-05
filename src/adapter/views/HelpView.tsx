@@ -97,7 +97,7 @@ const IMAGES = {
 	result: page("evaluator/12-sheet-list", "部下の評価シートの PDF 出力"),
 	periodSwitch: page("admin/07-period-switch", "評価期間を締める確認"),
 	corrections: {
-		shot: "user/16-corrections",
+		shot: "evaluator/15-corrections",
 		caption: "締め後修正の記録",
 		width: 1216,
 		height: 243,

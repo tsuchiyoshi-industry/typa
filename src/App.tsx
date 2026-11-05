@@ -30,6 +30,7 @@ import { createCommonEvaluationPresenter } from "./adapter/presenters/CommonEval
 import { createEmployeeMasterPresenter } from "./adapter/presenters/EmployeeMasterPresenter";
 import { createSheetEditorPresenter } from "./adapter/presenters/SheetEditorPresenter";
 import { createSheetListPresenter } from "./adapter/presenters/SheetListPresenter";
+import { createAccountSwitchGuard } from "./adapter/views/accountSwitch";
 import AutoUpdateNotification from "./adapter/views/components/AutoUpdateNotification";
 import ExitConfirmDialog from "./adapter/views/components/ExitConfirmDialog";
 import FeedbackHost from "./adapter/views/components/FeedbackHost";
@@ -329,10 +330,17 @@ const App: Component = () => {
 
 	// A late response from the previous account must never restore its protected view.
 	let userStatusGeneration = 0;
+	// 上の Presenter・Controller はページを開いている間残るので、別の人に替わったら読み直して捨てる
+	const accountSwitch = createAccountSwitchGuard();
 	const checkUserStatus = async (currentSession: AuthSession | null) => {
 		const generation = ++userStatusGeneration;
+		// 替わったら、確かめ終わるまで(読み直すときは読み直すまで)ログイン後の画面を出さない
 		if (session()?.userId !== currentSession?.userId) {
 			setIsLinked(null);
+		}
+		if (!currentSession && accountSwitch.signedOut()) {
+			window.location.reload();
+			return;
 		}
 		setSession(currentSession);
 		const linked = currentSession
@@ -348,7 +356,12 @@ const App: Component = () => {
 		if (generation !== userStatusGeneration) {
 			return;
 		}
+		// 読み直す前に、この人のセッションの残し方へ切り替える(前の人の設定で残さない)
 		authRepository.keepSignedIn(keep);
+		if (linked && currentSession && accountSwitch.mustReloadFor(currentSession.userId)) {
+			window.location.reload();
+			return;
+		}
 		setIsLinked(linked);
 		// 確認が追い越されたときは、最後に始めた確認がセットアップを終える
 		setSetUp(true);

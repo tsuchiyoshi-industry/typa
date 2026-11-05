@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, type Page, test } from "@playwright/test";
-import { ADMIN, restAs, signIn, signOut } from "./support";
+import { ADMIN, restAs, signIn, signOut, submitSignIn } from "./support";
 
 // evaluation.spec.ts の後に動く(評価期間を切り替えるので最後に置く)。
 // 期を上期・下期に分け、上期に目標だけを取り込んで評価せずに締め、下期で上期のチャレンジ目標を引き継ぐ。
@@ -340,4 +340,39 @@ test("a term is divided, its first half closed with goals only, and its challeng
 		});
 		expect(response.ok).toBe(false);
 	});
+});
+
+// 最後に流す(前のテストで、社員 4 にも全社の一覧にもシートがある)
+test("on a shared window, the next person never sees the company-wide sheets the Admin was viewing", async ({
+	page,
+}) => {
+	await signIn(page, ADMIN);
+	const overview = page.getByRole("region", { name: "全社の評価シート" });
+	await expect(overview.getByRole("row", { name: /Release test 4/ }).first()).toBeVisible();
+
+	// これから開く画面で、全社の一覧が一瞬でも出たら知らせる(社員 4 は Admin ではない)
+	let leaked = false;
+	await page.exposeFunction("reportLeak", () => {
+		leaked = true;
+	});
+	await page.addInitScript(() => {
+		new MutationObserver(() => {
+			if (document.body?.textContent?.includes("全社の評価シート")) {
+				(window as unknown as { reportLeak: () => void }).reportLeak();
+			}
+		}).observe(document, { childList: true, subtree: true, characterData: true });
+	});
+	await page.evaluate(() => Object.assign(window, { previousPerson: true }));
+	await signOut(page);
+	// サインアウトした時点でページを読み直し、Admin の画面の状態を捨てている
+	await expect.poll(() => page.evaluate(() => "previousPerson" in window)).toBe(false);
+
+	// ページを開き直さずに次の人がログインする(signIn は /login を開き直すので使わない)
+	await submitSignIn(page, "RELEASE004");
+	await expect(page.getByRole("heading", { name: "評価シート一覧" })).toBeVisible();
+	expect(leaked).toBe(false);
+	// 社員 4 の権限で読んでいる。Admin が開いた期間の全社の一覧も、読めなかったエラーも出ない
+	await expect(overview).toHaveCount(0);
+	await expect(page.getByRole("alert")).toHaveCount(0);
+	await signOut(page);
 });

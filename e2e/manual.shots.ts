@@ -468,7 +468,7 @@ test("manual screenshots", async ({ page }) => {
 		await signOut(page);
 	});
 
-	await test.step("利用者: 前期のチャレンジ目標の引き継ぎと締め後修正", async () => {
+	await test.step("利用者: 前期のチャレンジ目標の引き継ぎ", async () => {
 		await signIn(page, "RELEASE004");
 		await page.getByRole("link", { name: "新規作成" }).click();
 		await page.getByRole("button", { name: "評価シートを作成" }).click();
@@ -480,18 +480,25 @@ test("manual screenshots", async ({ page }) => {
 		await expect(previous).toContainText("受注処理の手戻り");
 		await expect(previous.getByRole("button", { name: "据え置く" }).first()).toBeVisible();
 		await shot(previous, "user", "15-previous-goals");
-		await page.getByRole("link", { name: "TYPA 評価シート一覧へ" }).click();
+		await signOut(page);
+	});
+
+	// 本人は締めた期間の自分のシートを開けないので、締め後修正は評価者の画面で撮る
+	await test.step("評価者: 締め後修正の表示", async () => {
+		await signIn(page, "RELEASE003");
 		await page
 			.getByRole("navigation", { name: "評価期間" })
 			.getByRole("button", { name: "2026年度 下期" })
 			.click();
 		await page
-			.getByRole("link", { name: /一般職/ })
+			.getByRole("region", { name: "部下の評価シート" })
+			.getByRole("row", { name: /佐藤 三郎/ })
+			.getByRole("link")
 			.first()
 			.click();
 		const notice = page.locator(".correction-notice");
 		await expect(notice).toContainText("締め後修正があります");
-		await shot(notice, "user", "16-corrections");
+		await shot(notice, "evaluator", "15-corrections");
 	});
 });
 

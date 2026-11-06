@@ -386,6 +386,8 @@ test("manual screenshots", async ({ page }) => {
 		await shot(page, "admin", "03-structure");
 		await page.getByRole("button", { name: "リスト" }).click();
 		await page.getByRole("button", { name: "招待コードを一括発行" }).click();
+		await expect(page.getByRole("radio", { name: /発行済みの社員を除く/ })).toBeChecked();
+		await shot(page, "admin", "04-bulk-invitation-options");
 		await confirm(page, "未登録の社員に招待コードをまとめて発行しますか？", "まとめて発行");
 		await expect(page.getByRole("textbox", { name: "招待コードの一覧" })).toBeVisible();
 		await shot(page, "admin", "04-bulk-invitations");

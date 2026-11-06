@@ -75,3 +75,48 @@ it("前に書いた文を入れて開き、その長さで実行できるかを�
 	expect((screen.getByRole("button", { name: "戻す" }) as HTMLButtonElement).disabled).toBe(false);
 	settleConfirm(false);
 });
+
+it("確認のラジオは一つだけ選べ、開き直すと初期選択に戻る", async () => {
+	const onChange = vi.fn();
+	render(() => <FeedbackHost />);
+	const request = {
+		title: "まとめて発行しますか？",
+		message: "対象を選んでください。",
+		confirmLabel: "発行する",
+		radio: {
+			label: "発行する対象",
+			initial: "exclude",
+			options: [
+				{
+					value: "exclude",
+					label: "発行済みを除く",
+					description: "期限内のコードはそのまま使えます。",
+				},
+				{
+					value: "include",
+					label: "発行済みも含める",
+					description: "前のコードは無効になります。",
+				},
+			],
+			onChange,
+		},
+	};
+	const answer = confirmAction(request);
+	const exclude = (await screen.findByRole("radio", {
+		name: /発行済みを除く/,
+	})) as HTMLInputElement;
+	const include = screen.getByRole("radio", { name: /発行済みも含める/ }) as HTMLInputElement;
+	expect(exclude.checked).toBe(true);
+	expect(include.checked).toBe(false);
+	fireEvent.click(include);
+	expect(include.checked).toBe(true);
+	expect(exclude.checked).toBe(false);
+	expect(onChange).toHaveBeenLastCalledWith("include");
+	fireEvent.click(screen.getByRole("button", { name: "キャンセル" }));
+	expect(await answer).toBe(false);
+	void confirmAction(request);
+	expect(
+		((await screen.findByRole("radio", { name: /発行済みを除く/ })) as HTMLInputElement).checked,
+	).toBe(true);
+	settleConfirm(false);
+});

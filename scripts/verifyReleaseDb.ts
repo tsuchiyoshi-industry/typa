@@ -52,6 +52,58 @@ const last = (text: string) => text.split(/\r?\n/).at(-1);
 const parsed = <T>(text: string): T => JSON.parse(last(text) ?? "null");
 sql(readFileSync(new URL("../security/release-fixture.sql", import.meta.url), "utf8"));
 
+// Two bulk requests must not issue the same pending employee twice in exclusion mode.
+const pendingEmployeeNos = parsed<string[]>(
+	sql(
+		"select jsonb_agg(employee_no order by employee_no) from public.employees where is_enabled and user_id is null;",
+	),
+);
+const bulkResults = await Promise.all([
+	asyncSql(as(1, "select public.issue_pending_employee_invitations(false);")),
+	asyncSql(as(1, "select public.issue_pending_employee_invitations(false);")),
+]);
+assert.deepEqual(bulkResults.map((result) => parsed<unknown[]>(result).length).sort(), [
+	0,
+	pendingEmployeeNos.length,
+]);
+assert.deepEqual(
+	bulkResults
+		.flatMap((result) => parsed<{ employeeNo: string }[]>(result).map((i) => i.employeeNo))
+		.sort(),
+	pendingEmployeeNos,
+);
+
+// A suspension committed while bulk issuance waits must exclude the employee.
+const suspending = asyncSql(
+	as(
+		1,
+		`begin; set application_name='typa-release-invitation-suspend';
+		select public.set_employee_enabled('RELEASE007',false); select pg_sleep(1.5); commit;`,
+	),
+);
+for (let i = 0; i < 60; i++) {
+	if (
+		sql(
+			"select count(*) from pg_stat_activity where application_name='typa-release-invitation-suspend' and wait_event='PgSleep'",
+		) === "1"
+	) {
+		break;
+	}
+	await new Promise((r) => setTimeout(r, 50));
+	if (i === 59) {
+		throw new Error("Suspension did not reach the bulk invitation concurrency barrier.");
+	}
+}
+assert.deepEqual(
+	parsed<{ employeeNo: string }[]>(
+		await asyncSql(as(1, "select public.issue_pending_employee_invitations(true);")),
+	).map((i) => i.employeeNo),
+	pendingEmployeeNos.filter((employeeNo) => employeeNo !== "RELEASE007"),
+);
+await suspending;
+assert.equal(sql("select count(*) from public.employee_invitations where employee_id=900007"), "0");
+sql(as(1, "select public.set_employee_enabled('RELEASE007',true);"));
+
 const sheet = Number(
 	last(
 		sql(
@@ -208,5 +260,5 @@ sql(
 );
 
 console.log(
-	`${database}: real PostgreSQL transitions, aggregates, concurrent save/confirm, frozen content, suspension, concurrent Admin protection and Reviewer authorization passed.`,
+	`${database}: real PostgreSQL transitions, aggregates, concurrent save/confirm, frozen content, suspension, concurrent Admin protection, bulk invitation concurrency and Reviewer authorization passed.`,
 );

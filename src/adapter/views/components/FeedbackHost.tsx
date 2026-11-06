@@ -70,6 +70,33 @@ const ConfirmDialog: Component = () => {
 								</label>
 							)}
 						</Show>
+						<Show when={request().radio}>
+							{(radio) => (
+								<fieldset class="confirm-dialog__radio-group">
+									<legend>{radio().label}</legend>
+									<For each={radio().options}>
+										{(option, index) => (
+											<label class="confirm-dialog__radio">
+												<input
+													type="radio"
+													name="confirm-dialog-choice"
+													value={option.value}
+													checked={radio().initial === option.value}
+													aria-describedby={`confirm-dialog-choice-${index()}`}
+													onChange={() => radio().onChange(option.value)}
+												/>
+												<span>
+													<span>{option.label}</span>
+													<small id={`confirm-dialog-choice-${index()}`}>
+														{option.description}
+													</small>
+												</span>
+											</label>
+										)}
+									</For>
+								</fieldset>
+							)}
+						</Show>
 						<Show when={request().text}>
 							{(text) => (
 								<label class="confirm-dialog__text">

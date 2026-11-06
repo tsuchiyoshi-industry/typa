@@ -162,3 +162,95 @@ it("issues bulk invitations only to unregistered employees without an unexpired 
 			.status,
 	).toBe("available");
 });
+
+it("can reissue all pending invitations, invalidating old codes and registration tickets", async () => {
+	await actAs(db, 1);
+	const first = await value<{ code: string }>("public.issue_employee_invitation('E7')");
+	await actAs(db, 98, "otp");
+	const ticket = await value<{ token: string }>("public.begin_registration('E7',$1)", [first.code]);
+	await actAs(db, 1);
+	expect(await value("public.issue_pending_employee_invitations(false)")).toEqual([]);
+	const renewed = await value<{ employeeNo: string; code: string }[]>(
+		"public.issue_pending_employee_invitations(true)",
+	);
+	expect(renewed.map((i) => i.employeeNo)).toEqual(["E7"]);
+	expect(renewed[0].code).not.toBe(first.code);
+	await db.exec("reset role");
+	expect(
+		await value("(select count(*) from public.registration_tickets where token=$1)", [
+			ticket.token,
+		]),
+	).toBe(0);
+	const audit = await query(
+		"select * from public.security_audit_log where entity_id=7 and action='employee.invited'",
+	);
+	expect(audit.length).toBeGreaterThanOrEqual(2);
+	expect(JSON.stringify(audit)).not.toContain(renewed[0].code);
+	await actAs(db, 98, "otp");
+	expect(await value("public.begin_registration('E7',$1)->>'status'", [first.code])).toBe(
+		"invalid_invitation",
+	);
+	expect(await value("public.begin_registration('E7',$1)->>'status'", [renewed[0].code])).toBe(
+		"available",
+	);
+});
+
+it.each([2, 4, 99, 1])(
+	"rejects bulk reissuance by unauthorized actor %s without changes",
+	async (actor) => {
+		if (actor === 1) {
+			await db.exec("update public.employees set is_enabled=false where id=1");
+		}
+		try {
+			const before = await query("select * from public.employee_invitations order by employee_id");
+			const auditBefore = await value("(select count(*) from public.security_audit_log)");
+			await actAs(db, actor);
+			for (const includeIssued of [false, true]) {
+				await expect(
+					value("public.issue_pending_employee_invitations($1)", [includeIssued]),
+				).rejects.toMatchObject({ code: "42501" });
+			}
+			await db.exec("reset role");
+			expect(await query("select * from public.employee_invitations order by employee_id")).toEqual(
+				before,
+			);
+			expect(await value("(select count(*) from public.security_audit_log)")).toBe(auditBefore);
+		} finally {
+			await db.exec("reset role; update public.employees set is_enabled=true where id=1");
+		}
+	},
+);
+
+it("rejects a null bulk mode and excludes disabled employees even when reissuing", async () => {
+	await actAs(db, 1);
+	await expect(
+		value("public.issue_pending_employee_invitations(null::boolean)"),
+	).rejects.toMatchObject({ code: "22023" });
+	await value("public.set_employee_enabled('E7',false)");
+	expect(await value("public.issue_pending_employee_invitations(true)")).toEqual([]);
+});
+
+it("rolls back bulk reissuance when writing the audit fails", async () => {
+	await actAs(db, 1);
+	await value("public.issue_employee_invitation('E7')");
+	await db.exec("reset role");
+	const before = await query("select * from public.employee_invitations order by employee_id");
+	await db.exec(`create function public.reject_invitation_audit() returns trigger language plpgsql as $$
+	begin raise exception 'audit unavailable'; end $$;
+	create trigger reject_invitation_audit before insert on public.security_audit_log
+	for each row execute function public.reject_invitation_audit();`);
+	try {
+		await actAs(db, 1);
+		await expect(value("public.issue_pending_employee_invitations(true)")).rejects.toThrow(
+			"audit unavailable",
+		);
+		await db.exec("reset role");
+		expect(await query("select * from public.employee_invitations order by employee_id")).toEqual(
+			before,
+		);
+	} finally {
+		await db.exec(
+			"reset role; drop trigger reject_invitation_audit on public.security_audit_log; drop function public.reject_invitation_audit()",
+		);
+	}
+});

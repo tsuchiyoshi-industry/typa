@@ -77,14 +77,18 @@ export class IssueEmployeeInvitationInteractor
 	}
 }
 
-/** 期限内のコードを持たない未登録の社員に、まとめて招待コードを発行する。 */
+export interface IssuePendingEmployeeInvitationsRequest {
+	includeIssued?: boolean;
+}
+
+/** 未登録の社員に、発行済みのコードを含めるか選んで一括発行する。 */
 export class IssuePendingEmployeeInvitationsInteractor
-	implements UseCase<Record<string, never>, IssueEmployeeInvitationOutputPort>
+	implements UseCase<IssuePendingEmployeeInvitationsRequest, IssueEmployeeInvitationOutputPort>
 {
 	constructor(private readonly employeeMasterRepository: EmployeeMasterRepository) {}
 
 	async execute(
-		_request: Record<string, never>,
+		request: IssuePendingEmployeeInvitationsRequest,
 		outputPort: IssueEmployeeInvitationOutputPort,
 	): Promise<void> {
 		const fail = (message: string) =>
@@ -96,7 +100,8 @@ export class IssuePendingEmployeeInvitationsInteractor
 			return;
 		}
 
-		const invitations = await this.employeeMasterRepository.issuePendingInvitations();
+		const includeIssued = request.includeIssued ?? false;
+		const invitations = await this.employeeMasterRepository.issuePendingInvitations(includeIssued);
 		if (!invitations) {
 			fail("招待コードを発行できませんでした。");
 			return;
@@ -106,7 +111,9 @@ export class IssuePendingEmployeeInvitationsInteractor
 			success: true,
 			message: invitations.length
 				? `${invitations.length}名の招待コードを発行しました。`
-				: "発行する相手はいません。未登録の社員は全員、期限内のコードを持っています。",
+				: includeIssued
+					? "発行する相手はいません。利用中・未登録の社員がいません。"
+					: "発行する相手はいません。利用中・未登録の社員は全員、期限内のコードを持っています。",
 			invitations,
 		});
 	}

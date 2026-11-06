@@ -145,10 +145,10 @@ export class EmployeeMasterController {
 		}
 	}
 
-	async issuePendingInvitations(): Promise<void> {
+	async issuePendingInvitations(includeIssued = false): Promise<void> {
 		try {
 			await this.issuePendingInvitationsUseCase.execute(
-				{},
+				{ includeIssued },
 				this.presenter.outputPort.issueInvitation,
 			);
 		} catch (error) {

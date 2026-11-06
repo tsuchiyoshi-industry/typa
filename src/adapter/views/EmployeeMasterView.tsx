@@ -97,16 +97,37 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 		},
 	]);
 
+	const employeeNoById = createMemo(
+		() => new Map(relations().map((relation) => [relation.employeeId, relation.employeeNo])),
+	);
+
 	const visibleRelations = createMemo(() => {
 		const text = keyword().trim().toLowerCase();
-		return managedRelations().filter(
-			(relation) =>
-				(scope() === "all" ||
-					(scope() === "mine" ? isMine(relation) : relation.hasUnsetAssignment)) &&
-				(!text ||
-					relation.employeeNo.toLowerCase().includes(text) ||
-					relation.name.toLowerCase().includes(text)),
-		);
+		// 評価者の社員番号は、検索・絞り込みで隠れた社員も含めて引く。
+		const employeeNos = employeeNoById();
+		const compareEvaluator = (left: number | null, right: number | null) => {
+			const a = employeeNos.get(left ?? -1);
+			const b = employeeNos.get(right ?? -1);
+			if (a == null || b == null) {
+				return a == null ? (b == null ? 0 : 1) : -1;
+			}
+			return a.localeCompare(b);
+		};
+		return managedRelations()
+			.filter(
+				(relation) =>
+					(scope() === "all" ||
+						(scope() === "mine" ? isMine(relation) : relation.hasUnsetAssignment)) &&
+					(!text ||
+						relation.employeeNo.toLowerCase().includes(text) ||
+						relation.name.toLowerCase().includes(text)),
+			)
+			.sort(
+				(a, b) =>
+					compareEvaluator(a.primaryEvaluatorId, b.primaryEvaluatorId) ||
+					compareEvaluator(a.secondaryEvaluatorId, b.secondaryEvaluatorId) ||
+					a.employeeNo.localeCompare(b.employeeNo),
+			);
 	});
 
 	// 評価の流れに出すのは評価される社員。役員は評価する側としてだけ現れる
@@ -125,10 +146,6 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 		})),
 	);
 	const noSecondaryOption = { value: NO_SECONDARY, name: "なし（一次評価が最終評価）" };
-
-	const employeeNoById = createMemo(
-		() => new Map(relations().map((relation) => [relation.employeeId, relation.employeeNo])),
-	);
 
 	const emptyMessage = () => {
 		if (keyword().trim()) {
@@ -394,17 +411,37 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 			.join("\n");
 
 	const issuePendingInvitations = async () => {
+		let includeIssued = false;
 		const confirmed = await confirmAction({
 			title: "未登録の社員に招待コードをまとめて発行しますか？",
-			message:
-				"期限内のコードを持っていない未登録の社員全員に発行します。渡し済みで期限内のコードはそのまま使えます。",
+			message: "利用中・未登録の社員が対象です。発行済みのコードを含めるか選んでください。",
+			radio: {
+				label: "発行する対象",
+				initial: "exclude",
+				options: [
+					{
+						value: "exclude",
+						label: "発行済みの社員を除く",
+						description: "未発行・期限切れの社員に発行します。期限内のコードは引き続き使えます。",
+					},
+					{
+						value: "include",
+						label: "発行済みの社員も含めて新しく発行する",
+						description:
+							"期限内でも再発行します。渡し済みのコードも無効になるため、新しいコードを渡してください。",
+					},
+				],
+				onChange: (value) => {
+					includeIssued = value === "include";
+				},
+			},
 			confirmLabel: "まとめて発行",
 		});
 		if (!confirmed) {
 			return;
 		}
 		setSavingKey("invitations");
-		await props.controller.issuePendingInvitations();
+		await props.controller.issuePendingInvitations(includeIssued);
 		setSavingKey(null);
 	};
 
@@ -417,7 +454,7 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 		}
 	};
 
-	// 一括発行したコードは期限内なので、閉じると一括発行では二度と出てこない
+	// 平文は保存しない。閉じた一覧は再表示できず、必要なら再発行する。
 	const dismissInvitations = async () => {
 		if (
 			invitations().length > 1 &&
@@ -655,7 +692,7 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 					when={listView() === "list"}
 					fallback="左から、評価を確定する二次評価者、一次評価者、評価される社員の順です。社員名を押すと、リストでその社員の設定を開きます。役員は評価される側には含めていません。"
 				>
-					評価者は氏名・社員番号で検索できます。
+					一次評価者、二次評価者、本人の社員番号順に表示しています。評価者は氏名・社員番号で検索できます。
 					{props.viewModel().canEditRoles
 						? "役員は権限とログインだけ変更できます（等級・評価者は管理対象外です）。Admin が0名になる変更はできません。「ログイン」を「保持する」にした社員は、アプリを閉じてもログインしたままになります。共有PCを使う社員は「閉じたらログアウト」のままにしてください。"
 						: "役員は管理対象から除外しています。"}

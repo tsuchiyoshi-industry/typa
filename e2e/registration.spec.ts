@@ -68,18 +68,32 @@ test("an invited employee registers with a shared mailbox and can be suspended",
 		await openEmployeeMaster(page);
 		await expect(page.getByLabel(`${NEWCOMER_NAME}さんの権限`)).toHaveValue("Employee");
 		await page.getByRole("button", { name: "招待コードを一括発行" }).click();
+		await expect(page.getByRole("radio", { name: /発行済みの社員を除く/ })).toBeChecked();
 		await page.getByRole("dialog").getByRole("button", { name: "まとめて発行" }).click();
 		const issued = await page.getByRole("textbox", { name: "招待コードの一覧" }).inputValue();
 		const row = issued.split("\n").find((line) => line.startsWith(`${NEWCOMER}\t`));
 		invitation = row?.split("\t")[2] ?? "";
 		expect(invitation).toMatch(/^[2-9A-HJ-NP-Z]{4}-[2-9A-HJ-NP-Z]{4}-[2-9A-HJ-NP-Z]{4}$/);
 
-		// 期限内のコードは配り済みとみなし、もう一度押しても出し直さない
+		// 発行済みを除く選択では、期限内のコードを変えない。
 		await page.getByRole("button", { name: "閉じる", exact: true }).click();
 		await page.getByRole("dialog").getByRole("button", { name: "閉じる", exact: true }).click();
 		await page.getByRole("button", { name: "招待コードを一括発行" }).click();
 		await page.getByRole("dialog").getByRole("button", { name: "まとめて発行" }).click();
 		await expect(page.getByText("発行する相手はいません")).toBeVisible();
+		// 含める選択なら、期限内でも新しいコードをまとめて渡せる。
+		await page.getByRole("button", { name: "招待コードを一括発行" }).click();
+		await page.getByRole("radio", { name: /発行済みの社員も含めて新しく発行する/ }).check();
+		await page.getByRole("dialog").getByRole("button", { name: "まとめて発行" }).click();
+		const renewed = await page.getByRole("textbox", { name: "招待コードの一覧" }).inputValue();
+		const nextCode =
+			renewed
+				.split("\n")
+				.find((line) => line.startsWith(`${NEWCOMER}\t`))
+				?.split("\t")[2] ?? "";
+		expect(nextCode).toMatch(/^[2-9A-HJ-NP-Z]{4}-[2-9A-HJ-NP-Z]{4}-[2-9A-HJ-NP-Z]{4}$/);
+		expect(nextCode).not.toBe(invitation);
+		invitation = nextCode;
 		await signOut(page);
 	});
 

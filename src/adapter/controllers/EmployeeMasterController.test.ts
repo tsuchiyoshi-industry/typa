@@ -139,3 +139,16 @@ describe("loading and invitations", () => {
 		},
 	);
 });
+
+it.each([true, false])(
+	"passes the bulk invitation choice without reloading (%s)",
+	async (includeIssued) => {
+		const context = setup();
+		await context.controller.issuePendingInvitations(includeIssued);
+		expect(context.cases.pending.execute).toHaveBeenCalledWith(
+			{ includeIssued },
+			context.presenter.outputPort.issueInvitation,
+		);
+		expect(context.cases.load.execute).not.toHaveBeenCalled();
+	},
+);

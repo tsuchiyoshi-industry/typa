@@ -67,6 +67,13 @@ export interface ConfirmRequest {
 	note?: string;
 	/** 実行と一緒に選んでもらうこと。チェックを入れた状態で出し、変えたら onChange で知らせる。 */
 	checkbox?: { label: string; onChange: (checked: boolean) => void };
+	/** 実行対象など、いずれか一つを選ぶ。initial の値で開く。 */
+	radio?: {
+		label: string;
+		initial: string;
+		options: { value: string; label: string; description: string }[];
+		onChange: (value: string) => void;
+	};
 	/** 実行と一緒に書いてもらう文。lengthOf が 1〜maxLength の間だけ実行できる。 */
 	text?: ConfirmText;
 	confirmLabel: string;

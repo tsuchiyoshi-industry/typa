@@ -250,6 +250,7 @@ describe("employee master authorization", () => {
 		}
 		const out = output<never>();
 		await new IssuePendingEmployeeInvitationsInteractor(repo).execute({}, out);
+		expect(repo.issuePendingInvitations).toHaveBeenCalledWith(false);
 		expect(out.present).toHaveBeenCalledWith(
 			expect.objectContaining({
 				success: kind !== "failed",
@@ -576,3 +577,18 @@ describe("sheet creation orchestration", () => {
 		);
 	});
 });
+
+it.each([true, false])(
+	"passes the bulk invitation mode to the repository (%s)",
+	async (includeIssued) => {
+		const repo = masterRepository();
+		repo.findCurrentEmployeeProfile.mockResolvedValue(profile("Admin", 2));
+		repo.issuePendingInvitations.mockResolvedValue([]);
+		const out = output<never>();
+		await new IssuePendingEmployeeInvitationsInteractor(repo).execute({ includeIssued }, out);
+		expect(repo.issuePendingInvitations).toHaveBeenCalledWith(includeIssued);
+		expect(out.present).toHaveBeenCalledWith(
+			expect.objectContaining({ success: true, invitations: [] }),
+		);
+	},
+);

@@ -651,6 +651,46 @@ a:hover {
 	accent-color: var(--hr-accent);
 }
 
+.confirm-dialog:has(.confirm-dialog__radio-group) {
+	width: min(520px, calc(100vw - 2rem));
+}
+
+.confirm-dialog__radio-group {
+	display: grid;
+	gap: 0.85rem;
+	margin: 1rem 0 0;
+	padding: 0;
+	border: 0;
+}
+
+.confirm-dialog__radio-group legend {
+	margin-bottom: 0.6rem;
+	font-size: 0.8125rem;
+	color: var(--hr-text-muted);
+}
+
+.confirm-dialog__radio {
+	display: flex;
+	align-items: flex-start;
+	gap: 0.5rem;
+	font-size: 0.9rem;
+	line-height: 1.5;
+	cursor: pointer;
+}
+
+.confirm-dialog__radio input {
+	flex-shrink: 0;
+	margin: 0.25rem 0 0;
+	accent-color: var(--hr-accent);
+}
+
+.confirm-dialog__radio small {
+	display: block;
+	margin-top: 0.15rem;
+	font-size: 0.8125rem;
+	color: var(--hr-text-muted);
+}
+
 /* 実行と一緒に書いてもらう文(差し戻しの理由など) */
 .confirm-dialog__text {
 	display: grid;

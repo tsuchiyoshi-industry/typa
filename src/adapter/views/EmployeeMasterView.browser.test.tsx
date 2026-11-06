@@ -298,6 +298,7 @@ it("issues pending invitations at once as a pasteable table", async () => {
 	}));
 	fireEvent.click(await view.findByRole("button", { name: "招待コードを一括発行" }));
 	const table = (await view.findByLabelText("招待コードの一覧")) as HTMLTextAreaElement;
+	expect(view.controller.issuePendingInvitations).toHaveBeenCalledWith(false);
 	expect(table.value.split("\n")).toHaveLength(3);
 	expect(table.value).toContain("E002\t社員1\tCODE1\t");
 	fireEvent.click(view.getByRole("button", { name: "閉じる" }));
@@ -305,6 +306,68 @@ it("issues pending invitations at once as a pasteable table", async () => {
 	expect(confirmAction).toHaveBeenLastCalledWith(
 		expect.objectContaining({ title: "招待コードの一覧を閉じますか？" }),
 	);
+});
+
+it.each([true, false])(
+	"passes the bulk invitation choice and respects cancellation (%s)",
+	async (confirmed) => {
+		const view = setup();
+		view.setViewModel((prev) => ({
+			...prev,
+			relations: prev.relations.map((r) => ({ ...r, registered: false })),
+		}));
+		vi.mocked(confirmAction).mockImplementationOnce(async (request) => {
+			expect(request.radio?.initial).toBe("exclude");
+			request.radio?.onChange("include");
+			return confirmed;
+		});
+		fireEvent.click(view.getByRole("button", { name: "招待コードを一括発行" }));
+		await waitFor(() => expect(confirmAction).toHaveBeenCalled());
+		if (confirmed) {
+			await waitFor(() =>
+				expect(view.controller.issuePendingInvitations).toHaveBeenCalledWith(true),
+			);
+		} else {
+			expect(view.controller.issuePendingInvitations).not.toHaveBeenCalled();
+		}
+	},
+);
+
+it("sorts by evaluator employee numbers, then the employee number, even after filtering", () => {
+	const view = setup();
+	// ID 順・氏名順と社員番号順が異なる評価者。一次、二次、本人の各キーを確かめる。
+	const primaryA = { ...employee(91, "一次A"), employeeNo: "P01" };
+	const primaryB = { ...employee(90, "一次B"), employeeNo: "P02" };
+	const secondaryA = { ...employee(81, "二次A"), employeeNo: "S01" };
+	const secondaryB = { ...employee(80, "二次B"), employeeNo: "S02" };
+	const rows = [
+		{ ...employee(1, "対象1"), primaryEvaluatorId: 90, secondaryEvaluatorId: 81 },
+		{ ...employee(2, "対象2"), primaryEvaluatorId: 91, secondaryEvaluatorId: 80 },
+		{ ...employee(3, "対象3"), primaryEvaluatorId: 91, secondaryEvaluatorId: 81 },
+		{ ...employee(4, "対象4"), primaryEvaluatorId: 91, secondaryEvaluatorId: 81 },
+		{
+			...employee(5, "対象5"),
+			primaryEvaluatorId: 91,
+			secondaryEvaluatorId: null,
+			noSecondaryEvaluator: true,
+		},
+		{ ...employee(6, "対象6"), primaryEvaluatorId: null, secondaryEvaluatorId: null },
+	];
+	view.setViewModel((prev) => ({
+		...prev,
+		relations: [primaryB, ...[...rows].reverse(), secondaryB, primaryA, secondaryA],
+	}));
+	fireEvent.input(view.getByRole("searchbox"), { target: { value: "対象" } });
+	const names = () =>
+		view.getAllByRole("rowheader").map((row) => row.querySelector(".employee-name")?.textContent);
+	expect(names()).toEqual(["対象3", "対象4", "対象2", "対象5", "対象1", "対象6"]);
+	view.setViewModel((prev) => ({
+		...prev,
+		relations: prev.relations.map((r) =>
+			r.employeeId === 1 ? { ...r, primaryEvaluatorId: 91 } : r,
+		),
+	}));
+	expect(names()).toEqual(["対象1", "対象3", "対象4", "対象2", "対象5", "対象6"]);
 });
 it("confirms suspension separately from deleting a registration", async () => {
 	const view = setup();

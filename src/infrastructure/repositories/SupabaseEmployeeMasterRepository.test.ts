@@ -232,9 +232,16 @@ describe("changing an employee", () => {
 		const repository = new SupabaseEmployeeMasterRepository();
 		const run = repository[method] as (...args: unknown[]) => Promise<unknown>;
 		expect(await run.call(repository, "E2", EmployeeRole.ADMIN)).toBe(notDone);
-		expect(db.rpc).toHaveBeenCalledWith(
-			rpc,
-			...(rpc.startsWith("issue_pending") ? [] : [expect.anything()]),
-		);
+		expect(db.rpc).toHaveBeenCalledWith(rpc, expect.anything());
+	});
+});
+
+it.each([true, false])("passes bulk invitation mode to the RPC (%s)", async (includeIssued) => {
+	db.rpc.mockResolvedValue(ok([]));
+	expect(
+		await new SupabaseEmployeeMasterRepository().issuePendingInvitations(includeIssued),
+	).toEqual([]);
+	expect(db.rpc).toHaveBeenCalledWith("issue_pending_employee_invitations", {
+		p_include_issued: includeIssued,
 	});
 });

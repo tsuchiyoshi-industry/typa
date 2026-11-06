@@ -58,12 +58,13 @@ export interface EmployeeMasterRepository {
 	 */
 	issueInvitationByEmployeeNo(targetEmployeeNo: string): Promise<EmployeeInvitation | null>;
 	/**
-	 * 期限内のコードを持たない未登録の社員全員に招待コードを発行する。渡し済みで期限内のコードは変えない。
+	 * 利用中・未登録の社員に一括発行する。includeIssued が true なら期限内のコードも再発行する。
+	 * false（既定）なら期限内のコードは変えず、未発行・期限切れの社員だけに発行する。
 	 * 発行できなければ null。
 	 */
-	issuePendingInvitations(): Promise<
-		(EmployeeInvitation & { employeeNo: string; name: string })[] | null
-	>;
+	issuePendingInvitations(
+		includeIssued?: boolean,
+	): Promise<(EmployeeInvitation & { employeeNo: string; name: string })[] | null>;
 	/**
 	 * 利用を停止・再開する。停止するとログイン中のセッションも使えなくなり、発行済みの招待コードも消える。
 	 * 評価データとアカウントは残る。変更できたら true。

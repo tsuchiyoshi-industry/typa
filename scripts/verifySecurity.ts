@@ -242,6 +242,32 @@ try {
 						p_reason: "attack",
 					},
 				],
+				// 等級と共通目標のマスタも Admin だけ(読むのも、書くのも)
+				["get_grade_master", {}],
+				[
+					"save_employee_grade",
+					{
+						p_id: null,
+						p_name: "attack",
+						p_item_set_id: 9001,
+						p_expected_name: null,
+						p_expected_item_set_id: null,
+					},
+				],
+				["delete_employee_grade", { p_id: 9001, p_expected_name: "Release verification" }],
+				[
+					"save_common_evaluation_item_set",
+					{
+						p_id: null,
+						p_name: "attack",
+						p_items: [{ title: "attack", description: "", weight: 1 }],
+						p_expected: null,
+					},
+				],
+				[
+					"delete_common_evaluation_item_set",
+					{ p_id: 9001, p_expected_name: "Release verification" },
+				],
 				[
 					"change_sheet_grade",
 					{

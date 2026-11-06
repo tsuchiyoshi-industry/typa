@@ -61,3 +61,9 @@ export const canViewAuditLog = adminOnly;
  * 中身は秘密ではないが、確かめていない範囲まで載せるので、運用を決める人に限る。
  */
 export const canViewSecurityAssurance = adminOnly;
+
+/**
+ * 等級と共通目標のマスタの閲覧と変更は Admin だけ。直しても既存の評価シートには及ばない
+ * (シートは作成時の等級の共通目標を持ち続ける)。DB 関数も、利用中の Admin 以外を断る。
+ */
+export const canManageGradeMaster = adminOnly;

@@ -98,7 +98,7 @@ const CHECKS: Record<RequirementId, { title: string; guarantee: string }> = {
 	"ACCESS-BFLA": {
 		title: "管理者の操作は管理者だけ",
 		guarantee:
-			"社員や Reviewer が、権限の変更・招待コードの発行・特権的なシート操作・評価期間の締めと開始・全社のシート一覧の読み取りを、画面を通さず API へ直接送っても拒否されること。",
+			"社員や Reviewer が、権限の変更・招待コードの発行・特権的なシート操作・評価期間の締めと開始・全社のシート一覧の読み取り・等級と共通目標のマスタの読み書きを、画面を通さず API へ直接送っても拒否されること。",
 	},
 	"ACCESS-FIELDS": {
 		title: "許された欄以外は書き込めない",

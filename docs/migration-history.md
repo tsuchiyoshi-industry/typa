@@ -1,5 +1,19 @@
 # マイグレーションの変更経緯
 
+## 2026-11-06: 等級と共通目標のマスタ・シートは作成時の共通目標を持ち続ける
+
+`202611060001_grade_and_common_goal_master.sql` は、等級と共通目標（共通評価の項目）を Admin が画面から追加・変更・削除できるようにし、評価シートが作成時の共通目標を持ち続けるようにします。
+
+- `evaluation_sheets.item_set_id` を足します。シートを作るときに、トリガー（`set_evaluation_sheet_grade`）が作成時の等級の共通目標セットを入れます。クライアントは書けません（列の権限がない）。既存のシートには、当てた時点の等級のセット（それまで表示していたもの）を入れます。この更新ではシートのトリガー（監査・通知など）を動かしません。
+- これまで表示・採点・完了の確認・締め後修正・取込のたびに「今の等級のセット」から項目を引いていた 11 の関数（`sheet_document`・`reviewer_sheet_snapshot`・`save_common_evaluation`・`sheet_evaluation_score`・`freeze_evaluation_totals`・`check_evaluation_completion`・`recalculate_corrected_sheet`・`correct_closed_sheet`・`get_sheet_import_template`・`import_sheet_data`・`change_sheet_grade`）を、シートの `item_set_id` から引くように置き換えます。取込は、作り済みの下書きならそのシートの項目、まだシートがなければ今の等級の項目を使います。`change_sheet_grade`（遡及処理の等級の変更）は、変更後の等級の今のセットをシートに入れます。
+- 共通目標はかならずセットに属します（`common_evaluation_items.item_set_id` を `not null` に）。どの等級にも出る項目（`item_set_id` が null）が残っていると、当てる前に止まります。
+- 既存のシートが使うセットの項目は、トリガー（`guard_used_common_evaluation_items`）が DB の所有者からの直接の変更も断ります。項目を消すと評価の入力まで消える（`common_evaluation_results` の外部キーが `on delete cascade`）ためです。
+- 新しい関数（どれも利用中の Admin だけ。ほかは `42501`）: `get_grade_master`（等級と、等級が使っているかどのシートも使っていないセット・件数）、`save_employee_grade` / `delete_employee_grade`、`save_common_evaluation_item_set` / `delete_common_evaluation_item_set`。書き込みは画面に出していた内容と照らし、食い違えば `40001` で断ります。既存のシートが使うセットの項目を変えると、複製を新版にし、そのセットを使っていた等級を新版へ付け替えます（旧版は既存のシートのために残し、マスタには出さない）。名前だけの変更は複製しません（シートにセットの名前は出ない）。社員・シートがある等級、等級・シートが使うセットは消せません。どれも `security_audit_log` に `grade.saved` / `grade.deleted` / `common_goals.saved` / `common_goals.deleted` を前後の内容つきで残し、残せなければ操作ごと取り消します。
+
+`security/schema-inventory.expected.txt` は、列・制約・索引・トリガー・関数の追加と、置き換えた関数の md5 が変わります。
+
+**互換性**: 古いアプリは当てた後もそのまま動きます（シートを読む・評価する関数は名前も引数も同じ）。新しいアプリの等級・共通目標の画面は、当てる前は開けません。アプリより先に当ててください。既存のシートの更新で `evaluation_sheets` を短い間ロックするので、利用の少ない時間に当てます。`202611050001` の後に適用します。
+
 ## 2026-11-04: 認証コード・通知の送り先を会社ドメインに縛らない
 
 `202611040004_contact_email_any_domain.sql` は `hook_before_user_created` と `begin_registration` を置き換えます。これまでは新規登録の認証コードを会社ドメインのメールアドレスにしか送れず、そのアドレスが通知先になっていました。これからは、どのドメインのメールアドレスでも認証コードを受け取り、通知先にできます。会社ドメイン（`workspace_settings.required_domain`）は、ログイン用の内部アドレス `typa-<社員番号>@<会社ドメイン>` にだけ使います。内部アドレスのアカウントは、これまでどおり登録の途中にある社員の分しか作れず、内部アドレスのセッションからは登録を始められません。登録してよいかは、社員ごとの招待コードと、メールに届いた認証コード（15 分以内）で決めます。会社ドメインが未設定なら登録を始めさせません（ログイン用アドレスを作れないため）。列のコメントも、この意味に書き換えます。テーブル・権限は変わらず、`security/schema-inventory.expected.txt` は2つの関数の md5 だけが変わります。

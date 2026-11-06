@@ -20,6 +20,7 @@ const KINDS: { value: AuditCategory | "all"; label: string }[] = [
 	{ value: "period", label: "評価期間" },
 	{ value: "override", label: "遡及処理" },
 	{ value: "import", label: "取込" },
+	{ value: "master", label: "等級・共通目標" },
 ];
 
 const UNFILTERED: AuditLogQuery = {
@@ -251,7 +252,7 @@ const AuditLogView: Component<{ controller: AuditLogController }> = (props) => {
 						監査ログ
 					</h1>
 					<p class="audit-lead">
-						社員マスタの変更、シートの状態の移り変わり、遡及処理、データの取込を、DB
+						社員マスタの変更、シートの状態の移り変わり、遡及処理、データの取込、等級と共通目標の変更を、DB
 						が操作と同時に記録したものです。記録はアプリから書き換えも削除もできません。朱の印は、Admin
 						が理由を添えて通常の手順を越えた操作です。
 					</p>

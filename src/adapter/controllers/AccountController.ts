@@ -13,6 +13,7 @@ import type { WorkspaceSettingsRepository } from "../../domain/repositories/Work
 import {
 	canCorrectClosedSheets,
 	canEditSettings,
+	canManageGradeMaster,
 	canRunSetup,
 	canViewAuditLog,
 	canViewSecurityAssurance,
@@ -32,6 +33,8 @@ export interface CurrentUserDto {
 	canViewAuditLog: boolean;
 	/** セキュリティの担保。Admin だけ。 */
 	canViewSecurity: boolean;
+	/** 等級と共通目標のマスタ。Admin だけ。 */
+	canManageGradeMaster: boolean;
 }
 
 /** ログイン画面の操作。ログインと登録の手順は use case が持ち、画面は結果に応じた表示だけをする。 */
@@ -66,6 +69,7 @@ export class AccountController {
 				canCorrectClosedSheets: canCorrectClosedSheets(person.role),
 				canViewAuditLog: canViewAuditLog(person.role),
 				canViewSecurity: canViewSecurityAssurance(person.role),
+				canManageGradeMaster: canManageGradeMaster(person.role),
 			}
 		);
 	}

@@ -190,6 +190,103 @@
 	box-shadow: 0 0 0 3px var(--hr-accent-muted);
 }
 
+/* 等級の一覧と、共通目標の編集 */
+.grade-master-table .numeric {
+	font-variant-numeric: tabular-nums;
+	text-align: right;
+	white-space: nowrap;
+}
+.grade-master-select,
+.goal-master-toolbar select,
+.goal-master-editor input:not([type="checkbox"]),
+.goal-master-editor textarea {
+	min-height: 2.5rem;
+	padding: 0.4rem 0.6rem;
+	border: 1px solid var(--hr-border-input);
+	border-radius: var(--hr-radius-sm);
+	background: var(--hr-bg-elevated);
+	color: var(--hr-text);
+	font: inherit;
+	font-size: 0.9rem;
+}
+.grade-master-select:focus,
+.goal-master-toolbar select:focus,
+.goal-master-editor input:focus,
+.goal-master-editor textarea:focus {
+	outline: none;
+	border-color: var(--hr-accent);
+	box-shadow: 0 0 0 3px var(--hr-accent-muted);
+}
+.goal-master-toolbar {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-end;
+	gap: 0.75rem;
+	margin-bottom: 1rem;
+}
+.goal-master-toolbar label,
+.goal-master-name,
+.goal-master-weight {
+	display: grid;
+	gap: 0.35rem;
+	font-size: 0.8125rem;
+	color: var(--hr-text-muted);
+}
+.goal-master-toolbar select {
+	min-width: 14rem;
+}
+.goal-master-name {
+	max-width: 24rem;
+	margin-top: 1rem;
+}
+.goal-master-items {
+	display: grid;
+	gap: 0.75rem;
+	margin: 1.2rem 0 0;
+	padding: 0;
+	list-style: none;
+}
+/* 行番号・項目名・説明・重み・削除。狭い画面では説明を下の段へ回す */
+.goal-master-items li {
+	display: grid;
+	grid-template-columns: 1.75rem minmax(10rem, 1fr) minmax(14rem, 2fr) 5rem auto;
+	align-items: end;
+	gap: 0.6rem;
+	padding-bottom: 0.75rem;
+	border-bottom: 1px solid var(--hr-border);
+}
+.goal-master-row {
+	align-self: center;
+	color: var(--hr-text-muted);
+	font-variant-numeric: tabular-nums;
+	text-align: right;
+}
+.goal-master-items textarea {
+	resize: vertical;
+	line-height: 1.5;
+}
+.goal-master-weight input {
+	width: 100%;
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+}
+.goal-master-footer {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.9rem;
+	margin-top: 0.9rem;
+}
+@media (max-width: 760px) {
+	.goal-master-items li {
+		grid-template-columns: 1.75rem 1fr 5rem auto;
+	}
+	.goal-master-items textarea {
+		grid-column: 2 / -1;
+		grid-row: 2;
+	}
+}
+
 /* 通知の方法: アプリ内通知かメールのどちらか一方 */
 .notification-channel {
 	display: grid;

@@ -1,9 +1,17 @@
 /**
  * 監査ログ(security_audit_log)の記録の種類。記録は DB が操作と同じトランザクションで書き、アプリは読むだけ。
  * account: 社員・アカウント / workflow: 評価の進行 / period: 評価期間の締めと開始 /
- * override: Admin が通常の手順を越えた操作(遡及処理) / import: データの取込。
+ * override: Admin が通常の手順を越えた操作(遡及処理) / import: データの取込 /
+ * master: 等級と共通目標のマスタ。
  */
-export const AUDIT_CATEGORIES = ["account", "workflow", "period", "override", "import"] as const;
+export const AUDIT_CATEGORIES = [
+	"account",
+	"workflow",
+	"period",
+	"override",
+	"import",
+	"master",
+] as const;
 export type AuditCategory = (typeof AUDIT_CATEGORIES)[number];
 
 const ACTIONS: Record<AuditCategory, readonly string[]> = {
@@ -17,6 +25,7 @@ const ACTIONS: Record<AuditCategory, readonly string[]> = {
 		"sheet.grade_change",
 	],
 	import: ["sheets.imported"],
+	master: ["grade.saved", "grade.deleted", "common_goals.saved", "common_goals.deleted"],
 };
 
 export const KNOWN_AUDIT_ACTIONS: readonly string[] = AUDIT_CATEGORIES.flatMap((c) => ACTIONS[c]);

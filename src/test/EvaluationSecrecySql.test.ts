@@ -76,17 +76,17 @@ beforeAll(async () => {
 		set session_replication_role = replica;
 		update public.employees set primary_evaluator_id = 5 where id = 4;
 		insert into public.evaluation_sheets (id, period_id, employee_id, primary_evaluator_id, secondary_evaluator_id,
-			no_secondary_evaluator, status, grade_id, first_overall_comment, second_overall_comment, first_rank,
+			no_secondary_evaluator, status, grade_id, item_set_id, first_overall_comment, second_overall_comment, first_rank,
 			final_rank_letter, final_rank_level, total_evaluation_score, objectives_first_total_score)
 		values
-			(500, 1, 4, 2, 3, false, 'finalized', 1, '一次の総評', '二次の総評', 'B', 'A', 'none', 90, 3),
-			(600, 1, 6, 2, null, true, 'finalized', 1, '一次の総評', '', 'B', 'B', 'plus', 82, 3);
+			(500, 1, 4, 2, 3, false, 'finalized', 1, 1, '一次の総評', '二次の総評', 'B', 'A', 'none', 90, 3),
+			(600, 1, 6, 2, null, true, 'finalized', 1, 1, '一次の総評', '', 'B', 'B', 'plus', 82, 3);
 		insert into public.milestones (sheet_id, goal_number, challenge_goal, first_score, second_score)
 		values (500, 1, '目標', 3, 2), (600, 1, '目標', 3, 0);
 		insert into public.common_evaluation_results (sheet_id, item_id, first_score, second_score, first_comment)
 		select sheet_id, item.id, 3, case when sheet_id = 500 then 2 else 0 end, '一次のコメント'
 		from (values (500), (600)) as sheets(sheet_id)
-		cross join (select id from public.common_evaluation_items where item_set_id = 1 or item_set_id is null) as item;
+		cross join (select id from public.common_evaluation_items where item_set_id = 1) as item;
 		insert into public.sheet_corrections (sheet_id, target, goal_number, field, before_value, after_value, reason)
 		values
 			(500, 'goal', 1, 'challenge_goal', '前', '目標', '誤字'),

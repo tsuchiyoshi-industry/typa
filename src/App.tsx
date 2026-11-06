@@ -16,6 +16,7 @@ import { ChallengeEvaluationController } from "./adapter/controllers/ChallengeEv
 import { CommonEvaluationController } from "./adapter/controllers/CommonEvaluationController";
 import { EmployeeMasterController } from "./adapter/controllers/EmployeeMasterController";
 import { EvaluationPeriodController } from "./adapter/controllers/EvaluationPeriodController";
+import { GradeMasterController } from "./adapter/controllers/GradeMasterController";
 import { NotificationInboxController } from "./adapter/controllers/NotificationInboxController";
 import { RetroactiveCorrectionController } from "./adapter/controllers/RetroactiveCorrectionController";
 import { ReviewerWorkspaceController } from "./adapter/controllers/ReviewerWorkspaceController";
@@ -51,6 +52,13 @@ import { FetchDistinctPeriodsInteractor } from "./application/usecases/FetchDist
 import { FetchEvaluationSheetInteractor } from "./application/usecases/FetchEvaluationSheetInteractor";
 import { FetchSheetIndexInteractor } from "./application/usecases/FetchSheetIndexInteractor";
 import { FetchSheetOverviewInteractor } from "./application/usecases/FetchSheetOverviewInteractor";
+import {
+	DeleteCommonGoalSetInteractor,
+	DeleteEmployeeGradeInteractor,
+	LoadGradeMasterInteractor,
+	SaveCommonGoalSetInteractor,
+	SaveEmployeeGradeInteractor,
+} from "./application/usecases/GradeMasterInteractors";
 import { ImportSheetDataInteractor } from "./application/usecases/ImportSheetDataInteractor";
 import {
 	IssueEmployeeInvitationInteractor,
@@ -87,6 +95,7 @@ import { SupabaseEmployeeRepository } from "./infrastructure/repositories/Supaba
 import { SupabaseEvaluationPeriodRepository } from "./infrastructure/repositories/SupabaseEvaluationPeriodRepository";
 import { SupabaseEvaluationSettingsRepository } from "./infrastructure/repositories/SupabaseEvaluationSettingsRepository";
 import { SupabaseEvaluationSheetRepository } from "./infrastructure/repositories/SupabaseEvaluationSheetRepository";
+import { SupabaseGradeMasterRepository } from "./infrastructure/repositories/SupabaseGradeMasterRepository";
 import { SupabaseMilestoneRepository } from "./infrastructure/repositories/SupabaseMilestoneRepository";
 import { SupabaseNotificationInboxRepository } from "./infrastructure/repositories/SupabaseNotificationInboxRepository";
 import { SupabasePrivilegedSheetRepository } from "./infrastructure/repositories/SupabasePrivilegedSheetRepository";
@@ -103,10 +112,12 @@ import { WebSheetPdfGateway } from "./infrastructure/repositories/WebSheetPdfGat
 // ログイン後の画面のコードは、ログイン画面では読み込まない。
 // 紐付けを確かめた時点でまとめて読み込み、開いたあとで読み込み画面を挟まない。
 const AuditLogView = lazy(() => import("./adapter/views/AuditLogView"));
+const CommonGoalMasterView = lazy(() => import("./adapter/views/CommonGoalMasterView"));
 const EmployeeMasterView = lazy(() => import("./adapter/views/EmployeeMasterView"));
 const EmployeePreRegistrationView = lazy(
 	() => import("./adapter/views/EmployeePreRegistrationView"),
 );
+const GradeMasterView = lazy(() => import("./adapter/views/GradeMasterView"));
 const HelpView = lazy(() => import("./adapter/views/HelpView"));
 const ReviewerWorkspaceView = lazy(() => import("./adapter/views/ReviewerWorkspaceView"));
 const SettingsView = lazy(() => import("./adapter/views/SettingsView"));
@@ -118,8 +129,10 @@ const SheetEditorView = lazy(() => import("./adapter/views/SheetEditorView"));
 const SheetListView = lazy(() => import("./adapter/views/SheetListView"));
 const protectedViews = [
 	AuditLogView,
+	CommonGoalMasterView,
 	EmployeeMasterView,
 	EmployeePreRegistrationView,
+	GradeMasterView,
 	HelpView,
 	ReviewerWorkspaceView,
 	SecurityAssuranceView,
@@ -173,6 +186,14 @@ const auditLogController = new AuditLogController(
 	new SupabaseAuditLogRepository(),
 );
 const securityAssuranceController = new SecurityAssuranceController(employeeMasterRepository);
+const gradeMasterRepository = new SupabaseGradeMasterRepository();
+const gradeMasterController = new GradeMasterController(
+	new LoadGradeMasterInteractor(gradeMasterRepository, employeeMasterRepository),
+	new SaveEmployeeGradeInteractor(gradeMasterRepository, employeeMasterRepository),
+	new DeleteEmployeeGradeInteractor(gradeMasterRepository, employeeMasterRepository),
+	new SaveCommonGoalSetInteractor(gradeMasterRepository, employeeMasterRepository),
+	new DeleteCommonGoalSetInteractor(gradeMasterRepository, employeeMasterRepository),
+);
 const settingsController = new SettingsController(
 	evaluationSettingsRepository,
 	employeeMasterRepository,
@@ -470,6 +491,14 @@ const App: Component = () => {
 								smtpController={smtpSettingsController}
 							/>
 						)}
+					/>
+					<Route
+						path="/grades"
+						component={() => <GradeMasterView controller={gradeMasterController} />}
+					/>
+					<Route
+						path="/common-goals"
+						component={() => <CommonGoalMasterView controller={gradeMasterController} />}
 					/>
 					<Route path="/setup" component={() => <SetupView controller={accountController} />} />
 					<Route

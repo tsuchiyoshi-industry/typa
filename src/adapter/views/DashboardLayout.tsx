@@ -1,6 +1,8 @@
 import { A, useLocation } from "@solidjs/router";
 import ChevronDown from "lucide-solid/icons/chevron-down";
 import CircleQuestionMark from "lucide-solid/icons/circle-question-mark";
+import Layers from "lucide-solid/icons/layers";
+import ListChecks from "lucide-solid/icons/list-checks";
 import LogOut from "lucide-solid/icons/log-out";
 import Menu from "lucide-solid/icons/menu";
 import PackageOpen from "lucide-solid/icons/package-open";
@@ -155,6 +157,20 @@ const DashboardLayout: Component<{
 								<A href="/settings" class="user-menu-item" onClick={() => setUserMenuOpen(false)}>
 									<Settings size={18} />
 									<span>設定</span>
+								</A>
+							</Show>
+							<Show when={user()?.canManageGradeMaster}>
+								<A href="/grades" class="user-menu-item" onClick={() => setUserMenuOpen(false)}>
+									<Layers size={18} />
+									<span>等級</span>
+								</A>
+								<A
+									href="/common-goals"
+									class="user-menu-item"
+									onClick={() => setUserMenuOpen(false)}
+								>
+									<ListChecks size={18} />
+									<span>共通目標</span>
 								</A>
 							</Show>
 							<Show when={user()?.canRunSetup}>

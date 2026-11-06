@@ -399,3 +399,97 @@ it("groups entries by day, newest day first, keeping their order", () => {
 	]);
 	expect(groupByDay(entries)[0].label).toBe("2026年11月2日（月）");
 });
+
+describe("the grade and common goal master", () => {
+	it("shows a grade change with its common goals", () => {
+		expect(
+			describe_({
+				action: "grade.saved",
+				entityId: 3,
+				details: {
+					before: { name: "技能1級", itemSetId: 2, itemSetName: "一般" },
+					after: { name: "技能Ⅰ級", itemSetId: 5, itemSetName: "技能" },
+				},
+			}),
+		).toMatchObject({
+			category: "master",
+			title: "等級を変更",
+			seal: null,
+			changes: [
+				{ label: "等級名", before: "技能1級", after: "技能Ⅰ級" },
+				{ label: "共通目標", before: "一般", after: "技能" },
+			],
+		});
+	});
+
+	it("names an added and a deleted grade", () => {
+		expect(
+			describe_({
+				action: "grade.saved",
+				details: { before: null, after: { name: "総合1級", itemSetName: "一般" } },
+			}),
+		).toMatchObject({
+			title: "等級を追加",
+			facts: [
+				{ label: "等級", value: "総合1級" },
+				{ label: "共通目標", value: "一般" },
+			],
+		});
+		expect(
+			describe_({ action: "grade.deleted", details: { deleted: { name: "総合1級" } } }),
+		).toMatchObject({ title: "等級を削除", facts: [{ label: "等級", value: "総合1級" }] });
+	});
+
+	it("says a new version was made and how many sheets keep the old one", () => {
+		expect(
+			describe_({
+				action: "common_goals.saved",
+				entityId: 8,
+				details: {
+					previousItemSetId: 2,
+					copiedForSheets: 4,
+					before: { name: "一般", items: [{ title: "協調性" }] },
+					after: { name: "一般", items: [{ title: "協調性" }, { title: "安全" }] },
+				},
+			}),
+		).toMatchObject({
+			category: "master",
+			title: "共通目標を新しい版で保存",
+			facts: [
+				{ label: "共通目標", value: "一般" },
+				{ label: "項目", value: "2件" },
+				{ label: "前の版のままのシート", value: "4件" },
+			],
+		});
+	});
+
+	it("names an added, changed and deleted set", () => {
+		expect(
+			describe_({
+				action: "common_goals.saved",
+				details: { before: null, after: { name: "管理職", items: [{}] } },
+			}),
+		).toMatchObject({ title: "共通目標を追加" });
+		expect(
+			describe_({
+				action: "common_goals.saved",
+				details: { before: { name: "一般", items: [] }, after: { name: "一般2", items: [] } },
+			}),
+		).toMatchObject({
+			title: "共通目標を変更",
+			changes: [{ label: "名前", before: "一般", after: "一般2" }],
+		});
+		expect(
+			describe_({
+				action: "common_goals.deleted",
+				details: { deleted: { name: "一般", items: [{}, {}] } },
+			}),
+		).toMatchObject({
+			title: "共通目標を削除",
+			facts: [
+				{ label: "共通目標", value: "一般" },
+				{ label: "削除した項目", value: "2件" },
+			],
+		});
+	});
+});

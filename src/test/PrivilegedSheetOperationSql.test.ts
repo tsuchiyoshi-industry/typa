@@ -32,8 +32,8 @@ beforeEach(async () => {
 		truncate public.security_audit_log;
 		set session_replication_role=replica;
 		update public.employees set is_enabled=true;
-		insert into public.evaluation_sheets(id,period_id,employee_id,status,primary_evaluator_id,secondary_evaluator_id,grade_id)
-		values(100,1,4,'draft',2,3,1),(200,2,4,'finalized',2,3,1);
+		insert into public.evaluation_sheets(id,period_id,employee_id,status,primary_evaluator_id,secondary_evaluator_id,grade_id,item_set_id)
+		values(100,1,4,'draft',2,3,1,1),(200,2,4,'finalized',2,3,1,1);
 		insert into public.milestones(id,sheet_id,goal_number,challenge_goal,first_score,second_score)
 		values(100,100,1,'',0,0),(200,200,1,'',0,0);
 		insert into public.common_evaluation_results(sheet_id,item_id,first_score,second_score)

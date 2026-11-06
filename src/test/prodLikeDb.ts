@@ -119,7 +119,7 @@ insert into public.roles (id, role_name) values (1, 'Employee'), (2, 'Reviewer')
 insert into public.common_evaluation_item_sets (id, name) values (1, '一般');
 insert into public.employee_grades (id, grade_name, item_set_id) values (1, '一般1級', 1), (2, '等級セットなし', null);
 insert into public.common_evaluation_items (id, title, description, weight, item_set_id)
-values (1, '協調性', '全等級に共通', 2, null), (2, '専門性', '一般だけ', 3, 1);
+values (1, '協調性', '全等級に共通', 2, 1), (2, '専門性', '一般だけ', 3, 1);
 insert into auth.users (id, email, raw_user_meta_data)
 select ('00000000-0000-0000-0000-' || lpad(id::text, 12, '0'))::uuid, 'typa-e' || id || '@example.jp',
        jsonb_build_object('contact_email', 'person' || id || '@example.jp')

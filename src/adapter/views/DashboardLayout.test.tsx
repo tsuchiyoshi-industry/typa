@@ -272,3 +272,17 @@ it.each([true, false])("offers セキュリティ only to Admin (%s)", async (al
 		await waitFor(() => expect(view.queryByRole("link", { name: "セキュリティ" })).toBeNull());
 	}
 });
+
+it.each([true, false])("offers 等級 and 共通目標 only to Admin (%s)", async (allowed) => {
+	const view = setup("/", async () => ({ name: "管理者", canManageGradeMaster: allowed }));
+	await view.findByText("管理者");
+	fireEvent.click(view.getByRole("button", { name: "ユーザーメニュー" }));
+	for (const [name, href] of [
+		["等級", "/grades"],
+		["共通目標", "/common-goals"],
+	]) {
+		const link = view.queryByRole("link", { name });
+		expect(link !== null).toBe(allowed);
+		expect(link?.getAttribute("href") ?? href).toBe(href);
+	}
+});

@@ -49,10 +49,10 @@ beforeAll(async () => {
 		alter table public.milestones disable trigger user;
 		alter table public.common_evaluation_results disable trigger user;
 		insert into public.evaluation_sheets
-			(id, period_id, employee_id, primary_evaluator_id, secondary_evaluator_id, status, first_overall_comment, second_overall_comment)
-		values (500, 1, 4, 2, 3, 'draft', '一次総評', '二次総評'),
-		       (501, 1, 1, 2, 3, 'draft', '一次総評', '二次総評'),
-		       (502, 1, 5, 1, 3, 'draft', '一次総評', '二次総評');
+			(id, period_id, employee_id, primary_evaluator_id, secondary_evaluator_id, status, first_overall_comment, second_overall_comment, item_set_id)
+		values (500, 1, 4, 2, 3, 'draft', '一次総評', '二次総評', 1),
+		       (501, 1, 1, 2, 3, 'draft', '一次総評', '二次総評', 1),
+		       (502, 1, 5, 1, 3, 'draft', '一次総評', '二次総評', 1);
 		insert into public.milestones (sheet_id, goal_number, challenge_goal, first_score, second_score)
 		values (500, 1, '本人の目標', 3, 2), (501, 1, 'Admin の目標', 3, 2), (502, 1, '社員5の目標', 3, 2);
 		insert into public.common_evaluation_results (sheet_id, item_id, first_score, second_score, first_comment)
@@ -75,7 +75,10 @@ describe("Admin は関わらないシートを get_sheet で読める", () => {
 				firstOverallComment: "一次総評",
 				secondOverallComment: "二次総評",
 				objectives: [{ challengeGoal: "本人の目標", firstScore: 3, secondScore: 2 }],
-				commonResults: [{ firstScore: 3, secondScore: 4, firstComment: "一次コメント" }],
+				commonResults: [
+					{ itemId: 1, firstScore: 3, secondScore: 4, firstComment: "一次コメント" },
+					{ itemId: 2, firstScore: 0, secondScore: 0, firstComment: "" },
+				],
 			});
 		},
 	);

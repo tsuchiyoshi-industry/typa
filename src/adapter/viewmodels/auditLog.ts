@@ -371,6 +371,55 @@ export function describeAuditRecord(
 		case "period.started":
 			view.title = "評価期間を開始した";
 			break;
+		case "grade.saved": {
+			const before = record(details.before);
+			const after = record(details.after);
+			if (!details.before) {
+				view.title = "等級を追加";
+				view.facts = [
+					{ label: "等級", value: plain(after.name) },
+					{ label: "共通目標", value: plain(after.itemSetName) },
+				];
+				break;
+			}
+			view.title = "等級を変更";
+			view.changes = [
+				{ label: "等級名", before: plain(before.name), after: plain(after.name) },
+				{ label: "共通目標", before: plain(before.itemSetName), after: plain(after.itemSetName) },
+			].filter((change) => change.before !== change.after);
+			break;
+		}
+		case "grade.deleted":
+			view.title = "等級を削除";
+			view.facts = [{ label: "等級", value: plain(record(details.deleted).name) }];
+			break;
+		case "common_goals.saved": {
+			const before = record(details.before);
+			const after = record(details.after);
+			view.title = !details.before
+				? "共通目標を追加"
+				: id(details.previousItemSetId) !== null
+					? "共通目標を新しい版で保存"
+					: "共通目標を変更";
+			if (details.before && id(details.previousItemSetId) === null && before.name !== after.name) {
+				view.changes = [{ label: "名前", before: plain(before.name), after: plain(after.name) }];
+			}
+			view.facts = [
+				{ label: "共通目標", value: plain(after.name) },
+				...counted("項目", after.items),
+				...counted("前の版のままのシート", details.copiedForSheets),
+			];
+			break;
+		}
+		case "common_goals.deleted": {
+			const deleted = record(details.deleted);
+			view.title = "共通目標を削除";
+			view.facts = [
+				{ label: "共通目標", value: plain(deleted.name) },
+				...counted("削除した項目", deleted.items),
+			];
+			break;
+		}
 		case "sheets.imported":
 			view.title = "評価データを取込";
 			view.facts = [

@@ -18,6 +18,7 @@ const ADMIN_ONLY = {
 	canManageEmployeeAccess: access.canManageEmployeeAccess,
 	canViewAuditLog: access.canViewAuditLog,
 	canViewSecurityAssurance: access.canViewSecurityAssurance,
+	canManageGradeMaster: access.canManageGradeMaster,
 };
 
 describe("employee master access", () => {

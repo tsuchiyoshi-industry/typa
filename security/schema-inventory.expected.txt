@@ -258,7 +258,6 @@ FUNCTION changed_columns(jsonb,jsonb) definer=false anon=false authenticated=tru
 FUNCTION check_challenge_goal_number() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=8508db91753240b9a1c1a9e5ce7d55af
 FUNCTION check_evaluation_completion() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=9b0a8dec595013839e909f746f778bf8
 FUNCTION check_milestone_achievement_placement() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=b191362f9bd785b62a624c107bd5bab0
-FUNCTION check_user_limit() definer=true anon=false authenticated=false service_role=true auth_admin=false config=- md5=71d1ea349152ed5ab2cd3514f88b5681
 FUNCTION claim_sheet_notification(bigint,uuid) definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=c842799d2bdf95306f531fe83bdceafa
 FUNCTION close_evaluation_period(bigint) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=9efafb3ed92beefb66d2410dde968322
 FUNCTION complete_registration(uuid) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=51a558c15fdca9d3101bb7a8986d7997

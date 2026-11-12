@@ -271,7 +271,7 @@ FUNCTION current_subordinate_ids() definer=true anon=false authenticated=true se
 FUNCTION delete_common_evaluation_item_set(smallint,text) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=cd1da11e491f6189653f89b2c3599b41
 FUNCTION delete_employee_grade(smallint,text) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=abc589ffc4df3b4ad1cabd52227f94d4
 FUNCTION employee_auth_email(text) definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=4243f657a68a388892d58f4c34eb6059
-FUNCTION employee_details() definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=f57d687656e78fca34872fd54d6b1b9a
+FUNCTION employee_details() definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=0c619d2d82d762d8de80dadcf9014980
 FUNCTION evaluation_rank(integer) definer=false anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=33a790c59b2d39acd83c4563ef84eee5
 FUNCTION fill_evaluation_period_term() definer=false anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=613cecd76687e07e592b88504db77dea
 FUNCTION freeze_evaluation_totals() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=0046c971b3bf78896f37cbf90a862864

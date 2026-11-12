@@ -1,5 +1,13 @@
 # マイグレーションの変更経緯
 
+## 2026-11-12: 社員の詳細（`employee_details`）を速くする
+
+`202611120004_employee_details_speed.sql` は、`202611120002` の `employee_details()` を置き換えます。Admin・Reviewer が 600 人分を読むのに約1秒かかり（CI の DB ベンチマークが 1,350ms で失敗）、社員マスタとログインのたびに待たされていました。見る人（`current_employee_id`・`current_employee_role`）を行ごとに引き直し、全員を見られる人にも「関わる人」（`visible_employee_ids`）を計算していたためです。見る人を一度だけ引き、全員を見られる人は「関わる人」を計算しないようにしました（開発用 DB で 903ms → 2ms）。返す内容は同じです（Admin・Reviewer・Employee で旧版と全行一致を確認。`EmployeeVisibilitySql.test.ts` がドメインと突き合わせる）。
+
+`security/schema-inventory.expected.txt` は、`employee_details()` の md5 が変わります。
+
+**互換性**: アプリの変更は要りません。いつ当ててもかまいません。`202611120003` の後に適用します。
+
 ## 2026-11-12: 社員の管理操作のきまりを、DB でもドメインどおりに断る
 
 社員の管理操作で操作してよい相手と内容は、ドメイン（`EmployeeAdministration`）が決めます。アプリだけが確かめていて、API を直接呼べば破れたきまりが3つありました。`202611120003_employee_rules_follow_domain.sql` が DB でも断るようにします。

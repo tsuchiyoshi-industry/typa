@@ -1,4 +1,8 @@
 import type { EmployeeMasterRepository } from "../../domain/repositories/EmployeeMasterRepository";
+import {
+	checkRegistrationReset,
+	describeEmployeeAdministrationError,
+} from "../../domain/services/EmployeeAdministration";
 import { canResetRegistrations } from "../../domain/services/EmployeeMasterAccessService";
 import type { OutputPort } from "../ports/OutputPort";
 import type { UseCase } from "../ports/UseCase";
@@ -36,22 +40,22 @@ export class ResetEmployeeRegistrationInteractor
 			return;
 		}
 
+		const everyone = await this.employeeMasterRepository.findAllEmployeeProfiles();
 		const target = targetEmployeeNo
-			? await this.employeeMasterRepository.findByEmployeeNo(targetEmployeeNo)
-			: null;
+			? everyone.find((profile) => profile.employeeNo === targetEmployeeNo)
+			: undefined;
 		if (!target) {
 			outputPort.present({ success: false, message: "対象社員が見つかりませんでした。" });
 			return;
 		}
 
-		// 自分の登録を消すと、操作中のセッションごと使えなくなる
-		if (target.id === currentEmployee.id) {
-			outputPort.present({ success: false, message: "自分自身の登録は取り消せません。" });
-			return;
-		}
-
-		if (!target.registered) {
-			outputPort.present({ success: false, message: `${target.name}さんはまだ登録していません。` });
+		// 自分の登録・最後の Admin の登録は消さない(DB 関数も同じきまりで断る)
+		const allowed = checkRegistrationReset(currentEmployee, target, everyone);
+		if (!allowed.ok) {
+			outputPort.present({
+				success: false,
+				message: describeEmployeeAdministrationError(allowed.error),
+			});
 			return;
 		}
 

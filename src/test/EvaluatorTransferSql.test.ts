@@ -8,6 +8,8 @@ const query = async <T = Record<string, unknown>>(sql: string, params: unknown[]
 
 beforeAll(async () => {
 	db = await createProdLikeDb();
+	// 異動先の評価者 5 は、評価者になれる Reviewer(ドメインの canBeEvaluator。DB も断る)
+	await db.exec("update public.employees set role_id = 2 where id = 5");
 }, 60_000);
 afterAll(async () => {
 	await db?.close();

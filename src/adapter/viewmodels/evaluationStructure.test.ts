@@ -25,6 +25,7 @@ const person = (
 	hasUnsetAssignment: primary == null || (secondary == null && !noSecondary),
 	registered: true,
 	keepSignedIn: null,
+	enabled: true,
 });
 
 describe("evaluation structure", () => {

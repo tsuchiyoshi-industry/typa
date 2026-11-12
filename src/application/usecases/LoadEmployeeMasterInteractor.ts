@@ -5,6 +5,8 @@ import {
 	canEditGrades,
 	canEditRoles,
 	canResetRegistrations,
+	canViewAllEmployees,
+	canViewEmployeeDetail,
 	resolveEmployeeMasterMode,
 } from "../../domain/services/EmployeeMasterAccessService";
 import type {
@@ -35,23 +37,24 @@ function toEmployeeProfileDto(profile: EmployeeProfile): EmployeeProfileDto {
 }
 
 /**
- * showRole: 見ているのが Admin か。権限とログイン状態の保持は、Admin にだけ渡す。
+ * 一覧の社員を、見る人(viewer)が見てよい項目だけにする(ドメインの canViewEmployeeDetail)。
  * includeGrade: 見ている人が等級を変えられるか。変えられない項目は未設定として数えない。
  */
 function toApprovalRelationDto(
 	profile: EmployeeProfile,
-	showRole: boolean,
+	viewer: EmployeeProfile,
 	includeGrade: boolean,
 ): ApprovalRelationDto {
+	const sees = (detail: Parameters<typeof canViewEmployeeDetail>[1]) =>
+		canViewEmployeeDetail(viewer.role, detail, profile.id === viewer.id);
 	return {
 		employeeId: profile.id,
 		name: profile.name,
 		employeeNo: profile.employeeNo,
 		careerCourse: profile.careerCourse,
-		// 誰がどの権限かは Admin にだけ見せる
-		roleName: showRole ? profile.role.toString() : null,
-		gradeId: profile.gradeId,
-		gradeName: profile.gradeName,
+		roleName: sees("role") ? profile.role.toString() : null,
+		gradeId: sees("grade") ? profile.gradeId : null,
+		gradeName: sees("grade") ? profile.gradeName : null,
 		primaryEvaluatorId: profile.primaryEvaluatorId,
 		primaryEvaluatorName: profile.primaryEvaluatorName,
 		secondaryEvaluatorId: profile.secondaryEvaluatorId,
@@ -59,9 +62,9 @@ function toApprovalRelationDto(
 		noSecondaryEvaluator: profile.noSecondaryEvaluator,
 		isExecutive: profile.isExecutive(),
 		hasUnsetAssignment: profile.hasUnsetAssignment(includeGrade),
-		registered: profile.registered,
-		enabled: profile.enabled,
-		keepSignedIn: showRole ? profile.keepSignedIn : null,
+		registered: sees("account") ? profile.registered : null,
+		enabled: sees("account") ? profile.enabled : null,
+		keepSignedIn: sees("keepSignedIn") ? profile.keepSignedIn : null,
 	};
 }
 
@@ -92,10 +95,10 @@ export class LoadEmployeeMasterInteractor
 		const editableEvaluators = canEditEvaluators(currentEmployee.role);
 		const editableGrades = canEditGrades(currentEmployee.role);
 		const editableRoles = canEditRoles(currentEmployee.role);
-		const relations =
-			resolveEmployeeMasterMode(currentEmployee.role) !== "employee"
-				? await this.employeeMasterRepository.findAllEmployeeProfiles()
-				: [];
+		// 全社員を見られない人には、一覧を出さない(自分のプロフィールだけ)
+		const relations = canViewAllEmployees(currentEmployee.role)
+			? await this.employeeMasterRepository.findAllEmployeeProfiles()
+			: [];
 		const grades = editableGrades ? await this.employeeMasterRepository.findGrades() : [];
 
 		outputPort.present({
@@ -106,7 +109,7 @@ export class LoadEmployeeMasterInteractor
 			canEditRoles: editableRoles,
 			canResetRegistrations: canResetRegistrations(currentEmployee.role),
 			relations: relations.map((profile) =>
-				toApprovalRelationDto(profile, editableRoles, editableGrades),
+				toApprovalRelationDto(profile, currentEmployee, editableGrades),
 			),
 			grades,
 		});

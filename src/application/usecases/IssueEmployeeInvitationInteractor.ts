@@ -1,4 +1,8 @@
 import type { EmployeeMasterRepository } from "../../domain/repositories/EmployeeMasterRepository";
+import {
+	checkInvitation,
+	describeEmployeeAdministrationError,
+} from "../../domain/services/EmployeeAdministration";
 import { canManageEmployeeAccess } from "../../domain/services/EmployeeMasterAccessService";
 import type { OutputPort } from "../ports/OutputPort";
 import type { UseCase } from "../ports/UseCase";
@@ -52,13 +56,10 @@ export class IssueEmployeeInvitationInteractor
 			return;
 		}
 
-		// 発行できる条件は DB 関数でも同じく確かめる
-		if (!target.enabled) {
-			fail(`${target.name}さんは利用停止中です。先に利用を再開してください。`);
-			return;
-		}
-		if (target.registered) {
-			fail(`${target.name}さんは登録済みです。`);
+		// 発行できる相手は DB 関数も同じきまりで確かめる
+		const allowed = checkInvitation(target);
+		if (!allowed.ok) {
+			fail(describeEmployeeAdministrationError(allowed.error));
 			return;
 		}
 

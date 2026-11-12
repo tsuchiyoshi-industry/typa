@@ -76,7 +76,7 @@ it("suspends immediately with an old JWT, preserves history, and requires a fres
 	await actAs(db, 97);
 	expect(await value("public.current_employee_id()")).toBe(null);
 	expect(await value("public.get_current_employee_access_state()")).toBe("disabled");
-	expect(await query("select * from public.employees")).toEqual([]);
+	expect(await query("select id from public.employees")).toEqual([]);
 	expect(await query("select public.visible_employee_ids()")).toEqual([]);
 	await expect(value("public.get_reviewer_workspace(1)")).rejects.toMatchObject({ code: "42501" });
 	await actAs(db, 1);
@@ -96,12 +96,13 @@ it("suspends immediately with an old JWT, preserves history, and requires a fres
 it("counts only registered enabled Admins, and prevents the last usable Admin from being removed", async () => {
 	await actAs(db, 1);
 	await value("public.set_employee_role('E7','Admin')");
-	for (const operation of [
-		"public.set_employee_role('E1','Employee')",
-		"public.set_employee_enabled('E1',false)",
-	]) {
-		await expect(value(operation)).rejects.toMatchObject({ code: "23514" });
-	}
+	await expect(value("public.set_employee_role('E1','Employee')")).rejects.toMatchObject({
+		code: "23514",
+	});
+	// 自分の利用停止は、最後の Admin かどうかより先に断る(ドメインの checkEnabledChange と同じ順)
+	await expect(value("public.set_employee_enabled('E1',false)")).rejects.toMatchObject({
+		code: "42501",
+	});
 });
 
 it("lets Reviewer inspect structure, but never reassign evaluators", async () => {

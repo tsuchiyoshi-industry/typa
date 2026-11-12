@@ -1,6 +1,6 @@
 COLUMN GRANT common_evaluation_items authenticated SELECT description,id,item_set_id,title,weight
 COLUMN GRANT employee_grades authenticated SELECT grade_name,id,item_set_id
-COLUMN GRANT employees authenticated SELECT career_course,employee_no,grade_id,id,is_enabled,keep_signed_in,name,no_secondary_evaluator,primary_evaluator_id,role_id,secondary_evaluator_id,user_id
+COLUMN GRANT employees authenticated SELECT career_course,employee_no,id,name,no_secondary_evaluator,primary_evaluator_id,secondary_evaluator_id
 COLUMN GRANT employees authenticated UPDATE grade_id,keep_signed_in,no_secondary_evaluator,primary_evaluator_id,secondary_evaluator_id
 COLUMN GRANT evaluation_periods authenticated INSERT allow_unfinalized_close,division,end_date,part,period_name,start_date,term_name
 COLUMN GRANT evaluation_periods authenticated REFERENCES allow_unfinalized_close,closed_at,division,end_date,id,is_active,part,period_name,start_date,term_name
@@ -181,6 +181,7 @@ CONSTRAINT employee_grades employee_grades_pkey PRIMARY KEY (id)
 CONSTRAINT employee_invitations employee_invitations_employee_id_fkey FOREIGN KEY (employee_id) REFERENCES employees(id)
 CONSTRAINT employee_invitations employee_invitations_issued_by_fkey FOREIGN KEY (issued_by) REFERENCES employees(id)
 CONSTRAINT employee_invitations employee_invitations_pkey PRIMARY KEY (employee_id)
+CONSTRAINT employees employees_career_course_check CHECK ((career_course = ANY (ARRAY['総合職'::text, '一般職'::text, '技能職'::text, '役員'::text])))
 CONSTRAINT employees employees_employee_no_key UNIQUE (employee_no)
 CONSTRAINT employees employees_grade_id_fkey FOREIGN KEY (grade_id) REFERENCES employee_grades(id)
 CONSTRAINT employees employees_no_secondary_evaluator_check CHECK ((NOT (no_secondary_evaluator AND (secondary_evaluator_id IS NOT NULL))))
@@ -270,6 +271,7 @@ FUNCTION current_subordinate_ids() definer=true anon=false authenticated=true se
 FUNCTION delete_common_evaluation_item_set(smallint,text) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=cd1da11e491f6189653f89b2c3599b41
 FUNCTION delete_employee_grade(smallint,text) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=abc589ffc4df3b4ad1cabd52227f94d4
 FUNCTION employee_auth_email(text) definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=4243f657a68a388892d58f4c34eb6059
+FUNCTION employee_details() definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=f57d687656e78fca34872fd54d6b1b9a
 FUNCTION evaluation_rank(integer) definer=false anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=33a790c59b2d39acd83c4563ef84eee5
 FUNCTION fill_evaluation_period_term() definer=false anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=613cecd76687e07e592b88504db77dea
 FUNCTION freeze_evaluation_totals() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=0046c971b3bf78896f37cbf90a862864
@@ -292,6 +294,7 @@ FUNCTION guard_common_evaluation_result_write() definer=false anon=false authent
 FUNCTION guard_employee_write() definer=false anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=39771062e280a4bdef9083fca7c6521f
 FUNCTION guard_evaluation_period_delete() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=7f0b40649c47f887526aa91a9b35bc63
 FUNCTION guard_evaluation_sheet_write() definer=false anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=432c1ba5119a9f1c06b735693d0ecff6
+FUNCTION guard_evaluator_eligibility() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=adf42c968c5c354e52852d4fe954f05a
 FUNCTION guard_milestone_write() definer=false anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=61611f1c7e408cbca61b85143de3ab94
 FUNCTION guard_used_common_evaluation_items() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=145321fdfe8b0d248c0028ba7ef76bcd
 FUNCTION hook_before_user_created(jsonb) definer=true anon=false authenticated=false service_role=true auth_admin=true config={"search_path=\"\""} md5=c463d14800903316bef0cbfcdab67dbf
@@ -324,7 +327,7 @@ FUNCTION rls_auto_enable() definer=true anon=false authenticated=false service_r
 FUNCTION save_common_evaluation(bigint,jsonb) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=a5d469e18b16c403c7b625e730a3e922
 FUNCTION save_common_evaluation_item_set(smallint,text,jsonb,jsonb) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=bc2ba49e9403c6e1a5fab13cf9e59f32
 FUNCTION save_employee_grade(smallint,text,smallint,text,smallint) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=624e0230d938e92f8277da36427eee84
-FUNCTION set_employee_enabled(text,boolean) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=0921d0cad3c5dafa251090c595987ead
+FUNCTION set_employee_enabled(text,boolean) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=610033ee969d041ecdd7484ab7bb981c
 FUNCTION set_employee_role(text,text) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=923cbceb73c7f62bbd02e1f62c62e359
 FUNCTION set_evaluation_sheet_evaluators() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=7aeaa81e137f9ba93289665c24d9fb31
 FUNCTION set_evaluation_sheet_grade() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=48d992f47fdce9cad6eb391ddab50fc8
@@ -344,7 +347,6 @@ GRANT employee_contacts service_role DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRU
 GRANT employee_grades authenticated SELECT
 GRANT employee_grades service_role DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 GRANT employee_invitations service_role DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
-GRANT employees authenticated SELECT
 GRANT employees service_role DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
 GRANT evaluation_periods authenticated DELETE,REFERENCES,SELECT,TRIGGER
 GRANT evaluation_periods service_role DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
@@ -467,6 +469,7 @@ TRIGGER common_evaluation_results a_common_results_lock_sheet BEFORE DELETE,INSE
 TRIGGER common_evaluation_results common_evaluation_results_guard_write BEFORE INSERT,UPDATE
 TRIGGER common_evaluation_results common_evaluation_results_require_active_period BEFORE DELETE,INSERT,UPDATE
 TRIGGER employees employees_audit AFTER UPDATE
+TRIGGER employees employees_guard_evaluator_eligibility BEFORE INSERT,UPDATE
 TRIGGER employees employees_guard_write BEFORE UPDATE
 TRIGGER employees employees_sync_sheet_evaluators AFTER UPDATE
 TRIGGER evaluation_periods evaluation_periods_fill_term BEFORE INSERT,UPDATE

@@ -15,30 +15,19 @@ export class SupabaseEmployeeRepository implements EmployeeRepository {
 	/** 等級名。評価シートを開くたびに引かれるが、ほとんど変わらないので一度だけ読む。 */
 	private gradeNames?: Promise<Map<number, string>>;
 
-	async checkUserLinked(authUserId: string): Promise<boolean> {
-		const { data, error } = await supabase
-			.from("employees")
-			.select("id")
-			.eq("user_id", authUserId)
-			.maybeSingle();
-
+	async checkUserLinked(_authUserId: string): Promise<boolean> {
 		// 読めなかったことを「紐付いていない(登録が終わっていない)」と言わない
-		if (error) {
-			throw error;
-		}
-
-		// データが存在すれば紐づけ済み
-		return !!data;
+		return (await this.findEmployeeId()) !== null;
 	}
 
 	async findKeepSignedIn(authUserId: string): Promise<boolean> {
+		// ログイン状態の保持は表から読めない。employee_details は本人の分を必ず返す
 		const { data, error } = await supabase
-			.from("employees")
-			.select("keep_signed_in")
+			.rpc("employee_details")
 			.eq("user_id", authUserId)
 			.maybeSingle();
 
-		// 読めないとき(列がまだ無い DB を含む)は、保持しない
+		// 読めないときは、保持しない
 		return !error && (data as { keep_signed_in?: boolean } | null)?.keep_signed_in === true;
 	}
 
@@ -60,7 +49,7 @@ export class SupabaseEmployeeRepository implements EmployeeRepository {
 
 			const userId = session.user.id;
 			if (this.current?.userId !== userId) {
-				this.current = { userId, employeeId: this.findEmployeeId(userId) };
+				this.current = { userId, employeeId: this.findEmployeeId() };
 			}
 			const lookup = this.current;
 			try {
@@ -84,17 +73,13 @@ export class SupabaseEmployeeRepository implements EmployeeRepository {
 		}
 	}
 
-	private async findEmployeeId(userId: string): Promise<number | null> {
-		const { data, error } = await supabase
-			.from("employees")
-			.select("id")
-			.eq("user_id", userId)
-			.maybeSingle();
-
+	/** ログイン中のアカウントに紐付く、利用中の社員。user_id は表から読めないので、DB が JWT から引く。 */
+	private async findEmployeeId(): Promise<number | null> {
+		const { data, error } = await supabase.rpc("current_employee_id");
 		if (error) {
 			throw error;
 		}
-		return data ? (data as { id: number }).id : null;
+		return typeof data === "number" ? data : null;
 	}
 
 	async findGradeName(gradeId: number | null): Promise<string> {

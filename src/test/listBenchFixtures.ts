@@ -19,6 +19,7 @@ const employee = (id: number): ApprovalRelationDto => ({
 	hasUnsetAssignment: false,
 	registered: true,
 	keepSignedIn: false,
+	enabled: true,
 });
 
 export const employeeMasterModel = (n: number): EmployeeMasterViewModel => ({

@@ -9,25 +9,41 @@ import type {
 import { EmployeeRole } from "../../domain/valueObjects/EmployeeRole";
 import { supabase } from "../db/supabase";
 
+/** 社員の行のうち、行を見られる人なら誰でも読める列。 */
 interface EmployeeRow {
 	id: number;
-	user_id: string | null;
 	name: string;
 	employee_no: string;
-	role_id: number | null;
 	career_course: string | null;
-	grade_id: number | null;
 	primary_evaluator_id: number | null;
 	secondary_evaluator_id: number | null;
-	no_secondary_evaluator?: boolean | null;
-	keep_signed_in?: boolean | null;
-	is_enabled?: boolean;
+	no_secondary_evaluator: boolean | null;
 }
 
-interface RoleRow {
-	id: number;
-	role_name: string;
+const EMPLOYEE_COLUMNS =
+	"id, name, employee_no, career_course, primary_evaluator_id, secondary_evaluator_id, no_secondary_evaluator";
+
+/**
+ * 見る人を限る項目(ドメインの canViewEmployeeDetail)。表からは読めず、DB 関数 employee_details が
+ * 同じ判定で、見てよい分だけを返す。見られない項目は null。
+ */
+interface EmployeeDetailRow {
+	employee_id: number;
+	grade_id: number | null;
+	role_name: string | null;
+	keep_signed_in: boolean | null;
+	registered: boolean | null;
+	enabled: boolean | null;
 }
+
+/** 更新できる列。等級とログイン状態の保持は、Admin が表を直接更新する(読めなくても書ける)。 */
+type EmployeeUpdate = Partial<{
+	grade_id: number;
+	keep_signed_in: boolean;
+	primary_evaluator_id: number | null;
+	secondary_evaluator_id: number | null;
+	no_secondary_evaluator: boolean;
+}>;
 
 interface GradeRow {
 	id: number;
@@ -57,7 +73,7 @@ export class SupabaseEmployeeMasterRepository implements EmployeeMasterRepositor
 		if (this.current?.userId !== userId || this.current.expiresAt <= Date.now()) {
 			this.current = {
 				userId,
-				profile: this.findProfileByUserId(userId),
+				profile: this.findOwnProfile(),
 				expiresAt: Date.now() + 30_000,
 			};
 		}
@@ -70,8 +86,8 @@ export class SupabaseEmployeeMasterRepository implements EmployeeMasterRepositor
 		return profile;
 	}
 
-	private async findProfileByUserId(userId: string): Promise<EmployeeProfile | null> {
-		const currentEmployeeId = await this.findEmployeeIdByUserId(userId);
+	private async findOwnProfile(): Promise<EmployeeProfile | null> {
+		const currentEmployeeId = await this.findCurrentEmployeeId();
 		if (currentEmployeeId == null) {
 			return null;
 		}
@@ -240,7 +256,7 @@ export class SupabaseEmployeeMasterRepository implements EmployeeMasterRepositor
 
 	private async updateEmployee(
 		targetEmployeeNo: string,
-		values: Partial<EmployeeRow>,
+		values: EmployeeUpdate,
 	): Promise<EmployeeProfile | null> {
 		const { data, error } = await supabase
 			.from("employees")
@@ -259,70 +275,69 @@ export class SupabaseEmployeeMasterRepository implements EmployeeMasterRepositor
 		return this.findByEmployeeNo(targetEmployeeNo);
 	}
 
-	private async findEmployeeIdByUserId(userId: string): Promise<number | null> {
-		const { data, error } = await supabase
-			.from("employees")
-			.select("id")
-			.eq("user_id", userId)
-			.maybeSingle();
-
-		if (error || !data) {
+	private async findCurrentEmployeeId(): Promise<number | null> {
+		// user_id は表から読めない(絞り込みにも使えない)。ログイン中の社員は DB が JWT から引く
+		const { data, error } = await supabase.rpc("current_employee_id");
+		if (error || typeof data !== "number") {
 			return null;
 		}
-
-		return (data as { id: number }).id;
+		return data;
 	}
 
 	private async findProfiles(): Promise<EmployeeProfile[]> {
-		const [employeesResult, rolesResult, gradesResult] = await Promise.all([
-			supabase.from("employees").select("*").order("employee_no"),
-			supabase.from("roles").select("id, role_name"),
+		const [employeesResult, detailsResult, gradesResult] = await Promise.all([
+			supabase.from("employees").select(EMPLOYEE_COLUMNS).order("employee_no"),
+			supabase.rpc("employee_details"),
 			supabase.from("employee_grades").select("id, grade_name"),
 		]);
 
 		// どれかが読めなければ失敗にする。読めなかったことを「社員がいない」「全員 Employee」
 		// 「全員の等級が未設定」と見せない
-		for (const result of [employeesResult, rolesResult, gradesResult]) {
+		for (const result of [employeesResult, detailsResult, gradesResult]) {
 			if (result.error || !result.data) {
 				throw result.error ?? new Error("社員マスタを読み込めませんでした。");
 			}
 		}
 
-		const employees = employeesResult.data as EmployeeRow[];
-		const roles = rolesResult.data as RoleRow[];
+		const employees = employeesResult.data as unknown as EmployeeRow[];
+		const details = new Map(
+			(detailsResult.data as EmployeeDetailRow[]).map((row) => [row.employee_id, row]),
+		);
 		const grades = gradesResult.data as GradeRow[];
 		const employeeNames = new Map(employees.map((employee) => [employee.id, employee.name]));
-		const roleNames = new Map(roles.map((role) => [role.id, role.role_name]));
 		const gradeNames = new Map(grades.map((grade) => [grade.id, grade.grade_name]));
 
-		return employees.map(
-			(employee) =>
-				new EmployeeProfile(
-					employee.id,
-					employee.name,
-					employee.employee_no,
-					employee.role_id,
-					// DB は権限を名前(文字列)で持つ。アプリの中では値オブジェクトで扱う
-					EmployeeRole.fromStored(roleNames.get(employee.role_id ?? -1)),
-					employee.career_course,
-					employee.grade_id,
-					employee.grade_id ? (gradeNames.get(employee.grade_id) ?? "未設定") : "未設定",
-					employee.primary_evaluator_id,
-					employee.primary_evaluator_id
-						? (employeeNames.get(employee.primary_evaluator_id) ?? "未設定")
+		return employees.map((employee) => {
+			// 見られない項目は、いちばん弱い値(Employee・未設定・未登録)で埋める。
+			// 画面に出すかどうかは、ユースケースがドメインの canViewEmployeeDetail で決める
+			const detail = details.get(employee.id);
+			const gradeId = detail?.grade_id ?? null;
+			return new EmployeeProfile(
+				employee.id,
+				employee.name,
+				employee.employee_no,
+				null,
+				// DB は権限を名前(文字列)で持つ。アプリの中では値オブジェクトで扱う
+				EmployeeRole.fromStored(detail?.role_name),
+				employee.career_course,
+				gradeId,
+				gradeId ? (gradeNames.get(gradeId) ?? "未設定") : "未設定",
+				employee.primary_evaluator_id,
+				employee.primary_evaluator_id
+					? (employeeNames.get(employee.primary_evaluator_id) ?? "未設定")
+					: "未設定",
+				employee.secondary_evaluator_id,
+				// 「なし」と明示された社員と、未設定(指定待ち)の社員を区別して表示する
+				employee.secondary_evaluator_id
+					? (employeeNames.get(employee.secondary_evaluator_id) ?? "未設定")
+					: employee.no_secondary_evaluator
+						? "なし"
 						: "未設定",
-					employee.secondary_evaluator_id,
-					// 「なし」と明示された社員と、未設定(指定待ち)の社員を区別して表示する
-					employee.secondary_evaluator_id
-						? (employeeNames.get(employee.secondary_evaluator_id) ?? "未設定")
-						: employee.no_secondary_evaluator
-							? "なし"
-							: "未設定",
-					employee.no_secondary_evaluator ?? false,
-					employee.user_id != null,
-					employee.keep_signed_in ?? false,
-					employee.is_enabled ?? true,
-				),
-		);
+				employee.no_secondary_evaluator ?? false,
+				detail?.registered ?? false,
+				detail?.keep_signed_in ?? false,
+				detail?.enabled ?? true,
+			);
+		});
 	}
 }

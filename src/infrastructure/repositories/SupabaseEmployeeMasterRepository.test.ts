@@ -13,11 +13,14 @@ const ok = (data: unknown): Result => ({ data, error: null });
 const failed: Result = { data: null, error: { message: "network" } };
 
 /**
- * テーブルごとの結果を返す PostgREST のクエリビルダーの代わり。呼ばれた操作を記録する。
- * maybeSingle(1件だけ引く)は single の結果を返す。
+ * テーブル・DB 関数ごとの結果を返す PostgREST のクエリビルダーの代わり。呼ばれた操作を記録する。
  */
-function tables(results: Record<string, Result>, single: Result = ok(null)) {
+function tables(results: Record<string, Result>) {
 	const calls: [string, string, unknown[]][] = [];
+	db.rpc.mockImplementation(async (name: string) => {
+		calls.push([name, "rpc", []]);
+		return results[name] ?? ok([]);
+	});
 	db.from.mockImplementation((table: string) => {
 		const builder = Promise.resolve(results[table] ?? ok([])) as Promise<Result> &
 			Record<string, unknown>;
@@ -27,52 +30,61 @@ function tables(results: Record<string, Result>, single: Result = ok(null)) {
 				return builder;
 			};
 		}
-		builder.maybeSingle = () => {
-			calls.push([table, "maybeSingle", []]);
-			return Promise.resolve(single);
-		};
 		return builder;
 	});
 	return calls;
 }
 
+// 行を見られる人なら誰でも読める列
 const employees = [
 	{
 		id: 1,
-		user_id: "u1",
 		name: "管理 花子",
 		employee_no: "A1",
-		role_id: 3,
 		career_course: "総合職",
-		grade_id: 2,
 		primary_evaluator_id: null,
 		secondary_evaluator_id: null,
 		no_secondary_evaluator: true,
-		keep_signed_in: true,
-		is_enabled: true,
 	},
 	{
 		id: 2,
-		user_id: null,
 		name: "社員 太郎",
 		employee_no: "E2",
-		role_id: 1,
 		career_course: "総合職",
-		grade_id: null,
 		primary_evaluator_id: 1,
 		secondary_evaluator_id: null,
 		no_secondary_evaluator: false,
-		keep_signed_in: false,
-		is_enabled: false,
 	},
 ];
-const roles = [
-	{ id: 1, role_name: "Employee" },
-	{ id: 3, role_name: "Admin" },
+// 見る人を限る項目は表から読めず、DB 関数が見てよい分だけ返す(見られない項目は null)
+const details = [
+	{
+		employee_id: 1,
+		grade_id: 2,
+		role_name: "Admin",
+		keep_signed_in: true,
+		user_id: "u1",
+		registered: true,
+		enabled: true,
+	},
+	{
+		employee_id: 2,
+		grade_id: null,
+		role_name: "Employee",
+		keep_signed_in: false,
+		user_id: null,
+		registered: false,
+		enabled: false,
+	},
 ];
 const grades = [{ id: 2, grade_name: "総合職2級" }];
-const company = () =>
-	tables({ employees: ok(employees), roles: ok(roles), employee_grades: ok(grades) });
+const master = {
+	employees: ok(employees),
+	employee_details: ok(details),
+	employee_grades: ok(grades),
+	current_employee_id: ok(1),
+};
+const company = () => tables(master);
 
 beforeEach(() => {
 	db.from.mockReset();
@@ -83,7 +95,7 @@ beforeEach(() => {
 
 describe("reading the employee master", () => {
 	it("names each employee's role, grade and evaluators, telling 'none' from 'not assigned yet'", async () => {
-		company();
+		const calls = company();
 		const [admin, employee] =
 			await new SupabaseEmployeeMasterRepository().findAllEmployeeProfiles();
 		expect(admin).toMatchObject({
@@ -104,13 +116,30 @@ describe("reading the employee master", () => {
 			registered: false,
 			enabled: false,
 		});
+		// 見る人を限る列は表から読めないので、* でもその列名でも引かない(DB が断る)
+		const columns = calls.find(
+			([table, name]) => table === "employees" && name === "select",
+		)?.[2][0];
+		expect(columns).not.toMatch(/\*|grade_id|role_id|keep_signed_in|user_id|is_enabled/);
+	});
+
+	it("fills what the reader may not see with the weakest values, not someone else's", async () => {
+		tables({ ...master, employee_details: ok([{ ...details[0], employee_id: 9 }]) });
+		const [admin] = await new SupabaseEmployeeMasterRepository().findAllEmployeeProfiles();
+		expect(admin).toMatchObject({
+			role: EmployeeRole.EMPLOYEE,
+			gradeId: null,
+			gradeName: "未設定",
+			registered: false,
+			keepSignedIn: false,
+		});
 	});
 
 	// 読めなかったことを「誰もいない」「全員 Employee」「全員の等級が未設定」と見せない(基本設計 12.1)
 	it.each([
-		["the employees", { employees: failed, roles: ok(roles), employee_grades: ok(grades) }],
-		["the roles", { employees: ok(employees), roles: failed, employee_grades: ok(grades) }],
-		["the grades", { employees: ok(employees), roles: ok(roles), employee_grades: failed }],
+		["the employees", { ...master, employees: failed }],
+		["their details", { ...master, employee_details: failed }],
+		["the grades", { ...master, employee_grades: failed }],
 	])("fails instead of guessing when %s cannot be read", async (_label, results) => {
 		tables(results);
 		const repository = new SupabaseEmployeeMasterRepository();
@@ -139,23 +168,19 @@ describe("the signed-in employee", () => {
 		signedIn(null);
 		expect(await new SupabaseEmployeeMasterRepository().findCurrentEmployeeProfile()).toBeNull();
 		signedIn("u9");
-		tables({ employees: ok(null) });
+		tables({ ...master, current_employee_id: ok(null) });
 		expect(await new SupabaseEmployeeMasterRepository().findCurrentEmployeeProfile()).toBeNull();
 	});
 
 	it("reads the profile once for the same account, and again after it changed someone", async () => {
 		signedIn("u1");
-		const calls = tables(
-			{ employees: ok(employees), roles: ok(roles), employee_grades: ok(grades) },
-			ok({ id: 1 }),
-		);
-		const lookups = () => calls.filter(([, name]) => name === "maybeSingle").length;
+		const calls = company();
+		const lookups = () => calls.filter(([name]) => name === "current_employee_id").length;
 		const repository = new SupabaseEmployeeMasterRepository();
 		expect((await repository.findCurrentEmployeeProfile())?.employeeNo).toBe("A1");
 		expect((await repository.findCurrentEmployeeProfile())?.employeeNo).toBe("A1");
 		expect(lookups()).toBe(1);
 		// 自分の権限を変えたかもしれないので、次は読み直す
-		db.rpc.mockResolvedValue(ok(true));
 		await repository.updateRoleByEmployeeNo("E2", EmployeeRole.REVIEWER);
 		await repository.findCurrentEmployeeProfile();
 		expect(lookups()).toBe(2);
@@ -163,13 +188,10 @@ describe("the signed-in employee", () => {
 
 	it("is nobody when the employee master cannot be read, and tries again next time", async () => {
 		signedIn("u1");
-		tables({ employees: failed }, ok({ id: 1 }));
+		tables({ ...master, employees: failed });
 		const repository = new SupabaseEmployeeMasterRepository();
 		expect(await repository.findCurrentEmployeeProfile()).toBeNull();
-		tables(
-			{ employees: ok(employees), roles: ok(roles), employee_grades: ok(grades) },
-			ok({ id: 1 }),
-		);
+		tables(master);
 		expect((await repository.findCurrentEmployeeProfile())?.employeeNo).toBe("A1");
 	});
 });

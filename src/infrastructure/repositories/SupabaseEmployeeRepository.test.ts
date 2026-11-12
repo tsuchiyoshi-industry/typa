@@ -20,6 +20,18 @@ function table(result: Result) {
 	builder.maybeSingle = () => Promise.resolve(result);
 	db.from.mockReturnValue(builder);
 }
+/** DB 関数の答え。そのまま待っても、絞り込んで1件引いても result を返す。呼ばれた絞り込みを記録する。 */
+function rpc(result: Result) {
+	const filters: unknown[][] = [];
+	const builder = Promise.resolve(result) as Promise<Result> & Record<string, unknown>;
+	builder.eq = (...args: unknown[]) => {
+		filters.push(args);
+		return builder;
+	};
+	builder.maybeSingle = () => Promise.resolve(result);
+	db.rpc.mockReturnValue(builder);
+	return filters;
+}
 const signedIn = (userId: string | null) =>
 	db.getSession.mockResolvedValue({
 		data: { session: userId ? { user: { id: userId } } : null },
@@ -81,23 +93,34 @@ describe("the signed-in account", () => {
 		expect(await new SupabaseEmployeeRepository().findCurrentAccessState()).toBe(state);
 	});
 
+	// user_id は表から読めない(絞り込みにも使えない)。ログイン中の社員は DB が JWT から引く
 	it("tells a linked account from an unlinked one, and fails when it cannot tell", async () => {
 		const repository = new SupabaseEmployeeRepository();
-		table(ok({ id: 1 }));
+		rpc(ok(1));
 		expect(await repository.checkUserLinked("u1")).toBe(true);
-		table(ok(null));
+		expect(db.rpc).toHaveBeenCalledWith("current_employee_id");
+		rpc(ok(null));
 		expect(await repository.checkUserLinked("u1")).toBe(false);
 		// 読めなかったことを「紐付いていない(登録が終わっていない)」と言わない
-		table(failed);
+		rpc(failed);
 		await expect(repository.checkUserLinked("u1")).rejects.toThrow();
+		expect(db.from).not.toHaveBeenCalled();
 	});
 
 	it("keeps the session only when the employee master says so, and not when it cannot be read", async () => {
 		const repository = new SupabaseEmployeeRepository();
-		table(ok({ keep_signed_in: true }));
+		const filters = rpc(ok({ keep_signed_in: true }));
 		expect(await repository.findKeepSignedIn("u1")).toBe(true);
-		for (const answer of [ok({ keep_signed_in: false }), ok(null), failed]) {
-			table(answer);
+		// 本人の行を、見てよい項目だけを返す DB 関数から引く
+		expect(db.rpc).toHaveBeenCalledWith("employee_details");
+		expect(filters).toEqual([["user_id", "u1"]]);
+		for (const answer of [
+			ok({ keep_signed_in: false }),
+			ok({ keep_signed_in: null }),
+			ok(null),
+			failed,
+		]) {
+			rpc(answer);
 			expect(await repository.findKeepSignedIn("u1")).toBe(false);
 		}
 	});
@@ -107,16 +130,16 @@ describe("the signed-in account", () => {
 		signedIn(null);
 		expect(await repository.findCurrentEmployeeId()).toEqual({ data: null, error: null });
 		signedIn("u1");
-		table(ok({ id: 7 }));
+		rpc(ok(7));
 		expect(await repository.findCurrentEmployeeId()).toEqual({ data: 7, error: null });
 		await repository.findCurrentEmployeeId();
-		expect(db.from).toHaveBeenCalledOnce();
+		expect(db.rpc).toHaveBeenCalledOnce();
 
 		const failing = new SupabaseEmployeeRepository();
-		table(failed);
+		rpc(failed);
 		expect((await failing.findCurrentEmployeeId()).error).toBeInstanceOf(Error);
 		// 失敗は覚えておかず、次は読み直す
-		table(ok({ id: 7 }));
+		rpc(ok(7));
 		expect(await failing.findCurrentEmployeeId()).toEqual({ data: 7, error: null });
 	});
 });

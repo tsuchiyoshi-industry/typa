@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
+import { EmployeeProfile } from "../../domain/entities/EmployeeProfile";
+import { EmployeeRole } from "../../domain/valueObjects/EmployeeRole";
 import { EvaluationStatus } from "../../domain/valueObjects/EvaluationStatus";
 import { PeriodState } from "../../domain/valueObjects/PeriodState";
 import {
@@ -19,7 +21,10 @@ import {
 	IssueEmployeeInvitationInteractor,
 	IssuePendingEmployeeInvitationsInteractor,
 } from "./IssueEmployeeInvitationInteractor";
-import { LoadEmployeeMasterInteractor } from "./LoadEmployeeMasterInteractor";
+import {
+	LoadEmployeeMasterInteractor,
+	type LoadEmployeeMasterResponse,
+} from "./LoadEmployeeMasterInteractor";
 import { ResetEmployeeRegistrationInteractor } from "./ResetEmployeeRegistrationInteractor";
 import { UpdateEmployeeEnabledInteractor } from "./UpdateEmployeeEnabledInteractor";
 import { UpdateEmployeeEvaluatorInteractor } from "./UpdateEmployeeEvaluatorInteractor";
@@ -47,6 +52,54 @@ describe("employee master authorization", () => {
 			);
 		},
 	);
+	// ドメインの canViewEmployeeDetail: 本人の項目はすべて、他人の等級は Admin・Reviewer、
+	// 他人の権限・ログイン保持・登録・利用状態は Admin だけ
+	it.each([
+		["Admin", { grade: true, role: true, keep: true, account: true }],
+		["Reviewer", { grade: true, role: false, keep: false, account: false }],
+	] as const)("passes %s only the details of others it may see", async (role, sees) => {
+		const repo = masterRepository();
+		const me = profile(role, 2);
+		const other = new EmployeeProfile(
+			9,
+			"他人",
+			"TEST009",
+			null,
+			EmployeeRole.REVIEWER,
+			"総合職",
+			5,
+			"等級5",
+			2,
+			"一次",
+			null,
+			"なし",
+			true,
+			true,
+			true,
+			false,
+		);
+		repo.findCurrentEmployeeProfile.mockResolvedValue(me);
+		repo.findAllEmployeeProfiles.mockResolvedValue([me, other]);
+		const out = output<LoadEmployeeMasterResponse>();
+		await new LoadEmployeeMasterInteractor(repo).execute({}, out);
+		const [mine, theirs] = out.present.mock.calls[0]?.[0].relations ?? [];
+		expect(theirs).toMatchObject({
+			gradeId: sees.grade ? 5 : null,
+			gradeName: sees.grade ? "等級5" : null,
+			roleName: sees.role ? "Reviewer" : null,
+			keepSignedIn: sees.keep ? true : null,
+			registered: sees.account ? true : null,
+			enabled: sees.account ? false : null,
+		});
+		// 一覧の中の自分の行は、すべて見える
+		expect(mine).toMatchObject({
+			gradeId: 5,
+			roleName: role,
+			keepSignedIn: false,
+			registered: true,
+			enabled: true,
+		});
+	});
 	it("missing identity cannot list employee relations", async () => {
 		const repo = masterRepository();
 		repo.findCurrentEmployeeProfile.mockResolvedValue(null);
@@ -154,18 +207,22 @@ describe("employee master authorization", () => {
 		"admin registration reset case %s",
 		async (kind) => {
 			const repo = masterRepository();
-			repo.findCurrentEmployeeProfile.mockResolvedValue(profile("Admin", 2));
-			repo.findByEmployeeNo.mockResolvedValue(
-				kind === "missingTarget"
-					? null
-					: profile("Employee", kind === "self" ? 2 : 1, kind !== "unregistered"),
+			const me = profile("Admin", 2);
+			repo.findCurrentEmployeeProfile.mockResolvedValue(me);
+			// 最後の Admin を残すきまり(ドメイン)のため、全員を見て判断する
+			repo.findAllEmployeeProfiles.mockResolvedValue(
+				kind === "missingTarget" || kind === "self"
+					? [me]
+					: [me, profile("Employee", 1, kind !== "unregistered")],
 			);
 			if (kind === "failed") {
 				repo.resetRegistrationByEmployeeNo.mockResolvedValue(false);
 			}
 			const out = output<never>();
 			await new ResetEmployeeRegistrationInteractor(repo).execute(
-				{ targetEmployeeNo: kind === "empty" ? " " : " TEST001 " },
+				{
+					targetEmployeeNo: kind === "empty" ? " " : kind === "self" ? " TEST002 " : " TEST001 ",
+				},
 				out,
 			);
 			const reachesRepository = kind === "ok" || kind === "failed";

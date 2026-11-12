@@ -1,4 +1,8 @@
 import type { EmployeeMasterRepository } from "../../domain/repositories/EmployeeMasterRepository";
+import {
+	checkEnabledChange,
+	describeEmployeeAdministrationError,
+} from "../../domain/services/EmployeeAdministration";
 import { canManageEmployeeAccess } from "../../domain/services/EmployeeMasterAccessService";
 import type { OutputPort } from "../ports/OutputPort";
 import type { UseCase } from "../ports/UseCase";
@@ -45,28 +49,12 @@ export class UpdateEmployeeEnabledInteractor
 			return;
 		}
 
-		// 自分を止めると、操作中のセッションごと使えなくなる
-		if (target.id === currentEmployee.id && !request.enabled) {
-			outputPort.present({ success: false, message: "自分自身の利用は停止できません。" });
-			return;
-		}
-
-		// 最後の Admin を止めると、誰も権限を管理できなくなる(DB側でも同じ条件で拒否する)
-		if (
-			!request.enabled &&
-			target.role.isAdmin() &&
-			!profiles.some(
-				(profile) =>
-					profile.role.isAdmin() &&
-					profile.registered &&
-					profile.enabled &&
-					profile.id !== target.id,
-			)
-		) {
+		// 自分・最後の Admin は止めない(DB 関数も同じきまりで断る)
+		const allowed = checkEnabledChange(currentEmployee, target, request.enabled, profiles);
+		if (!allowed.ok) {
 			outputPort.present({
 				success: false,
-				message:
-					"利用できる Admin が0名になるため停止できません。先に別の社員を Admin にしてください。",
+				message: describeEmployeeAdministrationError(allowed.error),
 			});
 			return;
 		}

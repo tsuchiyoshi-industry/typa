@@ -2,6 +2,10 @@ import type {
 	EmployeeMasterRepository,
 	EvaluatorType,
 } from "../../domain/repositories/EmployeeMasterRepository";
+import {
+	checkEvaluatorAssignment,
+	describeEmployeeAdministrationError,
+} from "../../domain/services/EmployeeAdministration";
 import { canEditEvaluators } from "../../domain/services/EmployeeMasterAccessService";
 import type { AssignEvaluatorResultDto } from "../dtos/EmployeeMasterDto";
 import type { OutputPort } from "../ports/OutputPort";
@@ -67,20 +71,12 @@ export class UpdateEmployeeEvaluatorInteractor
 			return;
 		}
 
-		if (target.id === evaluator?.id) {
+		// 本人と、評価者になれない人は選べない(DB のトリガーも同じきまりで断る)
+		const allowed = checkEvaluatorAssignment(target, evaluator);
+		if (!allowed.ok) {
 			outputPort.present({
 				success: false,
-				message: "自分自身を評価者として設定することはできません。",
-				evaluatorType: request.evaluatorType,
-				targetEmployeeNo,
-			});
-			return;
-		}
-
-		if (evaluator && !evaluator.canBeEvaluator()) {
-			outputPort.present({
-				success: false,
-				message: `${evaluator.name}さんは評価者の権限を持っていないため、評価者に設定できません。`,
+				message: describeEmployeeAdministrationError(allowed.error),
 				evaluatorType: request.evaluatorType,
 				targetEmployeeNo,
 			});

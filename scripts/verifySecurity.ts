@@ -319,6 +319,43 @@ try {
 		assert.deepEqual(restored.body, [{ id: goalId }]);
 		assert.equal(sql(`select challenge_goal from public.milestones where id=${goalId}`), marker);
 	});
+	await check("ACCESS-DETAILS", async () => {
+		// 社員マスタで誰の何を見られるかはドメイン(canViewEmployeeDetail)が決める。社員(owner)は
+		// 評価者の行を読めるが、等級・権限・ログイン保持・アカウントは表から読めない
+		for (const column of ["grade_id", "role_id", "keep_signed_in", "user_id", "is_enabled", "*"]) {
+			const read = await call(`employees?select=${column}&id=eq.${primary.id}`, owner.token, "GET");
+			assert.ok(
+				read.status === 401 || read.status === 403,
+				`An Employee read the evaluator's ${column}: HTTP ${read.status}`,
+			);
+		}
+		const details = await rpc("employee_details", owner.token);
+		assert.equal(details.status, 200);
+		const rows = details.body as Record<string, unknown>[];
+		const own = rows.find((row) => row.employee_id === owner.id);
+		assert.equal(own?.registered, true, "employee_details must return the owner's own details");
+		const colleagues = rows.filter((row) => row.employee_id !== owner.id);
+		assert.ok(
+			colleagues.some((row) => row.employee_id === primary.id),
+			"employee_details must list the owner's evaluator",
+		);
+		for (const row of colleagues) {
+			for (const column of [
+				"grade_id",
+				"role_name",
+				"keep_signed_in",
+				"user_id",
+				"registered",
+				"enabled",
+			]) {
+				assert.equal(
+					row[column],
+					null,
+					`An Employee read ${column} of employee ${row.employee_id}`,
+				);
+			}
+		}
+	});
 	await check("ACCESS-SUSPEND", async () => {
 		assertDocument(await readSheet(owner.token));
 		sql(`update public.employees set is_enabled=false where id=${owner.id}`);

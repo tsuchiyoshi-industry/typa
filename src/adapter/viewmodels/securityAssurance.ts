@@ -105,6 +105,11 @@ const CHECKS: Record<RequirementId, { title: string; guarantee: string }> = {
 		guarantee:
 			"本人の目標の編集に、本人が付けてはならない評価点を紛れ込ませると、要求全体を拒否すること（一部だけ通ることはない）。正しい編集はそのまま通ること。",
 	},
+	"ACCESS-DETAILS": {
+		title: "同僚の等級や権限は読めない",
+		guarantee:
+			"社員が API を直接呼んでも、評価者など関わる人の等級・権限・ログイン状態の保持・登録の有無を読めないこと。読めるのは自分の分だけ。",
+	},
 	"ACCESS-SUSPEND": {
 		title: "利用停止はその場で効く",
 		guarantee:
@@ -138,7 +143,7 @@ const GROUPS: { title: string; ids: RequirementId[] }[] = [
 	},
 	{
 		title: "権限を越えた操作",
-		ids: ["ACCESS-BOLA", "ACCESS-BFLA", "ACCESS-FIELDS", "ACCESS-SUSPEND"],
+		ids: ["ACCESS-BOLA", "ACCESS-BFLA", "ACCESS-FIELDS", "ACCESS-DETAILS", "ACCESS-SUSPEND"],
 	},
 	{ title: "評価の流れ・秘密・記録", ids: ["FLOW-APPROVAL", "DATA-SECRET", "AUDIT-ATOMIC"] },
 	{ title: "外からの自動攻撃", ids: ["DAST-AUTHENTICATED"] },

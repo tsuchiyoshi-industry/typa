@@ -38,6 +38,11 @@
 			"condition": "A valid goal edit mixed with a forbidden score is rejected atomically; normal owner edits still work"
 		},
 		{
+			"id": "ACCESS-DETAILS",
+			"asvs": ["V8.2.3"],
+			"condition": "An Employee's real token cannot read a colleague's grade, role, sign-in setting or account through PostgREST; employee_details returns their own details and nothing of the colleagues it lists"
+		},
+		{
 			"id": "ACCESS-SUSPEND",
 			"asvs": ["V8.3.2"],
 			"condition": "Suspension removes access using the exact same previously accepted access token"

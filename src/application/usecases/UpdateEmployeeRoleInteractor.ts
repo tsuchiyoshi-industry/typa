@@ -1,4 +1,8 @@
 import type { EmployeeMasterRepository } from "../../domain/repositories/EmployeeMasterRepository";
+import {
+	checkRoleChange,
+	describeEmployeeAdministrationError,
+} from "../../domain/services/EmployeeAdministration";
 import { canEditRoles } from "../../domain/services/EmployeeMasterAccessService";
 import { EmployeeRole } from "../../domain/valueObjects/EmployeeRole";
 import type { OutputPort } from "../ports/OutputPort";
@@ -42,22 +46,12 @@ export class UpdateEmployeeRoleInteractor
 			return;
 		}
 
-		// 最後の Admin を外すと、誰も権限を管理できなくなる(DB側でも同じ条件で拒否する)
-		if (
-			target.role.isAdmin() &&
-			!role.isAdmin() &&
-			!profiles.some(
-				(profile) =>
-					profile.role.isAdmin() &&
-					profile.registered &&
-					profile.enabled &&
-					profile.id !== target.id,
-			)
-		) {
+		// 利用できる Admin を残す(DB 関数も同じきまりで断る)
+		const allowed = checkRoleChange(target, role, profiles);
+		if (!allowed.ok) {
 			outputPort.present({
 				success: false,
-				message:
-					"Admin が0名になるため変更できません。先に別の社員を Admin にしてから変更してください。",
+				message: describeEmployeeAdministrationError(allowed.error),
 			});
 			return;
 		}

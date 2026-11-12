@@ -32,6 +32,7 @@ const employee = (
 	hasUnsetAssignment: false,
 	registered: true,
 	keepSignedIn: false,
+	enabled: true,
 });
 
 function setup() {

@@ -34,6 +34,7 @@ const employee = (
 	hasUnsetAssignment: false,
 	registered: true,
 	keepSignedIn: false,
+	enabled: true,
 });
 function setup() {
 	const [viewModel, setViewModel] = createSignal<EmployeeMasterViewModel>({

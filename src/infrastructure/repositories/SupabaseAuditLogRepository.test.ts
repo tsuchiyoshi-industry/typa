@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const db = vi.hoisted(() => ({ from: vi.fn() }));
-vi.mock("../db/supabase", () => ({ supabase: { from: db.from } }));
+const db = vi.hoisted(() => ({ from: vi.fn(), rpc: vi.fn() }));
+vi.mock("../db/supabase", () => ({ supabase: { from: db.from, rpc: db.rpc } }));
 
 import { SupabaseAuditLogRepository } from "./SupabaseAuditLogRepository";
 
@@ -27,7 +27,11 @@ const row = (id: number) => ({
 	entity_id: 100,
 	details: { from: "draft", to: "goals_submitted" },
 });
-beforeEach(() => db.from.mockReset());
+beforeEach(() => {
+	db.from.mockReset();
+	db.rpc.mockReset();
+	db.rpc.mockResolvedValue({ data: [], error: null });
+});
 
 describe("findPage", () => {
 	it("reads the newest records first and asks for one extra to know whether more remain", async () => {
@@ -139,8 +143,16 @@ describe("findPage", () => {
 it("reads every employee with the account they are linked to", async () => {
 	const calls = query({
 		data: [
-			{ id: 4, user_id: "u-4", name: "山田 花子", employee_no: "E4" },
-			{ id: 7, user_id: null, name: "佐藤 一郎", employee_no: "E7" },
+			{ id: 4, name: "山田 花子", employee_no: "E4" },
+			{ id: 7, name: "佐藤 一郎", employee_no: "E7" },
+		],
+		error: null,
+	});
+	// 誰のアカウントか(user_id)は表から読めず、見てよい人(Admin)にだけ DB 関数が返す
+	db.rpc.mockResolvedValue({
+		data: [
+			{ employee_id: 4, user_id: "u-4" },
+			{ employee_id: 7, user_id: null },
 		],
 		error: null,
 	});
@@ -149,7 +161,14 @@ it("reads every employee with the account they are linked to", async () => {
 		{ id: 7, userId: null, name: "佐藤 一郎", employeeNo: "E7" },
 	]);
 	expect(db.from).toHaveBeenCalledWith("employees");
-	expect(calls).toContainEqual(["select", ["id, user_id, name, employee_no"]]);
+	expect(calls).toContainEqual(["select", ["id, name, employee_no"]]);
+	expect(db.rpc).toHaveBeenCalledWith("employee_details");
+});
+
+it("fails instead of showing everyone as unlinked when their accounts cannot be read", async () => {
+	query({ data: [{ id: 4, name: "山田 花子", employee_no: "E4" }], error: null });
+	db.rpc.mockResolvedValue({ data: null, error: new Error("offline") });
+	await expect(new SupabaseAuditLogRepository().findPeople()).rejects.toThrow("offline");
 });
 
 it("reads the role names by ID", async () => {

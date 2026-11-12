@@ -38,6 +38,8 @@ beforeAll(async () => {
 		  (14, 1, 4, 'draft', 2, 3, false),
 		  (15, 3, 4, 'first_evaluated', 5, 1, false);
 		alter table public.evaluation_sheets enable trigger user;
+		-- 異動先の評価者 5 は、評価者になれる Reviewer(ドメインの canBeEvaluator。DB も断る)
+		update public.employees set role_id = 2 where id = 5;
 		update public.employees set primary_evaluator_id = 5 where id = 6;`);
 }, 60_000);
 afterAll(async () => {

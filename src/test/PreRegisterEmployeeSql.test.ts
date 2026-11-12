@@ -31,9 +31,11 @@ const preRegister = async (
 const added = async () =>
 	(
 		await db.query<Record<string, unknown>>(
-			`select e.employee_no, e.name, e.user_id, e.grade_id, e.career_course, r.role_name,
+			// Admin がアプリと同じ経路で読む(等級・権限・アカウントは表からは読めない)
+			`select e.employee_no, e.name, d.user_id, d.grade_id, e.career_course, d.role_name,
 			   e.primary_evaluator_id, e.secondary_evaluator_id, e.no_secondary_evaluator
-			 from public.employees e join public.roles r on r.id = e.role_id where e.id > 7 order by e.id`,
+			 from public.employees e join public.employee_details() d on d.employee_id = e.id
+			 where e.id > 7 order by e.id`,
 		)
 	).rows;
 

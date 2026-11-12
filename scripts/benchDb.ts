@@ -117,7 +117,11 @@ try {
 				"rpc/get_evaluation_period_sheet_counts",
 				{ p_period_id: activePeriod },
 			]);
-			cases.push(["社員マスタ", "employees?select=*&order=employee_no"]);
+			cases.push([
+				"社員マスタ",
+				"employees?select=id,name,employee_no,career_course,primary_evaluator_id,secondary_evaluator_id,no_secondary_evaluator&order=employee_no",
+			]);
+			cases.push(["社員の詳細", "rpc/employee_details", {}]);
 			cases.push([
 				"監査ログ",
 				"security_audit_log?select=id,occurred_at,actor_user_id,action,entity_id,details&order=id.desc&limit=51",

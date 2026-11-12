@@ -6,7 +6,7 @@
 
 機械可読の正本は [security/requirements.json](../security/requirements.json)。`required` の各行に要件ID、ASVSの関連番号、合格条件を定義し、[verifySecurity.ts](../scripts/verifySecurity.ts) が同じIDで実行結果を出す。未実行・失敗・重複・未知のIDがあると全体を失敗させる。管理者向けの画面「セキュリティ」（`/security`、Admin のみ）は同じ正本から検査IDとASVS番号を読み、平易な説明を [securityAssurance.ts](../src/adapter/viewmodels/securityAssurance.ts) に置く。`required` を増減して説明が対応しないと `securityAssurance.test.ts` が落ちる。ASVS番号に対応付けたテストはその要件の限定的な証拠であり、関連番号の要件全体への適合を宣言するものではない。
 
-[DB検証ジョブ](../.github/workflows/database.yml) は従来のSQL・実Auth・UI検証に加え、新規構築の `typa_release_fresh` と移行後の `typa_release_verify` の両方に、以下の14チェックを必須で実行する。
+[DB検証ジョブ](../.github/workflows/database.yml) は従来のSQL・実Auth・UI検証に加え、新規構築の `typa_release_fresh` と移行後の `typa_release_verify` の両方に、以下の15チェックを必須で実行する。
 
 | テストID           | 関連ASVS                 | 必須の合格条件                                                                                                                                                  |
 | ------------------ | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -17,6 +17,7 @@
 | ACCESS-BOLA        | V8.2.2                   | 別社員・社員未紐付けの実トークンで本人の文書を取得できない。Admin は取得できる（読み取り専用）が、三者とも改変・確定できず、保存内容も不変                      |
 | ACCESS-BFLA        | V8.2.1                   | 社員とReviewerが権限変更・招待発行・特権シート操作・評価期間の締め・開始・全社のシート一覧と索引・等級と共通目標のマスタのRPCを直接呼んでも403になる            |
 | ACCESS-FIELDS      | V8.2.3                   | 本人の目標編集に不正な評価点を混ぜると全体拒否し、通常の本文更新は成功する                                                                                      |
+| ACCESS-DETAILS     | V8.2.3                   | 社員の実トークンで、評価者の等級・権限・ログイン保持・アカウントを表から読めず、`employee_details` も本人の分しか返さない                                       |
 | ACCESS-SUSPEND     | V8.3.2                   | 一度通った同じJWTをそのまま使っても、利用停止後は文書取得・承認を拒否する                                                                                       |
 | AUTH-REVOKE        | V7.4.1                   | 別に開いたセッションだけをログアウトすると、期限前の同じアクセストークンで本人の特定も自分の社員行の取得もできない。同じ人のほかのセッションは使える            |
 | FLOW-APPROVAL      | V2.3.1                   | 目標確認を飛ばした状態遷移と提出の再送を拒否し、通知が重複しない                                                                                                |

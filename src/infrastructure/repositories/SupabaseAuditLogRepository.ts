@@ -84,20 +84,30 @@ export class SupabaseAuditLogRepository implements AuditLogRepository {
 	}
 
 	async findPeople(): Promise<AuditPerson[]> {
-		const { data, error } = await supabase
-			.from("employees")
-			.select("id, user_id, name, employee_no");
-		if (error) {
-			throw error;
+		// 誰のアカウントか(user_id)は表から読めない。employee_details が Admin にだけ返す
+		const [people, details] = await Promise.all([
+			supabase.from("employees").select("id, name, employee_no"),
+			supabase.rpc("employee_details"),
+		]);
+		for (const result of [people, details]) {
+			if (result.error) {
+				throw result.error;
+			}
 		}
-		return (
-			(data ?? []) as { id: number; user_id: string | null; name: string; employee_no: string }[]
-		).map((row) => ({
-			id: row.id,
-			userId: row.user_id,
-			name: row.name,
-			employeeNo: row.employee_no,
-		}));
+		const userIds = new Map(
+			((details.data ?? []) as { employee_id: number; user_id: string | null }[]).map((row) => [
+				row.employee_id,
+				row.user_id,
+			]),
+		);
+		return ((people.data ?? []) as { id: number; name: string; employee_no: string }[]).map(
+			(row) => ({
+				id: row.id,
+				userId: userIds.get(row.id) ?? null,
+				name: row.name,
+				employeeNo: row.employee_no,
+			}),
+		);
 	}
 
 	async findRoleNames(): Promise<Map<number, string>> {

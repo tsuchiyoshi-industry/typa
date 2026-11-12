@@ -48,21 +48,25 @@ test("an invited employee registers with a shared mailbox and can be suspended",
 		}
 		const admin = await restAs(1);
 		const response = await admin(
-			`employees?employee_no=eq.${NEWCOMER}&select=employee_no,name,user_id,grade_id,career_course,primary_evaluator_id,secondary_evaluator_id,no_secondary_evaluator`,
+			`employees?employee_no=eq.${NEWCOMER}&select=id,employee_no,name,career_course,primary_evaluator_id,secondary_evaluator_id,no_secondary_evaluator`,
 		);
 		expect(response.ok).toBe(true);
-		expect(await response.json()).toEqual([
-			{
-				employee_no: NEWCOMER,
-				name: NEWCOMER_NAME,
-				user_id: null,
-				grade_id: 9001,
-				career_course: "総合職",
-				primary_evaluator_id: null,
-				secondary_evaluator_id: null,
-				no_secondary_evaluator: false,
-			},
-		]);
+		const [added] = (await response.json()) as { id: number }[];
+		expect(added).toEqual({
+			id: expect.any(Number),
+			employee_no: NEWCOMER,
+			name: NEWCOMER_NAME,
+			career_course: "総合職",
+			primary_evaluator_id: null,
+			secondary_evaluator_id: null,
+			no_secondary_evaluator: false,
+		});
+		// 等級とアカウントは表から読めず、見てよい人(Admin)にだけ employee_details が返す
+		const details = await admin(
+			`rpc/employee_details?employee_id=eq.${added?.id}&select=user_id,registered,grade_id`,
+		);
+		expect(details.ok).toBe(true);
+		expect(await details.json()).toEqual([{ user_id: null, registered: false, grade_id: 9001 }]);
 	});
 	await test.step("Admin が仮登録した社員の招待コードを一括発行する", async () => {
 		await openEmployeeMaster(page);

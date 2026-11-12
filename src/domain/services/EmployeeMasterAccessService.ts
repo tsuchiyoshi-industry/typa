@@ -12,6 +12,79 @@ export function resolveEmployeeMasterMode(role: EmployeeRole): EmployeeMasterMod
 	return MODES[role.toString()];
 }
 
+/**
+ * 全社員の行(氏名・社員番号・キャリアコース・評価者)を見られるのは、評価者を決める Admin と、評価する Reviewer。
+ * ほかの人が見られるのは、評価で関わる人(evaluationColleagueIds)だけ。
+ * DB の employees の行ポリシーも、この判定に従う(EmployeeVisibilitySql.test.ts が突き合わせる)。
+ */
+export const canViewAllEmployees = (role: EmployeeRole): boolean =>
+	resolveEmployeeMasterMode(role) !== "employee";
+
+/** 評価で誰と誰が関わるか。社員の評価者の割り当てと、評価シートの本人・評価者の組み合わせ。 */
+export interface EvaluationLink {
+	employeeId: number;
+	primaryEvaluatorId: number | null;
+	secondaryEvaluatorId: number | null;
+}
+
+/**
+ * 全社員を見られない人が見られる社員: 自分、自分の評価者、自分を評価者とする社員、
+ * 自分が本人か評価者として関わる評価シート(異動前のものも)の本人と評価者。
+ * 評価する社員のほかの評価者は含めない(同じシートに関わっていなければ)。
+ */
+export function evaluationColleagueIds(
+	viewerId: number,
+	employees: readonly EvaluationLink[],
+	sheets: readonly EvaluationLink[],
+): Set<number> {
+	const people = (link: EvaluationLink) => [
+		link.employeeId,
+		link.primaryEvaluatorId,
+		link.secondaryEvaluatorId,
+	];
+	const evaluates = (link: EvaluationLink) =>
+		link.primaryEvaluatorId === viewerId || link.secondaryEvaluatorId === viewerId;
+	const me = employees.find((employee) => employee.employeeId === viewerId);
+	if (!me) {
+		return new Set();
+	}
+	const ids = [
+		...people(me),
+		...employees.filter(evaluates).map((employee) => employee.employeeId),
+		...sheets.filter((sheet) => people(sheet).includes(viewerId)).flatMap(people),
+	];
+	return new Set(ids.filter((id): id is number => id !== null));
+}
+
+/**
+ * 見る人を限る社員の項目。氏名・社員番号・キャリアコース・評価者は、その行を見られる人なら誰でも見られる。
+ * account は登録の有無と利用状態(ログイン用アカウント)。
+ */
+export type EmployeeDetail = "grade" | "role" | "keepSignedIn" | "account";
+
+const OTHERS_DETAIL_VIEWERS: Record<EmployeeDetail, Record<EmployeeMasterMode, boolean>> = {
+	// 等級は、評価者を決める Admin と、評価する Reviewer が見る。Employee には同僚の等級を見せない
+	grade: { admin: true, reviewer: true, employee: false },
+	// 誰が Admin か、誰が共有PCを使うか、誰が登録・利用停止されているかは、管理する Admin だけ
+	role: { admin: true, reviewer: false, employee: false },
+	keepSignedIn: { admin: true, reviewer: false, employee: false },
+	account: { admin: true, reviewer: false, employee: false },
+};
+
+export const EMPLOYEE_DETAILS = Object.keys(OTHERS_DETAIL_VIEWERS) as readonly EmployeeDetail[];
+
+/**
+ * 社員の項目を見られるか。本人の項目は、本人がすべて見られる。
+ * DB の employee_details() も、この判定に従う(EmployeeVisibilitySql.test.ts が突き合わせる)。
+ */
+export function canViewEmployeeDetail(
+	viewer: EmployeeRole,
+	detail: EmployeeDetail,
+	ownRow: boolean,
+): boolean {
+	return ownRow || OTHERS_DETAIL_VIEWERS[detail][resolveEmployeeMasterMode(viewer)];
+}
+
 /** 社員マスタの管理操作は、どれも Admin だけが行える。下の名前は「何を」許すかを読み手に示すためのもの。 */
 const adminOnly = (role: EmployeeRole): boolean => resolveEmployeeMasterMode(role) === "admin";
 

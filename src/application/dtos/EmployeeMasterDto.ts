@@ -20,10 +20,13 @@ export interface ApprovalRelationDto {
 	name: string;
 	employeeNo: string;
 	careerCourse: string | null;
-	/** 権限。Admin 以外には渡さない(null)。 */
+	/**
+	 * 見る人を限る項目(ドメインの canViewEmployeeDetail)は、見られないとき null。
+	 * 権限・ログイン状態の保持・登録・利用状態は Admin と本人、等級は Admin・Reviewer と本人だけ。
+	 */
 	roleName: string | null;
 	gradeId: number | null;
-	gradeName: string;
+	gradeName: string | null;
 	primaryEvaluatorId: number | null;
 	primaryEvaluatorName: string;
 	secondaryEvaluatorId: number | null;
@@ -35,9 +38,9 @@ export interface ApprovalRelationDto {
 	/** 見ている人が埋められる割り当て(評価者、等級を変えられる人には等級も)に未設定があるか。 */
 	hasUnsetAssignment: boolean;
 	/** 新規登録を済ませているか。登録の取り消しは登録済みの社員にだけ行える。 */
-	registered: boolean;
-	enabled?: boolean;
-	/** アプリを閉じた後もログインを残すか。Admin 以外には渡さない(null)。 */
+	registered: boolean | null;
+	enabled: boolean | null;
+	/** アプリを閉じた後もログインを残すか。 */
 	keepSignedIn: boolean | null;
 }
 

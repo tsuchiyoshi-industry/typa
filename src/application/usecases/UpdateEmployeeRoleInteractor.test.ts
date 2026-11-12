@@ -102,10 +102,10 @@ describe("who can see roles", () => {
 		await new LoadEmployeeMasterInteractor(repository).execute({}, out);
 		const dto = out.present.mock.calls[0][0];
 		expect(dto.canEditRoles).toBe(visible);
+		// 他人の権限は Admin だけ。一覧の中の自分の行と、自分の権限は誰でも分かる
 		expect(dto.relations.map((relation) => relation.roleName)).toEqual(
-			visible ? ["Employee", "Reviewer", "Admin"] : [null, null, null],
+			visible ? ["Employee", "Reviewer", "Admin"] : [null, "Reviewer", null],
 		);
-		// 自分の権限は誰でも分かる
 		expect(dto.currentEmployee?.roleName).toBe(role);
 	});
 });

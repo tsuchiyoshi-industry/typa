@@ -1,8 +1,11 @@
-import { CAREER_COURSES, isValidEmployeeNo } from "../../domain/entities/EmployeeProfile";
 import type {
 	EmployeeMasterRepository,
 	NewEmployee,
 } from "../../domain/repositories/EmployeeMasterRepository";
+import {
+	checkNewEmployee,
+	describeEmployeeAdministrationError,
+} from "../../domain/services/EmployeeAdministration";
 import { canRunSetup } from "../../domain/services/EmployeeMasterAccessService";
 import type { OutputPort } from "../ports/OutputPort";
 import type { UseCase } from "../ports/UseCase";
@@ -40,56 +43,19 @@ export class PreRegisterEmployeeInteractor
 		// 全角で打った数字・英字も、ログインに使える半角にそろえる
 		const employeeNo = request.employeeNo.normalize("NFKC").trim();
 		const name = request.name.trim();
-		if (!isValidEmployeeNo(employeeNo)) {
-			fail("社員番号は半角英数字・ハイフン・アンダースコアで入力してください。");
-			return;
-		}
-		if (!name) {
-			fail("氏名を入力してください。");
-			return;
-		}
-		if (!(CAREER_COURSES as readonly string[]).includes(request.careerCourse)) {
-			fail("キャリアコースを選んでください。");
-			return;
-		}
-		if (request.secondaryEvaluatorEmployeeNo !== null && request.noSecondaryEvaluator) {
-			fail("二次評価者と「なし」は同時に指定できません。");
-			return;
-		}
 
 		const [grades, employees] = await Promise.all([
 			this.employeeMasterRepository.findGrades(),
 			this.employeeMasterRepository.findAllEmployeeProfiles(),
 		]);
+		// 仮登録のきまりはドメインにある(DB 関数も同じきまりで断る)
+		const allowed = checkNewEmployee({ ...request, employeeNo, name }, employees);
+		if (!allowed.ok) {
+			fail(describeEmployeeAdministrationError(allowed.error));
+			return;
+		}
 		if (!grades.some((grade) => grade.id === request.gradeId)) {
 			fail("等級を選んでください。");
-			return;
-		}
-		// ログインIDは小文字にそろえて扱うので、大文字・小文字だけが違う番号も同じ人とみなす
-		const taken = employees.find(
-			(employee) => employee.employeeNo.toLowerCase() === employeeNo.toLowerCase(),
-		);
-		if (taken) {
-			fail(`社員番号 ${taken.employeeNo} は${taken.name}さんが使っています。`);
-			return;
-		}
-		const exists = (evaluatorNo: string | null) =>
-			evaluatorNo === null || employees.some((employee) => employee.employeeNo === evaluatorNo);
-		if (
-			!exists(request.primaryEvaluatorEmployeeNo) ||
-			!exists(request.secondaryEvaluatorEmployeeNo)
-		) {
-			fail("評価者が見つかりませんでした。");
-			return;
-		}
-		const ineligible = employees.find(
-			(employee) =>
-				(employee.employeeNo === request.primaryEvaluatorEmployeeNo ||
-					employee.employeeNo === request.secondaryEvaluatorEmployeeNo) &&
-				!employee.canBeEvaluator(),
-		);
-		if (ineligible) {
-			fail(`${ineligible.name}さんは評価者の権限を持っていないため、評価者に設定できません。`);
 			return;
 		}
 

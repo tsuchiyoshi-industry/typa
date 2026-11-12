@@ -192,9 +192,7 @@ const EmployeePreRegistrationView: Component<{
 									disabled={busy()}
 									onChange={(event) => set("careerCourse", event.currentTarget.value)}
 								>
-									<option value="" disabled>
-										選んでください
-									</option>
+									<option value="">選んでください</option>
 									<For each={CAREER_COURSES}>
 										{(course) => <option value={course}>{course}</option>}
 									</For>
@@ -210,9 +208,7 @@ const EmployeePreRegistrationView: Component<{
 									disabled={busy()}
 									onChange={(event) => set("gradeId", event.currentTarget.value)}
 								>
-									<option value="" disabled>
-										選んでください
-									</option>
+									<option value="">選んでください</option>
 									<For each={grades()}>
 										{(grade) => <option value={String(grade.id)}>{grade.name}</option>}
 									</For>

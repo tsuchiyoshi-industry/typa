@@ -356,11 +356,6 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 							return (
 								<>
 									<SheetProfileCard sheet={current()} />
-									<EvaluationRankPanel
-										sheet={current()}
-										canEditSecond={viewModel().canEditSecond}
-										canViewCommonEvaluation={viewModel().canViewCommonEvaluation}
-									/>
 									<EvaluationCompletionNotice
 										ref={(element) => {
 											completionNotice = element;
@@ -421,6 +416,11 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 										onSecondOverallCommentChange={setSecondOverallDraft}
 										onSave={(target) => void saveOverallComment(target)}
 										updateError={viewModel().overallCommentUpdateError}
+									/>
+									<EvaluationRankPanel
+										sheet={current()}
+										canEditSecond={viewModel().canEditSecond}
+										canViewCommonEvaluation={viewModel().canViewCommonEvaluation}
 									/>
 									<Show
 										when={

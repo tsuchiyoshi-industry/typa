@@ -36,6 +36,8 @@
 	--hr-font:
 		"Segoe UI", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", system-ui, sans-serif;
 	--hr-tracking: 0.01em;
+	--hr-control-size: max(44px, 2.75rem);
+	--hr-input-font-size: max(16px, 1rem);
 
 	/* マーブルは各面の右端に切り取って使う。同じ筋でも位置をずらし、繰り返し感を抑える。 */
 	--hr-veins: linear-gradient(
@@ -65,10 +67,12 @@
 }
 
 html {
+	overflow-x: clip;
 	scroll-behavior: smooth;
 }
 
 body {
+	overflow-x: clip;
 	margin: 0;
 	min-height: 100vh;
 	font-family: var(--hr-font);
@@ -289,6 +293,7 @@ a:hover {
 }
 
 .link-button {
+	min-height: var(--hr-control-size);
 	padding: 0;
 	font-size: 0.85rem;
 	color: var(--hr-link);
@@ -761,5 +766,47 @@ a:hover {
 	.toast,
 	.toast.leaving {
 		animation: none;
+	}
+}
+
+/* 同じ表と入力を使い、狭い画面では列の見出しを各値の手前に置く。 */
+@media (max-width: 48rem) {
+	.responsive-table,
+	.responsive-table tbody,
+	.responsive-table tfoot {
+		display: block;
+		width: 100%;
+		min-width: 0;
+	}
+	.responsive-table thead {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+	}
+	.responsive-table tr {
+		display: grid;
+		min-width: 0;
+	}
+	.responsive-table th,
+	.responsive-table td {
+		min-width: 0;
+		width: auto;
+		white-space: normal;
+		overflow-wrap: anywhere;
+	}
+	.responsive-table [data-label]::before {
+		content: attr(data-label);
+		display: block;
+		margin-bottom: 0.25rem;
+		font-size: 0.8125rem;
+		font-weight: 500;
+		color: var(--hr-text-muted);
+	}
+	input:not([type="checkbox"], [type="radio"]),
+	select,
+	textarea {
+		font-size: var(--hr-input-font-size);
 	}
 }

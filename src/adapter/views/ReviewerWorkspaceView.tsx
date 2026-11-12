@@ -499,7 +499,7 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 	);
 	const SummaryTable: Component<{ people: ReviewerRowDto[] }> = (table) => (
 		<div class="review-table-scroll">
-			<table class="review-table">
+			<table class="review-table responsive-table">
 				<thead>
 					<tr>
 						<th scope="col">比較</th>
@@ -532,26 +532,34 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 									current: isCurrent(row.employeeId),
 								}}
 								title={canOpen(row) ? undefined : "本人が目標を送信すると開けるようになります"}
-								onClick={() => open(row)}
+								onClick={(event) => {
+									if (!(event.target as Element).closest(".review-selection")) {
+										open(row);
+									}
+								}}
 							>
-								<td>
-									<input
-										type="checkbox"
-										aria-label={`${row.employeeName}を比較に選択`}
-										checked={isSelected(row.employeeId)}
-										disabled={!canOpen(row) || (!isSelected(row.employeeId) && selectionFull())}
-										onClick={(event) => event.stopPropagation()}
-										onChange={() => toggleSelection(row)}
-									/>
+								<td class="review-col-select">
+									<label class="review-selection">
+										<input
+											type="checkbox"
+											aria-label={`${row.employeeName}を比較に選択`}
+											checked={isSelected(row.employeeId)}
+											disabled={!canOpen(row) || (!isSelected(row.employeeId) && selectionFull())}
+											onClick={(event) => event.stopPropagation()}
+											onChange={() => toggleSelection(row)}
+										/>
+									</label>
 								</td>
-								<td>
+								<td class="review-col-person">
 									<PersonButton row={row} />
 								</td>
-								<td>{row.gradeName}</td>
-								<td>
+								<td class="review-col-grade" data-label="等級">
+									{row.gradeName}
+								</td>
+								<td class="review-col-stage" data-label="状態">
 									<Stage row={row} />
 								</td>
-								<td>
+								<td class="review-col-evaluator" data-label="一次評価者">
 									<button
 										type="button"
 										class="review-evaluator-label"
@@ -564,13 +572,15 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 										{row.primaryEvaluator}
 									</button>
 								</td>
-								<td class="numeric">
+								<td class="numeric" data-label="一次評価">
 									<ScoreRank row={row} stage="first" />
 								</td>
-								<td class="numeric">
+								<td class="numeric" data-label="最終評価">
 									<ScoreRank row={row} stage="final" />
 								</td>
-								<td class="review-date">{row.updatedAt ? formatDateTime(row.updatedAt) : "—"}</td>
+								<td class="review-date" data-label="最終更新">
+									{row.updatedAt ? formatDateTime(row.updatedAt) : "—"}
+								</td>
 								<td class="review-row__chevron">
 									<Show when={canOpen(row)}>
 										<ChevronRight size={18} />
@@ -765,7 +775,6 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 			<div class="review-workspace">
 				<header class="review-heading">
 					<div>
-						<span class="review-eyebrow">REVIEW WORKSPACE</span>
 						<h1>部下の評価</h1>
 					</div>
 					<div class="review-heading-actions">

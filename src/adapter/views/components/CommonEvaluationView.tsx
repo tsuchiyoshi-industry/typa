@@ -202,7 +202,7 @@ export default function CommonEvaluationView(props: CommonEvaluationViewProps) {
 
 			<Show when={summary()}>
 				<div class="table-scroll">
-					<table class="evaluation-table" classList={{ editing: isEditing() }}>
+					<table class="evaluation-table responsive-table" classList={{ editing: isEditing() }}>
 						<thead>
 							<tr>
 								<th class="col-item">評価項目</th>
@@ -222,8 +222,10 @@ export default function CommonEvaluationView(props: CommonEvaluationViewProps) {
 										<th scope="row" class="col-item">
 											{result.item.title}
 										</th>
-										<td class="col-description">{result.item.description}</td>
-										<td class="col-comment">
+										<td class="col-description" data-label="評価の観点">
+											{result.item.description}
+										</td>
+										<td class="col-comment" data-label="一次評価者コメント">
 											<Show
 												when={isEditing() && props.canEditFirst}
 												fallback={
@@ -242,8 +244,10 @@ export default function CommonEvaluationView(props: CommonEvaluationViewProps) {
 												/>
 											</Show>
 										</td>
-										<td class="col-number">{result.item.weight}</td>
-										<td class="col-score">
+										<td class="col-number" data-label="配点">
+											{result.item.weight}
+										</td>
+										<td class="col-score" data-label="一次評価">
 											<ScoreCell
 												result={result}
 												field="firstScore"
@@ -252,7 +256,7 @@ export default function CommonEvaluationView(props: CommonEvaluationViewProps) {
 											/>
 										</td>
 										<Show when={props.canViewSecondEvaluation}>
-											<td class="col-score">
+											<td class="col-score" data-label="二次評価">
 												<ScoreCell
 													result={result}
 													field="secondScore"
@@ -270,13 +274,15 @@ export default function CommonEvaluationView(props: CommonEvaluationViewProps) {
 								<th scope="row" colSpan={3}>
 									合計（配点 × 評価）
 								</th>
-								<td class="col-number">{summary()?.totalWeight ?? 0}</td>
-								<td class="col-score">
+								<td class="col-number" data-label="配点">
+									{summary()?.totalWeight ?? 0}
+								</td>
+								<td class="col-score" data-label="一次評価">
 									{totalFirst()}
 									<small> / {maxTotal()}</small>
 								</td>
 								<Show when={props.canViewSecondEvaluation}>
-									<td class="col-score">
+									<td class="col-score" data-label="二次評価">
 										{totalSecond()}
 										<small> / {maxTotal()}</small>
 									</td>

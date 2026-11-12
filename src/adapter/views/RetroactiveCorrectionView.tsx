@@ -1,5 +1,5 @@
 import Search from "lucide-solid/icons/search";
-import ShieldAlert from "lucide-solid/icons/shield-alert";
+import ShieldAlert from "lucide-solid/icons/shield-exclamation-point";
 import {
 	type Component,
 	createMemo,

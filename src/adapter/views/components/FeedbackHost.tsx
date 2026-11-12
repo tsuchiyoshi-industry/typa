@@ -1,6 +1,6 @@
 import ArrowRight from "lucide-solid/icons/arrow-right";
-import CircleAlert from "lucide-solid/icons/circle-alert";
 import CircleCheck from "lucide-solid/icons/circle-check";
+import CircleAlert from "lucide-solid/icons/circle-exclamation-point";
 import Eye from "lucide-solid/icons/eye";
 import Info from "lucide-solid/icons/info";
 import X from "lucide-solid/icons/x";

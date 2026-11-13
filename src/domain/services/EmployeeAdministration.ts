@@ -7,7 +7,7 @@ import { err, ok, type Result } from "../Result";
 import type { EmployeeRole } from "../valueObjects/EmployeeRole";
 
 /**
- * 社員の管理操作(権限・利用・登録の取り消し・評価者・招待・仮登録)の業務のきまり。
+ * 社員の管理操作(権限・利用・登録の取り消し・仮のパスワード・評価者・招待・仮登録)の業務のきまり。
  * 誰が操作できるか(Admin だけ)は EmployeeMasterAccessService が決める。ここは、操作してよい相手と内容。
  * DB の関数・トリガーも同じきまりで断る(EmployeeAdministrationSql.test.ts が突き合わせる)。
  */
@@ -16,6 +16,7 @@ export type EmployeeAdministrationError =
 	| { kind: "lastUsableAdmin"; action: "role" | "suspend" | "reset" }
 	| { kind: "selfSuspension" }
 	| { kind: "selfReset" }
+	| { kind: "selfPasswordReset" }
 	| { kind: "notRegistered"; name: string }
 	| { kind: "selfEvaluator" }
 	| { kind: "cannotEvaluate"; name: string }
@@ -94,6 +95,20 @@ export function checkRegistrationReset(
 		return err({ kind: "notRegistered", name: target.name });
 	}
 	return keepsUsableAdmin(target, everyone, "reset");
+}
+
+/**
+ * 仮のパスワードを設定する。相手は、利用中で登録を済ませた別の社員。自分のは対象外
+ * (自分で変えればよく、操作中のセッションも切れてしまう)。
+ */
+export function checkPasswordReset(operator: EmployeeProfile, target: EmployeeProfile): Check {
+	if (target.id === operator.id) {
+		return err({ kind: "selfPasswordReset" });
+	}
+	if (!target.registered) {
+		return err({ kind: "notRegistered", name: target.name });
+	}
+	return target.enabled ? pass : err({ kind: "suspended", name: target.name });
 }
 
 /**
@@ -190,6 +205,8 @@ export function describeEmployeeAdministrationError(error: EmployeeAdministratio
 			return "自分自身の利用は停止できません。";
 		case "selfReset":
 			return "自分自身の登録は取り消せません。";
+		case "selfPasswordReset":
+			return "自分のパスワードは再設定できません。";
 		case "notRegistered":
 			return `${error.name}さんはまだ登録していません。`;
 		case "selfEvaluator":

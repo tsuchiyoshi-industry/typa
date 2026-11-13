@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { authRepository, employeeRepository, output } from "../../test/fixtures";
 import {
+	ChangeOwnPasswordInteractor,
+	type ChangeOwnPasswordResponse,
+} from "./ChangeOwnPasswordInteractor";
+import {
 	RegisterEmployeeAccountInteractor,
 	type RegisterEmployeeAccountRequest,
 	type RegisterEmployeeAccountResponse,
@@ -69,6 +73,85 @@ describe("sign in with an employee number", () => {
 		const { auth, status } = await signIn(undefined, employees);
 		expect(status).toBe("account_disabled");
 		expect(auth.signOut).toHaveBeenCalledOnce();
+	});
+});
+
+describe("sign in with a temporary password set by an Admin", () => {
+	it("keeps the session so the employee can choose their own password", async () => {
+		const auth = authRepository();
+		const employees = employeeRepository();
+		employees.checkUserLinked.mockResolvedValue(false);
+		employees.findCurrentAccessState.mockResolvedValue("password_change_required");
+		const out = output<SignInEmployeeResponse>();
+		await new SignInEmployeeInteractor(auth, employees).execute(
+			{ employeeNo: "TEST001", password: "TempPass1" },
+			out,
+		);
+		expect(out.present).toHaveBeenCalledWith({ status: "password_change_required" });
+		expect(auth.signOut).not.toHaveBeenCalled();
+	});
+});
+
+describe("change one's own password after a temporary one", () => {
+	const change = async (
+		password: string,
+		auth = authRepository(),
+		employees = employeeRepository(),
+	) => {
+		const out = output<ChangeOwnPasswordResponse>();
+		await new ChangeOwnPasswordInteractor(auth, employees).execute({ password }, out);
+		expect(out.present).toHaveBeenCalledOnce();
+		return { auth, employees, status: out.present.mock.calls[0][0].status };
+	};
+
+	it("changes the password through Auth and confirms the DB lets the employee in", async () => {
+		const { auth, employees, status } = await change("Mine1234");
+		expect(status).toBe("changed");
+		expect(auth.changePassword).toHaveBeenCalledWith("Mine1234");
+		expect(employees.checkUserLinked).toHaveBeenCalledWith("auth-user");
+	});
+
+	it.each(["", "Ab1", "alllower1", "ALLUPPER1", "NoDigits"])(
+		"refuses a weak password (%s) without asking Auth",
+		async (password) => {
+			const { auth, status } = await change(password);
+			expect(status).toBe("weak_password");
+			expect(auth.changePassword).not.toHaveBeenCalled();
+		},
+	);
+
+	it.each([
+		["same_password", "same_password"],
+		["weak_password", "weak_password"],
+		[undefined, "failed"],
+	] as const)(
+		"reports Auth's refusal (%s) and keeps the session to retry",
+		async (reason, status) => {
+			const auth = authRepository();
+			auth.changePassword.mockResolvedValue({ error: new Error("refused"), reason });
+			const result = await change("Mine1234", auth);
+			expect(result.status).toBe(status);
+			expect(auth.signOut).not.toHaveBeenCalled();
+			expect(result.employees.checkUserLinked).not.toHaveBeenCalled();
+		},
+	);
+
+	it.each([
+		["still blocked", () => Promise.resolve(false)],
+		["unreadable", () => Promise.reject(new Error("network"))],
+	])("does not claim success when the DB is %s afterwards", async (_case, linked) => {
+		const employees = employeeRepository();
+		employees.checkUserLinked.mockImplementation(linked);
+		const { status } = await change("Mine1234", undefined, employees);
+		expect(status).toBe("unavailable");
+	});
+
+	it("refuses when nobody is signed in", async () => {
+		const auth = authRepository();
+		auth.getSession.mockResolvedValue(null);
+		auth.changePassword.mockResolvedValue({ error: new Error("no session") });
+		const { status } = await change("Mine1234", auth);
+		expect(status).toBe("failed");
 	});
 });
 

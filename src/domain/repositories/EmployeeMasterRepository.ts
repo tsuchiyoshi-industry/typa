@@ -53,6 +53,12 @@ export interface EmployeeMasterRepository {
 	 */
 	resetRegistrationByEmployeeNo(targetEmployeeNo: string): Promise<boolean>;
 	/**
+	 * 登録と評価データは残したまま、仮のパスワードを設定する。本人のセッションは切れ、本人が自分の
+	 * パスワードに変えるまで、仮のパスワードでログインしても何も読めない。Admin の確認と監査は DB 関数が行う。
+	 * 設定できたら true。
+	 */
+	resetPasswordByEmployeeNo(targetEmployeeNo: string, password: string): Promise<boolean>;
+	/**
 	 * 未登録の社員に、本人だけが新規登録に使える招待コードを発行する。再発行すると前のコードは無効になる。
 	 * 発行できなければ null。DB には照合用のハッシュだけが残る。
 	 */

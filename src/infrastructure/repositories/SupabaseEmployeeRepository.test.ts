@@ -85,6 +85,7 @@ describe("the signed-in account", () => {
 	it.each([
 		[ok("enabled"), "enabled"],
 		[ok("disabled"), "disabled"],
+		[ok("password_change_required"), "password_change_required"],
 		[ok(null), "unregistered"],
 		[ok("unknown"), "unregistered"],
 		[failed, "unregistered"],

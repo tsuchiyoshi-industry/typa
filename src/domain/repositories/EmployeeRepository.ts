@@ -7,7 +7,10 @@ export type RegistrationStart =
 	| { status: "registered" | "missing" | "invalid_invitation" };
 
 export interface EmployeeRepository {
-	findCurrentAccessState(): Promise<"enabled" | "disabled" | "unregistered">;
+	/** password_change_required: Admin が設定した仮のパスワードのままで、本人が変えるまで使えない。 */
+	findCurrentAccessState(): Promise<
+		"enabled" | "disabled" | "password_change_required" | "unregistered"
+	>;
 	findCurrentEmployeeId(): Promise<{ data: number | null; error: Error | null }>;
 	findGradeName(gradeId: number | null): Promise<string>;
 	/**

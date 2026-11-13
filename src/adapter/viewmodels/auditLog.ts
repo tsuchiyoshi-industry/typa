@@ -134,6 +134,10 @@ const EMPLOYEE_FIELDS: Record<string, { label: string; format: FieldFormat }> = 
 		format: (value, directory) => directory.grades.get(id(value) ?? -1) ?? plain(value),
 	},
 	is_enabled: { label: "利用", format: (value) => (value ? "利用中" : "停止中") },
+	password_change_required: {
+		label: "パスワード",
+		format: (value) => (value ? "仮のパスワード" : "本人が設定"),
+	},
 	keep_signed_in: {
 		label: "ログイン状態",
 		format: (value) => (value ? "保持する" : "閉じたらログアウト"),
@@ -199,6 +203,8 @@ function describeEmployeeUpdate(
 		title = "等級を変更";
 	} else if (has("keep_signed_in")) {
 		title = "ログイン状態の保持を変更";
+	} else if (has("password_change_required")) {
+		title = after.password_change_required ? "仮のパスワードを設定" : "本人がパスワードを設定";
 	}
 	return { title, changes };
 }
@@ -317,6 +323,10 @@ export function describeAuditRecord(
 			break;
 		case "employee.pre_registered":
 			view.title = "社員を事前登録";
+			break;
+		case "employee.password_reset":
+			view.title = "仮のパスワードを設定";
+			view.facts = counted("取り消したログイン", details.revokedSessions);
 			break;
 		case "employee.updated":
 			Object.assign(view, describeEmployeeUpdate(details, entry.entityId, actorPerson, directory));

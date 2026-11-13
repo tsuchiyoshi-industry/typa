@@ -1,4 +1,8 @@
 import type {
+	ChangeOwnPasswordInteractor,
+	ChangeOwnPasswordResponse,
+} from "../../application/usecases/ChangeOwnPasswordInteractor";
+import type {
 	RegisterEmployeeAccountInteractor,
 	RegisterEmployeeAccountRequest,
 	RegisterEmployeeAccountResponse,
@@ -48,6 +52,7 @@ export class AccountController {
 			WorkspaceSettingsRepository,
 			"findRequiredDomain"
 		>,
+		private readonly changePasswordUseCase: ChangeOwnPasswordInteractor,
 	) {}
 
 	/** 認証コードを送ってよいメールアドレスの末尾(例: @example.jp)。未設定なら空文字。 */
@@ -90,6 +95,16 @@ export class AccountController {
 		await this.registerUseCase.execute(request, {
 			present: (response) => (status = response.status),
 		});
+		return status;
+	}
+
+	/** 仮のパスワードでログインした本人が、自分のパスワードに変える。 */
+	async changeOwnPassword(password: string): Promise<ChangeOwnPasswordResponse["status"]> {
+		let status: ChangeOwnPasswordResponse["status"] = "failed";
+		await this.changePasswordUseCase.execute(
+			{ password },
+			{ present: (response) => (status = response.status) },
+		);
 		return status;
 	}
 

@@ -5,9 +5,12 @@ import type {
 import { supabase } from "../db/supabase";
 
 export class SupabaseEmployeeRepository implements EmployeeRepository {
-	async findCurrentAccessState(): Promise<"enabled" | "disabled" | "unregistered"> {
+	async findCurrentAccessState(): ReturnType<EmployeeRepository["findCurrentAccessState"]> {
 		const { data, error } = await supabase.rpc("get_current_employee_access_state");
-		return !error && (data === "enabled" || data === "disabled") ? data : "unregistered";
+		return !error &&
+			(data === "enabled" || data === "disabled" || data === "password_change_required")
+			? data
+			: "unregistered";
 	}
 
 	/** ログイン中のアカウントと、その社員ID。同じアカウントの間は問い合わせ直さない。 */

@@ -116,6 +116,17 @@ export class SupabaseAuthRepository implements AuthRepository {
 		return { status: "created", userId: data.user.id };
 	}
 
+	async changePassword(password: string): ReturnType<AuthRepository["changePassword"]> {
+		const { error } = await supabase.auth.updateUser({ password });
+		if (!error) {
+			return { error: null };
+		}
+		const reason = (["same_password", "weak_password"] as const).find(
+			(code) => code === error.code,
+		);
+		return { error, reason };
+	}
+
 	async signOut(): Promise<void> {
 		await supabase.auth.signOut();
 	}

@@ -187,6 +187,20 @@ export class SupabaseEmployeeMasterRepository implements EmployeeMasterRepositor
 		return data === true;
 	}
 
+	async resetPasswordByEmployeeNo(targetEmployeeNo: string, password: string): Promise<boolean> {
+		// Auth のパスワード・セッション・監査を、DB 関数が1つのトランザクションで変える
+		const { error } = await supabase.rpc("reset_employee_password", {
+			p_employee_no: targetEmployeeNo,
+			p_password: password,
+		});
+		if (error) {
+			// 理由(権限・状態・条件)だけを残す。入力は残さない
+			console.error("Error resetting employee password:", error.code, error.message);
+			return false;
+		}
+		return true;
+	}
+
 	async issueInvitationByEmployeeNo(targetEmployeeNo: string): Promise<EmployeeInvitation | null> {
 		// コードは DB 関数が作り、平文はこの応答で一度だけ返る。Admin の確認も DB 関数に任せる
 		const { data, error } = await supabase.rpc("issue_employee_invitation", {

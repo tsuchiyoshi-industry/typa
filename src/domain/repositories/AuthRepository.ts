@@ -33,6 +33,12 @@ export interface AuthRepository {
 	signUp(employeeNo: string, password: string): Promise<SignUpResult>;
 	signOut(): Promise<void>;
 	/**
+	 * ログイン中の本人のパスワードを変える。reason: same_password は今と同じ、weak_password は Auth の条件を満たさない。
+	 */
+	changePassword(
+		password: string,
+	): Promise<{ error: Error | null; reason?: "same_password" | "weak_password" }>;
+	/**
 	 * いまのログインを、アプリを閉じた後もこの PC に残すかどうか。残さなければ、閉じるとログアウトになる。
 	 * 社員マスタの設定(EmployeeRepository.findKeepSignedIn)を、ログインのたびに伝える。
 	 */

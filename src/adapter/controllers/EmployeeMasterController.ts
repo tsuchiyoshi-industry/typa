@@ -12,6 +12,7 @@ import type {
 	PreRegisterEmployeeInteractor,
 	PreRegisterEmployeeRequest,
 } from "../../application/usecases/PreRegisterEmployeeInteractor";
+import type { ResetEmployeePasswordInteractor } from "../../application/usecases/ResetEmployeePasswordInteractor";
 import type { ResetEmployeeRegistrationInteractor } from "../../application/usecases/ResetEmployeeRegistrationInteractor";
 import type {
 	UpdateEmployeeEnabledInteractor,
@@ -51,6 +52,7 @@ export class EmployeeMasterController {
 			dismissInvitation: () => void;
 			presentError: (message: string) => void;
 		},
+		private readonly resetPasswordUseCase: ResetEmployeePasswordInteractor,
 	) {}
 
 	async load(): Promise<void> {
@@ -120,6 +122,39 @@ export class EmployeeMasterController {
 				),
 			"登録の取り消しに失敗しました",
 		);
+	}
+
+	/**
+	 * 仮のパスワードを設定する。パスワードは ViewModel に載せない。断られた理由はダイアログに出す
+	 * (モーダルの奥のトーストは見えない)ので、結果を返す。設定できたときだけトーストで知らせる。
+	 */
+	async resetPassword(
+		targetEmployeeNo: string,
+		password: string,
+	): Promise<{ success: boolean; message: string }> {
+		let result = { success: false, message: "仮のパスワードを設定できませんでした。" };
+		try {
+			await this.resetPasswordUseCase.execute(
+				{ targetEmployeeNo, password },
+				{
+					present: (response) => {
+						result = response;
+						if (response.success) {
+							this.presenter.outputPort.update.present(response);
+						}
+					},
+				},
+			);
+		} catch (error) {
+			result = {
+				success: false,
+				message: messageOf(
+					error,
+					"仮のパスワードを設定できませんでした。通信状況を確かめてください。",
+				),
+			};
+		}
+		return result;
 	}
 
 	updateEnabled(targetEmployeeNo: string, enabled: boolean): Promise<boolean> {

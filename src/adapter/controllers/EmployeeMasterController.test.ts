@@ -16,11 +16,17 @@ function setup() {
 		invitation: useCase(),
 		pending: useCase(),
 		preRegister: useCase(),
+		password: useCase(),
 	};
 	let success = true;
 	const presenter = {
 		viewModel: () => ({ updateStatus: { success } }),
-		outputPort: { load: {}, update: {}, updateEnabled: {}, issueInvitation: {} },
+		outputPort: {
+			load: {},
+			update: { present: vi.fn() },
+			updateEnabled: {},
+			issueInvitation: {},
+		},
 		beginLoad: vi.fn(),
 		dismissInvitation: vi.fn(),
 		presentError: vi.fn(),
@@ -37,10 +43,51 @@ function setup() {
 		cases.pending as never,
 		cases.preRegister as never,
 		presenter as never,
+		cases.password as never,
 	);
 	return { controller, cases, presenter, refuse: () => (success = false) };
 }
 type Context = ReturnType<typeof setup>;
+
+it("passes a temporary password to the use case without reloading or retaining it", async () => {
+	const c = setup();
+	c.cases.password.execute.mockImplementationOnce(async (_request, out) => {
+		out.present({ success: true, message: "設定しました" });
+	});
+	expect(await c.controller.resetPassword("E2", "NewPass123")).toEqual({
+		success: true,
+		message: "設定しました",
+	});
+	expect(c.cases.password.execute).toHaveBeenCalledWith(
+		{ targetEmployeeNo: "E2", password: "NewPass123" },
+		expect.any(Object),
+	);
+	expect(c.cases.load.execute).not.toHaveBeenCalled();
+	expect(JSON.stringify(c.presenter.outputPort.update.present.mock.calls)).not.toContain(
+		"NewPass123",
+	);
+});
+
+it("returns a refusal for the dialog instead of a toast hidden behind it", async () => {
+	const c = setup();
+	c.cases.password.execute.mockImplementationOnce(async (_request, out) => {
+		out.present({ success: false, message: "利用停止中です。" });
+	});
+	expect(await c.controller.resetPassword("E2", "NewPass123")).toEqual({
+		success: false,
+		message: "利用停止中です。",
+	});
+	expect(c.presenter.outputPort.update.present).not.toHaveBeenCalled();
+});
+
+it("returns a connection failure as a refusal", async () => {
+	const c = setup();
+	c.cases.password.execute.mockRejectedValueOnce(new Error("通信できませんでした"));
+	expect(await c.controller.resetPassword("E2", "NewPass123")).toEqual({
+		success: false,
+		message: "通信できませんでした",
+	});
+});
 
 describe.each([
 	[

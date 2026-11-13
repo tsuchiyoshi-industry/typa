@@ -260,6 +260,16 @@ describe("employee records", () => {
 			{ label: "ログイン状態", before: "閉じたらログアウト", after: "保持する" },
 		],
 		[
+			{ password_change_required: [false, true] },
+			"仮のパスワードを設定",
+			{ label: "パスワード", before: "本人が設定", after: "仮のパスワード" },
+		],
+		[
+			{ password_change_required: [true, false] },
+			"本人がパスワードを設定",
+			{ label: "パスワード", before: "仮のパスワード", after: "本人が設定" },
+		],
+		[
 			{ no_secondary_evaluator: [false, true] },
 			"評価者を変更",
 			{ label: "二次評価者の有無", before: "置く", after: "置かない" },
@@ -297,6 +307,7 @@ describe("employee records", () => {
 	it.each([
 		["employee.invited", "招待コードを発行"],
 		["employee.pre_registered", "社員を事前登録"],
+		["employee.password_reset", "仮のパスワードを設定"],
 	])("names %s", (action, title) => {
 		expect(describe_({ action, entityId: 7, details: { employeeNo: "E007" } })).toMatchObject({
 			title,

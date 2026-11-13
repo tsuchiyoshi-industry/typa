@@ -13,6 +13,7 @@ export interface SignInEmployeeRequest {
  * registration_incomplete: アカウントはあるが、社員番号の紐付けの前で登録が止まっている。
  * unavailable: 社員に紐付いているか、会社ドメインを確かめられなかった(通信の失敗など)。もう一度ログインしてもらう。
  * unconfigured: ログイン用アドレスの会社ドメインが未設定で、誰もログインできない。管理者が直す。
+ * password_change_required: Admin が設定した仮のパスワード。セッションを残し、本人に新しいパスワードを決めてもらう。
  */
 export type SignInEmployeeResponse = {
 	status:
@@ -20,6 +21,7 @@ export type SignInEmployeeResponse = {
 		| "invalid_credentials"
 		| "registration_incomplete"
 		| "account_disabled"
+		| "password_change_required"
 		| "unavailable"
 		| "unconfigured";
 };
@@ -62,6 +64,11 @@ export class SignInEmployeeInteractor
 		}
 		if (!linked) {
 			const access = await this.employeeRepository.findCurrentAccessState();
+			if (access === "password_change_required") {
+				// 仮のパスワードのままでは DB が何も読ませない。変えるまでの間だけセッションを残す
+				presenter.present({ status: access });
+				return;
+			}
 			// 社員に紐付かないセッションを残さない。新規登録をやり直すと続きから再開できる
 			await this.authRepository.signOut();
 			presenter.present({

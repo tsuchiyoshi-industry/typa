@@ -188,6 +188,7 @@ Admin は、全社員の評価シートを一覧で見られます（誰のシ�
 | 等級を変える                                                                       |   ○   |    ×     |    ×     |
 | 権限を見る・変える                                                                 |   ○   |    ×     |    ×     |
 | 登録を取り消す                                                                     |   ○   |    ×     |    ×     |
+| 仮のパスワードを設定する（本人が最初のログインで変える）                           |   ○   |    ×     |    ×     |
 | アプリを閉じた後もログインを残すかを、社員ごとに決める                             |   ○   |    ×     |    ×     |
 | 設定（配点）を変える                                                               |   ○   |    ×     |    ×     |
 | 設定（配点）を読む                                                                 |   ○   |    ○     |    ○     |
@@ -203,7 +204,7 @@ Admin は、全社員の評価シートを一覧で見られます（誰のシ�
 - 等級と共通目標のマスタ（`/grades`・`/common-goals`）は、アプリの判定（`canManageGradeMaster`）で利用中の Admin 以外には読まずに断り、DB 関数（`get_grade_master` ほか）も `current_employee_is_admin()` で断る。表は列権限・行ポリシーでクライアントから書けない。
 - セキュリティの担保（`/security`）は DB を読まない静的な説明で、中身は CI の正本 `security/requirements.json` から組み立てる（検査 ID と ASVS の番号）。アプリの判定（`canViewSecurityAssurance`）で利用中の Admin 以外には中身を渡さない。ただし文言はアプリの配布物に含まれるので、秘密は載せない。
 - 全社員の評価シートの一覧は、アプリの判定（`canViewAllSheets`）に加えて、DB 関数 `get_sheet_overview` が Admin であることを確かめる。Admin がシートの表を直接読める範囲は広げていない。
-- 権限の変更と登録の取り消しは DB 関数（`set_employee_role`、`reset_employee_registration`）が Admin であることを確かめる。配点の更新は RLS が Admin 以外を拒否する。
+- 権限の変更・登録の取り消し・仮のパスワードの設定は DB 関数（`set_employee_role`、`reset_employee_registration`、`reset_employee_password`）が Admin であることを確かめる。配点の更新は RLS が Admin 以外を拒否する。
 - 評価期間の追加・変更・削除は RLS が、締めと開始は DB 関数（`close_evaluation_period`・`activate_evaluation_period`）が、Admin であることを確かめる。実施中かどうか（`is_active`）は、クライアントから直接は書き換えられない。
 - 社員の管理操作で、操作してよい相手と内容は、ドメイン（[EmployeeAdministration](../src/domain/services/EmployeeAdministration.ts)）が決める。ユースケースはその判定を使い、DB の関数・トリガーも同じきまりで断る。`EmployeeAdministrationSql.test.ts` が場面ごとに、ドメインの答えと DB の答えを突き合わせる。
   - 利用中・登録済みで Auth アカウントが存在する Admin を最低1名残す（権限を外す・利用停止・登録の取り消しのどれでも）。DB は管理操作を同じ順序でロックし、同時降格でも最後の1名を保護する。
@@ -578,6 +579,8 @@ flowchart TB
 | 社員マスタ | `LoadEmployeeMaster`                                                     | 権限に応じた社員マスタの内容を取得する                                                                                                                               |
 | 社員マスタ | `UpdateEmployeeEvaluator` / `UpdateEmployeeGrade` / `UpdateEmployeeRole` | 評価者 / 等級 / 権限を変える                                                                                                                                         |
 | 社員マスタ | `ResetEmployeeRegistration`                                              | 登録を取り消す                                                                                                                                                       |
+| 社員マスタ | `ResetEmployeePassword`                                                  | 仮のパスワードを設定する（Admin のみ）                                                                                                                               |
+| ログイン   | `ChangeOwnPassword`                                                      | 仮のパスワードでログインした本人が、自分のパスワードに変える                                                                                                         |
 | 社員マスタ | `UpdateEmployeeKeepSignedIn`                                             | アプリを閉じた後もログインを残すかを、社員ごとに切り替える（Admin のみ）                                                                                             |
 | 設定       | `UpdateEvaluationAllocation`                                             | 配点を変える                                                                                                                                                         |
 | 設定       | `SaveEvaluationPeriod`                                                   | 評価期間を追加する、または名前と日付を変える                                                                                                                         |
@@ -747,6 +750,7 @@ erDiagram
 | `hook_before_user_created(event)`                                       | Supabase Auth のみ                                                             | ログイン用アドレス（会社ドメインの `typa-…`）は、登録の途中にある社員の分だけ作らせる。それ以外のメールアドレスは、ドメインを問わず作れる（認証コードの送り先）。会社ドメインが未設定なら何も作らせない（Auth のフックに設定して使う）                                                               |
 | `set_employee_role(employee_no, role_name)`                             | Admin                                                                          | 権限を変える。最後の Admin は外せない                                                                                                                                                                                                                                                                |
 | `reset_employee_registration(employee_no)`                              | Admin                                                                          | `employees.user_id` を null に戻し、Auth ユーザー・通知先・登録途中のトークンを削除する。紐付けの前で止まったログイン用アカウントも削除する。自分自身は不可                                                                                                                                          |
+| `reset_employee_password(employee_no, password)`                        | Admin                                                                          | 仮のパスワードを設定する。本人のセッションを取り消し、`employees.password_change_required` を立て、監査ログ（`employee.password_reset`。パスワードは残さない）を書く。1つのトランザクション。利用中・登録済みの別の社員だけ。パスワードは `AccountPassword` と同じ条件（72 バイトまで）              |
 | `activate_evaluation_period(period_id)`                                 | Admin                                                                          | 期間締め。指定した期間を実施中にし、それまでの実施中の期間を締める。締める期間に未確定のシートがあれば拒否する                                                                                                                                                                                       |
 | `get_evaluation_period_sheet_counts(period_id)`                         | Admin                                                                          | その期間の評価シートの、状態ごとの件数（内容は返さない）                                                                                                                                                                                                                                             |
 | `get_sheet_overview(p_period_id)`                                       | Admin                                                                          | その評価期間の全社員の評価シートの一覧（省くと全期間。古いアプリ向け）。期間、社員、作成時の等級、状態、シートの評価者、更新日時、確定した一次評価ランク・最終評価ランク・評価点、一次・二次の総評。下書きも含む                                                                                     |
@@ -813,7 +817,10 @@ sequenceDiagram
 ### 9.2 ログインとパスワード忘れ
 
 - ログインに成功しても、社員に紐付いていないアカウントはログアウトさせ、新規登録のやり直しへ案内する。紐付いているかを確かめられなかったとき（通信の失敗など）もログアウトさせるが、新規登録には案内せず、もう一度ログインしてもらう。
-- パスワードの再設定画面はない。パスワードを忘れたとき、別人が登録してしまったときは、Admin が社員マスタで登録を取り消し、新しい招待コードを発行して本人が新規登録をやり直す。取り消しても社員の行と評価データは残る。
+- パスワードを忘れたときは、Admin が社員マスタで仮のパスワードを設定し（`reset_employee_password`）、本人に直接伝える。登録と評価データは残る。仮のパスワードは推測されにくい 10 文字を画面が作る（見間違えやすい 0・O・1・l・I は使わない）。Admin が自分で決めてもよい。
+- 仮のパスワードは Admin も知っている。そこで、本人が自分のパスワードに変えるまで `current_employee_id()` が null を返し、DB は何も読ませない・書かせない（すべての RLS と RPC がここを通る）。Admin がなりすましてログインしても何も見られず、変えてしまえば本人が仮のパスワードでログインできなくなって気づく。ログインすると `get_current_employee_access_state()` が `password_change_required` を返し、ログイン画面が新しいパスワードを決めさせる。本人が Auth でパスワードを変えると、`auth.users` のトリガーが印を外す。
+- 設定と同時に本人のセッションをすべて取り消す（乗っ取りが疑われるときにも使える）。自分自身は対象外（別の Admin に頼む）。
+- 別人が登録してしまったときは、Admin が登録を取り消し、新しい招待コードを発行して本人が新規登録をやり直す。取り消しても社員の行と評価データは残る。
 - 紐付けの前で止まったアカウントは、Admin の招待コード再発行で片付けて再開できる。
 - 退職・利用停止には「利用停止」を使う。アカウントと評価履歴を残し、保持設定・招待・登録途中のトークンを消す。既存 JWT でも DB 権限を失い、再登録もできない。登録の取り消しとは別操作で、再有効化もできる。
 - セッションは、初めはアプリを閉じると消える。共有 PC では、使い終わったらアプリを閉じればログアウトになる。

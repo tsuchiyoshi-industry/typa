@@ -246,6 +246,7 @@ describe("changing an employee", () => {
 	it.each([
 		["updateRoleByEmployeeNo", "set_employee_role", false],
 		["resetRegistrationByEmployeeNo", "reset_employee_registration", false],
+		["resetPasswordByEmployeeNo", "reset_employee_password", false],
 		["updateEnabledByEmployeeNo", "set_employee_enabled", false],
 		["issueInvitationByEmployeeNo", "issue_employee_invitation", null],
 		["issuePendingInvitations", "issue_pending_employee_invitations", null],
@@ -255,6 +256,17 @@ describe("changing an employee", () => {
 		const run = repository[method] as (...args: unknown[]) => Promise<unknown>;
 		expect(await run.call(repository, "E2", EmployeeRole.ADMIN)).toBe(notDone);
 		expect(db.rpc).toHaveBeenCalledWith(rpc, expect.anything());
+	});
+});
+
+it("sets a temporary password through the Admin-only RPC, which returns nothing", async () => {
+	db.rpc.mockResolvedValue(ok(null));
+	expect(
+		await new SupabaseEmployeeMasterRepository().resetPasswordByEmployeeNo("E2", "NewPass1"),
+	).toBe(true);
+	expect(db.rpc).toHaveBeenCalledWith("reset_employee_password", {
+		p_employee_no: "E2",
+		p_password: "NewPass1",
 	});
 });
 

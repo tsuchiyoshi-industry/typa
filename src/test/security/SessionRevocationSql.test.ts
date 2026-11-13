@@ -35,7 +35,7 @@ afterAll(async () => {
 });
 beforeEach(async () => {
 	await db.exec(`reset role;
-		truncate auth.sessions;
+		truncate auth.sessions cascade;
 		truncate public.evaluation_sheets cascade;
 		insert into public.evaluation_sheets(id,period_id,employee_id) values(100,1,4);
 		insert into public.milestones(id,sheet_id,goal_number,challenge_goal) values(100,100,1,'own-goal');`);

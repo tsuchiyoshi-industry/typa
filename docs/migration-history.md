@@ -1,5 +1,20 @@
 # マイグレーションの変更経緯
 
+## 2026-11-13: Admin が仮のパスワードを設定する
+
+パスワードを忘れた社員は、これまで Admin が登録を取り消し、招待コードを発行して、本人が新規登録をやり直していました。`202611130001_admin_password_reset.sql` は、登録と評価データを残したまま、Admin が仮のパスワードを設定できるようにします。
+
+- `reset_employee_password(employee_no, password)`（Admin のみ）が、`auth.users.encrypted_password` を Auth と同じ bcrypt（コスト 10）で置き換えます。同時に本人のセッションを消し（リフレッシュトークンも連鎖して消える）、`employees.password_change_required` を立て、監査ログ `employee.password_reset` を書きます。すべて1つのトランザクションで、どれかが失敗すれば何も変わりません。監査ログにはパスワードもハッシュも残しません。対象は利用中・登録済みの別の社員だけで、パスワードの条件（大文字・小文字・数字、6 文字以上、72 バイトまで）も DB で確かめます。
+- 仮のパスワードは Admin も知っています。そこで、`password_change_required` が立っている間は `current_employee_id()` が null を返します。すべての RLS と RPC がここを通るので、仮のパスワードでは何も読み書きできません。`get_current_employee_access_state()` は `password_change_required` を返し、ログイン画面が本人に新しいパスワードを決めさせます。
+- 本人が Auth でパスワードを変えると、`auth.users` のトリガー `typa_release_password_change_requirement` が印を外します。パスワード以外の更新（ログイン時刻など）では外れません。
+- 新しい列は、表から直接は書けません（列ごとの `update` 権限を与えていない）。
+
+当初は Edge Function（`service_role` で Auth の管理 API を呼ぶ）で作る案でした。しかし、Auth の更新と監査ログを同じトランザクションに入れられず、配置の手間も増えるので、DB 関数1本にしました。
+
+`security/schema-inventory.expected.txt` は、`current_employee_id`・`get_current_employee_access_state` の md5、関数 `reset_employee_password`・`release_password_change_requirement`、`auth.users` のトリガーの行が変わります。
+
+**互換性**: 対応アプリを配布する**前に**本番へ適用してください。当てる前は、新しいアプリの「仮パスワード」が失敗します。当てた後も古いアプリはそのまま動きますが、古いアプリには新しいパスワードを決める画面がありません。仮のパスワードでログインした社員は「登録が完了していません」と案内されるので、仮のパスワードは対応アプリを配ってから使ってください。`202611120004` の後に適用します。
+
 ## 2026-11-12: 社員の詳細（`employee_details`）を速くする
 
 `202611120004_employee_details_speed.sql` は、`202611120002` の `employee_details()` を置き換えます。Admin・Reviewer が 600 人分を読むのに約1秒かかり（CI の DB ベンチマークが 1,350ms で失敗）、社員マスタとログインのたびに待たされていました。見る人（`current_employee_id`・`current_employee_role`）を行ごとに引き直し、全員を見られる人にも「関わる人」（`visible_employee_ids`）を計算していたためです。見る人を一度だけ引き、全員を見られる人は「関わる人」を計算しないようにしました（開発用 DB で 903ms → 2ms）。返す内容は同じです（Admin・Reviewer・Employee で旧版と全行一致を確認。`EmployeeVisibilitySql.test.ts` がドメインと突き合わせる）。

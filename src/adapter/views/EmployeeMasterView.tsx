@@ -1,3 +1,7 @@
+import CircleCheck from "lucide-solid/icons/circle-check";
+import CircleDashed from "lucide-solid/icons/circle-dashed";
+import CirclePause from "lucide-solid/icons/circle-pause";
+import KeyRound from "lucide-solid/icons/key-round";
 import List from "lucide-solid/icons/list";
 import Network from "lucide-solid/icons/network";
 import Search from "lucide-solid/icons/search";
@@ -25,6 +29,7 @@ import {
 } from "../../domain/valueObjects/EmployeeRole";
 import type { EmployeeMasterController } from "../controllers/EmployeeMasterController";
 import type { EmployeeMasterViewModel } from "../presenters/EmployeeMasterPresenter";
+import EmployeePasswordResetForm from "./components/EmployeePasswordResetForm";
 import EvaluationStructure from "./components/EvaluationStructure";
 import SearchableEvaluatorSelect from "./components/SearchableEvaluatorSelect";
 import { confirmAction, showToast } from "./feedback";
@@ -38,6 +43,7 @@ interface EmployeeMasterViewProps {
 type Scope = "all" | "mine" | "unset";
 /** list: 設定を変える一覧(既定) / structure: 評価の流れを見る図 */
 type ListView = "list" | "structure";
+type RegistrationFilter = "all" | "pending" | "registered" | "disabled";
 
 const ROLE_DESCRIPTIONS: Record<EmployeeRoleName, string> = {
 	Admin: "社員マスタで全員の権限・等級・評価者を変更でき、登録の取り消しもできます。",
@@ -52,6 +58,8 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 	const [keyword, setKeyword] = createSignal("");
 	const [scope, setScope] = createSignal<Scope>("all");
 	const [listView, setListView] = createSignal<ListView>("list");
+	const [registrationFilter, setRegistrationFilter] = createSignal<RegistrationFilter>("all");
+	const [passwordTarget, setPasswordTarget] = createSignal<ApprovalRelationDto | null>(null);
 	const [savingKey, setSavingKey] = createSignal<string | null>(null);
 	// 行の数だけセルが並ぶ。保存中の印は該当のセルだけ、押せなくするのは保存の始めと終わりだけ描き直す
 	const isSaving = createSelector(savingKey);
@@ -116,6 +124,11 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 		return managedRelations()
 			.filter(
 				(relation) =>
+					(registrationFilter() === "all" ||
+						(registrationFilter() === "disabled"
+							? relation.enabled === false
+							: relation.enabled !== false &&
+								relation.registered === (registrationFilter() === "registered"))) &&
 					(scope() === "all" ||
 						(scope() === "mine" ? isMine(relation) : relation.hasUnsetAssignment)) &&
 					(!text ||
@@ -148,6 +161,9 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 	const noSecondaryOption = { value: NO_SECONDARY, name: "なし（一次評価が最終評価）" };
 
 	const emptyMessage = () => {
+		if (registrationFilter() !== "all") {
+			return "選択した登録状態に一致する社員はいません。登録状態や検索条件を変更してください。";
+		}
 		if (keyword().trim()) {
 			return `「${keyword().trim()}」に一致する社員はいません。`;
 		}
@@ -491,47 +507,84 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 
 	const RegistrationCell: Component<{ relation: ApprovalRelationDto }> = (cell) => (
 		<div class="registration-actions">
-			<span class="cell-text" classList={{ unset: !cell.relation.registered }}>
+			{/* 色だけに頼らず、形(実線・破線・停止の印)と言葉でも見分ける */}
+			<span
+				class="registration-status"
+				classList={{
+					"registration-status--disabled": cell.relation.enabled === false,
+					"registration-status--registered":
+						cell.relation.enabled !== false && !!cell.relation.registered,
+					"registration-status--pending":
+						cell.relation.enabled !== false && !cell.relation.registered,
+				}}
+			>
+				<Show
+					when={cell.relation.enabled !== false}
+					fallback={<CirclePause size={14} aria-hidden="true" />}
+				>
+					<Show
+						when={cell.relation.registered}
+						fallback={<CircleDashed size={14} aria-hidden="true" />}
+					>
+						<CircleCheck size={14} aria-hidden="true" />
+					</Show>
+				</Show>
 				{cell.relation.enabled === false
 					? "利用停止中"
 					: cell.relation.registered
 						? "登録済み"
 						: "未登録"}
 			</span>
-			<Show when={cell.relation.enabled !== false && !cell.relation.registered}>
-				<button
-					type="button"
-					class="row-action"
-					disabled={busy()}
-					aria-label={`${cell.relation.name}さんの招待コードを発行する`}
-					onClick={() => void issueInvitation(cell.relation)}
-				>
-					招待コード
-				</button>
-			</Show>
-			<Show when={cell.relation.employeeId !== me()?.id}>
-				<Show when={cell.relation.registered}>
+			<div class="registration-actions__buttons">
+				<Show when={cell.relation.enabled !== false && !cell.relation.registered}>
 					<button
 						type="button"
 						class="row-action"
 						disabled={busy()}
-						aria-label={`${cell.relation.name}さんの登録を取り消す`}
-						onClick={() => void resetRegistration(cell.relation)}
+						aria-label={`${cell.relation.name}さんの招待コードを発行する`}
+						onClick={() => void issueInvitation(cell.relation)}
 					>
-						<Trash size={15} />
-						<span>取消</span>
+						招待コード
 					</button>
 				</Show>
-				<button
-					type="button"
-					class="row-action"
-					disabled={busy()}
-					aria-label={`${cell.relation.name}さんの利用を${cell.relation.enabled === false ? "再開" : "停止"}する`}
-					onClick={() => void changeEnabled(cell.relation)}
-				>
-					{cell.relation.enabled === false ? "利用再開" : "利用停止"}
-				</button>
-			</Show>
+				<Show when={cell.relation.employeeId !== me()?.id}>
+					<Show when={cell.relation.registered && cell.relation.enabled !== false}>
+						<button
+							type="button"
+							class="row-action"
+							id={`reset-password-${cell.relation.employeeId}`}
+							disabled={busy()}
+							aria-label={`${cell.relation.name}さんに仮のパスワードを設定する`}
+							onClick={() => setPasswordTarget(cell.relation)}
+						>
+							<KeyRound size={14} aria-hidden="true" />
+							仮パスワード
+						</button>
+					</Show>
+					<Show when={cell.relation.registered}>
+						<button
+							type="button"
+							class="row-action row-action--danger"
+							disabled={busy()}
+							aria-label={`${cell.relation.name}さんの登録を取り消す`}
+							onClick={() => void resetRegistration(cell.relation)}
+						>
+							<Trash size={14} aria-hidden="true" />
+							<span>取消</span>
+						</button>
+					</Show>
+					<button
+						type="button"
+						class="row-action"
+						classList={{ "row-action--danger": cell.relation.enabled !== false }}
+						disabled={busy()}
+						aria-label={`${cell.relation.name}さんの利用を${cell.relation.enabled === false ? "再開" : "停止"}する`}
+						onClick={() => void changeEnabled(cell.relation)}
+					>
+						{cell.relation.enabled === false ? "利用再開" : "利用停止"}
+					</button>
+				</Show>
+			</div>
 		</div>
 	);
 
@@ -563,6 +616,26 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 
 	const EmployeeList = () => (
 		<section class="master-list">
+			<Show when={props.viewModel().canResetRegistrations && passwordTarget()} keyed>
+				{(target) => (
+					<EmployeePasswordResetForm
+						name={target.name}
+						employeeNo={target.employeeNo}
+						onClose={() => {
+							setPasswordTarget(null);
+							document.getElementById(`reset-password-${target.employeeId}`)?.focus();
+						}}
+						onReset={async (password) => {
+							setSavingKey(`${target.employeeNo}:password`);
+							try {
+								return await props.controller.resetPassword(target.employeeNo, password);
+							} finally {
+								setSavingKey(null);
+							}
+						}}
+					/>
+				)}
+			</Show>
 			<Show when={invitations().length > 0}>
 				<aside class="master-invitation" role="status">
 					<Show
@@ -655,6 +728,25 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 					</For>
 				</fieldset>
 				<div class="master-list-toolbar__side">
+					<Show when={props.viewModel().canResetRegistrations}>
+						<label class="master-registration-filter">
+							登録状態
+							<span class="cell-select">
+								<select
+									aria-label="登録状態で絞り込む"
+									value={registrationFilter()}
+									onChange={(event) =>
+										setRegistrationFilter(event.currentTarget.value as RegistrationFilter)
+									}
+								>
+									<option value="all">すべて</option>
+									<option value="pending">未登録</option>
+									<option value="registered">登録済み</option>
+									<option value="disabled">利用停止中</option>
+								</select>
+							</span>
+						</label>
+					</Show>
 					<Show when={props.viewModel().canResetRegistrations && hasPendingRegistration()}>
 						<button
 							type="button"
@@ -728,6 +820,11 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 						<thead>
 							<tr>
 								<th scope="col">社員</th>
+								<Show when={props.viewModel().canResetRegistrations}>
+									<th scope="col" class="col-action">
+										登録
+									</th>
+								</Show>
 								<Show when={props.viewModel().canEditRoles}>
 									<th scope="col">権限</th>
 									<th scope="col">ログイン</th>
@@ -735,11 +832,6 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 								<th scope="col">等級</th>
 								<th scope="col">一次評価者</th>
 								<th scope="col">二次評価者</th>
-								<Show when={props.viewModel().canResetRegistrations}>
-									<th scope="col" class="col-action">
-										登録
-									</th>
-								</Show>
 							</tr>
 						</thead>
 						<tbody>
@@ -753,6 +845,11 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 												<Show when={relation().careerCourse}> · {relation().careerCourse}</Show>
 											</span>
 										</th>
+										<Show when={props.viewModel().canResetRegistrations}>
+											<td class="col-action">
+												<RegistrationCell relation={relation()} />
+											</td>
+										</Show>
 										<Show when={props.viewModel().canEditRoles}>
 											<td>
 												<RoleCell relation={relation()} />
@@ -765,10 +862,7 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 											when={!relation().isExecutive}
 											fallback={
 												// 役員は権限だけを管理する
-												<td
-													class="cell-text unset"
-													colSpan={props.viewModel().canResetRegistrations ? 4 : 3}
-												>
+												<td class="cell-text unset" colSpan={3}>
 													役員（等級・評価者は管理対象外）
 												</td>
 											}
@@ -808,11 +902,6 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 													<EvaluatorCell relation={relation()} evaluatorType="secondary" />
 												</Show>
 											</td>
-											<Show when={props.viewModel().canResetRegistrations}>
-												<td class="col-action">
-													<RegistrationCell relation={relation()} />
-												</td>
-											</Show>
 										</Show>
 									</tr>
 								)}

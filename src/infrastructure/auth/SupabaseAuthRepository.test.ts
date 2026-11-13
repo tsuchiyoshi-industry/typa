@@ -6,6 +6,7 @@ const auth = vi.hoisted(() => ({
 	signOut: vi.fn(),
 	getSession: vi.fn(),
 	onAuthStateChange: vi.fn(),
+	updateUser: vi.fn(),
 }));
 vi.mock("../db/supabase", () => ({ supabase: { auth }, keepSignedIn: vi.fn() }));
 
@@ -123,5 +124,23 @@ describe("the session", () => {
 
 		auth.getSession.mockResolvedValue({ data: { session: null } });
 		expect(await domain().getSession()).toBeNull();
+	});
+});
+
+describe("changing one's own password", () => {
+	it("asks Auth to change the signed-in user's password", async () => {
+		auth.updateUser.mockResolvedValue({ data: { user: { id: "u1" } }, error: null });
+		expect(await domain().changePassword("Mine1234")).toEqual({ error: null });
+		expect(auth.updateUser).toHaveBeenCalledWith({ password: "Mine1234" });
+	});
+
+	it.each([
+		["same_password", "same_password"],
+		["weak_password", "weak_password"],
+		["session_not_found", undefined],
+	])("passes on Auth's refusal %s", async (code, reason) => {
+		const error = Object.assign(new Error(code), { code });
+		auth.updateUser.mockResolvedValue({ data: { user: null }, error });
+		expect(await domain().changePassword("Mine1234")).toEqual({ error, reason });
 	});
 });

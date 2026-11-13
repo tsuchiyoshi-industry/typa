@@ -68,7 +68,7 @@ from (
   from pg_default_acl a join pg_namespace n on n.oid = a.defaclnamespace
   where n.nspname = 'public' and a.defaclrole = 'postgres'::regrole
   union all
-  -- Not created by any migration; listed so that a trigger added by hand is noticed.
+  -- Only typa_release_password_change_requirement (202611130001) is expected; any other was added by hand.
   select 'TRIGGER ON auth.users ' || tgname from pg_trigger
   where tgrelid = 'auth.users'::regclass and not tgisinternal
 ) as inventory

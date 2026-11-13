@@ -15,7 +15,12 @@ export const AUDIT_CATEGORIES = [
 export type AuditCategory = (typeof AUDIT_CATEGORIES)[number];
 
 const ACTIONS: Record<AuditCategory, readonly string[]> = {
-	account: ["employee.invited", "employee.pre_registered", "employee.updated"],
+	account: [
+		"employee.invited",
+		"employee.pre_registered",
+		"employee.password_reset",
+		"employee.updated",
+	],
 	workflow: ["sheet.status"],
 	period: ["period.closed", "period.started"],
 	override: [

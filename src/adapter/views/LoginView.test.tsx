@@ -6,19 +6,25 @@ import type { AccountController } from "../controllers/AccountController";
 import LoginView from "./LoginView";
 
 afterEach(cleanup);
-function setup() {
+function setup(onRegistrationLinked = vi.fn()) {
 	const controller = {
 		requiredEmailSuffix: vi.fn().mockResolvedValue("@example.jp"),
 		signIn: vi.fn().mockResolvedValue("account_disabled"),
 		sendVerificationCode: vi.fn().mockResolvedValue(true),
 		register: vi.fn().mockResolvedValue("invalid_invitation"),
 		signOut: vi.fn().mockResolvedValue(undefined),
+		changeOwnPassword: vi.fn().mockResolvedValue("changed"),
 	};
 	render(() => (
 		<MemoryRouter>
 			<Route
 				path="/"
-				component={() => <LoginView controller={controller as unknown as AccountController} />}
+				component={() => (
+					<LoginView
+						controller={controller as unknown as AccountController}
+						onRegistrationLinked={onRegistrationLinked}
+					/>
+				)}
 			/>
 		</MemoryRouter>
 	));
@@ -100,4 +106,75 @@ it("sends the sign-up code to a mailbox at any domain, but only to something sha
 	await waitFor(() =>
 		expect(controller.sendVerificationCode).toHaveBeenCalledWith("taro.yamada@gmail.com"),
 	);
+});
+
+async function signInWithTemporaryPassword(onRegistrationLinked = vi.fn()) {
+	const controller = setup(onRegistrationLinked);
+	controller.signIn.mockResolvedValue("password_change_required");
+	fireEvent.input(screen.getByLabelText("社員番号"), { target: { value: "E001" } });
+	fireEvent.input(screen.getByLabelText("パスワード"), { target: { value: "TempPass1" } });
+	fireEvent.click(screen.getByRole("button", { name: "ログイン" }));
+	await screen.findByRole("heading", { name: "新しいパスワードを決めてください" });
+	return controller;
+}
+const fillNewPassword = (password: string, confirmation = password) => {
+	fireEvent.input(screen.getByLabelText("新しいパスワード"), { target: { value: password } });
+	fireEvent.input(screen.getByLabelText("新しいパスワード（確認）"), {
+		target: { value: confirmation },
+	});
+};
+const changeButton = () =>
+	screen.getByRole("button", { name: "パスワードを変えて始める" }) as HTMLButtonElement;
+
+it("asks for the employee's own password after a temporary one, without keeping the temporary one", async () => {
+	const linked = vi.fn();
+	const controller = await signInWithTemporaryPassword(linked);
+	const input = screen.getByLabelText("新しいパスワード") as HTMLInputElement;
+	expect(input.value).toBe("");
+	expect(input.autocomplete).toBe("new-password");
+	fillNewPassword("Mine1234");
+	fireEvent.click(changeButton());
+	await waitFor(() => expect(controller.changeOwnPassword).toHaveBeenCalledWith("Mine1234"));
+	await waitFor(() => expect(linked).toHaveBeenCalledOnce());
+});
+
+it.each([
+	["weak", "mine1234", "mine1234"],
+	["mismatched", "Mine1234", "Mine12345"],
+	["empty", "", ""],
+])("does not submit a %s new password", async (_case, password, confirmation) => {
+	const controller = await signInWithTemporaryPassword();
+	fillNewPassword(password, confirmation);
+	expect(changeButton().disabled).toBe(true);
+	expect(controller.changeOwnPassword).not.toHaveBeenCalled();
+});
+
+it.each([
+	["same_password", /仮のパスワードとは別の/],
+	["weak_password", /大文字・小文字・数字/],
+	["failed", /変更できませんでした/],
+])("explains %s and lets the employee try again", async (status, message) => {
+	const controller = await signInWithTemporaryPassword();
+	controller.changeOwnPassword.mockResolvedValue(status);
+	fillNewPassword("Mine1234");
+	fireEvent.click(changeButton());
+	await screen.findByText(message);
+	expect(changeButton().disabled).toBe(false);
+	expect(controller.signOut).not.toHaveBeenCalled();
+});
+
+it("returns to login, signing out, when the change cannot be confirmed or the employee cancels", async () => {
+	let controller = await signInWithTemporaryPassword();
+	controller.changeOwnPassword.mockResolvedValue("unavailable");
+	fillNewPassword("Mine1234");
+	fireEvent.click(changeButton());
+	await screen.findByText(/新しいパスワードでもう一度ログインしてください/);
+	expect(controller.signOut).toHaveBeenCalledOnce();
+	expect(screen.getByRole("button", { name: "ログイン" })).toBeTruthy();
+	cleanup();
+
+	controller = await signInWithTemporaryPassword();
+	fireEvent.click(screen.getByRole("button", { name: "ログアウトして戻る" }));
+	await waitFor(() => expect(controller.signOut).toHaveBeenCalledOnce());
+	expect(screen.getByRole("button", { name: "ログイン" })).toBeTruthy();
 });

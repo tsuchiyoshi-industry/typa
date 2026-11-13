@@ -31,7 +31,7 @@ export const period = (isActive = true, allowUnfinalizedClose = false) =>
 		allowUnfinalizedClose,
 	});
 export const employee = () => new Employee(1, "テスト社員", "TEST001", 1, "技術", 5, 2, 3);
-export const profile = (role = "Employee", id = 1, registered = true) =>
+export const profile = (role = "Employee", id = 1, registered = true, enabled = true) =>
 	new EmployeeProfile(
 		id,
 		`テスト${id}`,
@@ -48,6 +48,8 @@ export const profile = (role = "Employee", id = 1, registered = true) =>
 		"二次",
 		false,
 		registered,
+		false,
+		enabled,
 	);
 export const milestone = (scores: { firstScore?: number; secondScore?: number } = {}) =>
 	Milestone.restore({
@@ -195,6 +197,9 @@ export function masterRepository() {
 		resetRegistrationByEmployeeNo: vi
 			.fn<EmployeeMasterRepository["resetRegistrationByEmployeeNo"]>()
 			.mockResolvedValue(true),
+		resetPasswordByEmployeeNo: vi
+			.fn<EmployeeMasterRepository["resetPasswordByEmployeeNo"]>()
+			.mockResolvedValue(true),
 		preRegisterEmployee: vi
 			.fn<EmployeeMasterRepository["preRegisterEmployee"]>()
 			.mockResolvedValue(true),
@@ -202,7 +207,7 @@ export function masterRepository() {
 }
 export function authRepository() {
 	return {
-		getSession: vi.fn<AuthRepository["getSession"]>().mockResolvedValue(null),
+		getSession: vi.fn<AuthRepository["getSession"]>().mockResolvedValue({ userId: "auth-user" }),
 		onAuthStateChange: vi.fn<AuthRepository["onAuthStateChange"]>().mockReturnValue(() => {}),
 		signInWithPassword: vi
 			.fn<AuthRepository["signInWithPassword"]>()
@@ -213,6 +218,7 @@ export function authRepository() {
 			.fn<AuthRepository["signUp"]>()
 			.mockResolvedValue({ status: "created", userId: "auth-user" }),
 		signOut: vi.fn<AuthRepository["signOut"]>().mockResolvedValue(undefined),
+		changePassword: vi.fn<AuthRepository["changePassword"]>().mockResolvedValue({ error: null }),
 		keepSignedIn: vi.fn<AuthRepository["keepSignedIn"]>(),
 	} satisfies AuthRepository;
 }

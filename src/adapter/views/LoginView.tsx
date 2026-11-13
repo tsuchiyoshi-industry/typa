@@ -1,18 +1,21 @@
 import { useNavigate } from "@solidjs/router";
 import { createMemo, createSignal, onMount, Show } from "solid-js";
+import {
+	isValidAccountPassword,
+	ACCOUNT_PASSWORD_RULE as PASSWORD_RULE,
+} from "../../domain/valueObjects/AccountPassword";
 import type { AccountController } from "../controllers/AccountController";
 import LoadingView from "./components/LoadingView";
 import { confirmAction } from "./feedback";
 
 // ログインIDは社員番号。メールアドレスは、新規登録のときに認証コードを受け取るためだけに使う。
-type ViewMode = "login" | "signup" | "otp-verify";
+// password-change: Admin が設定した仮のパスワードでログインした直後。自分のパスワードに変えるまで使えない。
+type ViewMode = "login" | "signup" | "otp-verify" | "password-change";
 
 type LoginViewProps = {
 	controller: AccountController;
 	onRegistrationLinked?: () => Promise<void> | void;
 };
-
-const PASSWORD_RULE = "6文字以上で、大文字・小文字・数字をすべて含めてください。";
 
 const LoginView = (props: LoginViewProps) => {
 	const navigate = useNavigate();
@@ -45,7 +48,7 @@ const LoginView = (props: LoginViewProps) => {
 
 	const passwordMismatch = createMemo(
 		() =>
-			viewMode() === "otp-verify" &&
+			(viewMode() === "otp-verify" || viewMode() === "password-change") &&
 			confirmPassword().length > 0 &&
 			password() !== confirmPassword(),
 	);
@@ -61,6 +64,10 @@ const LoginView = (props: LoginViewProps) => {
 		// 新規登録の1歩目: 認証コードの送り先は、どのドメインのメールアドレスでもよい
 		if (viewMode() === "signup") {
 			return !emailLooksValid();
+		}
+
+		if (viewMode() === "password-change") {
+			return !isValidAccountPassword(password()) || password() !== confirmPassword();
 		}
 
 		if (!employeeNo().trim() || !password()) {
@@ -114,12 +121,52 @@ const LoginView = (props: LoginViewProps) => {
 			setErrorMessage(
 				"ログインできるかを確かめられませんでした。通信状況を確かめて、もう一度ログインしてください。",
 			);
+		} else if (status === "password_change_required") {
+			// 入力した仮のパスワードは消す。新しいパスワードは空欄から
+			switchMode("password-change");
 		} else if (status === "registration_incomplete") {
 			// 登録が社員番号の紐付けの前で止まったアカウント。新規登録をやり直すと続きから再開できる
 			switchMode("signup", "登録が完了していません。新規登録をやり直してください。");
 		} else {
 			navigate("/");
 		}
+	};
+
+	// --- 【仮のパスワードから、自分のパスワードへ】 --------------------
+	const handleChangePassword = async (event: Event) => {
+		event.preventDefault();
+		setLoading(true);
+		setErrorMessage(null);
+		const status = await props.controller.changeOwnPassword(password());
+		setLoading(false);
+		switch (status) {
+			case "same_password":
+				setErrorMessage("仮のパスワードとは別のパスワードを決めてください。");
+				return;
+			case "weak_password":
+				setErrorMessage(`パスワードが要件を満たしていません。${PASSWORD_RULE}`);
+				return;
+			case "failed":
+				setErrorMessage(
+					"パスワードを変更できませんでした。通信状況を確かめて、もう一度実行してください。",
+				);
+				return;
+			case "unavailable":
+				// 変わったかもしれないので、仮のパスワードのセッションは残さない
+				await props.controller.signOut();
+				switchMode(
+					"login",
+					"利用できるかを確かめられませんでした。新しいパスワードでもう一度ログインしてください。",
+				);
+				return;
+		}
+		await props.onRegistrationLinked?.();
+		navigate("/");
+	};
+
+	const leavePasswordChange = async () => {
+		await props.controller.signOut();
+		switchMode("login");
 	};
 
 	// --- 【新規登録 1: 認証コードを送る】 ----------------------------
@@ -290,7 +337,9 @@ const LoginView = (props: LoginViewProps) => {
 									onInput={(e) => setPassword(e.currentTarget.value)}
 									required
 								/>
-								<p class="field-hint">パスワードを忘れた場合は、管理者に連絡してください。</p>
+								<p class="field-hint">
+									パスワードを忘れた場合は、管理者に仮のパスワードの設定を依頼してください。
+								</p>
 							</div>
 
 							<Messages />
@@ -307,6 +356,63 @@ const LoginView = (props: LoginViewProps) => {
 									新規登録
 								</button>
 							</p>
+						</div>
+					</Show>
+
+					{/* 仮のパスワードでログインした直後 */}
+					<Show when={viewMode() === "password-change"}>
+						<h2>新しいパスワードを決めてください</h2>
+						<p class="info-text">
+							管理者が設定した仮のパスワードでログインしました。あなただけが知るパスワードに変えると、利用を始められます。
+						</p>
+
+						<form class="login-form" onSubmit={handleChangePassword}>
+							<div class="login-fieldset">
+								<label for="changed-password">新しいパスワード</label>
+								<input
+									id="changed-password"
+									type="password"
+									autocomplete="new-password"
+									value={password()}
+									onInput={(e) => setPassword(e.currentTarget.value)}
+									required
+								/>
+								<p class="field-hint">{PASSWORD_RULE}仮のパスワードとは別のものにしてください。</p>
+							</div>
+
+							<div class="login-fieldset">
+								<label for="changed-password-confirm">新しいパスワード（確認）</label>
+								<input
+									id="changed-password-confirm"
+									type="password"
+									autocomplete="new-password"
+									value={confirmPassword()}
+									onInput={(e) => setConfirmPassword(e.currentTarget.value)}
+									required
+								/>
+								<Show when={passwordMismatch()}>
+									<p class="field-error" role="alert">
+										パスワードが一致しません
+									</p>
+								</Show>
+							</div>
+
+							<Messages />
+
+							<button type="submit" disabled={isSubmitDisabled()}>
+								{loading() ? "変更中..." : "パスワードを変えて始める"}
+							</button>
+						</form>
+
+						<div class="auth-toggle">
+							<button
+								type="button"
+								class="link-button"
+								disabled={loading()}
+								onClick={() => void leavePasswordChange()}
+							>
+								ログアウトして戻る
+							</button>
 						</div>
 					</Show>
 

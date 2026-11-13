@@ -40,6 +40,7 @@ import { NotFound } from "./adapter/views/components/NotFound";
 import DashboardLayout from "./adapter/views/DashboardLayout";
 import LoginView from "./adapter/views/LoginView";
 import { CarryOverGoalInteractor } from "./application/usecases/CarryOverGoalInteractor";
+import { ChangeOwnPasswordInteractor } from "./application/usecases/ChangeOwnPasswordInteractor";
 import { ChangeSheetGradeInteractor } from "./application/usecases/ChangeSheetGradeInteractor";
 import { CloseEvaluationPeriodInteractor } from "./application/usecases/CloseEvaluationPeriodInteractor";
 import { CorrectClosedSheetInteractor } from "./application/usecases/CorrectClosedSheetInteractor";
@@ -68,6 +69,7 @@ import { LoadEmployeeMasterInteractor } from "./application/usecases/LoadEmploye
 import { PreRegisterEmployeeInteractor } from "./application/usecases/PreRegisterEmployeeInteractor";
 import { PrivilegedSheetOperationInteractor } from "./application/usecases/PrivilegedSheetOperationInteractor";
 import { RegisterEmployeeAccountInteractor } from "./application/usecases/RegisterEmployeeAccountInteractor";
+import { ResetEmployeePasswordInteractor } from "./application/usecases/ResetEmployeePasswordInteractor";
 import { ResetEmployeeRegistrationInteractor } from "./application/usecases/ResetEmployeeRegistrationInteractor";
 import { SaveEvaluationPeriodInteractor } from "./application/usecases/SaveEvaluationPeriodInteractor";
 import { SignInEmployeeInteractor } from "./application/usecases/SignInEmployeeInteractor";
@@ -318,6 +320,7 @@ const accountController = new AccountController(
 	authRepository,
 	employeeMasterRepository,
 	workspaceSettingsRepository,
+	new ChangeOwnPasswordInteractor(authRepository, employeeRepository),
 );
 const employeeMasterController = new EmployeeMasterController(
 	loadEmployeeMasterUseCase,
@@ -331,6 +334,7 @@ const employeeMasterController = new EmployeeMasterController(
 	new IssuePendingEmployeeInvitationsInteractor(employeeMasterRepository),
 	new PreRegisterEmployeeInteractor(employeeMasterRepository),
 	employeeMasterPresenter,
+	new ResetEmployeePasswordInteractor(employeeMasterRepository),
 );
 
 const AppLayout: Component<{ children?: JSX.Element | JSX.Element[] }> = (props) => (

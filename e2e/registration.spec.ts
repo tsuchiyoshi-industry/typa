@@ -8,6 +8,7 @@ import {
 	restAs,
 	signIn,
 	signOut,
+	submitSignIn,
 } from "./support";
 
 const NEWCOMER = "RELEASE010";
@@ -121,6 +122,52 @@ test("an invited employee registers with a shared mailbox and can be suspended",
 	});
 
 	await test.step("社員番号とパスワードでログインできる", async () => {
+		await signIn(page, NEWCOMER);
+		await expect(page.getByRole("heading", { name: "評価シート一覧" })).toBeVisible();
+		await signOut(page);
+	});
+
+	let temporary = "";
+	await test.step("Admin が仮のパスワードを設定すると、前のパスワードは使えなくなる", async () => {
+		await signIn(page, ADMIN);
+		await openEmployeeMaster(page);
+		await page
+			.getByRole("combobox", { name: "登録状態で絞り込む" })
+			.selectOption({ label: "登録済み" });
+		await page
+			.getByRole("button", { name: `${NEWCOMER_NAME}さんに仮のパスワードを設定する` })
+			.click();
+		const dialog = page.getByRole("dialog", { name: `${NEWCOMER_NAME}さんに仮のパスワードを設定` });
+		temporary = await dialog.getByRole("textbox", { name: "仮のパスワード" }).inputValue();
+		expect(temporary).toMatch(/^[A-Za-z2-9]{10}$/);
+		await dialog.getByRole("button", { name: "仮のパスワードを設定" }).click();
+		await expect(dialog).toBeHidden();
+		await expect(page.getByRole("status")).toContainText(
+			`${NEWCOMER_NAME}さんに仮のパスワードを設定しました`,
+		);
+		await signOut(page);
+
+		await signIn(page, NEWCOMER);
+		await expect(page.getByRole("alert")).toContainText(
+			"社員番号またはパスワードが正しくありません",
+		);
+	});
+
+	await test.step("本人は仮のパスワードでログインすると、自分のパスワードに変えるまで先へ進めない", async () => {
+		await submitSignIn(page, NEWCOMER, temporary);
+		await expect(
+			page.getByRole("heading", { name: "新しいパスワードを決めてください" }),
+		).toBeVisible();
+		await page.getByLabel("新しいパスワード", { exact: true }).fill(temporary);
+		await page.getByLabel("新しいパスワード（確認）").fill(temporary);
+		await page.getByRole("button", { name: "パスワードを変えて始める" }).click();
+		await expect(page.getByRole("alert")).toContainText("仮のパスワードとは別の");
+		await page.getByLabel("新しいパスワード", { exact: true }).fill(PASSWORD);
+		await page.getByLabel("新しいパスワード（確認）").fill(PASSWORD);
+		await page.getByRole("button", { name: "パスワードを変えて始める" }).click();
+		await expect(page.getByRole("heading", { name: "評価シート一覧" })).toBeVisible();
+		await signOut(page);
+
 		await signIn(page, NEWCOMER);
 		await expect(page.getByRole("heading", { name: "評価シート一覧" })).toBeVisible();
 		await signOut(page);

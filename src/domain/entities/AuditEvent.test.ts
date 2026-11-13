@@ -48,6 +48,7 @@ describe("audit event categories", () => {
 
 	it.each([
 		["employee.updated", "account"],
+		["employee.password_reset", "account"],
 		["sheet.status", "workflow"],
 		["sheet.privileged_delete", "override"],
 		["sheet.corrected", "override"],

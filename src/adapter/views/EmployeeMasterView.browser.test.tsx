@@ -82,6 +82,7 @@ function setup() {
 		updateRole: vi.fn().mockResolvedValue(true),
 		updateKeepSignedIn: vi.fn().mockResolvedValue(true),
 		resetRegistration: vi.fn(),
+		resetPassword: vi.fn().mockResolvedValue({ success: true, message: "設定しました" }),
 		// 発行したコードは presenter が viewModel に載せる
 		issueInvitation: vi.fn(async (employeeNo: string) => {
 			setViewModel((prev) => ({
@@ -378,4 +379,115 @@ it("confirms suspension separately from deleting a registration", async () => {
 	expect(confirmAction).toHaveBeenCalledWith(
 		expect.objectContaining({ confirmLabel: "利用を停止" }),
 	);
+});
+
+it("distinguishes registration states and filters them independently of assignments", () => {
+	const view = setup();
+	view.setViewModel((prev) => ({
+		...prev,
+		relations: [
+			{ ...employee(1, "山田"), registered: false },
+			employee(2, "鈴木"),
+			{ ...employee(3, "田中"), enabled: false },
+		],
+	}));
+	expect(
+		view
+			.getByText("未登録", { selector: ".registration-status" })
+			.classList.contains("registration-status--pending"),
+	).toBe(true);
+	expect(
+		view
+			.getByText("登録済み", { selector: ".registration-status" })
+			.classList.contains("registration-status--registered"),
+	).toBe(true);
+	expect(
+		view
+			.getByText("利用停止中", { selector: ".registration-status" })
+			.classList.contains("registration-status--disabled"),
+	).toBe(true);
+	fireEvent.change(view.getByLabelText("登録状態で絞り込む"), { target: { value: "pending" } });
+	expect(view.getAllByRole("rowheader")).toHaveLength(1);
+	expect(view.getByRole("rowheader").textContent).toContain("山田");
+	fireEvent.change(view.getByLabelText("登録状態で絞り込む"), { target: { value: "registered" } });
+	expect(view.getByRole("rowheader").textContent).toContain("鈴木");
+});
+
+const openReset = (view: ReturnType<typeof setup>, name = "山田") => {
+	fireEvent.click(view.getByRole("button", { name: `${name}さんに仮のパスワードを設定する` }));
+	return view.getByRole("dialog", { name: `${name}さんに仮のパスワードを設定` });
+};
+const temporaryPassword = (view: ReturnType<typeof setup>) =>
+	view.getByLabelText("仮のパスワード") as HTMLInputElement;
+
+it("sets a generated temporary password in a modal, then closes it and returns focus", async () => {
+	const view = setup();
+	const dialog = openReset(view) as HTMLDialogElement;
+	expect(dialog.open).toBe(true);
+	const input = temporaryPassword(view);
+	// 伝えるために見える欄。推測されにくい文字列が最初から入り、選択されている
+	expect(input.type).toBe("text");
+	expect(input.value).toMatch(/^[A-Za-z2-9]{10}$/);
+	expect(document.activeElement).toBe(input);
+	const generated = input.value;
+	fireEvent.click(view.getByRole("button", { name: "作り直す" }));
+	expect(temporaryPassword(view).value).not.toBe(generated);
+	fireEvent.input(temporaryPassword(view), { target: { value: "Chosen123" } });
+	fireEvent.click(view.getByRole("button", { name: "仮のパスワードを設定" }));
+	await waitFor(() =>
+		expect(view.controller.resetPassword).toHaveBeenCalledWith("E001", "Chosen123"),
+	);
+	await waitFor(() => expect(view.queryByRole("dialog")).toBeNull());
+	expect(document.activeElement).toBe(
+		view.getByRole("button", { name: "山田さんに仮のパスワードを設定する" }),
+	);
+	expect(view.controller.resetRegistration).not.toHaveBeenCalled();
+});
+
+it("keeps the dialog open with the reason when refused, blocks double submits, and forgets the password on cancel", async () => {
+	const view = setup();
+	let finish!: (result: { success: boolean; message: string }) => void;
+	view.controller.resetPassword.mockImplementationOnce(
+		() =>
+			new Promise((resolve) => {
+				finish = resolve;
+			}),
+	);
+	openReset(view);
+	fireEvent.input(temporaryPassword(view), { target: { value: "weakpass" } });
+	const submit = () =>
+		view.getByRole("button", { name: /^(仮のパスワードを設定|設定中…)$/ }) as HTMLButtonElement;
+	expect(submit().disabled).toBe(true);
+	fireEvent.input(temporaryPassword(view), { target: { value: "Chosen123" } });
+	fireEvent.click(submit());
+	fireEvent.click(submit());
+	expect(submit().disabled).toBe(true);
+	expect(view.controller.resetPassword).toHaveBeenCalledOnce();
+	finish({ success: false, message: "山田さんは利用停止中です。先に利用を再開してください。" });
+	await waitFor(() => expect(view.getByRole("alert").textContent).toContain("利用停止中"));
+	expect(temporaryPassword(view).value).toBe("Chosen123");
+	fireEvent.click(view.getByRole("button", { name: "キャンセル" }));
+	expect(view.queryByRole("dialog")).toBeNull();
+	openReset(view);
+	expect(temporaryPassword(view).value).not.toBe("Chosen123");
+});
+
+it("offers resets only for other active registered employees, and only to Admin", () => {
+	const view = setup();
+	view.setViewModel((prev) => ({
+		...prev,
+		relations: [
+			{ ...employee(1, "山田"), registered: false },
+			{ ...employee(2, "鈴木"), enabled: false },
+			employee(9, "自分"),
+		],
+	}));
+	expect(view.queryByRole("button", { name: /さんに仮のパスワードを設定する/ })).toBeNull();
+	view.setViewModel((prev) => ({
+		...prev,
+		mode: "reviewer",
+		canResetRegistrations: false,
+		relations: [employee(1, "山田")],
+	}));
+	expect(view.queryByRole("button", { name: /さんに仮のパスワードを設定する/ })).toBeNull();
 });

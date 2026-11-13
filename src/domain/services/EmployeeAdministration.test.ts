@@ -6,6 +6,7 @@ import {
 	checkEvaluatorAssignment,
 	checkInvitation,
 	checkNewEmployee,
+	checkPasswordReset,
 	checkRegistrationReset,
 	checkRoleChange,
 	describeEmployeeAdministrationError,
@@ -108,6 +109,24 @@ describe("resetting a registration", () => {
 	});
 });
 
+describe("resetting a password", () => {
+	it("is for another employee who can sign in", () => {
+		expect(checkPasswordReset(admin, person(3, EmployeeRole.EMPLOYEE)).ok).toBe(true);
+		// 別の Admin も対象(仮のパスワードは本人が変えるまで何も読めないので、なりすましに使えない)
+		expect(checkPasswordReset(admin, person(2, EmployeeRole.ADMIN)).ok).toBe(true);
+	});
+
+	it("refuses the operator, an unregistered and a suspended employee", () => {
+		expect(failure(checkPasswordReset(admin, admin))).toBe("selfPasswordReset");
+		expect(
+			failure(checkPasswordReset(admin, person(3, EmployeeRole.EMPLOYEE, { registered: false }))),
+		).toBe("notRegistered");
+		expect(
+			failure(checkPasswordReset(admin, person(3, EmployeeRole.EMPLOYEE, { enabled: false }))),
+		).toBe("suspended");
+	});
+});
+
 describe("assigning an evaluator", () => {
 	const target = person(3, EmployeeRole.EMPLOYEE);
 
@@ -188,6 +207,7 @@ describe("describing a refusal", () => {
 			{ kind: "lastUsableAdmin", action: "reset" },
 			{ kind: "selfSuspension" },
 			{ kind: "selfReset" },
+			{ kind: "selfPasswordReset" },
 			{ kind: "notRegistered", name: "社員3" },
 			{ kind: "selfEvaluator" },
 			{ kind: "cannotEvaluate", name: "社員3" },

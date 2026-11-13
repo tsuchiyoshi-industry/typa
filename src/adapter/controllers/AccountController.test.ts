@@ -9,10 +9,16 @@ function setup(domain: Promise<string> = Promise.resolve("example.jp")) {
 	const auth = authRepository();
 	const signIn = { execute: vi.fn() };
 	const register = { execute: vi.fn() };
-	const controller = new AccountController(signIn as never, register as never, auth, master, {
-		findRequiredDomain: () => domain,
-	});
-	return { controller, master, auth, signIn, register };
+	const changePassword = { execute: vi.fn() };
+	const controller = new AccountController(
+		signIn as never,
+		register as never,
+		auth,
+		master,
+		{ findRequiredDomain: () => domain },
+		changePassword as never,
+	);
+	return { controller, master, auth, signIn, register, changePassword };
 }
 const executive = new EmployeeProfile(
 	5,
@@ -133,4 +139,16 @@ describe("signing in and registering", () => {
 		auth.sendEmailCode.mockResolvedValue({ error: new Error("rate limited") });
 		expect(await controller.sendVerificationCode("a@example.jp")).toBe(false);
 	});
+});
+
+it("passes the employee's new password to the use case and returns its status", async () => {
+	const c = setup();
+	c.changePassword.execute.mockImplementationOnce(async (_request, out) => {
+		out.present({ status: "same_password" });
+	});
+	expect(await c.controller.changeOwnPassword("Mine1234")).toBe("same_password");
+	expect(c.changePassword.execute).toHaveBeenCalledWith(
+		{ password: "Mine1234" },
+		expect.any(Object),
+	);
 });

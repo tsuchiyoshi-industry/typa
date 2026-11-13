@@ -225,6 +225,11 @@ try {
 			for (const [name, args] of [
 				["set_employee_role", { p_employee_no: `SECURITY${owner.id}`, p_role_name: "Admin" }],
 				["issue_employee_invitation", { p_employee_no: "RELEASE007" }],
+				// 仮のパスワードを設定できれば、そのアカウントを乗っ取れる
+				[
+					"reset_employee_password",
+					{ p_employee_no: `SECURITY${owner.id}`, p_password: "Attack123" },
+				],
 				["issue_pending_employee_invitations", {}],
 				["issue_pending_employee_invitations", { p_include_issued: false }],
 				["issue_pending_employee_invitations", { p_include_issued: true }],

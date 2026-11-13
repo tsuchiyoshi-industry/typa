@@ -6,6 +6,7 @@ import {
 	checkEvaluatorAssignment,
 	checkInvitation,
 	checkNewEmployee,
+	checkPasswordReset,
 	checkRegistrationReset,
 	checkRoleChange,
 	type NewEmployeeDraft,
@@ -157,6 +158,24 @@ it("refuses the operator's own suspension and reset, as the domain does", async 
 			db: false,
 		});
 	}
+});
+
+it.each([
+	["the operator", 1, ""],
+	["a registered Employee", 4, ""],
+	["another usable Admin", 2, SECOND["a usable Admin"]],
+	["an unregistered employee", 7, ""],
+	["a suspended employee", 4, "update public.employees set is_enabled = false where id = 4;"],
+])("resets the password of %s exactly as the domain says", async (_label, target, setup) => {
+	const result = await scenario(
+		setup,
+		(people) => checkPasswordReset(find(people, 1), find(people, target)).ok,
+		`select true as v from public.reset_employee_password('E${target}', 'NewPass1')`,
+	);
+	expect(result, refusals[refusals.length - 1]).toEqual({
+		domain: result.domain,
+		db: result.domain,
+	});
 });
 
 it.each([

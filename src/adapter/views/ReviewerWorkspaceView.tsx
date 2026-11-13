@@ -148,7 +148,8 @@ const ScoreRank: Component<{ row: ReviewerRowDto; stage: "first" | "final" }> = 
 
 const ReviewerWorkspaceView: Component<Props> = (props) => {
 	const [params, setParams] = useSearchParams();
-	const [periods, setPeriods] = createSignal<ReviewPeriodDto[]>([]);
+	/** 実施中の評価期間。部下の今の進み具合だけを見る。締めてから次を開始するまでは null。 */
+	const [period, setPeriod] = createSignal<ReviewPeriodDto | null>(null);
 	const [rows, setRows] = createSignal<ReviewerRowDto[]>([]);
 	const [loading, setLoading] = createSignal(true);
 	const [refreshing, setRefreshing] = createSignal(false);
@@ -171,13 +172,7 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 		alive = false;
 		++generation;
 	});
-	const periodId = createMemo(
-		() =>
-			periods().find((period) => period.id === Number(params.period))?.id ||
-			periods().find((p) => p.isActive)?.id ||
-			periods()[0]?.id ||
-			null,
-	);
+	const periodId = () => period()?.id ?? null;
 	const current = createMemo(() =>
 		rows().find((row) => canOpen(row) && String(row.sheetId) === params.sheet),
 	);
@@ -262,14 +257,14 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 			}
 		}
 	};
-	const initializePeriods = async () => {
+	const initializePeriod = async () => {
 		setLoading(true);
 		setError(null);
 		try {
-			const loaded = await props.controller.loadPeriods();
+			const loaded = await props.controller.currentPeriod();
 			if (alive) {
-				setPeriods(loaded);
-				if (!loaded.length) {
+				setPeriod(loaded);
+				if (!loaded) {
 					setLoading(false);
 				}
 			}
@@ -281,7 +276,7 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 			}
 		}
 	};
-	onMount(() => void initializePeriods());
+	onMount(() => void initializePeriod());
 	createEffect(() => {
 		const id = periodId();
 		if (id) {
@@ -303,7 +298,7 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 	/** シートを開く。見ていた一覧(または比較)を残したまま、その上に窓で浮かべる。 */
 	const open = (row: ReviewerRowDto) => {
 		if (canOpen(row)) {
-			void navigate({ sheet: row.sheetId as number, period: periodId() ?? undefined });
+			void navigate({ sheet: row.sheetId as number });
 		}
 	};
 	const updateRows = () => {
@@ -315,7 +310,7 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 	const refresh = async () => {
 		const id = periodId();
 		if (!id) {
-			await initializePeriods();
+			await initializePeriod();
 			return;
 		}
 		await load(id);
@@ -776,25 +771,9 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 				<header class="review-heading">
 					<div>
 						<h1>部下の評価</h1>
+						<Show when={period()}>{(shown) => <p>{shown().periodName} · 実施中</p>}</Show>
 					</div>
 					<div class="review-heading-actions">
-						<label class="review-period">
-							<span>評価期間</span>
-							<select
-								aria-label="評価期間"
-								value={periodId() ?? ""}
-								onChange={(e) => void navigate({ period: e.currentTarget.value, sheet: undefined })}
-							>
-								<For each={periods()}>
-									{(period) => (
-										<option value={period.id}>
-											{period.periodName}
-											{period.isActive ? " · 実施中" : ""}
-										</option>
-									)}
-								</For>
-							</select>
-						</label>
 						<span class="review-sync" role="status">
 							{refreshing()
 								? "更新中…"
@@ -885,10 +864,13 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 						)}
 					</Show>
 					<Show
-						when={periods().length}
+						when={period()}
 						fallback={
 							<div class="review-empty">
-								<h2>評価期間がまだありません</h2>
+								<h2>実施中の評価期間はありません</h2>
+								<p>
+									管理者が次の評価期間を開始すると、部下の評価がここに並びます。締めた評価期間のシートは「評価シート」で期間を選んで開けます。
+								</p>
 							</div>
 						}
 					>

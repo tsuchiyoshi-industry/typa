@@ -257,13 +257,12 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 					!props.embedded &&
 					!isNew() &&
 					viewModel().canViewCommonEvaluation &&
-					!viewModel().viewsAsAdmin
+					!viewModel().viewsAsAdmin &&
+					// 部下の評価は実施中の評価期間だけを並べる。締めた期間のシートは、ここから一覧へ戻らない
+					!!sheet()?.evaluationPeriod?.isActive
 				}
 			>
-				<A
-					class="review-editor-entry"
-					href={`/review?period=${sheet()?.evaluationPeriod?.id}&sheet=${sheetId()}`}
-				>
+				<A class="review-editor-entry" href={`/review?sheet=${sheetId()}`}>
 					<Users size={16} />
 					部下の一覧を見ながら評価する
 				</A>

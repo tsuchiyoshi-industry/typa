@@ -34,13 +34,6 @@
 	align-items: flex-end;
 	gap: 0.65rem;
 }
-.review-period {
-	display: flex;
-	flex-direction: column;
-	gap: 0.35rem;
-	font-size: 0.8125rem;
-	color: var(--hr-text-muted);
-}
 .review-workspace select,
 .review-search {
 	border: 1px solid var(--hr-border-input);
@@ -750,9 +743,6 @@
 	}
 	.review-heading-actions {
 		width: 100%;
-	}
-	.review-period {
-		flex: 1;
 	}
 	.review-stat {
 		padding: 0.7rem 0.6rem;

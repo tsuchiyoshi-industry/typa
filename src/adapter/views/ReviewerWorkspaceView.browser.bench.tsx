@@ -14,7 +14,7 @@ afterEach(cleanup);
 test("reviewer workspace, 300 employees, Chromium with application CSS", async ({ bench }) => {
 	expect(DEV).toBeUndefined();
 	const rows = reviewerRows(300);
-	const controller = { loadPeriods: async () => reviewPeriods, load: async () => rows };
+	const controller = { currentPeriod: async () => reviewPeriods[0], load: async () => rows };
 	const mount = async () => {
 		renderBench(() => (
 			<MemoryRouter>

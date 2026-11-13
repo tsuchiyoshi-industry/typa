@@ -1,4 +1,5 @@
 import type { ReviewPeriodDto } from "../../application/dtos/ReviewerWorkspaceDto";
+import { EvaluationCalendar } from "../../domain/entities/EvaluationCalendar";
 import type { EmployeeMasterRepository } from "../../domain/repositories/EmployeeMasterRepository";
 import type { EvaluationPeriodRepository } from "../../domain/repositories/EvaluationPeriodRepository";
 import type { ReviewerWorkspaceRepository } from "../../domain/repositories/ReviewerWorkspaceRepository";
@@ -25,11 +26,13 @@ export class ReviewerWorkspaceController {
 		}
 	}
 
-	async loadPeriods(): Promise<ReviewPeriodDto[]> {
+	/**
+	 * 部下の評価は、実施中の評価期間だけを見る(部下の今の進み具合を俯瞰する画面)。
+	 * 締めてから次を開始するまでの間は null。過去の評価期間のシートは「評価シート」で期間を選んで開く。
+	 */
+	async currentPeriod(): Promise<ReviewPeriodDto | null> {
 		await this.assertCanReview();
-		return (await this.periods.findDistinctPeriods()).sort((a, b) =>
-			b.startDate.localeCompare(a.startDate),
-		);
+		return new EvaluationCalendar(await this.periods.findDistinctPeriods()).active();
 	}
 
 	async load(periodId: number) {

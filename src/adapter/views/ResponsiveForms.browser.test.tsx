@@ -54,7 +54,11 @@ it.each([
 					<ReviewerWorkspaceView
 						controller={
 							{
-								loadPeriods: async () => [{ id: 10, periodName: "2026年度 下期", isActive: true }],
+								currentPeriod: async () => ({
+									id: 10,
+									periodName: "2026年度 下期",
+									isActive: true,
+								}),
 								load: async () => structuredClone(rows),
 							} as never
 						}

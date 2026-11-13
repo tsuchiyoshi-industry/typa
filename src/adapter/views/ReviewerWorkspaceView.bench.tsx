@@ -13,7 +13,7 @@ afterEach(cleanup);
 for (const n of [30, 300]) {
 	test(`reviewer workspace, ${n} rows`, async ({ bench }) => {
 		const rows = rowsOf(n);
-		const controller = { loadPeriods: async () => periods, load: async () => rows };
+		const controller = { currentPeriod: async () => periods[0], load: async () => rows };
 		const mount = async () => {
 			render(() => (
 				<MemoryRouter>

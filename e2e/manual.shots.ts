@@ -62,9 +62,14 @@ const nav = (page: Page, name: string) =>
 		.getByRole("link", { name })
 		.click();
 
-async function menu(page: Page, name: string) {
+/**
+ * ユーザーメニューから開き、その画面の見出しが出るまで待つ。画面は遅れて読み込まれるので、待たないと
+ * 前の画面の同じ名前の欄(データ取込と遡及処理の「評価期間」など)を操作してしまう。
+ */
+async function menu(page: Page, name: string, heading: string | RegExp = name) {
 	await page.getByRole("button", { name: "ユーザーメニュー" }).click();
 	await page.getByRole("link", { name }).click();
+	await expect(page.getByRole("heading", { level: 1, name: heading })).toBeVisible();
 }
 
 /** 目標が確定してから、本人が書く達成状況。 */
@@ -365,11 +370,8 @@ test("manual screenshots", async ({ page }) => {
 		await nav(page, "社員マスタ");
 		await expect(page.getByRole("region", { name: "あなたのプロフィール" })).toBeVisible();
 		await shot(page, "user", "13-profile");
-		await menu(page, "ヘルプ");
 		// 見出しの改行で、アクセシブルな名前に入る空白を許容する。
-		await expect(
-			page.getByRole("heading", { name: /^評価のしくみと\s*使い方$/, level: 1 }),
-		).toBeVisible();
+		await menu(page, "ヘルプ", /^評価のしくみと\s*使い方$/);
 		await shot(page, "user", "14-help");
 		await signOut(page);
 	});

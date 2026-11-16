@@ -12,9 +12,11 @@ const GOALS_WITH_ERROR = "e2e/fixtures/goals-with-error.csv";
 /** 上の誤りを直したもの。社員 6 の行は何も書いていない(取り込まない)。 */
 const GOALS = "e2e/fixtures/goals.csv";
 
+/** ユーザーメニューから開き、その画面の見出しが出るまで待つ(前の画面の同じ名前の欄を操作しない)。 */
 async function openFromUserMenu(page: Page, name: string) {
 	await page.getByRole("button", { name: "ユーザーメニュー" }).click();
 	await page.getByRole("link", { name }).click();
+	await expect(page.getByRole("heading", { level: 1, name })).toBeVisible();
 }
 
 async function confirm(page: Page, title: string, label: string) {

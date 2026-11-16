@@ -93,6 +93,19 @@ export class EvaluationPeriod {
 		return this.state === PeriodState.CLOSED;
 	}
 
+	/**
+	 * データ取込で書き込めるか。実施中と、締め済み(前の評価期間の点数などを後から入れる)。
+	 * 未開始・準備中の評価期間には、まだシートを作らない。
+	 */
+	acceptsImport(): boolean {
+		return this.isActive || this.isClosed;
+	}
+
+	/** データ取込の前に、締めを越えて書くことを確かめるか。締め済みの評価期間だけ。 */
+	importNeedsConfirmation(): boolean {
+		return this.isClosed;
+	}
+
 	/** 次に実施する評価期間として開始できるか。開始できるのは未開始の評価期間だけ(締めたものは再開しない)。 */
 	startable(): Result<void, PeriodError> {
 		if (this.isActive) {

@@ -615,6 +615,12 @@ a.setup-task-link:hover {
 	min-width: 0;
 	font-weight: 400;
 }
+.import-caution {
+	margin-top: 12px;
+	color: var(--hr-danger-text);
+	font-size: 0.875rem;
+	font-weight: 600;
+}
 .import-errors {
 	border-color: color-mix(in srgb, var(--hr-danger) 40%, transparent);
 }

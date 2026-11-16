@@ -230,7 +230,7 @@ it("imports into a draft sheet on its own items, and into a new sheet on the gra
 	await saveGrade(1, "一般1級", 2, "一般1級", 1);
 	const [{ template }] = await rows<{
 		template: { employees: { employeeNo: string; items: { id: number }[] }[] };
-	}>("select public.get_sheet_import_template() as template");
+	}>("select public.get_sheet_import_template(1) as template");
 	const itemsOf = (no: string) =>
 		template.employees.find((e) => e.employeeNo === no)?.items.map((i) => i.id);
 	expect(itemsOf("E4")).toEqual([1, 2]);
@@ -238,7 +238,7 @@ it("imports into a draft sheet on its own items, and into a new sheet on the gra
 	const check = async (employeeNo: string, itemId: string) =>
 		(
 			await rows<{ result: { errors: { message: string }[] } }>(
-				"select public.import_sheet_data('[]'::jsonb, $1::jsonb, false) as result",
+				"select public.import_sheet_data(1, '[]'::jsonb, $1::jsonb, false, false) as result",
 				[JSON.stringify([{ line: 2, employeeNo, itemId, firstScore: "3" }])],
 			)
 		)[0].result.errors.map((e) => e.message);

@@ -328,3 +328,32 @@ describe("preparing the next period between closing and starting", () => {
 		expect(started.find(quarters27[1].id)?.state).toBe(PeriodState.NOT_STARTED);
 	});
 });
+
+describe("periods to import into", () => {
+	it("offers the period in progress and the closed ones, newest first, never one not yet started", () => {
+		const calendar = new EvaluationCalendar([
+			period("25期", "half", 1, "2025-04-01", "2025-09-30", { isClosed: true, id: 1 }),
+			period("25期", "half", 2, "2025-10-01", "2026-03-31", { isClosed: true, id: 2 }),
+			period("26期", "half", 1, "2026-04-01", "2026-09-30", { isActive: true, id: 3 }),
+			period("26期", "half", 2, "2026-10-01", "2027-03-31", { id: 4 }),
+		]);
+		expect(calendar.importTargets().map((target) => target.id)).toEqual([3, 2, 1]);
+	});
+
+	it("leaves out the preparing period while none is in progress", () => {
+		const calendar = new EvaluationCalendar([
+			period("25期", "full", 1, "2025-04-01", "2026-03-31", { isClosed: true, id: 1 }),
+			period("26期", "full", 1, "2026-04-01", "2027-03-31", { id: 2 }),
+		]);
+		expect(calendar.find(2)?.isPreparing).toBe(true);
+		expect(calendar.importTargets().map((target) => target.id)).toEqual([1]);
+	});
+
+	it("asks for a confirmation only for a closed period, since writing there goes beyond the close", () => {
+		const closed = period("25期", "full", 1, "2025-04-01", "2026-03-31", { isClosed: true });
+		const active = period("26期", "full", 1, "2026-04-01", "2027-03-31", { isActive: true });
+		const waiting = period("27期", "full", 1, "2027-04-01", "2028-03-31");
+		expect([closed, active, waiting].map((p) => p.acceptsImport())).toEqual([true, true, false]);
+		expect([closed, active].map((p) => p.importNeedsConfirmation())).toEqual([true, false]);
+	});
+});

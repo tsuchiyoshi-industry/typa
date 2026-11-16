@@ -286,6 +286,27 @@ try {
 						p_reason: "attack",
 					},
 				],
+				// 締めを越えて書く操作(遡及処理・締め済みの評価期間への取込)も Admin だけ。確認の印を偽っても同じ
+				[
+					"correct_closed_sheet",
+					{
+						...sheetArgs,
+						p_changes: [{ target: "sheet", field: "first_overall_comment", value: "attack" }],
+						p_reason: "attack",
+					},
+				],
+				["get_sheet_for_correction", sheetArgs],
+				["get_sheet_import_template", { p_period_id: 900001 }],
+				[
+					"import_sheet_data",
+					{
+						p_period_id: 900001,
+						p_goals: [],
+						p_common: [],
+						p_apply: true,
+						p_closed_confirmed: true,
+					},
+				],
 			] as const) {
 				assert.equal(
 					(await rpc(name, actor.token, args)).status,

@@ -345,6 +345,41 @@ it("summarizes an import by the period and its counts", () => {
 	});
 });
 
+it("calls out an import that went beyond the close, with the sheets whose content it replaced", () => {
+	expect(
+		describe_({
+			action: "sheets.imported",
+			entityId: 9,
+			details: {
+				periodId: 9,
+				periodName: "25期 下期",
+				periodState: "closed",
+				employees: 2,
+				newSheets: 1,
+				replacedSheets: 1,
+				goals: 3,
+				commonResults: 0,
+				replaced: [
+					{ sheetId: 40, employeeNo: "E7", goals: [{ goal_number: 1 }], commonResults: null },
+				],
+			},
+		}),
+	).toMatchObject({
+		category: "import",
+		title: "締め済みの評価期間に評価データを取込",
+		subject: { periodName: "25期 下期" },
+		facts: [
+			{ label: "評価期間", value: "締め済み" },
+			{ label: "社員", value: "2人" },
+			{ label: "新しいシート", value: "1件" },
+			{ label: "置き換えたシート", value: "1件" },
+			{ label: "目標", value: "3件" },
+			{ label: "共通評価", value: "0件" },
+			{ label: "内容を置き換えた社員", value: "E7" },
+		],
+	});
+});
+
 it("names the period closed, how its sheets were left, and the period now preparing", () => {
 	expect(
 		describe_({

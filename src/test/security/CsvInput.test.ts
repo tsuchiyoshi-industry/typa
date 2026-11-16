@@ -99,7 +99,10 @@ function setup() {
 	const present = vi.fn();
 	const interactor = new ImportSheetDataInteractor(repository);
 	const run = (goals: ArrayBuffer, common: ArrayBuffer | null = null) =>
-		interactor.execute({ goals, common, apply: true }, { present });
+		interactor.execute(
+			{ periodId: 1, closedPeriodConfirmed: false, goals, common, apply: true },
+			{ present },
+		);
 	return { importRows, present, run };
 }
 

@@ -46,8 +46,18 @@ it.each([
 	["the company domain", () => workspace.findRequiredDomain()],
 	["the SMTP summary", () => workspace.findSmtpSummary()],
 	["the notification channel save", () => workspace.saveNotificationChannel("email")],
-	["the import template", () => new SupabaseSheetImportRepository().findTemplate()],
-	["the import", () => new SupabaseSheetImportRepository().importRows([], [], true)],
+	["the import template", () => new SupabaseSheetImportRepository().findTemplate(1)],
+	[
+		"the import",
+		() =>
+			new SupabaseSheetImportRepository().importRows({
+				periodId: 1,
+				closedPeriodConfirmed: false,
+				goals: [],
+				common: [],
+				apply: true,
+			}),
+	],
 	["the reviewer's caseload", () => new SupabaseReviewerWorkspaceRepository().load(1)],
 	["a closed sheet to correct", () => new SupabaseSheetCorrectionRepository().findClosedSheet(1)],
 ])("fails when %s meets a database error", async (_label, run) => {

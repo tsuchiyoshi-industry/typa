@@ -12,7 +12,8 @@ const TASKS = [
 	{
 		icon: FileUp,
 		title: "データ取込",
-		description: "実施中の評価期間の目標・共通評価と点数を、CSV でまとめて取り込みます。",
+		description:
+			"評価期間(実施中か締め済み)を選んで、目標・共通評価と点数を CSV でまとめて取り込みます。",
 		href: "/setup/import",
 	},
 	{

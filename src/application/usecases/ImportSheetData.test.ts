@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from "vitest";
-import { SheetImportController } from "../../adapter/controllers/SheetImportController";
 import type {
 	SheetImportRepository,
 	SheetImportResult,
@@ -10,7 +9,11 @@ import { buildTemplate, CSV_HEADERS, decodeCsv, parseCsv, toCsv } from "./sheetI
 /** Excel の「CSV UTF-8」が先頭に付ける印。見えない文字なので、ソースには直接書かない。 */
 const BOM = String.fromCharCode(0xfeff);
 const bytes = (text: string) => new TextEncoder().encode(text).buffer as ArrayBuffer;
-const run = async (goals: string | null, common: string | null = null) => {
+const run = async (
+	goals: string | null,
+	common: string | null = null,
+	target = { periodId: 7, closedPeriodConfirmed: false },
+) => {
 	const importRows = vi.fn<SheetImportRepository["importRows"]>(async () => ({
 		errors: [],
 		summary: null,
@@ -19,6 +22,7 @@ const run = async (goals: string | null, common: string | null = null) => {
 	let result: SheetImportResult | undefined;
 	await new ImportSheetDataInteractor({ findTemplate: vi.fn(), importRows }).execute(
 		{
+			...target,
 			goals: goals === null ? null : bytes(goals),
 			common: common === null ? null : bytes(common),
 			apply: false,
@@ -63,8 +67,11 @@ it("reads both Excel encodings and writes a template Excel opens without garblin
 it("sends the rows with their Excel line numbers, skipping empty rows and normalizing numbers", async () => {
 	const header = CSV_HEADERS.goals.join(",");
 	const { importRows } = await run(`${header}\n,,,,,,,\nE1,社員1,１, 目標 ,,, ３ ,\n`);
-	expect(importRows).toHaveBeenCalledWith(
-		[
+	expect(importRows).toHaveBeenCalledWith({
+		periodId: 7,
+		closedPeriodConfirmed: false,
+		apply: false,
+		goals: [
 			{
 				line: 3,
 				employeeNo: "E1",
@@ -77,17 +84,19 @@ it("sends the rows with their Excel line numbers, skipping empty rows and normal
 				secondScore: "",
 			},
 		],
-		[],
-		false,
-	);
+		common: [],
+	});
 });
 
 it("sends the common evaluation rows the same way, numbers normalized and comments as written", async () => {
 	const header = CSV_HEADERS.common.join(",");
 	const { importRows } = await run(null, `${header}\n\nE1,社員1, ３１ ,協調性,４,, 計画どおり \n`);
-	expect(importRows).toHaveBeenCalledWith(
-		[],
-		[
+	expect(importRows).toHaveBeenCalledWith({
+		periodId: 7,
+		closedPeriodConfirmed: false,
+		apply: false,
+		goals: [],
+		common: [
 			{
 				line: 3,
 				employeeNo: "E1",
@@ -99,8 +108,7 @@ it("sends the common evaluation rows the same way, numbers normalized and commen
 				comment: " 計画どおり ",
 			},
 		],
-		false,
-	);
+	});
 });
 
 it("refuses a file with the wrong header without asking the database", async () => {
@@ -136,7 +144,7 @@ it("refuses broken files with the line to look at, without asking the database",
 	const importRows = vi.fn<SheetImportRepository["importRows"]>();
 	let result: SheetImportResult | undefined;
 	await new ImportSheetDataInteractor({ findTemplate: vi.fn(), importRows }).execute(
-		{ goals: huge, common: null, apply: true },
+		{ periodId: 7, closedPeriodConfirmed: true, goals: huge, common: null, apply: true },
 		{ present: (response) => (result = response) },
 	);
 	expect(importRows).not.toHaveBeenCalled();
@@ -153,31 +161,47 @@ it("accepts a header Excel padded with spaces or empty columns, and sends nothin
 	const padded = ` ${CSV_HEADERS.goals.join(" , ")} ,,\n`;
 	const { result, importRows } = await run(padded);
 	expect(result?.errors).toEqual([]);
-	expect(importRows).toHaveBeenCalledWith([], [], false);
+	expect(importRows).toHaveBeenCalledWith(expect.objectContaining({ goals: [], common: [] }));
 });
 
-it("reports a failure on the way to the database instead of crashing", async () => {
-	const failing = new SheetImportController(
-		{ findTemplate: vi.fn() },
-		new ImportSheetDataInteractor({
-			findTemplate: vi.fn(),
-			importRows: vi.fn().mockRejectedValue(new Error("Admin のみ操作できます。")),
-		}),
-		{ selectDestination: vi.fn(), save: vi.fn() },
+it("passes on the chosen period and whether its close was confirmed, and refuses no period at all", async () => {
+	const header = CSV_HEADERS.goals.join(",");
+	const closed = await run(
+		`${header}
+E1,社員1,1,目標,,,,
+`,
+		null,
+		{
+			periodId: 3,
+			closedPeriodConfirmed: true,
+		},
 	);
-	const file = new File([`${CSV_HEADERS.goals.join(",")}\nE1,社員1,1,目標,,,,\n`], "goals.csv");
-	expect(await failing.run(file, null, true)).toEqual({
-		errors: [{ file: null, line: null, message: "Admin のみ操作できます。" }],
-		summary: null,
-		applied: false,
-	});
+	expect(closed.importRows).toHaveBeenCalledWith(
+		expect.objectContaining({ periodId: 3, closedPeriodConfirmed: true }),
+	);
+	for (const periodId of [0, -1, 1.5, Number.NaN]) {
+		const { result, importRows } = await run(
+			`${header}
+E1,社員1,1,目標,,,,
+`,
+			null,
+			{
+				periodId,
+				closedPeriodConfirmed: false,
+			},
+		);
+		expect(importRows).not.toHaveBeenCalled();
+		expect(result?.errors).toEqual([
+			{ file: null, line: null, message: "取り込む評価期間を選んでください。" },
+		]);
+	}
 });
 
 describe("several period goals for one challenge goal", () => {
 	const header = CSV_HEADERS.goals.join(",");
 	const sent = async (body: string) => {
 		const { result, importRows } = await run(`${header}\n${body}`);
-		return { result, rows: importRows.mock.calls[0]?.[0] };
+		return { result, rows: importRows.mock.calls[0]?.[0].goals };
 	};
 
 	it("adds a period goal for each further row of the same employee and goal number, in file order", async () => {

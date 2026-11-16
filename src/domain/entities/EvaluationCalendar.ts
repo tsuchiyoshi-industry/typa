@@ -47,6 +47,11 @@ export class EvaluationCalendar {
 		return this.periods;
 	}
 
+	/** データ取込で書き込める評価期間(実施中と締め済み)。新しい順。 */
+	importTargets(): readonly EvaluationPeriod[] {
+		return this.periods.filter((period) => period.acceptsImport());
+	}
+
 	find(periodId: number): EvaluationPeriod | null {
 		return this.periods.find((period) => period.id === periodId) ?? null;
 	}

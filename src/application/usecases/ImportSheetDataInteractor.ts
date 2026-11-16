@@ -12,6 +12,10 @@ import type { UseCase } from "../ports/UseCase";
 import { CSV_HEADERS, CsvSyntaxError, decodeCsv, parseCsv } from "./sheetImportCsv";
 
 export interface ImportSheetDataRequest {
+	/** 取り込む評価期間。 */
+	periodId: number;
+	/** 締め済みの評価期間に書くと、Admin が確かめたか(SheetImportRequest)。 */
+	closedPeriodConfirmed: boolean;
 	/** 選ばれていないファイルは null。 */
 	goals: ArrayBuffer | null;
 	common: ArrayBuffer | null;
@@ -79,7 +83,7 @@ const readRows = (
 };
 
 /**
- * 導入処理の「データ取込」。実施中の評価期間の目標・共通評価・点数を、テンプレートから作った CSV で入れる。
+ * 導入処理の「データ取込」。選んだ評価期間(実施中か締め済み)の目標・共通評価・点数を、テンプレートから作った CSV で入れる。
  * ファイルの形はここで、中身(社員・項目・点数)は DB 関数が確かめ、誤りが1件でもあれば何も書かない。
  * シートは下書きのまま作る・置き換えるので、通知メールは出ない。
  */
@@ -92,6 +96,14 @@ export class ImportSheetDataInteractor
 		request: ImportSheetDataRequest,
 		outputPort: OutputPort<SheetImportResult>,
 	): Promise<void> {
+		if (!Number.isSafeInteger(request.periodId) || request.periodId < 1) {
+			outputPort.present({
+				errors: [{ file: null, line: null, message: "取り込む評価期間を選んでください。" }],
+				summary: null,
+				applied: false,
+			});
+			return;
+		}
 		const errors: SheetImportError[] = [];
 		const read = (file: SheetImportFile, bytes: ArrayBuffer | null) => {
 			if (!bytes) {
@@ -131,7 +143,15 @@ export class ImportSheetDataInteractor
 				comment,
 			}),
 		);
-		outputPort.present(await this.repository.importRows(merged.rows, commonRows, request.apply));
+		outputPort.present(
+			await this.repository.importRows({
+				periodId: request.periodId,
+				closedPeriodConfirmed: request.closedPeriodConfirmed,
+				goals: merged.rows,
+				common: commonRows,
+				apply: request.apply,
+			}),
+		);
 	}
 }
 

@@ -149,12 +149,6 @@ const protectedViews = [
 // デスクトップ(Tauri)は保存ダイアログとネイティブの PDF、ブラウザはダウンロードと WASM の PDF
 const desktop = isTauri();
 const workspaceSettingsRepository = new SupabaseWorkspaceSettingsRepository();
-const sheetImportRepository = new SupabaseSheetImportRepository();
-const sheetImportController = new SheetImportController(
-	sheetImportRepository,
-	new ImportSheetDataInteractor(sheetImportRepository),
-	desktop ? new TauriCsvFileGateway() : new WebCsvFileGateway(),
-);
 const authRepository = new SupabaseAuthRepository(workspaceSettingsRepository);
 const employeeRepository = new SupabaseEmployeeRepository();
 const commonEvaluationRepository = new SupabaseCommonEvaluationRepository();
@@ -163,6 +157,14 @@ const evaluationSheetRepository = new SupabaseEvaluationSheetRepository();
 const evaluationPeriodRepository = new SupabaseEvaluationPeriodRepository();
 const milestoneRepository = new SupabaseMilestoneRepository();
 const employeeMasterRepository = new SupabaseEmployeeMasterRepository();
+const sheetImportRepository = new SupabaseSheetImportRepository();
+const sheetImportController = new SheetImportController(
+	employeeMasterRepository,
+	evaluationPeriodRepository,
+	sheetImportRepository,
+	new ImportSheetDataInteractor(sheetImportRepository),
+	desktop ? new TauriCsvFileGateway() : new WebCsvFileGateway(),
+);
 const reviewerWorkspaceController = new ReviewerWorkspaceController(
 	new SupabaseReviewerWorkspaceRepository(),
 	evaluationPeriodRepository,

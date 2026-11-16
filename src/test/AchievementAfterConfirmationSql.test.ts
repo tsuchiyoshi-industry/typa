@@ -91,7 +91,7 @@ it("keeps or clears an achievement written before this rule, but refuses to chan
 it("does not stop the Admin import, which records past achievements on purpose", async () => {
 	await actAs(db, 1);
 	const result = await db.query<{ v: { applied: boolean; errors: unknown[] } }>(
-		"select public.import_sheet_data($1::jsonb,'[]'::jsonb,true) as v",
+		"select public.import_sheet_data(1,$1::jsonb,'[]'::jsonb,true,false) as v",
 		[
 			JSON.stringify([
 				{

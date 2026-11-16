@@ -1,6 +1,6 @@
 import type { PeriodGoal } from "../valueObjects/PeriodGoal";
 
-/** 取込テンプレートに並べる、実施中の評価期間にまだ取り込める社員と、その等級の共通評価項目。 */
+/** 取込テンプレートに並べる、選んだ評価期間にまだ取り込める社員と、その等級の共通評価項目。 */
 export interface SheetImportTemplate {
 	periodName: string;
 	maxGoals: number;
@@ -55,13 +55,26 @@ export interface SheetImportResult {
 	applied: boolean;
 }
 
-/** 実施中の評価期間の評価シートへの一括取込。どちらも Admin だけが呼べる(DB 関数が確かめる)。 */
+export interface SheetImportRequest {
+	/** 取り込む評価期間。実施中か締め済み(DB 関数が確かめる)。 */
+	periodId: number;
+	/**
+	 * 締め済みの評価期間に書くと、画面で確かめたか。締め済みなのに false なら、DB 関数は何も書かずに断る
+	 * (画面が見ていた状態と違う)。確かめるだけ(apply が false)のときは見ない。
+	 */
+	closedPeriodConfirmed: boolean;
+	goals: GoalImportRow[];
+	common: CommonImportRow[];
+	/** false なら確かめるだけ。 */
+	apply: boolean;
+}
+
+/**
+ * 選んだ評価期間(実施中か締め済み)の評価シートへの一括取込。どちらも Admin だけが呼べる(DB 関数が確かめる)。
+ * 締め済みの評価期間への書き込みは、締めを越える操作として監査ログに置き換えた内容ごと残る。
+ */
 export interface SheetImportRepository {
-	findTemplate(): Promise<SheetImportTemplate>;
-	/** 誤りが1件でもあれば何も書かない。apply が false なら確かめるだけ。 */
-	importRows(
-		goals: GoalImportRow[],
-		common: CommonImportRow[],
-		apply: boolean,
-	): Promise<SheetImportResult>;
+	findTemplate(periodId: number): Promise<SheetImportTemplate>;
+	/** 誤りが1件でもあれば何も書かない。 */
+	importRows(request: SheetImportRequest): Promise<SheetImportResult>;
 }

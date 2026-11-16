@@ -430,16 +430,26 @@ export function describeAuditRecord(
 			];
 			break;
 		}
-		case "sheets.imported":
-			view.title = "評価データを取込";
+		case "sheets.imported": {
+			// 締め済みの評価期間への取込は、締めを越えて書いた操作。置き換えた元の内容は details.replaced に残る
+			const closed = details.periodState === "closed";
+			const replaced = Array.isArray(details.replaced)
+				? details.replaced.map((entry) => plain(record(entry).employeeNo))
+				: [];
+			view.title = closed ? "締め済みの評価期間に評価データを取込" : "評価データを取込";
 			view.facts = [
+				...(closed ? [{ label: "評価期間", value: "締め済み" }] : []),
 				...counted("社員", details.employees, "人"),
 				...counted("新しいシート", details.newSheets),
 				...counted("置き換えたシート", details.replacedSheets),
 				...counted("目標", details.goals),
 				...counted("共通評価", details.commonResults),
+				...(replaced.length > 0
+					? [{ label: "内容を置き換えた社員", value: replaced.join("、") }]
+					: []),
 			];
 			break;
+		}
 	}
 	return view;
 }

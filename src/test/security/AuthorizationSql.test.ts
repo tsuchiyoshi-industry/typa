@@ -93,7 +93,7 @@ it.each([0, 2, 3, 4, 5, 99])("BFLA: actor %s cannot administer employees", async
 		"set_employee_enabled('E5',false)",
 		"issue_employee_invitation('E7')",
 		"reset_employee_registration('E5')",
-		"import_sheet_data('[]','[]',true)",
+		"import_sheet_data(2,'[]','[]',true,true)",
 		"privileged_sheet_operation(100,'delete',null,'draft','attack')",
 	]) {
 		await expect(rows(`select public.${call}`), call).rejects.toMatchObject(denied);

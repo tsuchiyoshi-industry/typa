@@ -132,7 +132,12 @@ test("a term is divided, its first half closed with goals only, and its challeng
 	await test.step("誤りのある CSV は、ファイルと行番号つきで全件弾かれる", async () => {
 		await openFromUserMenu(page, "導入処理");
 		await page.getByRole("link", { name: /データ取込/ }).click();
-		await expect(page.getByText(`実施中の評価期間「${FIRST}」`)).toBeVisible();
+		// 取り込む評価期間は、実施中(上期)と締め済みから選ぶ。まだ始めていない下期は選べない
+		const target = page.getByRole("combobox", { name: "評価期間" });
+		await expect(target).toHaveValue(/\d+/);
+		await expect(target.getByRole("option", { name: `${FIRST}(実施中)` })).toHaveCount(1);
+		await expect(target.getByRole("option", { name: new RegExp(SECOND) })).toHaveCount(0);
+		await expect(page.getByText(`評価期間「${FIRST}」`)).toBeVisible();
 		// 目標のファイルを共通評価の欄に選ぶ取り違えは、その旨を伝えて止める
 		const common = page.getByLabel("共通評価", { exact: true });
 		await common.setInputFiles(GOALS);
@@ -174,6 +179,45 @@ test("a term is divided, its first half closed with goals only, and its challeng
 		await page.getByRole("button", { name: `${SECOND}を開始する` }).click();
 		await confirm(page, `「${SECOND}」を開始しますか？`, "この期間を開始する");
 		await expect(page.getByRole("row", { name: new RegExp(SECOND) })).toContainText("実施中");
+	});
+
+	await test.step("締めた上期にも、注意を確かめてから取り込める(実施中の下期には書かない)", async () => {
+		await openFromUserMenu(page, "導入処理");
+		await page.getByRole("link", { name: /データ取込/ }).click();
+		const target = page.getByRole("combobox", { name: "評価期間" });
+		await expect(page.getByText(`評価期間「${SECOND}」`)).toBeVisible();
+		await target.selectOption({ label: `${FIRST}(締め済み)` });
+		await expect(page.getByText(`評価期間「${FIRST}」`)).toBeVisible();
+		await expect(page.getByText("締め済みの評価期間です。")).toBeVisible();
+		await page.getByLabel("目標", { exact: true }).setInputFiles(GOALS);
+		await page.getByRole("button", { name: "内容を確認" }).click();
+		const summary = page.getByRole("region", { name: "3. 取り込む" });
+		await expect(summary).toContainText("置き換えるシート1枚");
+		await summary.getByRole("button", { name: "取り込む" }).click();
+		const dialog = page.getByRole("dialog", { name: `締め済みの「${FIRST}」に取り込みます` });
+		await expect(dialog).toContainText("監査ログ");
+		await confirm(page, `締め済みの「${FIRST}」に取り込みます`, "取り込む");
+		await expect(page.getByRole("heading", { name: "取り込みました" })).toBeVisible();
+		// 実施中の下期には、本人のシートを作っていない
+		const subject = await restAs(4);
+		const periods = (
+			(await (
+				await subject("evaluation_sheets?select=period:evaluation_periods(period_name)")
+			).json()) as { period: { period_name: string } }[]
+		).map((sheet) => sheet.period.period_name);
+		expect(periods).not.toContain(SECOND);
+		// 確認を経ずに API へ直接送っても、締めた上期には書かない
+		const admin = await restAs(1);
+		const firstId = Number(await target.inputValue());
+		const unconfirmed = await admin("rpc/import_sheet_data", {
+			p_period_id: firstId,
+			p_goals: [{ line: 2, employeeNo: "RELEASE004", goalNumber: "1", challengeGoal: "確認なし" }],
+			p_common: [],
+			p_apply: true,
+			p_closed_confirmed: false,
+		});
+		expect(unconfirmed.ok).toBe(false);
+		expect(await unconfirmed.text()).toContain("締め済みの評価期間です");
 		await signOut(page);
 	});
 
@@ -330,13 +374,15 @@ test("a term is divided, its first half closed with goals only, and its challeng
 		await page.getByRole("button", { name: "ユーザーメニュー" }).click();
 		await expect(page.getByRole("link", { name: "導入処理" })).toHaveCount(0);
 		await page.goto("/setup/import");
-		await expect(page.getByText("Admin のみ操作できます。")).toBeVisible();
+		await expect(page.getByText("データ取込は Admin のみ利用できます。")).toBeVisible();
 		await expect(page.getByRole("button", { name: "内容を確認" })).toHaveCount(0);
 		const subject = await restAs(4);
 		const response = await subject("rpc/import_sheet_data", {
+			p_period_id: 1,
 			p_goals: [],
 			p_common: [],
 			p_apply: true,
+			p_closed_confirmed: true,
 		});
 		expect(response.ok).toBe(false);
 	});

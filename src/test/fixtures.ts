@@ -51,7 +51,8 @@ export const profile = (role = "Employee", id = 1, registered = true, enabled = 
 		false,
 		enabled,
 	);
-export const milestone = (scores: { firstScore?: number; secondScore?: number } = {}) =>
+/** 目標。上書きしたい欄だけ渡す(インスタンスを spread して作り直さない。クラスの値は own property とは限らない)。 */
+export const milestone = (overrides: Partial<Parameters<typeof Milestone.restore>[0]> = {}) =>
 	Milestone.restore({
 		id: 11,
 		sheetId: 100,
@@ -60,7 +61,7 @@ export const milestone = (scores: { firstScore?: number; secondScore?: number } 
 		periodGoals: [{ description: "手順を見直す", achievement: "達成" }],
 		firstScore: 2,
 		secondScore: 4,
-		...scores,
+		...overrides,
 	});
 export const commonResult = (
 	values: { firstScore?: number; secondScore?: number; firstComment?: string } = {},

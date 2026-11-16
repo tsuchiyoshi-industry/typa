@@ -921,7 +921,7 @@ it.each([1, 2])("allows only the subject to delete a tab (%s)", async (employeeI
 			...sheet(EvaluationStatus.DRAFT),
 			objectives: [
 				milestone(),
-				Milestone.restore({ ...milestone(), id: 12, goalNumber: 2, firstScore: 0, secondScore: 0 }),
+				milestone({ id: 12, goalNumber: 2, firstScore: 0, secondScore: 0 }),
 			],
 		}),
 	);

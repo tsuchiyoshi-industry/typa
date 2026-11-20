@@ -28,6 +28,8 @@ async function confirm(page: Page, title: string, label: string) {
 test("a term is divided, its first half closed with goals only, and its challenge goals carried into the second half", async ({
 	page,
 }) => {
+	// 一続きのシナリオで、ブラウザの WASM で PDF も組む。CI の Linux では既定の 30 秒の前後になる
+	test.slow();
 	await test.step("Admin が期を上期・下期に分けて追加する(日付は計算される)", async () => {
 		await signIn(page, ADMIN);
 		await openFromUserMenu(page, "設定");

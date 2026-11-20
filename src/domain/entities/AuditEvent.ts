@@ -20,6 +20,7 @@ const ACTIONS: Record<AuditCategory, readonly string[]> = {
 		"employee.pre_registered",
 		"employee.password_reset",
 		"employee.updated",
+		"account.unlinked_removed",
 	],
 	workflow: ["sheet.status"],
 	period: ["period.closed", "period.started"],

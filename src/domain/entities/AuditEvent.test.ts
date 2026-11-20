@@ -18,9 +18,9 @@ const RECORDED_BY_DB = [
 			.map((file) => readFileSync(new URL(file, migrations), "utf8"))
 			.filter((sql) => sql.includes("insert into public.security_audit_log"))
 			.flatMap((sql) =>
-				[...sql.matchAll(/'((?:employee|sheets?|period|grade|common_goals)\.[a-z_]+)'/g)].map(
-					(m) => m[1],
-				),
+				[
+					...sql.matchAll(/'((?:account|employee|sheets?|period|grade|common_goals)\.[a-z_]+)'/g),
+				].map((m) => m[1]),
 			),
 	),
 ];

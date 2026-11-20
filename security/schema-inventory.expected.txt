@@ -262,7 +262,7 @@ FUNCTION check_evaluation_completion() definer=true anon=false authenticated=fal
 FUNCTION check_milestone_achievement_placement() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=b191362f9bd785b62a624c107bd5bab0
 FUNCTION claim_sheet_notification(bigint,uuid) definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=c842799d2bdf95306f531fe83bdceafa
 FUNCTION close_evaluation_period(bigint) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=9efafb3ed92beefb66d2410dde968322
-FUNCTION complete_registration(uuid) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=51a558c15fdca9d3101bb7a8986d7997
+FUNCTION complete_registration(uuid) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=bc3c9f05bad9a959b9afae2b8a08f8fc
 FUNCTION complete_sheet_notification(uuid,boolean) definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=9d51da334f904c5621f5a5509f12867f
 FUNCTION correct_closed_sheet(bigint,jsonb,text) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=4be5893ab72c83d7c74463bbf37f0715
 FUNCTION current_employee_id() definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=b7a7fbceed20d9bb5acad90cb01af086
@@ -322,6 +322,7 @@ FUNCTION privileged_sheet_operation(bigint,text,text,text,text) definer=true ano
 FUNCTION recalculate_corrected_sheet(bigint) definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=a820201e5eabb1e05995ff89d19ebceb
 FUNCTION refresh_notification_revision() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=0bd00eeda7c59397006c3b29195cb63c
 FUNCTION release_password_change_requirement() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=a46a90bc136ce16a101439544f36b089
+FUNCTION remove_unlinked_auth_accounts() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=11dac1c8e90cf86ca1ab581fee263480
 FUNCTION require_active_evaluation_period() definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=7933373c3fc9e6ab3d0f12c5455b0990
 FUNCTION require_another_usable_admin(integer) definer=true anon=false authenticated=false service_role=true auth_admin=false config={"search_path=\"\""} md5=42f190502c34f2fea973ddcbf49677a2
 FUNCTION reset_employee_password(text,text) definer=true anon=false authenticated=true service_role=true auth_admin=false config={"search_path=\"\""} md5=cb7c48e231efdc74875c78201b51a421

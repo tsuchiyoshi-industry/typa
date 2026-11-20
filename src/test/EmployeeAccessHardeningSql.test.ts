@@ -7,6 +7,18 @@ const query = async <T = Record<string, unknown>>(sql: string, params: unknown[]
 	(await db.query<T>(sql, params)).rows;
 const value = async <T>(sql: string, params: unknown[] = []) =>
 	(await query<{ v: T }>(`select ${sql} as v`, params))[0].v;
+/**
+ * 共有PCのメール(98)に届いた認証コードでログインする。登録を終えるとこのアカウントは消えるので、
+ * 次に認証コードでログインしたときに Auth が作り直す。
+ */
+const signInToMailbox = async () => {
+	await db.exec("reset role");
+	await query(
+		"insert into auth.users(id,email) values($1,'shared-pc@example.jp') on conflict do nothing",
+		[uid(98)],
+	);
+	await actAs(db, 98, "otp");
+};
 beforeAll(async () => {
 	db = await createProdLikeDb();
 }, 60_000);
@@ -40,7 +52,7 @@ it("requires a per-employee invitation even for a verified company mailbox; code
 	const second = await value<{ code: string }>("public.issue_employee_invitation('E7')");
 	// 紙から打ち込むので、読み間違えやすい 0/O・1/I を含まない12文字
 	expect(second.code).toMatch(/^[2-9A-HJ-NP-Z]{4}-[2-9A-HJ-NP-Z]{4}-[2-9A-HJ-NP-Z]{4}$/);
-	await actAs(db, 98, "otp");
+	await signInToMailbox();
 	const begin = (code: string, employee = "E7") =>
 		value<{ status: string; token?: string }>("public.begin_registration($1,$2)", [employee, code]);
 	for (const code of ["", "wrong", first.code]) {
@@ -56,14 +68,14 @@ it("requires a per-employee invitation even for a verified company mailbox; code
 	await actAs(db, 97);
 	expect(await value("public.complete_registration($1)", [started.token])).toBe(true);
 	expect(await value("public.complete_registration($1)", [started.token])).toBe(false);
-	await actAs(db, 98, "otp");
+	await signInToMailbox();
 	expect((await begin(second.code)).status).toBe("invalid_invitation");
 });
 
 it("suspends immediately with an old JWT, preserves history, and requires a fresh invitation after reset", async () => {
 	await actAs(db, 1);
 	const invite = await value<{ code: string }>("public.issue_employee_invitation('E7')");
-	await actAs(db, 98, "otp");
+	await signInToMailbox();
 	const ticket = await value<{ token: string }>("public.begin_registration('E7',$1)", [
 		invite.code,
 	]);
@@ -84,7 +96,7 @@ it("suspends immediately with an old JWT, preserves history, and requires a fres
 		code: "23514",
 	});
 	await value("public.reset_employee_registration('E7')");
-	await actAs(db, 98, "otp");
+	await signInToMailbox();
 	expect(await value("public.begin_registration('E7','') ->> 'status'")).toBe("invalid_invitation");
 	await actAs(db, 1);
 	await value("public.set_employee_enabled('E7',true)");
@@ -124,7 +136,7 @@ it("records management changes without persisting invitation codes or auth secre
 it("requires a recent OTP and rejects expired invitations", async () => {
 	await actAs(db, 1);
 	const invite = await value<{ code: string }>("public.issue_employee_invitation('E7')");
-	await actAs(db, 98, "otp");
+	await signInToMailbox();
 	await query("select set_config('request.jwt.claims',$1,false)", [
 		JSON.stringify({ amr: [{ method: "otp", timestamp: 0 }] }),
 	]);
@@ -134,7 +146,7 @@ it("requires a recent OTP and rejects expired invitations", async () => {
 	await db.exec(
 		"reset role; update public.employee_invitations set expires_at=now()-interval '1 second' where employee_id=7",
 	);
-	await actAs(db, 98, "otp");
+	await signInToMailbox();
 	expect(await value("public.begin_registration('E7',$1)->>'status'", [invite.code])).toBe(
 		"invalid_invitation",
 	);
@@ -157,7 +169,7 @@ it("issues bulk invitations only to unregistered employees without an unexpired 
 	const renewed = await value<Issued>("public.issue_pending_employee_invitations()");
 	expect(renewed.map((i) => i.employeeNo)).toEqual(["E7"]);
 	expect(renewed[0].code).not.toBe(first[0].code);
-	await actAs(db, 98, "otp");
+	await signInToMailbox();
 	expect(
 		(await value<{ status: string }>("public.begin_registration('E7',$1)", [renewed[0].code]))
 			.status,
@@ -167,7 +179,7 @@ it("issues bulk invitations only to unregistered employees without an unexpired 
 it("can reissue all pending invitations, invalidating old codes and registration tickets", async () => {
 	await actAs(db, 1);
 	const first = await value<{ code: string }>("public.issue_employee_invitation('E7')");
-	await actAs(db, 98, "otp");
+	await signInToMailbox();
 	const ticket = await value<{ token: string }>("public.begin_registration('E7',$1)", [first.code]);
 	await actAs(db, 1);
 	expect(await value("public.issue_pending_employee_invitations(false)")).toEqual([]);
@@ -187,7 +199,7 @@ it("can reissue all pending invitations, invalidating old codes and registration
 	);
 	expect(audit.length).toBeGreaterThanOrEqual(2);
 	expect(JSON.stringify(audit)).not.toContain(renewed[0].code);
-	await actAs(db, 98, "otp");
+	await signInToMailbox();
 	expect(await value("public.begin_registration('E7',$1)->>'status'", [first.code])).toBe(
 		"invalid_invitation",
 	);

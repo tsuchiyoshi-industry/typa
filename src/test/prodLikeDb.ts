@@ -24,7 +24,8 @@ create function auth.uid() returns uuid language sql stable as $$ select nullif(
 create function auth.jwt() returns jsonb language sql stable as $$ select coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::jsonb $$;
 create table auth.users (
   id uuid primary key, email text unique, email_confirmed_at timestamptz default now(),
-  raw_user_meta_data jsonb default '{}'::jsonb, encrypted_password text, updated_at timestamptz
+  raw_user_meta_data jsonb default '{}'::jsonb, encrypted_password text, updated_at timestamptz,
+  created_at timestamptz default now()
 );
 create table auth.sessions (id uuid primary key, user_id uuid not null, not_after timestamptz);
 create table auth.refresh_tokens (

@@ -317,6 +317,23 @@ describe("employee records", () => {
 	});
 });
 
+it("tells how many accounts no employee took were removed, as the system", () => {
+	expect(
+		describe_({
+			action: "account.unlinked_removed",
+			actorUserId: null,
+			entityId: null,
+			details: { removed: 4 },
+		}),
+	).toMatchObject({
+		category: "account",
+		title: "社員に紐付かないアカウントを削除",
+		actor: { name: "システム", employeeNo: null },
+		subject: null,
+		facts: [{ label: "削除したアカウント", value: "4件" }],
+	});
+});
+
 it("summarizes an import by the period and its counts", () => {
 	expect(
 		describe_({

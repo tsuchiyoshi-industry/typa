@@ -331,6 +331,11 @@ export function describeAuditRecord(
 		case "employee.updated":
 			Object.assign(view, describeEmployeeUpdate(details, entry.entityId, actorPerson, directory));
 			break;
+		case "account.unlinked_removed":
+			// 打ち間違えたアドレスなどは記録に写さないので、数だけ
+			view.title = "社員に紐付かないアカウントを削除";
+			view.facts = counted("削除したアカウント", details.removed);
+			break;
 		case "sheet.status":
 			view.title = stepTitle(details.from, details.to);
 			view.changes = [

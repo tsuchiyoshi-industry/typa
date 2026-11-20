@@ -379,7 +379,8 @@ Deno.serve({hostname:"127.0.0.1",port:56423},createNotificationHandler(createNot
 	assert.equal(current.allocatedScores.totalEvaluationScore, 75);
 	assert.equal(current.status.toString(), "finalized");
 	assert.equal((await supabase.from("workspace_settings").select("smtp_password")).data, null);
-	// 同じ共有メールで、別の社員がもう一度登録できる。メールのアカウントは一つのまま、通知先は両方そのメール
+	// 同じ共有メールで、別の社員がもう一度登録できる。認証コードを受け取ったメールのアカウントは登録を終えると
+	// 消え(次の認証コードで作り直される)、通知先は両方そのメールのまま
 	const again = required(
 		await service.auth.admin.generateLink({ type: "magiclink", email: mailbox }),
 	);
@@ -403,7 +404,7 @@ Deno.serve({hostname:"127.0.0.1",port:56423},createNotificationHandler(createNot
 		sql(`select count(*) from auth.users where lower(email)='${mailbox}';
       select string_agg(e.employee_no||'='||c.email, ',' order by e.employee_no) from public.employee_contacts c
       join public.employees e on e.id=c.employee_id where e.id in (900008,900012);`),
-		`1
+		`0
 RELEASE008=${mailbox},RELEASE012=${mailbox}`,
 	);
 	await supabase.auth.signOut({ scope: "local" });

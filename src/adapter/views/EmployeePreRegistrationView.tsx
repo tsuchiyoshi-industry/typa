@@ -1,19 +1,16 @@
-import { A } from "@solidjs/router";
-import ArrowLeft from "lucide-solid/icons/arrow-left";
-import UserPlus from "lucide-solid/icons/user-plus";
 import {
 	type Component,
 	createEffect,
 	createMemo,
 	createSignal,
 	For,
-	on,
-	onMount,
+	onSettled,
 	Show,
 } from "solid-js";
 import { CAREER_COURSES } from "../../domain/entities/EmployeeProfile";
 import type { EmployeeMasterController } from "../controllers/EmployeeMasterController";
 import type { EmployeeMasterViewModel } from "../presenters/EmployeeMasterPresenter";
+import { ArrowLeft, UserPlus } from "./components/icons";
 import SearchableEvaluatorSelect from "./components/SearchableEvaluatorSelect";
 import { confirmAction, showToast } from "./feedback";
 import { isEvaluatorCandidate } from "./format";
@@ -37,24 +34,21 @@ const EmployeePreRegistrationView: Component<{
 }> = (props) => {
 	const [form, setForm] = createSignal({ ...EMPTY });
 	const [busy, setBusy] = createSignal(false);
-	const set = (field: keyof typeof EMPTY, value: string) => setForm({ ...form(), [field]: value });
+	const set = (field: keyof typeof EMPTY, value: string) =>
+		setForm((previous) => ({ ...previous, [field]: value }));
 
-	onMount(() => {
-		void props.controller.load();
-	});
+	onSettled(() => void props.controller.load());
 
 	// 社員マスタの画面と同じく、結果が入れ替わったときだけトーストで知らせる
 	const updateStatus = createMemo(() => props.viewModel().updateStatus);
 	createEffect(
-		on(
-			updateStatus,
-			(status) => {
-				if (status.message) {
-					showToast(status.success ? "success" : "error", status.message);
-				}
-			},
-			{ defer: true },
-		),
+		updateStatus,
+		(status) => {
+			if (status.message) {
+				showToast(status.success ? "success" : "error", status.message);
+			}
+		},
+		{ defer: true },
 	);
 
 	const grades = createMemo(() => props.viewModel().grades);
@@ -122,17 +116,17 @@ const EmployeePreRegistrationView: Component<{
 		<div class="settings-page">
 			<header class="master-header">
 				<div>
-					<A href="/setup" class="back-link">
+					<a href="/setup" class="back-link">
 						<ArrowLeft size={16} aria-hidden="true" />
 						導入処理
-					</A>
+					</a>
 					<h1>
 						<UserPlus class="header-icon" />
 						初期ユーザ
 					</h1>
 					<p>
 						社員を社員マスタに仮登録します。仮登録した社員には、
-						<A href="/employee-master">社員マスタ</A>
+						<a href="/employee-master">社員マスタ</a>
 						で招待コードを発行して渡します。
 					</p>
 				</div>
@@ -185,7 +179,7 @@ const EmployeePreRegistrationView: Component<{
 						</label>
 						<label>
 							キャリアコース
-							<span class="cell-select" classList={{ unset: !form().careerCourse }}>
+							<span class={["cell-select", { unset: !form().careerCourse }]}>
 								<select
 									required
 									value={form().careerCourse}
@@ -201,7 +195,7 @@ const EmployeePreRegistrationView: Component<{
 						</label>
 						<label>
 							等級
-							<span class="cell-select" classList={{ unset: !form().gradeId }}>
+							<span class={["cell-select", { unset: !form().gradeId }]}>
 								<select
 									required
 									value={form().gradeId}

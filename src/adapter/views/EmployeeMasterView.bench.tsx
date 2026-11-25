@@ -1,6 +1,6 @@
-// @vitest-environment happy-dom
+// @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
-import { createSignal } from "solid-js";
+import { createSignal, DEV, flush } from "solid-js";
 import { afterEach, expect, test } from "vitest";
 import { employeeMasterModel } from "../../test/listBenchFixtures";
 import type { EmployeeMasterController } from "../controllers/EmployeeMasterController";
@@ -14,6 +14,7 @@ afterEach(cleanup);
 
 for (const n of [30, 300]) {
 	test(`employee master, ${n} employees`, async ({ bench }) => {
+		expect(DEV).toBeUndefined();
 		const [viewModel, setViewModel] = createSignal(employeeMasterModel(n));
 		const mount = () =>
 			render(() => <EmployeeMasterView controller={controller} viewModel={viewModel} />);
@@ -29,6 +30,7 @@ for (const n of [30, 300]) {
 				...previous,
 				relations: previous.relations.map((row) => ({ ...row })),
 			}));
+			flush();
 		}).run(samples);
 
 		const search = screen.getByRole("searchbox");

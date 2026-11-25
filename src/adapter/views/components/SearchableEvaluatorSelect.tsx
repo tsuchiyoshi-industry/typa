@@ -1,6 +1,4 @@
-import Check from "lucide-solid/icons/check";
-import ChevronDown from "lucide-solid/icons/chevron-down";
-import Search from "lucide-solid/icons/search";
+import { Portal } from "@solidjs/web";
 import {
 	type Component,
 	createEffect,
@@ -8,10 +6,10 @@ import {
 	createSignal,
 	createUniqueId,
 	For,
-	onCleanup,
+	flush,
 	Show,
 } from "solid-js";
-import { Portal } from "solid-js/web";
+import { Check, ChevronDown, Search } from "./icons";
 
 export interface EvaluatorOption {
 	value: string;
@@ -87,6 +85,8 @@ const SearchableEvaluatorSelect: Component<{
 		setQuery("");
 		setActive(0);
 		setOpen(true);
+		// 2.0 では書いた値が次の flush まで読めない。続けて押されても、上の確認で止める
+		flush();
 		place();
 	};
 	const choose = async (option: EvaluatorOption) => {
@@ -103,17 +103,18 @@ const SearchableEvaluatorSelect: Component<{
 	const move = (direction: number) => {
 		const wasOpen = open();
 		begin();
-		setActive((prev) =>
-			wasOpen
-				? Math.max(0, Math.min(filtered().length - 1, prev + direction))
-				: direction > 0
-					? 0
-					: Math.max(0, filtered().length - 1),
-		);
-		document.getElementById(`${id}-option-${active()}`)?.scrollIntoView?.({ block: "nearest" });
+		const next = wasOpen
+			? Math.max(0, Math.min(filtered().length - 1, active() + direction))
+			: direction > 0
+				? 0
+				: Math.max(0, filtered().length - 1);
+		setActive(next);
+		// 書き込んだ active は次の flush まで古いので、移動先の番号を直接使う。
+		document.getElementById(`${id}-option-${next}`)?.scrollIntoView?.({ block: "nearest" });
 	};
-	createEffect(() => {
-		if (!open()) {
+	// 開いている間だけ、外を押したら閉じ、画面が動いたら付け直す。閉じたら後片付けで外す
+	createEffect(open, (isOpen) => {
+		if (!isOpen) {
 			return;
 		}
 		const outside = (event: PointerEvent) => {
@@ -127,23 +128,23 @@ const SearchableEvaluatorSelect: Component<{
 		document.addEventListener("pointerdown", outside);
 		window.addEventListener("resize", place);
 		window.addEventListener("scroll", place, true);
-		onCleanup(() => {
+		return () => {
 			document.removeEventListener("pointerdown", outside);
 			window.removeEventListener("resize", place);
 			window.removeEventListener("scroll", place, true);
-		});
+		};
 	});
 	return (
-		<div class="evaluator-combobox" classList={{ unset: !props.value, saving: props.saving }}>
+		<div class={["evaluator-combobox", { unset: !props.value, saving: props.saving }]}>
 			<input
 				ref={input}
 				role="combobox"
 				aria-label={props.label}
-				aria-expanded={open()}
+				aria-expanded={open() ? "true" : "false"}
 				aria-controls={`${id}-list`}
 				aria-autocomplete="list"
 				aria-activedescendant={open() && filtered().length ? `${id}-option-${active()}` : undefined}
-				aria-busy={props.saving}
+				aria-busy={props.saving ? "true" : "false"}
 				autocomplete="off"
 				disabled={props.disabled}
 				placeholder={`${noun()}を選択`}
@@ -195,8 +196,8 @@ const SearchableEvaluatorSelect: Component<{
 										type="button"
 										id={`${id}-option-${index()}`}
 										role="option"
-										aria-selected={props.value === option.value}
-										classList={{ active: active() === index() }}
+										aria-selected={props.value === option.value ? "true" : "false"}
+										class={{ active: active() === index() }}
 										tabindex="-1"
 										onPointerDown={(event) => event.preventDefault()}
 										onMouseEnter={() => setActive(index())}

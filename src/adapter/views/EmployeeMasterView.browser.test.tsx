@@ -1,7 +1,8 @@
 import { cleanup, fireEvent, render, waitFor, within } from "@solidjs/testing-library";
-import { createSignal } from "solid-js";
 import { afterEach, expect, it, vi } from "vitest";
 import type { ApprovalRelationDto } from "../../application/dtos/EmployeeMasterDto";
+import { employeeMasterModel } from "../../test/listBenchFixtures";
+import { testSignal } from "../../test/signal";
 import type { EmployeeMasterController } from "../controllers/EmployeeMasterController";
 import type { EmployeeMasterViewModel } from "../presenters/EmployeeMasterPresenter";
 import EmployeeMasterView from "./EmployeeMasterView";
@@ -37,7 +38,7 @@ const employee = (
 	enabled: true,
 });
 function setup() {
-	const [viewModel, setViewModel] = createSignal<EmployeeMasterViewModel>({
+	const [viewModel, setViewModel] = testSignal<EmployeeMasterViewModel>({
 		loading: false,
 		errorMessage: null,
 		updateStatus: { message: null, success: null },
@@ -128,6 +129,36 @@ it("keeps the saved grade selected after rows and grade options are refreshed", 
 	expect(select.value).toBe("2");
 	screen.setViewModel((prev) => ({ ...prev, loading: true }));
 	expect(select.value).toBe("2");
+});
+
+it("refreshes 300 employees without rebuilding controls or broadcasting unchanged employee numbers", () => {
+	const view = setup();
+	view.setViewModel((prev) => ({ ...prev, relations: employeeMasterModel(300).relations }));
+	const evaluator = view.getByRole("combobox", {
+		name: "社員1さんの一次評価者",
+	}) as HTMLInputElement;
+	expect(evaluator.value).toBe("社員2");
+	view.setViewModel((prev) => ({
+		...prev,
+		relations: prev.relations.map((row) => ({ ...row })),
+	}));
+	expect(view.getByRole("combobox", { name: "社員1さんの一次評価者" })).toBe(evaluator);
+	view.setViewModel((prev) => ({
+		...prev,
+		relations: prev.relations.map((row) =>
+			row.employeeId === 2 ? { ...row, employeeNo: "NEW002", name: "変更後の評価者" } : row,
+		),
+	}));
+	expect(
+		(view.getByRole("combobox", { name: "社員1さんの一次評価者" }) as HTMLInputElement).value,
+	).toBe("変更後の評価者");
+	view.setViewModel((prev) => ({
+		...prev,
+		relations: prev.relations.filter((row) => row.employeeId !== 2),
+	}));
+	expect(
+		(view.getByRole("combobox", { name: "社員1さんの一次評価者" }) as HTMLInputElement).value,
+	).toBe("未設定");
 });
 
 it("restores the current grade when confirmation is cancelled", async () => {
@@ -252,6 +283,18 @@ it("filters by normalized employee number and chooses with the keyboard", async 
 		expect(screen.controller.updateEvaluator).toHaveBeenCalledWith("E001", "E003", "primary"),
 	);
 	expect(screen.queryByRole("listbox")).toBeNull();
+});
+
+it("scrolls the newly active evaluator into view when moving with arrow keys", () => {
+	const view = setup();
+	const scroll = vi.spyOn(Element.prototype, "scrollIntoView");
+	const input = view.getByRole("combobox", { name: "山田さんの一次評価者" });
+	fireEvent.keyDown(input, { key: "ArrowDown" });
+	fireEvent.keyDown(input, { key: "ArrowDown" });
+	expect(scroll).toHaveBeenCalledTimes(2);
+	expect(scroll.mock.contexts[scroll.mock.contexts.length - 1]).toBe(
+		document.getElementById(input.getAttribute("aria-activedescendant") as string),
+	);
 });
 it("supports name search, empty results, Escape, and IME without saving typed text", () => {
 	const screen = setup();

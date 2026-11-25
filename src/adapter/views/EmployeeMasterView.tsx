@@ -1,22 +1,11 @@
-import CircleCheck from "lucide-solid/icons/circle-check";
-import CircleDashed from "lucide-solid/icons/circle-dashed";
-import CirclePause from "lucide-solid/icons/circle-pause";
-import KeyRound from "lucide-solid/icons/key-round";
-import List from "lucide-solid/icons/list";
-import Network from "lucide-solid/icons/network";
-import Search from "lucide-solid/icons/search";
-import Trash from "lucide-solid/icons/trash";
-import Users from "lucide-solid/icons/users";
 import {
 	type Component,
 	createEffect,
 	createMemo,
-	createSelector,
+	createProjection,
 	createSignal,
 	For,
-	Index,
-	on,
-	onMount,
+	onSettled,
 	type ParentComponent,
 	Show,
 } from "solid-js";
@@ -31,6 +20,17 @@ import type { EmployeeMasterController } from "../controllers/EmployeeMasterCont
 import type { EmployeeMasterViewModel } from "../presenters/EmployeeMasterPresenter";
 import EmployeePasswordResetForm from "./components/EmployeePasswordResetForm";
 import EvaluationStructure from "./components/EvaluationStructure";
+import {
+	CircleCheck,
+	CircleDashed,
+	CirclePause,
+	KeyRound,
+	List,
+	Network,
+	Search,
+	Trash,
+	Users,
+} from "./components/icons";
 import SearchableEvaluatorSelect from "./components/SearchableEvaluatorSelect";
 import { confirmAction, showToast } from "./feedback";
 import { formatDateTime, isEvaluatorCandidate } from "./format";
@@ -61,27 +61,33 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 	const [registrationFilter, setRegistrationFilter] = createSignal<RegistrationFilter>("all");
 	const [passwordTarget, setPasswordTarget] = createSignal<ApprovalRelationDto | null>(null);
 	const [savingKey, setSavingKey] = createSignal<string | null>(null);
-	// 行の数だけセルが並ぶ。保存中の印は該当のセルだけ、押せなくするのは保存の始めと終わりだけ描き直す
-	const isSaving = createSelector(savingKey);
+	// 行の数だけセルが並ぶ。保存中のセルだけを true にした導出ストアで、セルは自分のキーだけを読む。
+	// 印が移っても描き直すのは前後のセルだけ。押せなくするのは保存の始めと終わりだけ描き直す
+	const saving = createProjection<Record<string, boolean>>((draft) => {
+		for (const key of Object.keys(draft)) {
+			delete draft[key];
+		}
+		const key = savingKey();
+		if (key !== null) {
+			draft[key] = true;
+		}
+	}, {});
+	const isSaving = (key: string) => saving[key] === true;
 	const busy = createMemo(() => savingKey() !== null);
 
-	onMount(() => {
-		void props.controller.load();
-	});
+	onSettled(() => void props.controller.load());
 
 	// 更新の結果はトーストで知らせる。更新後の再読み込みなど無関係な変化で同じ結果を
 	// 出し直さないよう、結果そのものが入れ替わったときだけ反応させる
 	const updateStatus = createMemo(() => props.viewModel().updateStatus);
 	createEffect(
-		on(
-			updateStatus,
-			(status) => {
-				if (status.message) {
-					showToast(status.success ? "success" : "error", status.message);
-				}
-			},
-			{ defer: true },
-		),
+		updateStatus,
+		(status) => {
+			if (status.message) {
+				showToast(status.success ? "success" : "error", status.message);
+			}
+		},
+		{ defer: true },
 	);
 
 	const me = () => props.viewModel().currentEmployee;
@@ -105,17 +111,17 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 		},
 	]);
 
-	const employeeNoById = createMemo(
-		() => new Map(relations().map((relation) => [relation.employeeId, relation.employeeNo])),
+	// 社員番号が変わった ID の利用箇所だけを更新する。Map 全体を memo にすると全セルへ波及する。
+	const employeeNoById = createProjection<Record<number, string>>(() =>
+		Object.fromEntries(relations().map((relation) => [relation.employeeId, relation.employeeNo])),
 	);
 
 	const visibleRelations = createMemo(() => {
 		const text = keyword().trim().toLowerCase();
 		// 評価者の社員番号は、検索・絞り込みで隠れた社員も含めて引く。
-		const employeeNos = employeeNoById();
 		const compareEvaluator = (left: number | null, right: number | null) => {
-			const a = employeeNos.get(left ?? -1);
-			const b = employeeNos.get(right ?? -1);
+			const a = employeeNoById[left ?? -1];
+			const b = employeeNoById[right ?? -1];
 			if (a == null || b == null) {
 				return a == null ? (b == null ? 0 : 1) : -1;
 			}
@@ -182,18 +188,16 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 	}> = (cell) => {
 		let select!: HTMLSelectElement;
 		const [pending, setPending] = createSignal<string | null>(null);
-		// Apply the authoritative value after Solid has replaced the option nodes.
-		// Read props here, not in the microtask: a props getter outside the effect creates
-		// computations with no owner.
-		createEffect(() => {
-			const value = pending() ?? cell.value;
-			grades();
-			queueMicrotask(() => {
-				if (select.isConnected) {
-					select.value = value;
-				}
-			});
-		});
+		// 選択肢を描き直した後に、確定した値を選び直す。値は計算の側で読み、副作用の側は DOM に書くだけ
+		createEffect(
+			() => {
+				grades();
+				return pending() ?? cell.value;
+			},
+			(value) => {
+				select.value = value;
+			},
+		);
 
 		const handleChange = async () => {
 			const picked = select.value;
@@ -214,7 +218,7 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 		};
 
 		return (
-			<span class="cell-select" classList={{ unset: !cell.value, saving: isSaving(cell.saveKey) }}>
+			<span class={["cell-select", { unset: !cell.value, saving: isSaving(cell.saveKey) }]}>
 				<select
 					ref={select}
 					aria-label={cell.label}
@@ -246,7 +250,7 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 			evaluatorId() == null &&
 			cell.relation.noSecondaryEvaluator
 				? NO_SECONDARY
-				: (employeeNoById().get(evaluatorId() ?? -1) ?? "");
+				: (employeeNoById[evaluatorId() ?? -1] ?? "");
 
 		const pick = async (value: string) => {
 			if (value !== NO_SECONDARY) {
@@ -509,14 +513,16 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 		<div class="registration-actions">
 			{/* 色だけに頼らず、形(実線・破線・停止の印)と言葉でも見分ける */}
 			<span
-				class="registration-status"
-				classList={{
-					"registration-status--disabled": cell.relation.enabled === false,
-					"registration-status--registered":
-						cell.relation.enabled !== false && !!cell.relation.registered,
-					"registration-status--pending":
-						cell.relation.enabled !== false && !cell.relation.registered,
-				}}
+				class={[
+					"registration-status",
+					{
+						"registration-status--disabled": cell.relation.enabled === false,
+						"registration-status--registered":
+							cell.relation.enabled !== false && !!cell.relation.registered,
+						"registration-status--pending":
+							cell.relation.enabled !== false && !cell.relation.registered,
+					},
+				]}
 			>
 				<Show
 					when={cell.relation.enabled !== false}
@@ -575,8 +581,7 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 					</Show>
 					<button
 						type="button"
-						class="row-action"
-						classList={{ "row-action--danger": cell.relation.enabled !== false }}
+						class={["row-action", { "row-action--danger": cell.relation.enabled !== false }]}
 						disabled={busy()}
 						aria-label={`${cell.relation.name}さんの利用を${cell.relation.enabled === false ? "再開" : "停止"}する`}
 						onClick={() => void changeEnabled(cell.relation)}
@@ -602,11 +607,14 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 						["一次評価者", me()?.primaryEvaluatorName],
 						["二次評価者", me()?.secondaryEvaluatorName],
 					]}
+					keyed={false}
 				>
-					{([label, value]) => (
+					{(fact) => (
 						<div>
-							<dt>{label}</dt>
-							<dd classList={{ unset: !value || value === "未設定" }}>{value ?? "未設定"}</dd>
+							<dt>{fact()[0]}</dt>
+							<dd class={{ unset: !fact()[1] || fact()[1] === "未設定" }}>
+								{fact()[1] ?? "未設定"}
+							</dd>
 						</div>
 					)}
 				</For>
@@ -714,15 +722,15 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 			<div class="master-list-toolbar">
 				<fieldset class="master-scope">
 					<legend class="visually-hidden">表示する社員</legend>
-					<For each={scopes()}>
+					<For each={scopes()} keyed={(item) => item.value}>
 						{(item) => (
 							<button
 								type="button"
-								aria-pressed={scope() === item.value}
-								onClick={() => setScope(item.value)}
+								aria-pressed={scope() === item().value ? "true" : "false"}
+								onClick={() => setScope(item().value)}
 							>
-								{item.label}
-								<span>{item.count}</span>
+								{item().label}
+								<span>{item().count}</span>
 							</button>
 						)}
 					</For>
@@ -762,7 +770,7 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 						<legend class="visually-hidden">表示の形式</legend>
 						<button
 							type="button"
-							aria-pressed={listView() === "list"}
+							aria-pressed={listView() === "list" ? "true" : "false"}
 							onClick={() => setListView("list")}
 						>
 							<List size={15} />
@@ -770,7 +778,7 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 						</button>
 						<button
 							type="button"
-							aria-pressed={listView() === "structure"}
+							aria-pressed={listView() === "structure" ? "true" : "false"}
 							onClick={() => setListView("structure")}
 						>
 							<Network size={15} />
@@ -835,7 +843,7 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 							</tr>
 						</thead>
 						<tbody>
-							<Index each={visibleRelations()}>
+							<For each={visibleRelations()} keyed={false}>
 								{(relation) => (
 									<tr>
 										<th scope="row">
@@ -862,7 +870,7 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 											when={!relation().isExecutive}
 											fallback={
 												// 役員は権限だけを管理する
-												<td class="cell-text unset" colSpan={3}>
+												<td class="cell-text unset" colspan={3}>
 													役員（等級・評価者は管理対象外）
 												</td>
 											}
@@ -871,10 +879,7 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 												<Show
 													when={props.viewModel().canEditGrades}
 													fallback={
-														<span
-															class="cell-text"
-															classList={{ unset: relation().gradeId == null }}
-														>
+														<span class={["cell-text", { unset: relation().gradeId == null }]}>
 															{relation().gradeName}
 														</span>
 													}
@@ -905,7 +910,7 @@ const EmployeeMasterView: Component<EmployeeMasterViewProps> = (props) => {
 										</Show>
 									</tr>
 								)}
-							</Index>
+							</For>
 						</tbody>
 					</table>
 				</div>

@@ -1,10 +1,10 @@
-import RefreshCw from "lucide-solid/icons/refresh-cw";
-import { type Component, createSignal, onMount, Show } from "solid-js";
+import { type Component, createSignal, flush, onSettled, Show } from "solid-js";
 import {
 	ACCOUNT_PASSWORD_RULE,
 	generateTemporaryPassword,
 	isValidAccountPassword,
 } from "../../../domain/valueObjects/AccountPassword";
+import { RefreshCw } from "./icons";
 
 /**
  * Admin が社員に仮のパスワードを設定するダイアログ。本人に口頭や紙で伝えるので、見える欄に出す。
@@ -24,7 +24,7 @@ const EmployeePasswordResetForm: Component<{
 	const [refusal, setRefusal] = createSignal("");
 	const valid = () => isValidAccountPassword(password());
 
-	onMount(() => {
+	onSettled(() => {
 		dialog.showModal();
 		input.select();
 	});
@@ -39,6 +39,8 @@ const EmployeePasswordResetForm: Component<{
 			return;
 		}
 		setSaving(true);
+		// 2.0 では書いた値が次の flush まで読めない。続けて押されても、上の確認で止める
+		flush();
 		setRefusal("");
 		try {
 			const result = await props.onReset(password());
@@ -67,7 +69,7 @@ const EmployeePasswordResetForm: Component<{
 		>
 			<form
 				class="confirm-dialog__body"
-				aria-busy={saving()}
+				aria-busy={saving() ? "true" : "false"}
 				onSubmit={(event) => void submit(event)}
 			>
 				<h2 id="password-reset-title">{props.name}さんに仮のパスワードを設定</h2>
@@ -94,7 +96,7 @@ const EmployeePasswordResetForm: Component<{
 							spellcheck={false}
 							value={password()}
 							disabled={saving()}
-							aria-invalid={!valid()}
+							aria-invalid={!valid() ? "true" : "false"}
 							aria-describedby="password-reset-rule"
 							onInput={(event) => {
 								setPassword(event.currentTarget.value);

@@ -7,7 +7,7 @@ playwright-report
 *.tsbuildinfo
 .env.local
 .env.*.local
-
+.agents
 tables.md
 
 # ブラウザ版の PDF(bun run build:pdf-wasm が作る)

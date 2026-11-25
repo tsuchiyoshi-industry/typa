@@ -2,13 +2,14 @@ import "./styles/global.css";
 import "./styles/dashboard.css";
 import "./styles/master.css";
 import "./styles/review.css";
-import { createMemoryHistory, MemoryRouter, Route } from "@solidjs/router";
+import { memoryHistory } from "@solidjs/router";
 import { cleanup, fireEvent, render, waitFor, within } from "@solidjs/testing-library";
 import { createSignal } from "solid-js";
 import { afterEach, expect, it, vi } from "vitest";
 import { page } from "vitest/browser";
 import { reviewerEditorFixture } from "../../test/reviewerEditorFixture";
 import { reviewerRow } from "../../test/reviewerFixture";
+import { routed } from "../../test/router";
 import FeedbackHost from "./components/FeedbackHost";
 import { PeriodGoalsEditor } from "./components/PeriodGoals";
 import { clearToasts, clearUnsavedChanges, settleConfirm } from "./feedback";
@@ -36,38 +37,41 @@ it.each([
 	const rows = [reviewerRow(1, { status: "submitted", isPrimary: true, firstRank: null })];
 	const editor = reviewerEditorFixture(() => rows);
 	const save = vi.spyOn(editor.commonEvaluationController, "upsert");
-	const history = createMemoryHistory();
+	const history = memoryHistory("/");
 	history.set({ value: "/review", replace: true, scroll: false });
-	const view = render(() => (
-		<MemoryRouter
-			history={history}
-			root={(props) => (
-				<main class="dashboard-main">
-					{props.children}
-					<FeedbackHost />
-				</main>
-			)}
-		>
-			<Route
-				path="/review"
-				component={() => (
-					<ReviewerWorkspaceView
-						controller={
-							{
-								currentPeriod: async () => ({
-									id: 10,
-									periodName: "2026年度 下期",
-									isActive: true,
-								}),
-								load: async () => structuredClone(rows),
-							} as never
-						}
-						editor={editor}
-					/>
-				)}
-			/>
-		</MemoryRouter>
-	));
+	const view = render(() =>
+		routed(
+			[
+				{
+					path: "/review",
+					component: () => (
+						<ReviewerWorkspaceView
+							controller={
+								{
+									currentPeriod: async () => ({
+										id: 10,
+										periodName: "2026年度 下期",
+										isActive: true,
+									}),
+									load: async () => structuredClone(rows),
+								} as never
+							}
+							editor={editor}
+						/>
+					),
+				},
+			],
+			{
+				history: history,
+				root: (props) => (
+					<main class="dashboard-main">
+						{props.children}
+						<FeedbackHost />
+					</main>
+				),
+			},
+		),
+	);
 	const comparison = (await view.findByRole("checkbox", {
 		name: "社員1を比較に選択",
 	})) as HTMLInputElement;

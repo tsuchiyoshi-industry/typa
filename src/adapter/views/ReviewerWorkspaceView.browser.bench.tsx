@@ -1,4 +1,3 @@
-import { MemoryRouter, Route } from "@solidjs/router";
 import { cleanup, fireEvent, screen } from "@solidjs/testing-library";
 import { DEV } from "solid-js";
 import { afterEach, expect, test } from "vitest";
@@ -6,6 +5,7 @@ import { page } from "vitest/browser";
 import { browserSamples, painted, profileOperation, renderBench } from "../../test/browserBench";
 import { reviewerRows, reviewPeriods } from "../../test/listBenchFixtures";
 import { reviewerEditorFixture } from "../../test/reviewerEditorFixture";
+import { routed } from "../../test/router";
 import type { ReviewerWorkspaceController } from "../controllers/ReviewerWorkspaceController";
 import ReviewerWorkspaceView from "./ReviewerWorkspaceView";
 
@@ -16,19 +16,14 @@ test("reviewer workspace, 300 employees, Chromium with application CSS", async (
 	const rows = reviewerRows(300);
 	const controller = { currentPeriod: async () => reviewPeriods[0], load: async () => rows };
 	const mount = async () => {
-		renderBench(() => (
-			<MemoryRouter>
-				<Route
-					path="/"
-					component={() => (
-						<ReviewerWorkspaceView
-							controller={controller as unknown as ReviewerWorkspaceController}
-							editor={reviewerEditorFixture(() => rows)}
-						/>
-					)}
+		renderBench(() =>
+			routed(() => (
+				<ReviewerWorkspaceView
+					controller={controller as unknown as ReviewerWorkspaceController}
+					editor={reviewerEditorFixture(() => rows)}
 				/>
-			</MemoryRouter>
-		));
+			)),
+		);
 		await screen.findByText("300 名を表示");
 	};
 	await document.fonts.ready;

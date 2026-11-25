@@ -1,4 +1,4 @@
-import { type Component, For } from "solid-js";
+import { type Component, Repeat } from "solid-js";
 
 interface ScoreScaleProps {
 	/** 0 は未評価。 */
@@ -16,20 +16,25 @@ interface ScoreScaleProps {
 const ScoreScale: Component<ScoreScaleProps> = (props) => (
 	<fieldset class="score-scale" disabled={props.disabled}>
 		<legend class="visually-hidden">{props.label}</legend>
-		<For each={Array.from({ length: props.max }, (_, index) => index + 1)}>
-			{(step) => (
-				<button
-					type="button"
-					class="score-scale__step"
-					classList={{ selected: props.value === step, filled: step < props.value }}
-					aria-pressed={props.value === step}
-					aria-label={`${props.label} ${step}`}
-					onClick={() => props.value !== step && props.onChange(step)}
-				>
-					{step}
-				</button>
-			)}
-		</For>
+		<Repeat count={props.max}>
+			{(index) => {
+				const step = index + 1;
+				return (
+					<button
+						type="button"
+						class={[
+							"score-scale__step",
+							{ selected: props.value === step, filled: step < props.value },
+						]}
+						aria-pressed={props.value === step ? "true" : "false"}
+						aria-label={`${props.label} ${step}`}
+						onClick={() => props.value !== step && props.onChange(step)}
+					>
+						{step}
+					</button>
+				);
+			}}
+		</Repeat>
 	</fieldset>
 );
 

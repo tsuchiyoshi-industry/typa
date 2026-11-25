@@ -27,8 +27,7 @@ const EvaluationStructure: Component<EvaluationStructureProps> = (props) => {
 			<For each={finals()}>
 				{(final) => (
 					<section
-						class="structure-final"
-						classList={{ unset: final.kind === "unset" }}
+						class={["structure-final", { unset: final.kind === "unset" }]}
 						aria-label={`${final.name}が最終評価をする ${final.total}名`}
 					>
 						<div class="structure-node final">
@@ -41,7 +40,7 @@ const EvaluationStructure: Component<EvaluationStructureProps> = (props) => {
 						<ul class="structure-primaries">
 							<For each={final.primaries}>
 								{(primary) => (
-									<li class="structure-primary" classList={{ unset: primary.unset }}>
+									<li class={["structure-primary", { unset: primary.unset }]}>
 										<div class="structure-node">
 											<strong>{primary.name}</strong>
 											<small>{primary.members.length}名</small>
@@ -55,8 +54,10 @@ const EvaluationStructure: Component<EvaluationStructureProps> = (props) => {
 													<li>
 														<button
 															type="button"
-															class="structure-chip"
-															classList={{ me: member.employeeId === props.currentEmployeeId }}
+															class={[
+																"structure-chip",
+																{ me: member.employeeId === props.currentEmployeeId },
+															]}
 															title={`${member.employeeNo} · ${member.gradeName}（押すと一覧で開きます）`}
 															onClick={() => props.onPick(member)}
 														>

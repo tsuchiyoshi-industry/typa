@@ -1,7 +1,7 @@
-import Users from "lucide-solid/icons/users";
 import { type Component, createMemo, Show } from "solid-js";
 import type { EmployeeDto } from "../../../application/dtos/EmployeeDto";
 import type { CategorizedSheetsDto, SheetSummaryDto } from "../../../application/dtos/SheetListDto";
+import { Users } from "./icons";
 import SearchableEvaluatorSelect from "./SearchableEvaluatorSelect";
 
 interface SubjectSwitcherProps {

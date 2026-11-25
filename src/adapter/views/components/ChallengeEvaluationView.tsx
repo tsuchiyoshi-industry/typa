@@ -1,10 +1,12 @@
-import Check from "lucide-solid/icons/check";
-import PencilLine from "lucide-solid/icons/pencil-line";
-import Pin from "lucide-solid/icons/pin";
-import Plus from "lucide-solid/icons/plus";
-import SquarePen from "lucide-solid/icons/square-pen";
-import X from "lucide-solid/icons/x";
-import { type Component, createEffect, createMemo, createSignal, For, on, Show } from "solid-js";
+import {
+	type Component,
+	createEffect,
+	createMemo,
+	createSignal,
+	For,
+	Show,
+	untrack,
+} from "solid-js";
 import type { EmployeeDto } from "../../../application/dtos/EmployeeDto";
 import type { MilestoneDto } from "../../../application/dtos/MilestoneDto";
 import type { PreviousGoals } from "../../../domain/repositories/MilestoneRepository";
@@ -14,6 +16,8 @@ import { Score } from "../../../domain/valueObjects/Score";
 import type { ChallengeEvaluationController } from "../../controllers/ChallengeEvaluationController";
 import type { ChallengeEvaluationViewModel } from "../../presenters/ChallengeEvaluationPresenter";
 import { confirmAction, confirmDiscard, showToast, trackUnsaved } from "../feedback";
+import { type ConnectSaving, provideSaving } from "../savingSource";
+import { Check, PencilLine, Pin, Plus, SquarePen, X } from "./icons";
 import { PeriodGoalsEditor, PeriodGoalsList } from "./PeriodGoals";
 import ScoreScale from "./ScoreScale";
 
@@ -42,7 +46,8 @@ interface ChallengeEvaluationViewProps {
 	viewModel: () => ChallengeEvaluationViewModel;
 	/** 保存後にシートを読み直す。 */
 	onUpdated: () => unknown;
-	onSavingChange?: (saving: boolean) => void;
+	/** 「保存中か」を親に渡す口(描き終えたときに一度だけ accessor を渡す)。 */
+	connectSaving?: ConnectSaving;
 	/** 前期の目標。今期の目標が前期から据え置き・更新したものかを示す。 */
 	previousGoals?: PreviousGoals | null;
 	focus?: GoalFocus | null;
@@ -50,7 +55,7 @@ interface ChallengeEvaluationViewProps {
 
 /** 前期とのつながりの印。据え置きはピン、更新はペン。 */
 const ContinuityMark: Component<{ continuity: GoalContinuity }> = (markProps) => (
-	<span class="continuity-badge" classList={{ revised: markProps.continuity.kind === "revised" }}>
+	<span class={["continuity-badge", { revised: markProps.continuity.kind === "revised" }]}>
 		<Show when={markProps.continuity.kind === "revised"} fallback={<Pin class="action-icon" />}>
 			<PencilLine class="action-icon" />
 		</Show>
@@ -61,11 +66,16 @@ const ContinuityMark: Component<{ continuity: GoalContinuity }> = (markProps) =>
 const MAX_SCORE = Score.MAX;
 
 const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props) => {
-	const [activeTab, setActiveTab] = createSignal<number>(
-		Number(props.objectives[0]?.goalNumber ?? 1),
-	);
-	const [isTextEditing, setIsTextEditing] = createSignal(false);
-	const [isScoreEditing, setIsScoreEditing] = createSignal(false);
+	// 別のシートに替わったら、開くタブ・編集中・足した/消した目標の下書きを初めに戻す。
+	// どれも sheetId から作る書き込める値なので、替わったときに作り直される(目標が増えただけでは戻さない)
+	const perSheet = <T,>(initial: () => T) =>
+		createSignal<T>(() => {
+			props.sheetId;
+			return untrack(initial);
+		});
+	const [activeTab, setActiveTab] = perSheet(() => Number(props.objectives[0]?.goalNumber ?? 1));
+	const [isTextEditing, setIsTextEditing] = perSheet(() => false);
+	const [isScoreEditing, setIsScoreEditing] = perSheet(() => false);
 	const [draftText, setDraftText] = createSignal<{
 		challengeGoal: string;
 		achievement: string;
@@ -75,25 +85,19 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 		achievement: "",
 		periodGoals: [],
 	});
+	/** 一部の欄だけを書き換える。値はハンドラーの中で先に読んで渡し、書き換えは前の書き込みに重ねる。 */
+	const patchDraftText = (fields: Partial<ReturnType<typeof draftText>>) =>
+		setDraftText((previous) => ({ ...previous, ...fields }));
 	const [draftScore, setDraftScore] = createSignal({ firstScore: 0, secondScore: 0 });
 	const [textUpdating, setTextUpdating] = createSignal(false);
 	const [scoreUpdating, setScoreUpdating] = createSignal(false);
-	createEffect(() => props.onSavingChange?.(textUpdating() || scoreUpdating()));
-
-	const [addedObjectives, setAddedObjectives] = createSignal<MilestoneDto[]>([]);
-	const [removedIds, setRemovedIds] = createSignal<number[]>([]);
-	createEffect(
-		on(
-			() => props.sheetId,
-			() => {
-				setAddedObjectives([]);
-				setRemovedIds([]);
-				setActiveTab(Number(props.objectives[0]?.goalNumber ?? 1));
-				setIsTextEditing(false);
-				setIsScoreEditing(false);
-			},
-		),
+	provideSaving(
+		() => props.connectSaving,
+		() => textUpdating() || scoreUpdating(),
 	);
+
+	const [addedObjectives, setAddedObjectives] = perSheet<MilestoneDto[]>(() => []);
+	const [removedIds, setRemovedIds] = perSheet<number[]>(() => []);
 	const objectives = createMemo(() =>
 		[
 			...props.objectives,
@@ -297,9 +301,17 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 
 	let section: HTMLElement | undefined;
 	let handledFocus: number | null = null;
-	const openFocused = async (focus: GoalFocus) => {
+	/** 開くのに要る値は、要求が届いた時点のものを計算で取り出して渡す。 */
+	const openFocused = async (request: {
+		focus: GoalFocus;
+		target: MilestoneDto | undefined;
+		switching: boolean;
+		dirty: boolean;
+		canEdit: boolean;
+	}) => {
+		const { focus, target } = request;
 		handledFocus = focus.seq;
-		if (focus.goalNumber !== activeTab() && !(await confirmDiscard(isDirty()))) {
+		if (request.switching && !(await confirmDiscard(request.dirty))) {
 			return;
 		}
 		setIsScoreEditing(false);
@@ -309,8 +321,9 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 			block: "start",
 			behavior: "smooth",
 		});
-		if (focus.edit && props.canEditMilestoneGoal) {
-			startTextEditing();
+		// 書いたタブは次の flush まで読めないので、開く目標を渡して下書きを作る
+		if (focus.edit && request.canEdit && target) {
+			startTextEditing(target);
 			requestAnimationFrame(() =>
 				section
 					?.querySelector<HTMLElement>(
@@ -323,19 +336,30 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 		}
 	};
 	// 引き継いだ目標は、シートを読み直してから届く。届いたところで一度だけ開く
-	createEffect(() => {
-		const focus = props.focus;
-		if (
-			focus &&
-			focus.seq !== handledFocus &&
-			props.objectives.some((item) => item.goalNumber === focus.goalNumber)
-		) {
-			void openFocused(focus);
+	const focusRequest = createMemo(
+		() => {
+			const focus = props.focus;
+			if (!focus || !props.objectives.some((item) => item.goalNumber === focus.goalNumber)) {
+				return null;
+			}
+			return {
+				focus,
+				target: displayObjectives().find((item) => Number(item.goalNumber) === focus.goalNumber),
+				switching: focus.goalNumber !== activeTab(),
+				dirty: isDirty(),
+				canEdit: props.canEditMilestoneGoal,
+			};
+		},
+		// 同じ要求の処理でタブや編集中の値が変わっても、effect を再実行しない。
+		{ equals: (previous, next) => previous?.focus.seq === next?.focus.seq },
+	);
+	createEffect(focusRequest, (request) => {
+		if (request && request.focus.seq !== handledFocus) {
+			void openFocused(request);
 		}
 	});
 
-	const startTextEditing = () => {
-		const objective = activeObjective();
+	const startTextEditing = (objective = activeObjective()) => {
 		if (!objective) {
 			return;
 		}
@@ -438,19 +462,18 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 			</div>
 
 			<div class="challenge-tabs" role="tablist" aria-label="チャレンジ目標">
-				<For each={displayObjectives()}>
+				<For each={displayObjectives()} keyed={(item) => item.goalNumber}>
 					{(item) => (
 						<button
 							type="button"
 							role="tab"
-							id={`objective-tab-${item.goalNumber}`}
-							aria-selected={activeTab() === Number(item.goalNumber)}
-							class="challenge-tab"
-							classList={{ active: activeTab() === Number(item.goalNumber) }}
-							onClick={() => void selectTab(Number(item.goalNumber))}
+							id={`objective-tab-${item().goalNumber}`}
+							aria-selected={activeTab() === Number(item().goalNumber) ? "true" : "false"}
+							class={["challenge-tab", { active: activeTab() === Number(item().goalNumber) }]}
+							onClick={() => void selectTab(Number(item().goalNumber))}
 						>
-							目標 {item.goalNumber}
-							<Show when={needsMyScore(item)}>
+							目標 {item().goalNumber}
+							<Show when={needsMyScore(item())}>
 								<span class="challenge-tab__pending">未評価</span>
 							</Show>
 						</button>
@@ -498,7 +521,9 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 											max={MAX_SCORE}
 											value={draftScore().firstScore}
 											disabled={scoreUpdating()}
-											onChange={(value) => setDraftScore({ ...draftScore(), firstScore: value })}
+											onChange={(value) =>
+												setDraftScore((previous) => ({ ...previous, firstScore: value }))
+											}
 										/>
 									</div>
 								</Show>
@@ -510,7 +535,9 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 											max={MAX_SCORE}
 											value={draftScore().secondScore}
 											disabled={scoreUpdating()}
-											onChange={(value) => setDraftScore({ ...draftScore(), secondScore: value })}
+											onChange={(value) =>
+												setDraftScore((previous) => ({ ...previous, secondScore: value }))
+											}
 										/>
 									</div>
 								</Show>
@@ -561,7 +588,7 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 									!isScoreEditing()
 								}
 							>
-								<button type="button" class="edit-toggle-button" onClick={startTextEditing}>
+								<button type="button" class="edit-toggle-button" onClick={() => startTextEditing()}>
 									<SquarePen class="edit-icon" />
 									{props.canEditMilestoneGoal ? "目標を編集" : "達成状況を入力"}
 								</button>
@@ -584,7 +611,7 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 											{(continuity) => <ContinuityMark continuity={continuity()} />}
 										</Show>
 									</div>
-									<p classList={{ empty: !activeObjective()?.challengeGoal }}>
+									<p class={{ empty: !activeObjective()?.challengeGoal }}>
 										{activeObjective()?.challengeGoal || "未入力"}
 									</p>
 								</div>
@@ -621,9 +648,7 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 									<textarea
 										data-field="challenge-goal"
 										value={draftText().challengeGoal}
-										onInput={(e) =>
-											setDraftText({ ...draftText(), challengeGoal: e.currentTarget.value })
-										}
+										onInput={(e) => patchDraftText({ challengeGoal: e.currentTarget.value })}
 									/>
 								</label>
 								{/* 前期の文言は、見たいときに開く。書いている目標の横に並べて比べさせない */}
@@ -637,10 +662,10 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 													type="button"
 													class="link-button"
 													onClick={() =>
-														setDraftText({
-															...draftText(),
+														setDraftText((previous) => ({
+															...previous,
 															challengeGoal: continuity().previous.challengeGoal,
-														})
+														}))
 													}
 												>
 													前期の文言に戻す
@@ -656,7 +681,7 @@ const ChallengeEvaluationView: Component<ChallengeEvaluationViewProps> = (props)
 								canEditGoals={props.canEditMilestoneGoal}
 								canEditAchievements={props.canEditMilestoneAchievement === true}
 								disabled={textUpdating()}
-								onChange={(next) => setDraftText({ ...draftText(), ...next })}
+								onChange={(next) => setDraftText((previous) => ({ ...previous, ...next }))}
 							/>
 							<div class="edit-actions">
 								<button

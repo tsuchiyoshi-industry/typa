@@ -1,6 +1,7 @@
-import X from "lucide-solid/icons/x";
-import { type Component, createEffect, type JSX, on, onCleanup, onMount } from "solid-js";
-import { Portal } from "solid-js/web";
+import type { JSX } from "@solidjs/web";
+import { Portal } from "@solidjs/web";
+import { type Component, createEffect, onSettled } from "solid-js";
+import { X } from "./icons";
 
 /**
  * いまの画面の上に浮かべる窓。後ろの画面は見えたまま、操作だけできなくする。
@@ -22,29 +23,27 @@ const SheetWindow: Component<{
 	let body: HTMLDivElement | undefined;
 
 	createEffect(
-		on(
-			() => props.contentKey,
-			() => {
-				if (body) {
-					body.scrollTop = 0;
-				}
-			},
-			{ defer: true },
-		),
+		() => props.contentKey,
+		() => {
+			if (body) {
+				body.scrollTop = 0;
+			}
+		},
+		{ defer: true },
 	);
 
-	onMount(() => {
+	onSettled(() => {
 		// 通知と確認ダイアログは .app-frame の外にあるので、窓を開いている間も使える
 		const behind = document.querySelector<HTMLElement>(".app-frame");
 		const opener = document.activeElement;
 		behind?.setAttribute("inert", "");
 		panel?.focus();
-		onCleanup(() => {
+		return () => {
 			behind?.removeAttribute("inert");
 			if (opener instanceof HTMLElement) {
 				opener.focus();
 			}
-		});
+		};
 	});
 
 	return (
@@ -61,7 +60,7 @@ const SheetWindow: Component<{
 					role="dialog"
 					aria-modal="true"
 					aria-label={props.label}
-					tabIndex={-1}
+					tabindex={-1}
 				>
 					<header class="sheet-window__bar">
 						{props.heading}

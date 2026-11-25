@@ -1,10 +1,8 @@
-import ArrowRight from "lucide-solid/icons/arrow-right";
-import PencilLine from "lucide-solid/icons/pencil-line";
-import Pin from "lucide-solid/icons/pin";
 import { type Component, For, Show } from "solid-js";
 import type { MilestoneDto } from "../../../application/dtos/MilestoneDto";
 import type { PreviousGoals } from "../../../domain/repositories/MilestoneRepository";
 import { continuityOf } from "../../../domain/valueObjects/GoalContinuity";
+import { ArrowRight, PencilLine, Pin } from "./icons";
 import { PeriodGoalsList } from "./PeriodGoals";
 
 /** keep: 前期の文言のまま据え置く / revise: 引き継いでから、今期に合わせて書き直す */
@@ -50,44 +48,49 @@ const PreviousGoalsView: Component<PreviousGoalsViewProps> = (props) => {
 				</p>
 			</Show>
 			<ol class="previous-goals__list">
-				<For each={props.previous.goals}>
+				<For each={props.previous.goals} keyed={(goal) => goal.id}>
 					{(goal) => {
-						const state = () => (goal.carriedInto === null ? null : stateOf(goal.carriedInto));
+						const state = () => {
+							const into = goal().carriedInto;
+							return into === null ? null : stateOf(into);
+						};
 						return (
 							<li class="previous-goal">
-								<span class="previous-goals__number">{goal.goalNumber}</span>
+								<span class="previous-goals__number">{goal().goalNumber}</span>
 								<div class="previous-goal__body">
-									<p class="previous-goals__text">{goal.challengeGoal || "(チャレンジ目標なし)"}</p>
+									<p class="previous-goals__text">
+										{goal().challengeGoal || "(チャレンジ目標なし)"}
+									</p>
 									<details class="previous-goal__record">
 										<summary class="previous-goal__record-toggle">前期の期中目標と達成状況</summary>
-										<PeriodGoalsList goals={goal.periodGoals} achievement={goal.achievement} />
+										<PeriodGoalsList goals={goal().periodGoals} achievement={goal().achievement} />
 									</details>
 								</div>
 								<div class="previous-goal__choice">
 									<Show
-										when={goal.carriedInto}
+										when={goal().carriedInto}
 										fallback={
 											<Show when={props.canCarry}>
 												<fieldset class="continuity-choice">
 													<legend class="visually-hidden">
-														前期の目標 {goal.goalNumber} を引き継ぐ
+														前期の目標 {goal().goalNumber} を引き継ぐ
 													</legend>
 													<button
 														type="button"
 														disabled={
-															props.carrying !== null || !props.hasRoom || !goal.challengeGoal
+															props.carrying !== null || !props.hasRoom || !goal().challengeGoal
 														}
-														onClick={() => props.onCarry(goal.id, "keep")}
+														onClick={() => props.onCarry(goal().id, "keep")}
 													>
 														<Pin class="action-icon" />
-														{props.carrying === goal.id ? "引き継ぎ中..." : "据え置く"}
+														{props.carrying === goal().id ? "引き継ぎ中..." : "据え置く"}
 													</button>
 													<button
 														type="button"
 														disabled={
-															props.carrying !== null || !props.hasRoom || !goal.challengeGoal
+															props.carrying !== null || !props.hasRoom || !goal().challengeGoal
 														}
-														onClick={() => props.onCarry(goal.id, "revise")}
+														onClick={() => props.onCarry(goal().id, "revise")}
 													>
 														<PencilLine class="action-icon" />
 														見直して更新
@@ -99,8 +102,7 @@ const PreviousGoalsView: Component<PreviousGoalsViewProps> = (props) => {
 										{(goalNumber) => (
 											<>
 												<span
-													class="continuity-badge"
-													classList={{ revised: state()?.kind === "revised" }}
+													class={["continuity-badge", { revised: state()?.kind === "revised" }]}
 												>
 													<Show
 														when={state()?.kind === "revised"}

@@ -1,21 +1,13 @@
 import { useSearchParams } from "@solidjs/router";
-import ArrowRight from "lucide-solid/icons/arrow-right";
-import ChevronRight from "lucide-solid/icons/chevron-right";
-import Columns3 from "lucide-solid/icons/columns-3";
-import ListFilter from "lucide-solid/icons/list-filter";
-import RotateCw from "lucide-solid/icons/rotate-cw";
-import Search from "lucide-solid/icons/search";
-import Users from "lucide-solid/icons/users";
 import {
 	type Component,
 	createEffect,
 	createMemo,
-	createSelector,
+	createProjection,
 	createSignal,
 	For,
-	Index,
-	onCleanup,
-	onMount,
+	onSettled,
+	Repeat,
 	Show,
 } from "solid-js";
 import type { ReviewerRowDto, ReviewPeriodDto } from "../../application/dtos/ReviewerWorkspaceDto";
@@ -46,11 +38,21 @@ import {
 	reviewLabel,
 	reviewStats,
 } from "../viewmodels/reviewerWorkspace";
+import {
+	ArrowRight,
+	ChevronRight,
+	Columns3,
+	ListFilter,
+	RotateCw,
+	Search,
+	Users,
+} from "./components/icons";
 import { PeriodGoalsList } from "./components/PeriodGoals";
 import SheetWindow from "./components/SheetWindow";
 import { clearUnsavedChanges, confirmDiscard, showToast } from "./feedback";
 import { formatDateTime } from "./format";
 import SheetEditorView, { type SheetEditorViewProps } from "./SheetEditorView";
+import { createSavingSource } from "./savingSource";
 
 interface Props {
 	controller: ReviewerWorkspaceController;
@@ -93,12 +95,12 @@ const piePiece = (index: number, steps: number): string => {
  * 外側の輪は「自分の番」、破線の円はシート未作成。図の右に、状態を言葉でも書く。
  */
 const Stage: Component<{ row: ReviewerRowDto }> = (props) => {
-	const progress = () => reviewProgress(props.row);
+	// 1行に何度も読むので、行ごとに一度だけ数える
+	const progress = createMemo(() => reviewProgress(props.row));
 	return (
-		<span class="review-stage" classList={{ mine: isMyTurn(props.row) }}>
+		<span class={["review-stage", { mine: isMyTurn(props.row) }]}>
 			<svg
-				class="review-pie"
-				classList={{ complete: progress().done >= progress().steps }}
+				class={["review-pie", { complete: progress().done >= progress().steps }]}
 				viewBox="0 0 24 24"
 				aria-hidden="true"
 			>
@@ -106,14 +108,15 @@ const Stage: Component<{ row: ReviewerRowDto }> = (props) => {
 					when={sheetStatus(props.row)}
 					fallback={<circle class="review-pie__missing" cx="12" cy="12" r={PIE.radius - 0.75} />}
 				>
-					<For each={Array.from({ length: progress().steps }, (_, index) => index)}>
+					{/* 件数だけ並べる。配列を作らず、差分も取らない */}
+					<Repeat count={progress().steps}>
 						{(index) => (
 							<path
-								classList={{ done: index < progress().done }}
+								class={{ done: index < progress().done }}
 								d={piePiece(index, progress().steps)}
 							/>
 						)}
-					</For>
+					</Repeat>
 				</Show>
 				<Show when={isMyTurn(props.row)}>
 					<circle class="review-pie__mine" cx="12" cy="12" r="11" />
@@ -134,8 +137,7 @@ const ScoreRank: Component<{ row: ReviewerRowDto; stage: "first" | "final" }> = 
 			<Show when={rank()}>
 				{(value) => (
 					<strong
-						class="review-rank"
-						classList={{ provisional: !value().confirmed }}
+						class={["review-rank", { provisional: !value().confirmed }]}
 						title={value().confirmed ? "確定したランク" : "現在の点数からの見込み"}
 					>
 						{value().text}
@@ -156,7 +158,8 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 	const [error, setError] = createSignal<string | null>(null);
 	/** 評価者になれない人が開いた(URL を直接開いたときなど)。一覧も操作も出さない。 */
 	const [denied, setDenied] = createSignal(false);
-	const [editorSaving, setEditorSaving] = createSignal(false);
+	// 窓の中の評価シートが保存中か。シートが作った accessor をそのまま読む(effect で中継しない)
+	const { saving: editorSaving, connect: connectEditorSaving } = createSavingSource();
 	const [query, setQuery] = createSignal("");
 	const [grade, setGrade] = createSignal("");
 	const [primaryEvaluator, setPrimaryEvaluator] = createSignal("");
@@ -168,7 +171,7 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 	const [syncedAt, setSyncedAt] = createSignal<string | null>(null);
 	let generation = 0;
 	let alive = true;
-	onCleanup(() => {
+	onSettled(() => () => {
 		alive = false;
 		++generation;
 	});
@@ -196,19 +199,37 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 	const next = createMemo(() => nextMyTurn(visible(), current()?.employeeId));
 	const myTurnCount = createMemo(() => visible().filter(isMyTurn).length);
 	const gradeGroups = createMemo(() => (byGrade() ? groupByGrade(visible()) : []));
-	// 行ごとの「開いている行か」「選んだ人か」は、変わった行だけを描き直す
-	const isCurrent = createSelector(() => current()?.employeeId);
-	const isSelected = createSelector(selected, (employeeId: number, set) => set.has(employeeId));
+	// 行ごとの「開いている行か」「選んだ人か」は、変わった行だけを描き直す。
+	// 該当する人だけを true にした導出ストアで、行は自分のキーだけを読む
+	const flags = (ids: () => Iterable<number>) =>
+		createProjection<Record<number, boolean>>((draft) => {
+			for (const key of Object.keys(draft)) {
+				delete draft[Number(key)];
+			}
+			for (const id of ids()) {
+				draft[id] = true;
+			}
+		}, {});
+	const currentFlags = flags(() => {
+		const id = current()?.employeeId;
+		return id === undefined ? [] : [id];
+	});
+	const selectedFlags = flags(selected);
+	const isCurrent = (employeeId: number) => currentFlags[employeeId] === true;
+	const isSelected = (employeeId: number) => selectedFlags[employeeId] === true;
 	const selectionFull = createMemo(() => selected().size >= 6);
 	/** 比較に選んだ人のうち、いまの絞り込みで一覧に出ている人。 */
 	const compared = createMemo(() => visible().filter((row) => selected().has(row.employeeId)));
 	const comparing = () => params.compare === "1" && compared().length > 0;
 	// 比べる人がいなくなったら比較をやめる(次に誰かを選んだ途端に、窓が開かないようにする)
-	createEffect(() => {
-		if (params.compare && !compared().length) {
-			setParams({ compare: undefined }, { replace: true, scroll: false });
-		}
-	});
+	createEffect(
+		() => !!params.compare && compared().length === 0,
+		(stale) => {
+			if (stale) {
+				setParams({ compare: undefined }, { replace: true, scroll: false });
+			}
+		},
+	);
 	const mutationBusy = () => refreshing() || loading() || editorSaving();
 	const currentSheetId = createMemo(() => current()?.sheetId);
 
@@ -276,9 +297,8 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 			}
 		}
 	};
-	onMount(() => void initializePeriod());
-	createEffect(() => {
-		const id = periodId();
+	onSettled(() => void initializePeriod());
+	createEffect(periodId, (id) => {
 		if (id) {
 			void load(id, true);
 		}
@@ -480,11 +500,16 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 			<Show when={currentSheetId()} keyed>
 				{(sheetId) => (
 					<SheetEditorView
-						{...props.editor}
+						controller={props.editor.controller}
+						viewModel={props.editor.viewModel}
+						commonEvaluationController={props.editor.commonEvaluationController}
+						commonEvaluationViewModel={props.editor.commonEvaluationViewModel}
+						challengeEvaluationController={props.editor.challengeEvaluationController}
+						challengeEvaluationViewModel={props.editor.challengeEvaluationViewModel}
 						embedded
 						selectedSheetId={sheetId}
 						onUpdated={updateRows}
-						onSavingChange={setEditorSaving}
+						connectSaving={connectEditorSaving}
 						announceNext={announceNext}
 						onStageCompleted={() => void advance()}
 					/>
@@ -519,13 +544,15 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 						{(row) => (
 							// 行のどこを押しても開ける。キーボード操作の入口として氏名のボタンも残す
 							<tr
-								class="review-row"
-								classList={{
-									openable: canOpen(row),
-									mine: isMyTurn(row),
-									// 窓を閉じたときに、どの行を開いていたかが分かる
-									current: isCurrent(row.employeeId),
-								}}
+								class={[
+									"review-row",
+									{
+										openable: canOpen(row),
+										mine: isMyTurn(row),
+										// 窓を閉じたときに、どの行を開いていたかが分かる
+										current: isCurrent(row.employeeId),
+									},
+								]}
 								title={canOpen(row) ? undefined : "本人が目標を送信すると開けるようになります"}
 								onClick={(event) => {
 									if (!(event.target as Element).closest(".review-selection")) {
@@ -789,7 +816,7 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 							disabled={mutationBusy()}
 							onClick={() => void refresh()}
 						>
-							<RotateCw size={18} classList={{ "review-spinning": refreshing() }} />
+							<RotateCw size={18} class={{ "review-spinning": refreshing() }} />
 						</button>
 					</div>
 				</header>
@@ -811,18 +838,20 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 							max={Math.max(1, rows().length)}
 						/>
 					</div>
-					<For each={stats()}>
-						{([key, label, total]) => (
+					<For each={stats()} keyed={(stat) => stat[0]}>
+						{(stat) => (
 							<button
 								type="button"
-								class="review-stat"
-								classList={{ action: (key === "first" || key === "second") && total > 0 }}
-								aria-pressed={filter() === key}
-								onClick={() => setFilter(key)}
+								class={[
+									"review-stat",
+									{ action: (stat()[0] === "first" || stat()[0] === "second") && stat()[2] > 0 },
+								]}
+								aria-pressed={filter() === stat()[0] ? "true" : "false"}
+								onClick={() => setFilter(stat()[0])}
 							>
-								<span>{label}</span>
+								<span>{stat()[1]}</span>
 								<strong>
-									{total}
+									{stat()[2]}
 									<small>名</small>
 								</strong>
 							</button>
@@ -880,8 +909,8 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 								<button
 									type="button"
 									class="review-toggle"
-									aria-pressed={byGrade()}
-									onClick={() => setByGrade(!byGrade())}
+									aria-pressed={byGrade() ? "true" : "false"}
+									onClick={() => setByGrade((previous) => !previous)}
 								>
 									等級ごとに区切る
 								</button>
@@ -919,7 +948,7 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 						<Show when={visible().length} fallback={<Empty />}>
 							{/* 絞り込みのたびに表を作り直さない。行は同じものを使い回し、増減した行だけを描く */}
 							<Show when={byGrade()} fallback={<SummaryTable people={visible()} />}>
-								<Index each={gradeGroups()}>
+								<For each={gradeGroups()} keyed={false}>
 									{(people) => (
 										<section class="review-comparison-group">
 											<header>
@@ -931,7 +960,7 @@ const ReviewerWorkspaceView: Component<Props> = (props) => {
 											<SummaryTable people={people()} />
 										</section>
 									)}
-								</Index>
+								</For>
 							</Show>
 						</Show>
 					</Show>

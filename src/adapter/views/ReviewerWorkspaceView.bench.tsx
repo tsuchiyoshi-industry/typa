@@ -1,9 +1,11 @@
-// @vitest-environment happy-dom
-import { MemoryRouter, Route } from "@solidjs/router";
+// @vitest-environment jsdom
+
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
+import { DEV } from "solid-js";
 import { afterEach, expect, test } from "vitest";
 import { reviewPeriods as periods, reviewerRows as rowsOf } from "../../test/listBenchFixtures";
 import { reviewerEditorFixture } from "../../test/reviewerEditorFixture";
+import { routed } from "../../test/router";
 import type { ReviewerWorkspaceController } from "../controllers/ReviewerWorkspaceController";
 import ReviewerWorkspaceView from "./ReviewerWorkspaceView";
 
@@ -12,22 +14,18 @@ afterEach(cleanup);
 
 for (const n of [30, 300]) {
 	test(`reviewer workspace, ${n} rows`, async ({ bench }) => {
+		expect(DEV).toBeUndefined();
 		const rows = rowsOf(n);
 		const controller = { currentPeriod: async () => periods[0], load: async () => rows };
 		const mount = async () => {
-			render(() => (
-				<MemoryRouter>
-					<Route
-						path="/"
-						component={() => (
-							<ReviewerWorkspaceView
-								controller={controller as unknown as ReviewerWorkspaceController}
-								editor={reviewerEditorFixture(() => rows)}
-							/>
-						)}
+			render(() =>
+				routed(() => (
+					<ReviewerWorkspaceView
+						controller={controller as unknown as ReviewerWorkspaceController}
+						editor={reviewerEditorFixture(() => rows)}
 					/>
-				</MemoryRouter>
-			));
+				)),
+			);
 			await screen.findByText(`${n} 名を表示`);
 		};
 		await bench("mount and load the list", { afterEach: cleanup }, mount).run(samples);

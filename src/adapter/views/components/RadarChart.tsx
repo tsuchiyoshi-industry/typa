@@ -94,8 +94,7 @@ const RadarChart: Component<RadarChartProps> = (props) => {
 				<For each={props.axes}>
 					{(_, index) => (
 						<line
-							class="radar-spoke"
-							classList={{ active: active() === index() }}
+							class={["radar-spoke", { active: active() === index() }]}
 							x1={CENTER_X}
 							y1={CENTER_Y}
 							x2={point(index(), 1)[0]}
@@ -106,13 +105,20 @@ const RadarChart: Component<RadarChartProps> = (props) => {
 				{/* 目盛りは軸と軸の間に置く。軸の上はデータの点が来るので重なる */}
 				<For each={[0.5, 1]}>
 					{(value) => {
-						const between = angle(0) + Math.PI / count();
-						const distance = RADIUS * value * Math.cos(Math.PI / count());
+						// 軸の数が変われば置き直す(コールバックの本体は一度しか動かないので、memo で読む)
+						const position = createMemo(() => {
+							const between = angle(0) + Math.PI / count();
+							const distance = RADIUS * value * Math.cos(Math.PI / count());
+							return [
+								CENTER_X + distance * Math.cos(between),
+								CENTER_Y + distance * Math.sin(between),
+							];
+						});
 						return (
 							<text
 								class="radar-tick"
-								x={CENTER_X + distance * Math.cos(between)}
-								y={CENTER_Y + distance * Math.sin(between)}
+								x={position()[0]}
+								y={position()[1]}
 								text-anchor="middle"
 								dominant-baseline="middle"
 							>
@@ -125,17 +131,17 @@ const RadarChart: Component<RadarChartProps> = (props) => {
 					{(shape) => (
 						<g>
 							<polygon
-								class={`radar-area ${shape.key}`}
+								class={["radar-area", shape.key]}
 								points={shape.points.map((p) => p.join(",")).join(" ")}
 							/>
 							<polygon
-								class={`radar-line ${shape.key}`}
+								class={["radar-line", shape.key]}
 								points={shape.points.map((p) => p.join(",")).join(" ")}
 							/>
 							<For each={shape.points}>
 								{(p, index) => (
 									<circle
-										class={`radar-dot ${shape.key}`}
+										class={["radar-dot", shape.key]}
 										cx={p[0]}
 										cy={p[1]}
 										r={active() === index() ? 5.5 : 4}
@@ -147,22 +153,25 @@ const RadarChart: Component<RadarChartProps> = (props) => {
 				</For>
 				<For each={props.axes}>
 					{(axis, index) => {
-						const [x, y] = point(index(), 1, LABEL_GAP);
-						const cos = Math.cos(angle(index()));
+						const place = createMemo(() => {
+							const [x, y] = point(index(), 1, LABEL_GAP);
+							return { x, y, cos: Math.cos(angle(index())) };
+						});
 						const lines = labelLines(axis.label);
 						return (
 							<text
-								class="radar-label"
-								classList={{ active: active() === index() }}
-								x={x}
+								class={["radar-label", { active: active() === index() }]}
+								x={place().x}
 								// 上下の端のラベルは中央寄せ、左右は外側へ伸ばす
-								text-anchor={Math.abs(cos) < 0.2 ? "middle" : cos > 0 ? "start" : "end"}
-								y={y - (lines.length - 1) * 6.5}
+								text-anchor={
+									Math.abs(place().cos) < 0.2 ? "middle" : place().cos > 0 ? "start" : "end"
+								}
+								y={place().y - (lines.length - 1) * 6.5}
 								dominant-baseline="middle"
 							>
 								<For each={lines}>
 									{(line, lineIndex) => (
-										<tspan x={x} dy={lineIndex() === 0 ? 0 : 13}>
+										<tspan x={place().x} dy={lineIndex() === 0 ? 0 : 13}>
 											{line}
 										</tspan>
 									)}

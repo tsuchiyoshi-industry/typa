@@ -1,6 +1,5 @@
-import Check from "lucide-solid/icons/check";
-import MessageSquareText from "lucide-solid/icons/message-square-text";
 import { type Component, Show } from "solid-js";
+import { Check, MessageSquareText } from "./icons";
 
 export type OverallCommentTarget = "first" | "second";
 
@@ -41,7 +40,7 @@ const OverallCommentSection: Component<OverallCommentSectionProps> = (props) => 
 				<textarea
 					id={inputId}
 					value={fieldProps.value}
-					readOnly={!fieldProps.editable}
+					readonly={!fieldProps.editable}
 					onInput={(event) => {
 						if (fieldProps.editable) {
 							fieldProps.onChange(event.currentTarget.value);
@@ -59,7 +58,7 @@ const OverallCommentSection: Component<OverallCommentSectionProps> = (props) => 
 							<Check class="action-icon" />
 							{saving() ? "保存中..." : "総評を保存"}
 						</button>
-						<span class="save-state" classList={{ dirty: fieldProps.dirty }}>
+						<span class={["save-state", { dirty: fieldProps.dirty }]}>
 							{fieldProps.dirty ? "未保存の変更があります" : fieldProps.value ? "保存済み" : ""}
 						</span>
 					</div>

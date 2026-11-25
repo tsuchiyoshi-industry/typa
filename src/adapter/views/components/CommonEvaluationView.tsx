@@ -1,7 +1,4 @@
-import Check from "lucide-solid/icons/check";
-import SquarePen from "lucide-solid/icons/square-pen";
-import X from "lucide-solid/icons/x";
-import { type Component, createEffect, createSignal, For, Show } from "solid-js";
+import { type Component, createSignal, For, Show } from "solid-js";
 import type {
 	CommonEvaluationResultDto,
 	CommonEvaluationSummaryDto,
@@ -10,6 +7,8 @@ import { Score } from "../../../domain/valueObjects/Score";
 import type { CommonEvaluationController } from "../../controllers/CommonEvaluationController";
 import type { CommonEvaluationViewModel } from "../../presenters/CommonEvaluationPresenter";
 import { showToast, trackUnsaved } from "../feedback";
+import { type ConnectSaving, provideSaving } from "../savingSource";
+import { Check, SquarePen, X } from "./icons";
 import ScoreScale from "./ScoreScale";
 
 interface CommonEvaluationViewProps {
@@ -23,7 +22,8 @@ interface CommonEvaluationViewProps {
 	canViewSecondEvaluation: boolean;
 	/** 保存後にシートを読み直す。読み直しが済むまで、入力した値を表示し続ける。 */
 	onUpdated: () => unknown;
-	onSavingChange?: (saving: boolean) => void;
+	/** 「保存中か」を親に渡す口(描き終えたときに一度だけ accessor を渡す)。 */
+	connectSaving?: ConnectSaving;
 }
 
 interface Draft {
@@ -45,7 +45,7 @@ export default function CommonEvaluationView(props: CommonEvaluationViewProps) {
 	const [isEditing, setIsEditing] = createSignal(false);
 	const [drafts, setDrafts] = createSignal<Record<number, Draft>>({});
 	const [submitting, setSubmitting] = createSignal(false);
-	createEffect(() => props.onSavingChange?.(submitting()));
+	provideSaving(() => props.connectSaving, submitting);
 
 	const summary = () => props.summary;
 	const results = () => summary()?.results ?? [];
@@ -141,9 +141,7 @@ export default function CommonEvaluationView(props: CommonEvaluationViewProps) {
 			<Show
 				when={isEditing() && cellProps.editable}
 				fallback={
-					<span class="score-cell" classList={{ empty: !savedValue() }}>
-						{savedValue() || "—"}
-					</span>
+					<span class={["score-cell", { empty: !savedValue() }]}>{savedValue() || "—"}</span>
 				}
 			>
 				<ScoreScale
@@ -202,7 +200,7 @@ export default function CommonEvaluationView(props: CommonEvaluationViewProps) {
 
 			<Show when={summary()}>
 				<div class="table-scroll">
-					<table class="evaluation-table responsive-table" classList={{ editing: isEditing() }}>
+					<table class={["evaluation-table responsive-table", { editing: isEditing() }]}>
 						<thead>
 							<tr>
 								<th class="col-item">評価項目</th>
@@ -216,40 +214,40 @@ export default function CommonEvaluationView(props: CommonEvaluationViewProps) {
 							</tr>
 						</thead>
 						<tbody>
-							<For each={results()}>
+							<For each={results()} keyed={(result) => result.id}>
 								{(result) => (
-									<tr id={`common-item-${result.item.id}`} tabIndex={-1}>
+									<tr id={`common-item-${result().item.id}`} tabindex={-1}>
 										<th scope="row" class="col-item">
-											{result.item.title}
+											{result().item.title}
 										</th>
 										<td class="col-description" data-label="評価の観点">
-											{result.item.description}
+											{result().item.description}
 										</td>
 										<td class="col-comment" data-label="一次評価者コメント">
 											<Show
 												when={isEditing() && props.canEditFirst}
 												fallback={
-													<span classList={{ empty: !result.firstComment }}>
-														{result.firstComment || "—"}
+													<span class={{ empty: !result().firstComment }}>
+														{result().firstComment || "—"}
 													</span>
 												}
 											>
 												<textarea
-													aria-label={`${result.item.title} 一次評価者コメント`}
-													value={draftOf(result).firstComment}
+													aria-label={`${result().item.title} 一次評価者コメント`}
+													value={draftOf(result()).firstComment}
 													disabled={submitting()}
 													onInput={(e) =>
-														updateDraft(result, { firstComment: e.currentTarget.value })
+														updateDraft(result(), { firstComment: e.currentTarget.value })
 													}
 												/>
 											</Show>
 										</td>
 										<td class="col-number" data-label="配点">
-											{result.item.weight}
+											{result().item.weight}
 										</td>
 										<td class="col-score" data-label="一次評価">
 											<ScoreCell
-												result={result}
+												result={result()}
 												field="firstScore"
 												label="一次評価"
 												editable={props.canEditFirst}
@@ -258,7 +256,7 @@ export default function CommonEvaluationView(props: CommonEvaluationViewProps) {
 										<Show when={props.canViewSecondEvaluation}>
 											<td class="col-score" data-label="二次評価">
 												<ScoreCell
-													result={result}
+													result={result()}
 													field="secondScore"
 													label="二次評価"
 													editable={props.canEditSecond}
@@ -271,7 +269,7 @@ export default function CommonEvaluationView(props: CommonEvaluationViewProps) {
 						</tbody>
 						<tfoot>
 							<tr>
-								<th scope="row" colSpan={3}>
+								<th scope="row" colspan={3}>
 									合計（配点 × 評価）
 								</th>
 								<td class="col-number" data-label="配点">

@@ -1,10 +1,11 @@
-import { createMemoryHistory, MemoryRouter, Route } from "@solidjs/router";
+import { memoryHistory } from "@solidjs/router";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@solidjs/testing-library";
 import { afterEach, expect, it, vi } from "vitest";
 import type { ReviewerRowDto } from "../../application/dtos/ReviewerWorkspaceDto";
 import { EvaluationStatus } from "../../domain/valueObjects/EvaluationStatus";
 import { reviewerEditorFixture } from "../../test/reviewerEditorFixture";
 import { reviewerRow } from "../../test/reviewerFixture";
+import { routed } from "../../test/router";
 import {
 	ReviewerOnlyError,
 	type ReviewerWorkspaceController,
@@ -33,7 +34,7 @@ function setup(
 	current: typeof inProgress | null = inProgress,
 ) {
 	const rows = people;
-	const history = createMemoryHistory();
+	const history = memoryHistory("/");
 	history.set({ value: url, replace: true, scroll: false });
 	const controller = {
 		currentPeriod: vi.fn().mockResolvedValue(current),
@@ -41,27 +42,30 @@ function setup(
 	};
 	const editor = reviewerEditorFixture(() => rows, undefined, notifiesByMail);
 
-	const view = render(() => (
-		<MemoryRouter
-			history={history}
-			root={(props) => (
-				<>
-					{props.children}
-					<FeedbackHost />
-				</>
-			)}
-		>
-			<Route
-				path="/review"
-				component={() => (
-					<ReviewerWorkspaceView
-						controller={controller as unknown as ReviewerWorkspaceController}
-						editor={editor}
-					/>
-				)}
-			/>
-		</MemoryRouter>
-	));
+	const view = render(() =>
+		routed(
+			[
+				{
+					path: "/review",
+					component: () => (
+						<ReviewerWorkspaceView
+							controller={controller as unknown as ReviewerWorkspaceController}
+							editor={editor}
+						/>
+					),
+				},
+			],
+			{
+				history: history,
+				root: (props) => (
+					<>
+						{props.children}
+						<FeedbackHost />
+					</>
+				),
+			},
+		),
+	);
 
 	// 評価シートと比較の窓は body の直下に出るので、画面全体から探す
 	return { ...view, ...within(document.body), controller, editor, history };
@@ -536,19 +540,14 @@ it("shows only a notice, not the caseload, to someone who cannot be an evaluator
 		currentPeriod: vi.fn().mockRejectedValue(new ReviewerOnlyError()),
 		load: vi.fn(),
 	};
-	render(() => (
-		<MemoryRouter>
-			<Route
-				path="*"
-				component={() => (
-					<ReviewerWorkspaceView
-						controller={controller as unknown as ReviewerWorkspaceController}
-						editor={reviewerEditorFixture(() => [])}
-					/>
-				)}
+	render(() =>
+		routed(() => (
+			<ReviewerWorkspaceView
+				controller={controller as unknown as ReviewerWorkspaceController}
+				editor={reviewerEditorFixture(() => [])}
 			/>
-		</MemoryRouter>
-	));
+		)),
+	);
 	expect(await screen.findByText(new ReviewerOnlyError().message)).toBeTruthy();
 	expect(screen.queryByRole("searchbox")).toBeNull();
 	expect(screen.queryByRole("button", { name: "部下の一覧を再読み込み" })).toBeNull();

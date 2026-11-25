@@ -1,6 +1,6 @@
-import ShieldCheck from "lucide-solid/icons/shield-check";
 import { type Component, Show } from "solid-js";
 import type { EvaluationRankDto } from "../../../application/dtos/EvaluationSheetDto";
+import { ShieldCheck } from "./icons";
 
 interface ReviewActionBarProps {
 	/** 最終評価の確定か(でなければ一次評価の確定)。 */
@@ -23,8 +23,10 @@ const ReviewActionBar: Component<ReviewActionBarProps> = (props) => (
 		</span>
 		<button
 			type="button"
-			class="primary-action finalize"
-			classList={{ "is-ready": props.ready && !props.busy && !props.updating }}
+			class={[
+				"primary-action finalize",
+				{ "is-ready": props.ready && !props.busy && !props.updating },
+			]}
 			disabled={props.busy}
 			onClick={() => props.onConfirm()}
 		>

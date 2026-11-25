@@ -1,4 +1,4 @@
-import { type Component, For, Index, Show } from "solid-js";
+import { type Component, For, Show } from "solid-js";
 import {
 	addPeriodGoal,
 	MAX_PERIOD_GOALS,
@@ -23,18 +23,18 @@ export const PeriodGoalsList: Component<{ goals: readonly PeriodGoal[]; achievem
 		}
 	>
 		<ol class="period-goals" aria-label="期中目標">
-			<For each={props.goals}>
+			<For each={props.goals} keyed={false}>
 				{(goal, index) => (
 					<li>
 						<span class="period-goals__number" aria-hidden="true">
-							{index() + 1}
+							{index + 1}
 						</span>
 						<div>
-							<p classList={{ empty: !goal.description }}>{goal.description || "未入力"}</p>
-							<Show when={goal.achievement}>
+							<p class={{ empty: !goal().description }}>{goal().description || "未入力"}</p>
+							<Show when={goal().achievement}>
 								<p class="period-goals__achievement">
 									<span class="period-goals__label">達成状況</span>
-									{goal.achievement}
+									{goal().achievement}
 								</p>
 							</Show>
 						</div>
@@ -62,7 +62,7 @@ export const PeriodGoalsEditor: Component<{
 	 */
 	canEditAchievements?: boolean;
 	/** チャレンジ目標の達成状況の欄の見た目(遡及処理で、直した欄を示すなど)。 */
-	achievementClassList?: Record<string, boolean>;
+	achievementClass?: Record<string, boolean>;
 }> = (props) => {
 	const editsGoals = () => props.canEditGoals !== false;
 	const editsAchievements = () => props.canEditAchievements !== false;
@@ -89,7 +89,7 @@ export const PeriodGoalsEditor: Component<{
 				</p>
 				<Show when={props.goals.length > 0}>
 					<ol class="period-goal-cards">
-						<Index each={props.goals}>
+						<For each={props.goals} keyed={false}>
 							{(goal, index) => (
 								<li>
 									<fieldset class="period-goal-card">
@@ -103,10 +103,7 @@ export const PeriodGoalsEditor: Component<{
 												fallback={
 													<>
 														<span class="period-goal-card__label">期中目標</span>
-														<p
-															class="period-goal-card__text"
-															classList={{ empty: !goal().description }}
-														>
+														<p class={["period-goal-card__text", { empty: !goal().description }]}>
 															{goal().description || "未入力"}
 														</p>
 													</>
@@ -147,7 +144,7 @@ export const PeriodGoalsEditor: Component<{
 									</fieldset>
 								</li>
 							)}
-						</Index>
+						</For>
 					</ol>
 				</Show>
 				<Show when={editsGoals()}>
@@ -168,7 +165,7 @@ export const PeriodGoalsEditor: Component<{
 				</Show>
 			</fieldset>
 			<Show when={props.goals.length === 0 && editsAchievements()}>
-				<label classList={props.achievementClassList}>
+				<label class={props.achievementClass}>
 					<span>達成状況</span>
 					<textarea
 						value={props.achievement}

@@ -27,17 +27,17 @@
 		"seed": "bun scripts/generateSeed.ts && docker exec -i supabase_db_typa psql -U postgres -d postgres -v ON_ERROR_STOP=1 -q -o /dev/null < supabase/seed.sql"
 	},
 	"license": "MIT",
-	"packageManager": "bun@1.4.4",
+	"packageManager": "bun@1.4.5",
 	"dependencies": {
-		"@solidjs/router": "^1.0.3",
-		"@supabase/supabase-js": "^2.119.0",
-		"@tauri-apps/api": "~2.12.4",
+		"@solidjs/router": "^2.0.1",
+		"@supabase/supabase-js": "^2.119.2",
+		"@tauri-apps/api": "~2.12.5",
 		"@tauri-apps/plugin-dialog": "~2.8.4",
 		"@tauri-apps/plugin-opener": "~2.7.3",
 		"@tauri-apps/plugin-process": "^2.4.0",
 		"@tauri-apps/plugin-updater": "~2.14.1",
-		"lucide-solid": "^1.73.0",
-		"solid-js": "^1.9.19"
+		"lucide-solid": "^1.79.0",
+		"solid-js": "^2.0.4"
 	},
 	"overrides": {
 		"@babel/core": "7.29.6",
@@ -48,21 +48,21 @@
 		"source-map-js": "1.2.2"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "2.6.8",
-		"@electric-sql/pglite": "^0.5.16",
+		"@biomejs/biome": "2.6.9",
+		"@electric-sql/pglite": "^0.6.0",
 		"@faker-js/faker": "10.6.0",
 		"@fast-check/vitest": "0.5.0",
 		"@playwright/test": "^1.65.1",
 		"@solidjs/testing-library": "^0.8.10",
-		"@tauri-apps/cli": "^2.12.4",
-		"@types/node": "^26.6.6",
-		"@vitest/browser-playwright": "5.1.0",
-		"@vitest/coverage-v8": "5.1.0",
-		"fast-check": "4.10.2",
+		"@tauri-apps/cli": "^2.12.6",
+		"@types/node": "^26.6.7",
+		"@vitest/browser-playwright": "5.1.1",
+		"@vitest/coverage-v8": "5.1.1",
+		"fast-check": "4.11.0",
 		"happy-dom": "^21.0.4",
 		"typescript": "~7.0.2",
 		"vite": "^8.3.8",
-		"vite-plugin-solid": "^2.11.16",
-		"vitest": "^5.1.0"
+		"vite-plugin-solid": "^2.11.17",
+		"vitest": "^5.1.1"
 	}
 }

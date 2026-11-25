@@ -552,6 +552,29 @@
 	color: var(--hr-text-muted);
 	font-size: 0.8125rem;
 }
+@supports (position-area: block-end) {
+	.evaluator-menu[popover] {
+		--menu-width: min(max(anchor-size(width), 300px), calc(100vw - 24px));
+		inset: auto;
+		margin: 0;
+		top: calc(anchor(bottom) + 6px);
+		left: clamp(12px, anchor(left), calc(100vw - var(--menu-width) - 12px));
+		width: var(--menu-width);
+		max-height: 320px;
+		position-try-fallbacks: --evaluator-above, --evaluator-fit-below, --evaluator-fit-above;
+	}
+}
+@position-try --evaluator-above {
+	top: auto;
+	bottom: calc(anchor(top) + 6px);
+}
+@position-try --evaluator-fit-below {
+	bottom: 12px;
+}
+@position-try --evaluator-fit-above {
+	top: 12px;
+	bottom: calc(anchor(top) + 6px);
+}
 .evaluator-search-hint span {
 	margin-left: auto;
 }

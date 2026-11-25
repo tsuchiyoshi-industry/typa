@@ -240,6 +240,7 @@
 	margin-top: 1rem;
 }
 .goal-master-items {
+	container: goal-items / inline-size;
 	display: grid;
 	gap: 0.75rem;
 	margin: 1.2rem 0 0;
@@ -277,7 +278,7 @@
 	gap: 0.9rem;
 	margin-top: 0.9rem;
 }
-@media (max-width: 760px) {
+@container goal-items (max-width: 760px) {
 	.goal-master-items li {
 		grid-template-columns: 1.75rem 1fr 5rem auto;
 	}
@@ -781,7 +782,7 @@ a.setup-task-link:hover {
 	top: 4.5rem;
 	display: grid;
 	gap: 0.75rem;
-	max-height: calc(100vh - 6rem);
+	max-height: calc(100dvh - 6rem);
 	padding: 1rem;
 	border: 1px solid var(--hr-border);
 	border-radius: var(--hr-radius-lg);

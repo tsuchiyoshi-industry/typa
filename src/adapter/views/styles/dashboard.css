@@ -1,6 +1,6 @@
 /* ----- シェル & トップバー ----- */
 .dashboard-shell {
-	min-height: 100vh;
+	min-height: 100svh;
 	display: flex;
 	flex-direction: column;
 }
@@ -173,7 +173,7 @@
 	right: 0;
 	top: calc(100% + 6px);
 	width: min(24rem, calc(100vw - 2rem));
-	max-height: min(32rem, 70vh);
+	max-height: min(32rem, 70dvh);
 	overflow-y: auto;
 	padding: 0.35rem;
 	background: var(--hr-surface);
@@ -2472,6 +2472,7 @@
 	font-size: 0.8125rem;
 }
 .previous-goals__list {
+	container: previous-goals / inline-size;
 	display: grid;
 	margin: 0;
 	padding: 0.5rem 1.25rem 1rem;
@@ -2692,7 +2693,7 @@
 	align-items: flex-end;
 	gap: 0.35rem;
 }
-@media (max-width: 640px) {
+@container previous-goals (max-width: 640px) {
 	.previous-goals__list > li.previous-goal {
 		grid-template-columns: 1.75rem minmax(0, 1fr);
 	}
@@ -3021,5 +3022,41 @@
 	}
 	.overall-comment-fields {
 		grid-template-columns: minmax(0, 1fr);
+	}
+}
+
+/* popovertarget が結びつけたボタンに配置する。未対応環境は従来の親要素基準。 */
+@supports (position-area: block-end) {
+	.user-menu-dropdown[popover],
+	.notification-panel[popover] {
+		position: fixed;
+		inset: auto;
+		margin: 6px 0;
+		color: var(--hr-text);
+		position-area: block-end span-inline-start;
+		justify-self: end;
+		position-try-fallbacks:
+			flip-block,
+			flip-inline,
+			flip-block flip-inline;
+		max-height: min(32rem, 70dvh);
+		overflow-y: auto;
+	}
+	@media (max-width: 640px) {
+		.notification-panel[popover],
+		.topbar-nav[popover] {
+			position: fixed;
+			position-area: none;
+			inset: var(--topbar-height) 0 auto;
+			margin: 0;
+			width: auto;
+		}
+		.notification-panel[popover] {
+			inset: 3.75rem 1rem auto;
+		}
+		.topbar-nav[popover] {
+			border: 0;
+			border-bottom: 1px solid var(--hr-border-strong);
+		}
 	}
 }

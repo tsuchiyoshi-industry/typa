@@ -163,7 +163,7 @@
 	border-radius: 7px;
 }
 
-.audit-range input:invalid {
+.audit-range input:user-invalid {
 	border-color: var(--hr-danger);
 }
 

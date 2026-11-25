@@ -1,14 +1,16 @@
-import { Navigate, Route, Router } from "@solidjs/router";
+import { createRouter, type RouteSectionProps, useNavigate } from "@solidjs/router";
+import type { JSX } from "@solidjs/web";
 import { isTauri } from "@tauri-apps/api/core";
 import {
+	type Accessor,
 	type Component,
+	createContext,
 	createSignal,
-	type JSX,
+	Loading,
 	lazy,
-	onCleanup,
-	onMount,
+	onSettled,
 	Show,
-	Suspense,
+	useContext,
 } from "solid-js";
 import { AccountController } from "./adapter/controllers/AccountController";
 import { AuditLogController } from "./adapter/controllers/AuditLogController";
@@ -339,7 +341,7 @@ const employeeMasterController = new EmployeeMasterController(
 	new ResetEmployeePasswordInteractor(employeeMasterRepository),
 );
 
-const AppLayout: Component<{ children?: JSX.Element | JSX.Element[] }> = (props) => (
+const AppLayout: Component<{ children?: JSX.Element }> = (props) => (
 	<div class="app-shell">
 		<div class="app-frame">{props.children}</div>
 		<AutoUpdateNotification />
@@ -348,9 +350,161 @@ const AppLayout: Component<{ children?: JSX.Element | JSX.Element[] }> = (props)
 	</div>
 );
 
+/** ログインの状態。App が確かめ、ログイン画面とログイン後の画面が読む。 */
+interface SignedIn {
+	session: Accessor<AuthSession | null>;
+	/** 社員に紐付いているか。確かめている間は null。 */
+	linked: Accessor<boolean | null>;
+	/** 新規登録で紐付けたあと、セッションを読み直して確かめ直す。 */
+	recheck: () => Promise<void>;
+}
+const SignedInContext = createContext<SignedIn>();
+
+/** 描いたら、その場所へ移す(履歴は残さない)。2.0 のルーターには <Navigate> が無い。 */
+const Redirect: Component<{ href: string }> = (props) => {
+	const navigate = useNavigate();
+	onSettled(() => navigate(props.href, { replace: true }));
+	return null;
+};
+
+const LoginRoute: Component = () => {
+	const signedIn = useContext(SignedInContext);
+	return (
+		<Show when={!signedIn.session() || !signedIn.linked()} fallback={<Redirect href="/" />}>
+			<LoginView controller={accountController} onRegistrationLinked={signedIn.recheck} />
+		</Show>
+	);
+};
+
+// ログイン済みの画面はトップバーを共有する。ページ移動のたびに作り直さない。
+// 確認中(linked が null)に待たせるのはログイン後の画面だけ。ログイン画面まで作り直すと、
+// 利用停止などで直後にサインアウトしたときのエラー表示と入力が消えてしまう。
+// 読み込み画面は初期セットアップの一度きり。ここで確認中になるのはセットアップ後に
+// 別のアカウントへ切り替わったときだけなので、何も出さずに待つ。
+const ProtectedLayout: Component<RouteSectionProps> = (props) => {
+	const signedIn = useContext(SignedInContext);
+	return (
+		<Show when={signedIn.linked() !== null}>
+			<Show when={signedIn.session() && signedIn.linked()} fallback={<Redirect href="/login" />}>
+				<DashboardLayout controller={accountController} inbox={notificationInboxController}>
+					<Loading>{props.children}</Loading>
+				</DashboardLayout>
+			</Show>
+		</Show>
+	);
+};
+
+// 2.0 のルーターは、ルートの表を一度だけ作る(JSX の <Route> は無い)。
+const Router = createRouter({
+	routes: [
+		{ path: "/login", component: LoginRoute },
+		{
+			path: "/",
+			component: ProtectedLayout,
+			children: [
+				{
+					path: "/",
+					component: () => (
+						<SheetListView
+							controller={sheetListController}
+							viewModel={sheetListPresenter.viewModel}
+						/>
+					),
+				},
+				{
+					path: "/review",
+					component: () => (
+						<ReviewerWorkspaceView
+							controller={reviewerWorkspaceController}
+							editor={{
+								controller: sheetEditorController,
+								viewModel: sheetEditorPresenter.viewModel,
+								commonEvaluationController,
+								commonEvaluationViewModel: commonEvaluationPresenter.viewModel,
+								challengeEvaluationController,
+								challengeEvaluationViewModel: challengeEvaluationPresenter.viewModel,
+							}}
+						/>
+					),
+				},
+				{
+					path: "/sheet/:id",
+					component: () => (
+						<SheetEditorView
+							controller={sheetEditorController}
+							viewModel={sheetEditorPresenter.viewModel}
+							commonEvaluationController={commonEvaluationController}
+							commonEvaluationViewModel={commonEvaluationPresenter.viewModel}
+							challengeEvaluationController={challengeEvaluationController}
+							challengeEvaluationViewModel={challengeEvaluationPresenter.viewModel}
+						/>
+					),
+				},
+				{
+					path: "/employee-master",
+					component: () => (
+						<EmployeeMasterView
+							controller={employeeMasterController}
+							viewModel={employeeMasterPresenter.viewModel}
+						/>
+					),
+				},
+				{
+					path: "/settings",
+					component: () => (
+						<SettingsView
+							controller={settingsController}
+							periodController={evaluationPeriodController}
+							smtpController={smtpSettingsController}
+						/>
+					),
+				},
+				{
+					path: "/grades",
+					component: () => <GradeMasterView controller={gradeMasterController} />,
+				},
+				{
+					path: "/common-goals",
+					component: () => <CommonGoalMasterView controller={gradeMasterController} />,
+				},
+				{ path: "/setup", component: () => <SetupView controller={accountController} /> },
+				{
+					path: "/setup/employees",
+					component: () => (
+						<EmployeePreRegistrationView
+							controller={employeeMasterController}
+							viewModel={employeeMasterPresenter.viewModel}
+						/>
+					),
+				},
+				{
+					path: "/setup/import",
+					component: () => <SheetImportView controller={sheetImportController} />,
+				},
+				{
+					path: "/retroactive",
+					component: () => (
+						<RetroactiveCorrectionView controller={retroactiveCorrectionController} />
+					),
+				},
+				{ path: "/audit-log", component: () => <AuditLogView controller={auditLogController} /> },
+				{
+					path: "/security",
+					component: () => <SecurityAssuranceView controller={securityAssuranceController} />,
+				},
+				{
+					path: "/help",
+					component: () => <HelpView settings={() => settingsController.load()} />,
+				},
+				{ path: "*404", component: NotFound },
+			],
+		},
+	],
+});
+
 const App: Component = () => {
 	const [session, setSession] = createSignal<AuthSession | null>(null);
-	const [isLinked, setIsLinked] = createSignal<boolean | null>(null);
+	const [linked, setLinked] = createSignal<boolean | null>(null);
 	// 初期セットアップ: 保存済みのセッションを読み、社員との紐付けを確かめ、
 	// ログイン済みならログイン後の画面のコードを読み込む。終わるまで読み込み画面を一度だけ出す
 	const [setUp, setSetUp] = createSignal(false);
@@ -363,21 +517,21 @@ const App: Component = () => {
 		const generation = ++userStatusGeneration;
 		// 替わったら、確かめ終わるまで(読み直すときは読み直すまで)ログイン後の画面を出さない
 		if (session()?.userId !== currentSession?.userId) {
-			setIsLinked(null);
+			setLinked(null);
 		}
 		if (!currentSession && accountSwitch.signedOut()) {
 			window.location.reload();
 			return;
 		}
 		setSession(currentSession);
-		const linked = currentSession
+		const isLinked = currentSession
 			? await employeeRepository.checkUserLinked(currentSession.userId)
 			: false;
 		const keep =
-			linked && currentSession
+			isLinked && currentSession
 				? await employeeRepository.findKeepSignedIn(currentSession.userId)
 				: false;
-		if (linked) {
+		if (isLinked) {
 			await Promise.all(protectedViews.map((view) => view.preload()));
 		}
 		if (generation !== userStatusGeneration) {
@@ -385,162 +539,38 @@ const App: Component = () => {
 		}
 		// 読み直す前に、この人のセッションの残し方へ切り替える(前の人の設定で残さない)
 		authRepository.keepSignedIn(keep);
-		if (linked && currentSession && accountSwitch.mustReloadFor(currentSession.userId)) {
+		if (isLinked && currentSession && accountSwitch.mustReloadFor(currentSession.userId)) {
 			window.location.reload();
 			return;
 		}
-		setIsLinked(linked);
+		setLinked(isLinked);
 		// 確認が追い越されたときは、最後に始めた確認がセットアップを終える
 		setSetUp(true);
 	};
 
-	let unsubscribeAuth: (() => void) | undefined;
-	onMount(async () => {
+	onSettled(() => {
 		// Subscribe first so an account switch during initialization is not missed.
-		unsubscribeAuth = authRepository.onAuthStateChange((next) => void checkUserStatus(next));
+		const unsubscribe = authRepository.onAuthStateChange((next) => void checkUserStatus(next));
 		const generation = userStatusGeneration;
-		const initial = await authRepository.getSession();
-		if (generation === userStatusGeneration) {
-			await checkUserStatus(initial);
-		}
+		void authRepository.getSession().then((initial) => {
+			if (generation === userStatusGeneration) {
+				return checkUserStatus(initial);
+			}
+		});
+		return unsubscribe;
 	});
 
-	onCleanup(() => unsubscribeAuth?.());
-
-	// ログイン済みの画面はトップバーを共有する。ページ移動のたびに作り直さない。
-	// 確認中(isLinked が null)に待たせるのはログイン後の画面だけ。ログイン画面まで作り直すと、
-	// 利用停止などで直後にサインアウトしたときのエラー表示と入力が消えてしまう。
-	// 読み込み画面は初期セットアップの一度きり。ここで確認中になるのはセットアップ後に
-	// 別のアカウントへ切り替わったときだけなので、何も出さずに待つ。
-	const ProtectedLayout: Component<{ children?: JSX.Element }> = (props) => (
-		<Show when={isLinked() !== null}>
-			<Show when={session() && isLinked()} fallback={<Navigate href="/login" />}>
-				<DashboardLayout controller={accountController} inbox={notificationInboxController}>
-					<Suspense>{props.children}</Suspense>
-				</DashboardLayout>
-			</Show>
-		</Show>
-	);
+	const signedIn: SignedIn = {
+		session,
+		linked,
+		recheck: async () => checkUserStatus(await authRepository.getSession()),
+	};
 
 	return (
 		<Show when={setUp()} fallback={<LoadingView />}>
-			<Router root={AppLayout}>
-				<Route
-					path="/login"
-					component={() => (
-						<Show when={!session() || !isLinked()} fallback={<Navigate href="/" />}>
-							<LoginView
-								controller={accountController}
-								onRegistrationLinked={async () => {
-									const currentSession = await authRepository.getSession();
-									await checkUserStatus(currentSession);
-								}}
-							/>
-						</Show>
-					)}
-				/>
-
-				<Route path="/" component={ProtectedLayout}>
-					<Route
-						path="/"
-						component={() => (
-							<SheetListView
-								controller={sheetListController}
-								viewModel={sheetListPresenter.viewModel}
-							/>
-						)}
-					/>
-					<Route
-						path="/review"
-						component={() => (
-							<ReviewerWorkspaceView
-								controller={reviewerWorkspaceController}
-								editor={{
-									controller: sheetEditorController,
-									viewModel: sheetEditorPresenter.viewModel,
-									commonEvaluationController,
-									commonEvaluationViewModel: commonEvaluationPresenter.viewModel,
-									challengeEvaluationController,
-									challengeEvaluationViewModel: challengeEvaluationPresenter.viewModel,
-								}}
-							/>
-						)}
-					/>
-					<Route
-						path="/sheet/:id"
-						component={() => (
-							<SheetEditorView
-								controller={sheetEditorController}
-								viewModel={sheetEditorPresenter.viewModel}
-								commonEvaluationController={commonEvaluationController}
-								commonEvaluationViewModel={commonEvaluationPresenter.viewModel}
-								challengeEvaluationController={challengeEvaluationController}
-								challengeEvaluationViewModel={challengeEvaluationPresenter.viewModel}
-							/>
-						)}
-					/>
-					<Route
-						path="/employee-master"
-						component={() => (
-							<EmployeeMasterView
-								controller={employeeMasterController}
-								viewModel={employeeMasterPresenter.viewModel}
-							/>
-						)}
-					/>
-					<Route
-						path="/settings"
-						component={() => (
-							<SettingsView
-								controller={settingsController}
-								periodController={evaluationPeriodController}
-								smtpController={smtpSettingsController}
-							/>
-						)}
-					/>
-					<Route
-						path="/grades"
-						component={() => <GradeMasterView controller={gradeMasterController} />}
-					/>
-					<Route
-						path="/common-goals"
-						component={() => <CommonGoalMasterView controller={gradeMasterController} />}
-					/>
-					<Route path="/setup" component={() => <SetupView controller={accountController} />} />
-					<Route
-						path="/setup/employees"
-						component={() => (
-							<EmployeePreRegistrationView
-								controller={employeeMasterController}
-								viewModel={employeeMasterPresenter.viewModel}
-							/>
-						)}
-					/>
-					<Route
-						path="/setup/import"
-						component={() => <SheetImportView controller={sheetImportController} />}
-					/>
-					<Route
-						path="/retroactive"
-						component={() => (
-							<RetroactiveCorrectionView controller={retroactiveCorrectionController} />
-						)}
-					/>
-					<Route
-						path="/audit-log"
-						component={() => <AuditLogView controller={auditLogController} />}
-					/>
-					<Route
-						path="/security"
-						component={() => <SecurityAssuranceView controller={securityAssuranceController} />}
-					/>
-					<Route
-						path="/help"
-						component={() => <HelpView settings={() => settingsController.load()} />}
-					/>
-					<Route path="*404" component={NotFound} />
-				</Route>
-			</Router>
+			<SignedInContext value={signedIn}>
+				<Router>{(props) => <AppLayout>{props.children}</AppLayout>}</Router>
+			</SignedInContext>
 		</Show>
 	);
 };

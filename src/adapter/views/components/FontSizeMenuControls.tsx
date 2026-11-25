@@ -1,5 +1,3 @@
-import Minus from "lucide-solid/icons/minus";
-import Plus from "lucide-solid/icons/plus";
 import { type Component, createSignal } from "solid-js";
 import {
 	applyFontSize,
@@ -8,6 +6,7 @@ import {
 	MAX_FONT_SIZE,
 	MIN_FONT_SIZE,
 } from "../fontSize";
+import { Minus, Plus } from "./icons";
 
 const FontSizeMenuControls: Component = () => {
 	const [size, setSize] = createSignal(getStoredFontSize() ?? DEFAULT_FONT_SIZE);

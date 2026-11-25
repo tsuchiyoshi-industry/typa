@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
-import { createMemoryHistory, MemoryRouter, Route } from "@solidjs/router";
+import { memoryHistory } from "@solidjs/router";
 import { cleanup, fireEvent, render, waitFor, within } from "@solidjs/testing-library";
 import { afterEach, expect, it, vi } from "vitest";
+import { routed } from "../../../test/router";
 import type { Inbox, InboxItem } from "../../controllers/NotificationInboxController";
 import { showToast } from "../feedback";
 import { formatDateTime } from "../format";
@@ -39,13 +40,11 @@ function setup(items: InboxItem[] = [item()], load?: () => Promise<Inbox>) {
 			stored = stored.map((entry) => ({ ...entry, unread: false }));
 		}),
 	};
-	const history = createMemoryHistory();
+	const history = memoryHistory("/");
 	history.set({ value: "/", replace: true, scroll: false });
-	const view = render(() => (
-		<MemoryRouter history={history}>
-			<Route path="*" component={() => <NotificationBell controller={controller} />} />
-		</MemoryRouter>
-	));
+	const view = render(() =>
+		routed(() => <NotificationBell controller={controller} />, { history: history }),
+	);
 	return { ...view, controller, history };
 }
 

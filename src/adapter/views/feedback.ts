@@ -1,4 +1,4 @@
-import { createEffect, createSignal, onCleanup, type Setter } from "solid-js";
+import { createEffect, createSignal } from "solid-js";
 
 // --- トースト通知 ---------------------------------------------------
 
@@ -98,28 +98,67 @@ export interface ConfirmText {
 
 type PendingConfirm = ConfirmRequest & { resolve: (confirmed: boolean) => void };
 
+// 開いている確認の正本は変数で持つ。信号は画面に出すためだけ(書いた値は次の flush まで読めないので、
+// 同じフレームで開いて閉じても・続けて開いても、前の確認を必ず解決する)
+let openConfirm: PendingConfirm | null = null;
 const [pendingConfirm, setPendingConfirm] = createSignal<PendingConfirm | null>(null);
 
 export { pendingConfirm };
 
 export function confirmAction(request: ConfirmRequest): Promise<boolean> {
 	return new Promise((resolve) => {
-		pendingConfirm()?.resolve(false);
-		setPendingConfirm({ ...request, resolve });
+		openConfirm?.resolve(false);
+		openConfirm = { ...request, resolve };
+		setPendingConfirm(openConfirm);
 	});
 }
 
 export function settleConfirm(confirmed: boolean): void {
-	const pending = pendingConfirm();
+	const pending = openConfirm;
+	openConfirm = null;
 	setPendingConfirm(null);
 	pending?.resolve(confirmed);
 }
 
 // --- 未保存の変更 ---------------------------------------------------
 
-const [unsavedKeys, setUnsavedKeys] = createSignal<ReadonlySet<string>>(new Set());
+/**
+ * 画面ごとの印(未保存・保存中)。正本はいまの集合で、判断はいつもいまの値でする
+ * (書いた値は次の flush まで信号から読めない。消した直後に離脱を確かめても、消えたと分かるように)。
+ * 信号は、印が変わったことを画面に知らせるためだけに使う。
+ */
+function createKeySet() {
+	const now = new Set<string>();
+	const [changes, setChanges] = createSignal(0);
+	const changed = () => setChanges((count) => count + 1);
+	return {
+		any: () => {
+			changes();
+			return now.size > 0;
+		},
+		set: (key: string, on: boolean) => {
+			if (now.has(key) !== on) {
+				if (on) {
+					now.add(key);
+				} else {
+					now.delete(key);
+				}
+				changed();
+			}
+		},
+		clear: () => {
+			if (now.size > 0) {
+				now.clear();
+				changed();
+			}
+		},
+	};
+}
+type KeySet = ReturnType<typeof createKeySet>;
 
-export const hasUnsavedChanges = () => unsavedKeys().size > 0;
+const unsaved = createKeySet();
+
+export const hasUnsavedChanges = unsaved.any;
 
 /** 保存やステータスの変更の前に、入力中の内容が残っていないか確かめる。残っていれば知らせて false。 */
 export const ensureNothingUnsaved = () => {
@@ -131,41 +170,38 @@ export const ensureNothingUnsaved = () => {
 };
 
 export function clearUnsavedChanges(): void {
-	setUnsavedKeys(new Set<string>());
+	unsaved.clear();
 }
 
-function toggleKey(setKeys: Setter<ReadonlySet<string>>, key: string, on: boolean): void {
-	setKeys((prev) => {
-		if (prev.has(key) === on) {
-			return prev;
+/**
+ * 真の間だけ印を立てる。戻ったとき・画面を閉じたときは、effect の後片付けが印を外す。
+ * 印が立ち続けると、離脱・ログアウトのたびに確認が出て、閉じられなくなる。
+ */
+function holdKey(keys: KeySet, key: string, on: () => boolean): void {
+	createEffect(on, (active) => {
+		if (!active) {
+			return;
 		}
-		const next = new Set(prev);
-		if (on) {
-			next.add(key);
-		} else {
-			next.delete(key);
-		}
-		return next;
+		keys.set(key, true);
+		return () => keys.set(key, false);
 	});
 }
 
 /** コンポーネント内で呼ぶ。isDirty が真の間、離脱・終了時に確認が入る。 */
 export function trackUnsaved(key: string, isDirty: () => boolean): void {
-	createEffect(() => toggleKey(setUnsavedKeys, key, isDirty()));
-	onCleanup(() => toggleKey(setUnsavedKeys, key, false));
+	holdKey(unsaved, key, isDirty);
 }
 
 // --- 保存中 ---------------------------------------------------------
 
-const [savingKeys, setSavingKeys] = createSignal<ReadonlySet<string>>(new Set());
+const saving = createKeySet();
 
 /** 送り出した保存・状態の変更が、まだ終わっていないか。ログアウトすると届かなくなる。 */
-export const isSaving = () => savingKeys().size > 0;
+export const isSaving = saving.any;
 
 /** コンポーネント内で呼ぶ。isSaving が真の間は、ログアウトを待ってもらう。 */
-export function trackSaving(key: string, saving: () => boolean): void {
-	createEffect(() => toggleKey(setSavingKeys, key, saving()));
-	onCleanup(() => toggleKey(setSavingKeys, key, false));
+export function trackSaving(key: string, isBusy: () => boolean): void {
+	holdKey(saving, key, isBusy);
 }
 
 /**

@@ -1,9 +1,10 @@
 import "./styles/global.css";
 import "./styles/dashboard.css";
-import { createMemoryHistory, MemoryRouter, Route } from "@solidjs/router";
+import { memoryHistory } from "@solidjs/router";
 import { cleanup, fireEvent, render } from "@solidjs/testing-library";
 import { afterEach, expect, it, vi } from "vitest";
 import { page } from "vitest/browser";
+import { routed } from "../../test/router";
 import type { AccountController } from "../controllers/AccountController";
 import DashboardLayout from "./DashboardLayout";
 
@@ -12,32 +13,30 @@ afterEach(cleanup);
 /** App.tsx と同じ枠(.app-shell > .app-frame)に入れて、実際の CSS で測る。 */
 async function setup(width: number, path = "/") {
 	await page.viewport(width, 600);
-	const history = createMemoryHistory();
+	const history = memoryHistory("/");
 	history.set({ value: path, replace: true, scroll: false });
 	const view = render(() => (
 		<div class="app-shell">
 			<div class="app-frame">
-				<MemoryRouter history={history}>
-					<Route
-						path="*"
-						component={() => (
-							<DashboardLayout
-								controller={
-									{
-										currentUser: vi.fn().mockResolvedValue({ name: "山田 太郎", canReview: true }),
-									} as unknown as AccountController
-								}
-								inbox={{
-									load: vi.fn().mockResolvedValue({ unreadCount: 0, items: [] }),
-									markRead: vi.fn(),
-									markAllRead: vi.fn(),
-								}}
-							>
-								<p>本文</p>
-							</DashboardLayout>
-						)}
-					/>
-				</MemoryRouter>
+				{routed(
+					() => (
+						<DashboardLayout
+							controller={
+								{
+									currentUser: vi.fn().mockResolvedValue({ name: "山田 太郎", canReview: true }),
+								} as unknown as AccountController
+							}
+							inbox={{
+								load: vi.fn().mockResolvedValue({ unreadCount: 0, items: [] }),
+								markRead: vi.fn(),
+								markAllRead: vi.fn(),
+							}}
+						>
+							<p>本文</p>
+						</DashboardLayout>
+					),
+					{ history: history },
+				)}
 			</div>
 		</div>
 	));

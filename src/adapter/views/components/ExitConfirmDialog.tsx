@@ -1,11 +1,11 @@
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { type Component, onCleanup, onMount } from "solid-js";
+import { type Component, onSettled } from "solid-js";
 import { confirmAction, hasUnsavedChanges } from "../feedback";
 
 /** 保存していない入力があるときだけ、ウィンドウ(ブラウザではタブ)を閉じる前に確認する。 */
 const ExitConfirmDialog: Component = () => {
-	onMount(() => {
+	onSettled(() => {
 		if (!isTauri()) {
 			// ブラウザは自前の確認画面を出せないので、ブラウザ標準の確認に任せる
 			const confirmLeaving = (event: BeforeUnloadEvent) => {
@@ -14,8 +14,7 @@ const ExitConfirmDialog: Component = () => {
 				}
 			};
 			window.addEventListener("beforeunload", confirmLeaving);
-			onCleanup(() => window.removeEventListener("beforeunload", confirmLeaving));
-			return;
+			return () => window.removeEventListener("beforeunload", confirmLeaving);
 		}
 
 		const appWindow = getCurrentWindow();
@@ -45,9 +44,7 @@ const ExitConfirmDialog: Component = () => {
 				unlisten = fn;
 			});
 
-		onCleanup(() => {
-			unlisten?.();
-		});
+		return () => unlisten?.();
 	});
 
 	return null;

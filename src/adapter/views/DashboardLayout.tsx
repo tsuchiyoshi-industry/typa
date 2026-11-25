@@ -1,20 +1,23 @@
-import { A, useLocation } from "@solidjs/router";
-import ChevronDown from "lucide-solid/icons/chevron-down";
-import CircleQuestionMark from "lucide-solid/icons/circle-question-mark";
-import Layers from "lucide-solid/icons/layers";
-import ListChecks from "lucide-solid/icons/list-checks";
-import LogOut from "lucide-solid/icons/log-out";
-import Menu from "lucide-solid/icons/menu";
-import PackageOpen from "lucide-solid/icons/package-open";
-import ScrollText from "lucide-solid/icons/scroll-text";
-import Settings from "lucide-solid/icons/settings";
-import ShieldCheck from "lucide-solid/icons/shield-check";
-import ShieldAlert from "lucide-solid/icons/shield-exclamation-point";
-import X from "lucide-solid/icons/x";
-import { type Component, createSignal, For, type JSX, onCleanup, onMount, Show } from "solid-js";
+import { useLocation } from "@solidjs/router";
+import type { JSX } from "@solidjs/web";
+import { type Component, createSignal, For, onFlush, onSettled, Show } from "solid-js";
 import type { AccountController, CurrentUserDto } from "../controllers/AccountController";
 import type { NotificationInboxController } from "../controllers/NotificationInboxController";
 import FontSizeMenuControls from "./components/FontSizeMenuControls";
+import {
+	ChevronDown,
+	CircleQuestionMark,
+	Layers,
+	ListChecks,
+	LogOut,
+	Menu,
+	PackageOpen,
+	ScrollText,
+	Settings,
+	ShieldAlert,
+	ShieldCheck,
+	X,
+} from "./components/icons";
 import NotificationBell from "./components/NotificationBell";
 import ThemeMenuItem from "./components/ThemeMenuItem";
 import { clearToasts, clearUnsavedChanges, confirmDiscard, isSaving, showToast } from "./feedback";
@@ -49,7 +52,7 @@ const DashboardLayout: Component<{
 		}
 	};
 
-	onMount(() => {
+	onSettled(() => {
 		applyStoredFontSize();
 		document.addEventListener("click", handleClickOutside);
 		document.addEventListener("keydown", handleKeyDown);
@@ -57,12 +60,16 @@ const DashboardLayout: Component<{
 			.currentUser()
 			.then((current) => mounted && setUser(current))
 			.catch(() => undefined);
+		return () => {
+			mounted = false;
+			document.removeEventListener("click", handleClickOutside);
+			document.removeEventListener("keydown", handleKeyDown);
+		};
 	});
-	onCleanup(() => {
-		mounted = false;
-		document.removeEventListener("click", handleClickOutside);
-		document.removeEventListener("keydown", handleKeyDown);
-	});
+
+	// メニューの項目はページを移る。移り終わるのを待たずに、メニューはすぐ閉じる
+	const closeMenuNow = () => onFlush(() => setMenuOpen(false));
+	const closeUserMenuNow = () => onFlush(() => setUserMenuOpen(false));
 
 	// ナビの項目と、その項目を現在地とするパス。シートの画面は一覧から開くので、一覧を現在地として扱う。
 	// 「部下の評価」は評価者になれる人だけ。分からない間(読み込み中・失敗)は出さない
@@ -100,14 +107,13 @@ const DashboardLayout: Component<{
 	return (
 		<div class="dashboard-shell">
 			<header class="dashboard-topbar">
-				<A href="/" class="topbar-brand" aria-label="TYPA 評価シート一覧へ">
+				<a href="/" class="topbar-brand" aria-label="TYPA 評価シート一覧へ">
 					<span class="brand-logo">TYPA</span>
-				</A>
+				</a>
 				<nav
 					id="main-nav"
-					class="topbar-nav"
 					aria-label="メインナビゲーション"
-					classList={{ "nav-open": menuOpen() }}
+					class={["topbar-nav", { "nav-open": menuOpen() }]}
 				>
 					{/* 現在地は見た目(class)と読み上げ(aria-current)を同じ判定で付ける。
 					    A は完全一致のときしか aria-current を付けないので素の a にする(遷移はルーターが拾う) */}
@@ -115,10 +121,9 @@ const DashboardLayout: Component<{
 						{(section) => (
 							<a
 								href={section.href}
-								class="nav-link"
-								classList={{ active: section.matches(location.pathname) }}
+								class={["nav-link", { active: section.matches(location.pathname) }]}
 								aria-current={section.matches(location.pathname) ? "page" : undefined}
-								onClick={() => setMenuOpen(false)}
+								onClick={closeMenuNow}
 							>
 								{section.label}
 							</a>
@@ -130,10 +135,10 @@ const DashboardLayout: Component<{
 					<button
 						type="button"
 						class="user-menu-trigger"
-						onClick={() => setUserMenuOpen(!userMenuOpen())}
+						onClick={() => setUserMenuOpen((previous) => !previous)}
 						aria-label="ユーザーメニュー"
 						aria-controls="user-menu"
-						aria-expanded={userMenuOpen()}
+						aria-expanded={userMenuOpen() ? "true" : "false"}
 					>
 						<span class="user-name">{user()?.name}</span>
 						<ChevronDown size={14} class="user-menu-caret" />
@@ -154,57 +159,49 @@ const DashboardLayout: Component<{
 							<ThemeMenuItem />
 							<FontSizeMenuControls />
 							<Show when={user()?.canViewSettings}>
-								<A href="/settings" class="user-menu-item" onClick={() => setUserMenuOpen(false)}>
+								<a href="/settings" class="user-menu-item" onClick={closeUserMenuNow}>
 									<Settings size={18} />
 									<span>設定</span>
-								</A>
+								</a>
 							</Show>
 							<Show when={user()?.canManageGradeMaster}>
-								<A href="/grades" class="user-menu-item" onClick={() => setUserMenuOpen(false)}>
+								<a href="/grades" class="user-menu-item" onClick={closeUserMenuNow}>
 									<Layers size={18} />
 									<span>等級</span>
-								</A>
-								<A
-									href="/common-goals"
-									class="user-menu-item"
-									onClick={() => setUserMenuOpen(false)}
-								>
+								</a>
+								<a href="/common-goals" class="user-menu-item" onClick={closeUserMenuNow}>
 									<ListChecks size={18} />
 									<span>共通目標</span>
-								</A>
+								</a>
 							</Show>
 							<Show when={user()?.canRunSetup}>
-								<A href="/setup" class="user-menu-item" onClick={() => setUserMenuOpen(false)}>
+								<a href="/setup" class="user-menu-item" onClick={closeUserMenuNow}>
 									<PackageOpen size={18} />
 									<span>導入処理</span>
-								</A>
+								</a>
 							</Show>
 							<Show when={user()?.canCorrectClosedSheets}>
-								<A
-									href="/retroactive"
-									class="user-menu-item"
-									onClick={() => setUserMenuOpen(false)}
-								>
+								<a href="/retroactive" class="user-menu-item" onClick={closeUserMenuNow}>
 									<ShieldAlert size={18} />
 									<span>遡及処理</span>
-								</A>
+								</a>
 							</Show>
 							<Show when={user()?.canViewAuditLog}>
-								<A href="/audit-log" class="user-menu-item" onClick={() => setUserMenuOpen(false)}>
+								<a href="/audit-log" class="user-menu-item" onClick={closeUserMenuNow}>
 									<ScrollText size={18} />
 									<span>監査ログ</span>
-								</A>
+								</a>
 							</Show>
 							<Show when={user()?.canViewSecurity}>
-								<A href="/security" class="user-menu-item" onClick={() => setUserMenuOpen(false)}>
+								<a href="/security" class="user-menu-item" onClick={closeUserMenuNow}>
 									<ShieldCheck size={18} />
 									<span>セキュリティ</span>
-								</A>
+								</a>
 							</Show>
-							<A href="/help" class="user-menu-item" onClick={() => setUserMenuOpen(false)}>
+							<a href="/help" class="user-menu-item" onClick={closeUserMenuNow}>
 								<CircleQuestionMark size={18} />
 								<span>ヘルプ</span>
-							</A>
+							</a>
 							<button type="button" class="user-menu-item logout-item" onClick={handleLogout}>
 								<LogOut size={18} />
 								<span>ログアウト</span>
@@ -215,10 +212,10 @@ const DashboardLayout: Component<{
 				<button
 					type="button"
 					class="menu-toggle"
-					onClick={() => setMenuOpen(!menuOpen())}
+					onClick={() => setMenuOpen((previous) => !previous)}
 					aria-label="メニュー"
 					aria-controls="main-nav"
-					aria-expanded={menuOpen()}
+					aria-expanded={menuOpen() ? "true" : "false"}
 				>
 					<Show when={menuOpen()} fallback={<Menu size={22} />}>
 						<X size={22} />

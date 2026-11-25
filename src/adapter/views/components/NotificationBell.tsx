@@ -1,6 +1,4 @@
-import { A } from "@solidjs/router";
-import Bell from "lucide-solid/icons/bell";
-import { type Component, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { type Component, createSignal, For, onFlush, onSettled, Show } from "solid-js";
 import type {
 	Inbox,
 	InboxItem,
@@ -8,6 +6,7 @@ import type {
 } from "../../controllers/NotificationInboxController";
 import { showToast } from "../feedback";
 import { formatDateTime } from "../format";
+import { Bell } from "./icons";
 
 interface NotificationBellProps {
 	controller: Pick<NotificationInboxController, "load" | "markRead" | "markAllRead">;
@@ -50,7 +49,8 @@ const NotificationBell: Component<NotificationBellProps> = (props) => {
 		});
 	};
 	const read = async (item: InboxItem) => {
-		setOpen(false);
+		// リンクを押すとページを移る。移り終わるのを待たずに、一覧はすぐ閉じる
+		onFlush(() => setOpen(false));
 		if (!item.unread) {
 			return;
 		}
@@ -85,17 +85,17 @@ const NotificationBell: Component<NotificationBellProps> = (props) => {
 			setOpen(false);
 		}
 	};
-	onMount(() => {
+	onSettled(() => {
 		void load();
 		window.addEventListener("focus", refresh);
 		document.addEventListener("click", closeOutside);
 		document.addEventListener("keydown", closeOnEscape);
-	});
-	onCleanup(() => {
-		mounted = false;
-		window.removeEventListener("focus", refresh);
-		document.removeEventListener("click", closeOutside);
-		document.removeEventListener("keydown", closeOnEscape);
+		return () => {
+			mounted = false;
+			window.removeEventListener("focus", refresh);
+			document.removeEventListener("click", closeOutside);
+			document.removeEventListener("keydown", closeOnEscape);
+		};
 	});
 
 	return (
@@ -105,12 +105,12 @@ const NotificationBell: Component<NotificationBellProps> = (props) => {
 				class="notification-trigger"
 				aria-label={inbox().unreadCount > 0 ? `通知（未読 ${inbox().unreadCount} 件）` : "通知"}
 				aria-controls="notification-panel"
-				aria-expanded={open()}
+				aria-expanded={open() ? "true" : "false"}
 				onClick={() => {
 					if (!open()) {
 						void load();
 					}
-					setOpen(!open());
+					setOpen((previous) => !previous);
 				}}
 			>
 				<Bell size={18} />
@@ -144,26 +144,25 @@ const NotificationBell: Component<NotificationBellProps> = (props) => {
 						}
 					>
 						<ul class="notification-list">
-							<For each={inbox().items}>
+							<For each={inbox().items} keyed={(item) => item.id}>
 								{(item) => (
 									<li>
-										<A
-											href={item.href}
-											class="notification-item"
-											classList={{ unread: item.unread }}
-											onClick={() => void read(item)}
+										<a
+											href={item().href}
+											class={["notification-item", { unread: item().unread }]}
+											onClick={() => void read(item())}
 										>
 											<span class="notification-title">
-												<Show when={item.unread}>
+												<Show when={item().unread}>
 													<span class="notification-unread">未読</span>
 												</Show>
-												{item.title}
+												{item().title}
 											</span>
-											<span class="notification-detail">{item.detail}</span>
-											<time class="notification-time" datetime={item.createdAt}>
-												{formatDateTime(item.createdAt)}
+											<span class="notification-detail">{item().detail}</span>
+											<time class="notification-time" datetime={item().createdAt}>
+												{formatDateTime(item().createdAt)}
 											</time>
-										</A>
+										</a>
 									</li>
 								)}
 							</For>

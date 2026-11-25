@@ -1,33 +1,29 @@
-import ArrowRight from "lucide-solid/icons/arrow-right";
-import CircleCheck from "lucide-solid/icons/circle-check";
-import CircleAlert from "lucide-solid/icons/circle-exclamation-point";
-import Eye from "lucide-solid/icons/eye";
-import Info from "lucide-solid/icons/info";
-import X from "lucide-solid/icons/x";
 import { type Component, createEffect, createSignal, For, Show } from "solid-js";
 import { dismissToast, leavingToasts, pendingConfirm, settleConfirm, toasts } from "../feedback";
+import { ArrowRight, CircleAlert, CircleCheck, Eye, Info, X } from "./icons";
 
 const ConfirmDialog: Component = () => {
 	let dialogRef: HTMLDialogElement | undefined;
-	// 書いてもらう文の長さ。範囲の外なら実行のボタンを押せない
-	const [textLength, setTextLength] = createSignal(0);
+	// 書いてもらう文の長さ。確認を開くたびに最初の文の長さから始め、書くたびに書き換える。範囲の外なら実行のボタンを押せない
+	const [textLength, setTextLength] = createSignal(() => {
+		const text = pendingConfirm()?.text;
+		return text ? text.lengthOf(text.initial ?? "") : 0;
+	});
 	const textOutOfRange = () => {
 		const text = pendingConfirm()?.text;
 		return !!text && (textLength() === 0 || textLength() > text.maxLength);
 	};
 
-	createEffect(() => {
-		const text = pendingConfirm()?.text;
-		setTextLength(text ? text.lengthOf(text.initial ?? "") : 0);
-	});
-
-	createEffect(() => {
-		if (pendingConfirm()) {
-			dialogRef?.showModal();
-		} else if (dialogRef?.open) {
-			dialogRef.close();
-		}
-	});
+	createEffect(
+		() => !!pendingConfirm(),
+		(open) => {
+			if (open) {
+				dialogRef?.showModal();
+			} else if (dialogRef?.open) {
+				dialogRef.close();
+			}
+		},
+	);
 
 	return (
 		<dialog
@@ -108,10 +104,10 @@ const ConfirmDialog: Component = () => {
 									<textarea
 										rows={4}
 										autofocus
-										value={text().initial ?? ""}
+										defaultValue={text().initial ?? ""}
 										placeholder={text().placeholder}
 										aria-describedby="confirm-dialog-audience confirm-dialog-count"
-										aria-invalid={textLength() > text().maxLength}
+										aria-invalid={textLength() > text().maxLength ? "true" : "false"}
 										onInput={(event) => {
 											setTextLength(text().lengthOf(event.currentTarget.value));
 											text().onInput(event.currentTarget.value);
@@ -119,8 +115,7 @@ const ConfirmDialog: Component = () => {
 									/>
 									<span
 										id="confirm-dialog-count"
-										class="confirm-dialog__count"
-										classList={{ over: textLength() > text().maxLength }}
+										class={["confirm-dialog__count", { over: textLength() > text().maxLength }]}
 									>
 										{textLength()} / {text().maxLength} 文字
 										{textLength() > text().maxLength
@@ -144,8 +139,7 @@ const ConfirmDialog: Component = () => {
 							</Show>
 							<button
 								type="button"
-								class="primary-action"
-								classList={{ danger: request().tone === "danger" }}
+								class={["primary-action", { danger: request().tone === "danger" }]}
 								disabled={textOutOfRange()}
 								onClick={() => settleConfirm(true)}
 							>
@@ -164,7 +158,7 @@ const ToastStack: Component = () => (
 		<For each={toasts()}>
 			{(toast) => (
 				<div
-					classList={{
+					class={{
 						toast: true,
 						[toast.kind]: true,
 						leaving: leavingToasts().has(toast.id),

@@ -1,20 +1,18 @@
-import Moon from "lucide-solid/icons/moon";
-import Sun from "lucide-solid/icons/sun";
-import { type Component, createMemo, createSignal, onCleanup } from "solid-js";
+import { type Component, createMemo, createSignal, onSettled } from "solid-js";
 import {
 	applyThemePreference,
 	getStoredThemePreference,
 	resolveEffectiveTheme,
 	watchSystemTheme,
 } from "../theme";
+import { Moon, Sun } from "./icons";
 
 /** ユーザーメニューの中に置くテーマ切替。押してもメニューは閉じず、切り替わった様子をその場で見られる。 */
 const ThemeMenuItem: Component = () => {
 	const [preference, setPreference] = createSignal(getStoredThemePreference());
 	const [systemTick, setSystemTick] = createSignal(0);
 
-	const stopWatching = watchSystemTheme(() => setSystemTick((tick) => tick + 1));
-	onCleanup(stopWatching);
+	onSettled(() => watchSystemTheme(() => setSystemTick((tick) => tick + 1)));
 
 	const isDark = createMemo(() => {
 		systemTick();

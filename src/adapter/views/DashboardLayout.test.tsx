@@ -1,8 +1,10 @@
 // @vitest-environment happy-dom
-import { createMemoryHistory, MemoryRouter, Route } from "@solidjs/router";
+import { memoryHistory } from "@solidjs/router";
 import { cleanup, fireEvent, render, waitFor, within } from "@solidjs/testing-library";
 import { createRoot, createSignal } from "solid-js";
 import { afterEach, expect, it, vi } from "vitest";
+import { routed } from "../../test/router";
+import { testSignal } from "../../test/signal";
 import type { AccountController } from "../controllers/AccountController";
 import DashboardLayout from "./DashboardLayout";
 import {
@@ -35,20 +37,18 @@ function setup(path = "/", currentUser: () => Promise<unknown> = reviewer) {
 		currentUser: vi.fn(currentUser),
 		signOut: vi.fn(),
 	} as unknown as AccountController & { signOut: ReturnType<typeof vi.fn> };
-	const history = createMemoryHistory();
+	const history = memoryHistory("/");
 	history.set({ value: path, replace: true, scroll: false });
-	const view = render(() => (
-		<MemoryRouter history={history}>
-			<Route
-				path="*"
-				component={() => (
-					<DashboardLayout controller={controller} inbox={inbox()}>
-						<p>本文</p>
-					</DashboardLayout>
-				)}
-			/>
-		</MemoryRouter>
-	));
+	const view = render(() =>
+		routed(
+			() => (
+				<DashboardLayout controller={controller} inbox={inbox()}>
+					<p>本文</p>
+				</DashboardLayout>
+			),
+			{ history: history },
+		),
+	);
 	const nav = () => view.getByRole("navigation", { name: "メインナビゲーション" });
 	const current = () =>
 		within(nav())
@@ -59,21 +59,16 @@ function setup(path = "/", currentUser: () => Promise<unknown> = reviewer) {
 }
 
 it("shows the bell for requests in the top bar", async () => {
-	const view = render(() => (
-		<MemoryRouter>
-			<Route
-				path="*"
-				component={() => (
-					<DashboardLayout
-						controller={
-							{ currentUser: vi.fn().mockResolvedValue(null) } as unknown as AccountController
-						}
-						inbox={{ ...inbox(), load: vi.fn().mockResolvedValue({ unreadCount: 3, items: [] }) }}
-					/>
-				)}
+	const view = render(() =>
+		routed(() => (
+			<DashboardLayout
+				controller={
+					{ currentUser: vi.fn().mockResolvedValue(null) } as unknown as AccountController
+				}
+				inbox={{ ...inbox(), load: vi.fn().mockResolvedValue({ unreadCount: 3, items: [] }) }}
 			/>
-		</MemoryRouter>
-	));
+		)),
+	);
 	const topBar = await view.findByRole("banner");
 	expect(await within(topBar).findByRole("button", { name: "通知（未読 3 件）" })).toBeTruthy();
 });
@@ -128,7 +123,8 @@ it("opens the narrow-screen menu and closes it on Escape, outside clicks and aft
 	fireEvent.click(view.nav());
 	expect(expanded()).toBe("true");
 	fireEvent.click(within(view.nav()).getByRole("link", { name: "社員マスタ" }));
-	expect(expanded()).toBe("false");
+	// ページの移動を待たずに閉じる
+	await waitFor(() => expect(expanded()).toBe("false"));
 	await waitFor(() => expect(view.current()).toEqual(["社員マスタ"]));
 });
 
@@ -189,7 +185,7 @@ it("does not sign out while the user keeps unsaved input", async () => {
 // ログアウトするとそのセッションでは書けなくなるので、送り出した保存・確定が届かずに終わる
 it("does not sign out until the change being saved has finished", async () => {
 	const view = setup("/", async () => ({ name: "山田" }));
-	const [saving, setSaving] = createSignal(true);
+	const [saving, setSaving] = testSignal(true);
 	const dispose = createRoot((dispose) => {
 		trackSaving("test", saving);
 		return dispose;

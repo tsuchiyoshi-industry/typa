@@ -1,21 +1,9 @@
 import { isTauri } from "@tauri-apps/api/core";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type DownloadEvent, type Update } from "@tauri-apps/plugin-updater";
-import Download from "lucide-solid/icons/download";
-import RefreshCw from "lucide-solid/icons/refresh-cw";
-import RotateCw from "lucide-solid/icons/rotate-cw";
-import X from "lucide-solid/icons/x";
-import {
-	type Component,
-	createMemo,
-	createSignal,
-	Match,
-	onCleanup,
-	onMount,
-	Show,
-	Switch,
-} from "solid-js";
+import { type Component, createMemo, createSignal, Match, onSettled, Show, Switch } from "solid-js";
 import { confirmDiscard } from "../feedback";
+import { Download, RefreshCw, RotateCw, X } from "./icons";
 
 type UpdateStatus = "idle" | "available" | "downloading" | "installing" | "restarting" | "error";
 
@@ -105,32 +93,29 @@ const AutoUpdateNotification: Component = () => {
 		}
 	};
 
-	onMount(() => {
-		if (!isTauri()) {
-			return;
+	onSettled(() => {
+		if (isTauri()) {
+			void checkForUpdate(false);
+			recheckTimer = window.setInterval(() => {
+				// ダウンロード中・インストール中・再起動待ちは触らない。「あとで」で閉じた更新はもう一度知らせる
+				const waiting =
+					status() === "idle" || status() === "error" || (status() === "available" && dismissed());
+				if (waiting) {
+					void checkForUpdate(true);
+				}
+			}, RECHECK_INTERVAL_MS);
 		}
-
-		void checkForUpdate(false);
-		recheckTimer = window.setInterval(() => {
-			// ダウンロード中・インストール中・再起動待ちは触らない。「あとで」で閉じた更新はもう一度知らせる
-			const waiting =
-				status() === "idle" || status() === "error" || (status() === "available" && dismissed());
-			if (waiting) {
-				void checkForUpdate(true);
+		return () => {
+			if (restartTimer !== undefined) {
+				window.clearInterval(restartTimer);
 			}
-		}, RECHECK_INTERVAL_MS);
-	});
-
-	onCleanup(() => {
-		if (restartTimer !== undefined) {
-			window.clearInterval(restartTimer);
-		}
-		if (recheckTimer !== undefined) {
-			window.clearInterval(recheckTimer);
-		}
-		if (status() !== "downloading" && status() !== "installing") {
-			releaseUpdate();
-		}
+			if (recheckTimer !== undefined) {
+				window.clearInterval(recheckTimer);
+			}
+			if (status() !== "downloading" && status() !== "installing") {
+				releaseUpdate();
+			}
+		};
 	});
 
 	const dismiss = () => {

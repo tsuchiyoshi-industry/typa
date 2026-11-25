@@ -52,12 +52,13 @@ export function createPdfRenderer(load: () => Promise<PdfWasmExports>): RenderPd
 		new Uint8Array(wasm.memory.buffer, input, json.length).set(json);
 		let output: number;
 		try {
-			// ponytail: 画面のスレッドで組版する(1件0.3秒ほど)。重くなったら Web Worker に移す
 			output = wasm.render(KIND[kind], input, json.length);
 		} catch (error) {
 			// 中で止まった WASM はメモリの状態が分からないので捨てる
 			loading = null;
-			throw new Error(`PDFを作れませんでした: ${error instanceof Error ? error.message : error}`);
+			throw new Error(`PDFを作れませんでした: ${error instanceof Error ? error.message : error}`, {
+				cause: error,
+			});
 		}
 		// 組版中にメモリが増えると前の buffer は使えなくなるので、読み直してから見る
 		const header = new DataView(wasm.memory.buffer, output, 5);
@@ -71,5 +72,3 @@ export function createPdfRenderer(load: () => Promise<PdfWasmExports>): RenderPd
 		return body;
 	};
 }
-
-export const renderPdf: RenderPdf = createPdfRenderer(() => loadPdfWasm());

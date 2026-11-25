@@ -4,7 +4,8 @@ import type {
 } from "../../application/dtos/ExportSheetDto";
 import type { SheetPdfGateway } from "../../application/ports/SheetPdfGateway";
 import { type DownloadFile, downloadFile } from "../browserDownload";
-import { type RenderPdf, renderPdf } from "../pdf/WasmPdfRenderer";
+import type { RenderPdf } from "../pdf/WasmPdfRenderer";
+import { renderPdf } from "../pdf/workerRenderer";
 
 /** ブラウザ版。PDF は WASM で作り、ダウンロードする。保存先は選ばせない(取り消しもない)。 */
 export class WebSheetPdfGateway implements SheetPdfGateway {

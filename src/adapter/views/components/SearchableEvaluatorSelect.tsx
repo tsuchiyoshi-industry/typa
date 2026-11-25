@@ -10,6 +10,7 @@ import {
 	Show,
 } from "solid-js";
 import { Check, ChevronDown, Search } from "./icons";
+import { supportsAnchoredPopover } from "./topbarPopover";
 
 export interface EvaluatorOption {
 	value: string;
@@ -41,6 +42,7 @@ const SearchableEvaluatorSelect: Component<{
 }> = (props) => {
 	const noun = () => props.noun ?? "評価者";
 	const id = createUniqueId();
+	const anchor = supportsAnchoredPopover ? `--evaluator-${CSS.escape(id)}` : undefined;
 	const [open, setOpen] = createSignal(false);
 	const [query, setQuery] = createSignal("");
 	const [active, setActive] = createSignal(0);
@@ -87,7 +89,11 @@ const SearchableEvaluatorSelect: Component<{
 		setOpen(true);
 		// 2.0 では書いた値が次の flush まで読めない。続けて押されても、上の確認で止める
 		flush();
-		place();
+		if (anchor) {
+			panel?.showPopover({ source: input });
+		} else {
+			place();
+		}
 	};
 	const choose = async (option: EvaluatorOption) => {
 		setOpen(false);
@@ -114,7 +120,7 @@ const SearchableEvaluatorSelect: Component<{
 	};
 	// 開いている間だけ、外を押したら閉じ、画面が動いたら付け直す。閉じたら後片付けで外す
 	createEffect(open, (isOpen) => {
-		if (!isOpen) {
+		if (!isOpen || anchor) {
 			return;
 		}
 		const outside = (event: PointerEvent) => {
@@ -138,6 +144,7 @@ const SearchableEvaluatorSelect: Component<{
 		<div class={["evaluator-combobox", { unset: !props.value, saving: props.saving }]}>
 			<input
 				ref={input}
+				style={anchor ? { "anchor-name": anchor } : undefined}
 				role="combobox"
 				aria-label={props.label}
 				aria-expanded={open() ? "true" : "false"}
@@ -183,8 +190,18 @@ const SearchableEvaluatorSelect: Component<{
 			/>
 			<ChevronDown size={15} class="evaluator-chevron" aria-hidden="true" />
 			<Show when={open()}>
-				<Portal>
-					<div ref={panel} class="evaluator-menu" style={position()}>
+				<Portal mount={input.closest("dialog") ?? document.body}>
+					<div
+						ref={panel}
+						class="evaluator-menu"
+						popover={anchor ? "auto" : undefined}
+						style={anchor ? { "position-anchor": anchor } : position()}
+						onBeforeToggle={(event) => {
+							if (event.newState === "closed") {
+								setOpen(false);
+							}
+						}}
+					>
 						<div class="evaluator-search-hint">
 							<Search size={14} />
 							氏名・社員番号で検索<span>{filtered().length}名</span>

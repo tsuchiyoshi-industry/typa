@@ -3,7 +3,7 @@ import "./styles/dashboard.css";
 import { memoryHistory } from "@solidjs/router";
 import { cleanup, fireEvent, render } from "@solidjs/testing-library";
 import { afterEach, expect, it, vi } from "vitest";
-import { page } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 import { routed } from "../../test/router";
 import type { AccountController } from "../controllers/AccountController";
 import DashboardLayout from "./DashboardLayout";
@@ -93,3 +93,28 @@ it("hides the sections behind the menu button on a narrow window, without sidewa
 		document.documentElement.clientWidth,
 	);
 });
+
+it.each([360, 1280])(
+	"anchors and dismisses the account and inbox popovers at %ipx",
+	async (width) => {
+		const view = await setup(width);
+		const account = view.getByRole("button", { name: "ユーザーメニュー" });
+		const bell = view.getByRole("button", { name: "通知" });
+		await userEvent.click(account);
+		const menu = document.getElementById("user-menu") as HTMLElement;
+		expect(menu.matches(":popover-open")).toBe(true);
+		const box = menu.getBoundingClientRect();
+		expect(box.left).toBeGreaterThanOrEqual(0);
+		expect(box.right).toBeLessThanOrEqual(width);
+		expect(box.top).toBeGreaterThanOrEqual(account.getBoundingClientRect().bottom);
+		await userEvent.click(bell);
+		expect(menu.matches(":popover-open")).toBe(false);
+		const inbox = view.getByRole("region", { name: "通知" });
+		expect(inbox.matches(":popover-open")).toBe(true);
+		await userEvent.keyboard("{Escape}");
+		expect(bell.getAttribute("aria-expanded")).toBe("false");
+		await userEvent.click(account);
+		await userEvent.click(view.getByRole("link", { name: "TYPA 評価シート一覧へ" }));
+		expect(account.getAttribute("aria-expanded")).toBe("false");
+	},
+);

@@ -8,6 +8,8 @@ import { showToast } from "../feedback";
 import { formatDateTime } from "../format";
 import { Bell } from "./icons";
 
+import { createTopbarPopover, supportsAnchoredPopover } from "./topbarPopover";
+
 interface NotificationBellProps {
 	controller: Pick<NotificationInboxController, "load" | "markRead" | "markAllRead">;
 }
@@ -15,9 +17,7 @@ interface NotificationBellProps {
 /** 画面上部のベル。自分あての評価の依頼(アプリ内通知)を知らせる。 */
 const NotificationBell: Component<NotificationBellProps> = (props) => {
 	const [inbox, setInbox] = createSignal<Inbox>({ unreadCount: 0, items: [] });
-	const [open, setOpen] = createSignal(false);
 	const [failed, setFailed] = createSignal(false);
-	let container!: HTMLDivElement;
 	let mounted = true;
 	// 既読にするたびに増やす。それより前に始めた読み込みの結果は古いので使わない
 	let changes = 0;
@@ -50,7 +50,7 @@ const NotificationBell: Component<NotificationBellProps> = (props) => {
 	};
 	const read = async (item: InboxItem) => {
 		// リンクを押すとページを移る。移り終わるのを待たずに、一覧はすぐ閉じる
-		onFlush(() => setOpen(false));
+		onFlush(notices.close);
 		if (!item.unread) {
 			return;
 		}
@@ -71,47 +71,24 @@ const NotificationBell: Component<NotificationBellProps> = (props) => {
 		}
 	};
 
-	// 画面に戻ったときに、届いた依頼を読み直す。一覧はベルの外を押すか Esc で閉じる。
-	// 一覧の中で押したボタンは直後に消えることがある(すべて既読にする)ので、画面から消えた要素は中とみなす
 	const refresh = () => void load();
-	const closeOutside = (event: MouseEvent) => {
-		const target = event.target as Node;
-		if (target.isConnected && !container.contains(target)) {
-			setOpen(false);
-		}
-	};
-	const closeOnEscape = (event: KeyboardEvent) => {
-		if (event.key === "Escape") {
-			setOpen(false);
-		}
-	};
+	const notices = createTopbarPopover("notification-panel", undefined, refresh);
 	onSettled(() => {
 		void load();
 		window.addEventListener("focus", refresh);
-		document.addEventListener("click", closeOutside);
-		document.addEventListener("keydown", closeOnEscape);
 		return () => {
 			mounted = false;
 			window.removeEventListener("focus", refresh);
-			document.removeEventListener("click", closeOutside);
-			document.removeEventListener("keydown", closeOnEscape);
 		};
 	});
 
 	return (
-		<div class="notification-bell" ref={container}>
+		<div class="notification-bell">
 			<button
 				type="button"
 				class="notification-trigger"
 				aria-label={inbox().unreadCount > 0 ? `通知（未読 ${inbox().unreadCount} 件）` : "通知"}
-				aria-controls="notification-panel"
-				aria-expanded={open() ? "true" : "false"}
-				onClick={() => {
-					if (!open()) {
-						void load();
-					}
-					setOpen((previous) => !previous);
-				}}
+				{...notices.button}
 			>
 				<Bell size={18} />
 				<Show when={inbox().unreadCount > 0}>
@@ -120,8 +97,13 @@ const NotificationBell: Component<NotificationBellProps> = (props) => {
 					</span>
 				</Show>
 			</button>
-			<Show when={open()}>
-				<section id="notification-panel" class="notification-panel" aria-label="通知">
+			<section
+				{...notices.panel}
+				class="notification-panel"
+				aria-label="通知"
+				hidden={!supportsAnchoredPopover && !notices.open()}
+			>
+				<Show when={notices.open()}>
 					<Show when={inbox().unreadCount > 0}>
 						<button type="button" class="notification-read-all" onClick={() => void readAll()}>
 							すべて既読にする
@@ -168,8 +150,8 @@ const NotificationBell: Component<NotificationBellProps> = (props) => {
 							</For>
 						</ul>
 					</Show>
-				</section>
-			</Show>
+				</Show>
+			</section>
 		</div>
 	);
 };

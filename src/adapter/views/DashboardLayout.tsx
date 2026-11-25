@@ -20,6 +20,7 @@ import {
 } from "./components/icons";
 import NotificationBell from "./components/NotificationBell";
 import ThemeMenuItem from "./components/ThemeMenuItem";
+import { createTopbarPopover, supportsAnchoredPopover } from "./components/topbarPopover";
 import { clearToasts, clearUnsavedChanges, confirmDiscard, isSaving, showToast } from "./feedback";
 import { applyStoredFontSize } from "./fontSize";
 
@@ -30,46 +31,33 @@ const DashboardLayout: Component<{
 	children?: JSX.Element | JSX.Element[];
 }> = (props) => {
 	const location = useLocation();
-	const [menuOpen, setMenuOpen] = createSignal(false);
-	const [userMenuOpen, setUserMenuOpen] = createSignal(false);
+	const compact = supportsAnchoredPopover ? window.matchMedia("(max-width: 640px)") : undefined;
+	const [narrow, setNarrow] = createSignal(compact?.matches ?? false);
+	const nav = createTopbarPopover("main-nav", narrow);
+	const account = createTopbarPopover("user-menu");
 	const [user, setUser] = createSignal<CurrentUserDto | null>(null);
 	let mounted = true;
 
-	// メニューの外を押したら閉じる。片方を開くと、もう片方は外側のクリックとして閉じる
-	const handleClickOutside = (e: MouseEvent) => {
-		const target = e.target as Element;
-		if (!target.closest(".user-menu-container")) {
-			setUserMenuOpen(false);
-		}
-		if (!target.closest(".topbar-nav, .menu-toggle")) {
-			setMenuOpen(false);
-		}
-	};
-	const handleKeyDown = (e: KeyboardEvent) => {
-		if (e.key === "Escape") {
-			setUserMenuOpen(false);
-			setMenuOpen(false);
-		}
-	};
-
 	onSettled(() => {
 		applyStoredFontSize();
-		document.addEventListener("click", handleClickOutside);
-		document.addEventListener("keydown", handleKeyDown);
+		const resized = () => {
+			nav.close();
+			setNarrow(compact?.matches ?? false);
+		};
+		compact?.addEventListener("change", resized);
 		void props.controller
 			.currentUser()
 			.then((current) => mounted && setUser(current))
 			.catch(() => undefined);
 		return () => {
 			mounted = false;
-			document.removeEventListener("click", handleClickOutside);
-			document.removeEventListener("keydown", handleKeyDown);
+			compact?.removeEventListener("change", resized);
 		};
 	});
 
 	// メニューの項目はページを移る。移り終わるのを待たずに、メニューはすぐ閉じる
-	const closeMenuNow = () => onFlush(() => setMenuOpen(false));
-	const closeUserMenuNow = () => onFlush(() => setUserMenuOpen(false));
+	const closeMenuNow = () => onFlush(nav.close);
+	const closeUserMenuNow = () => onFlush(account.close);
 
 	// ナビの項目と、その項目を現在地とするパス。シートの画面は一覧から開くので、一覧を現在地として扱う。
 	// 「部下の評価」は評価者になれる人だけ。分からない間(読み込み中・失敗)は出さない
@@ -90,7 +78,7 @@ const DashboardLayout: Component<{
 	];
 
 	const handleLogout = async () => {
-		setUserMenuOpen(false);
+		account.close();
 		// ログアウトするとそのセッションでは書けなくなり、送り出した保存・確定が届かずに終わる
 		if (isSaving()) {
 			showToast("info", "保存が完了するまでお待ちください");
@@ -111,9 +99,9 @@ const DashboardLayout: Component<{
 					<span class="brand-logo">TYPA</span>
 				</a>
 				<nav
-					id="main-nav"
+					{...nav.panel}
 					aria-label="メインナビゲーション"
-					class={["topbar-nav", { "nav-open": menuOpen() }]}
+					class={["topbar-nav", { "nav-open": nav.open() }]}
 				>
 					{/* 現在地は見た目(class)と読み上げ(aria-current)を同じ判定で付ける。
 					    A は完全一致のときしか aria-current を付けないので素の a にする(遷移はルーターが拾う) */}
@@ -135,16 +123,18 @@ const DashboardLayout: Component<{
 					<button
 						type="button"
 						class="user-menu-trigger"
-						onClick={() => setUserMenuOpen((previous) => !previous)}
+						{...account.button}
 						aria-label="ユーザーメニュー"
-						aria-controls="user-menu"
-						aria-expanded={userMenuOpen() ? "true" : "false"}
 					>
 						<span class="user-name">{user()?.name}</span>
 						<ChevronDown size={14} class="user-menu-caret" />
 					</button>
-					<Show when={userMenuOpen()}>
-						<div id="user-menu" class="user-menu-dropdown">
+					<div
+						{...account.panel}
+						class="user-menu-dropdown"
+						hidden={!supportsAnchoredPopover && !account.open()}
+					>
+						<Show when={account.open()}>
 							<Show when={user()}>
 								{(person) => (
 									<div class="user-menu-profile">
@@ -206,18 +196,11 @@ const DashboardLayout: Component<{
 								<LogOut size={18} />
 								<span>ログアウト</span>
 							</button>
-						</div>
-					</Show>
+						</Show>
+					</div>
 				</div>
-				<button
-					type="button"
-					class="menu-toggle"
-					onClick={() => setMenuOpen((previous) => !previous)}
-					aria-label="メニュー"
-					aria-controls="main-nav"
-					aria-expanded={menuOpen() ? "true" : "false"}
-				>
-					<Show when={menuOpen()} fallback={<Menu size={22} />}>
+				<button type="button" class="menu-toggle" {...nav.button} aria-label="メニュー">
+					<Show when={nav.open()} fallback={<Menu size={22} />}>
 						<X size={22} />
 					</Show>
 				</button>

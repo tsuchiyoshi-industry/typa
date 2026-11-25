@@ -1,25 +1,19 @@
 // @vitest-environment happy-dom
-import { MemoryRouter, Route } from "@solidjs/router";
+
 import { cleanup, render } from "@solidjs/testing-library";
 import { afterEach, expect, it, vi } from "vitest";
+import { routed } from "../../test/router";
 import type { AccountController } from "../controllers/AccountController";
 import SetupView from "./SetupView";
 
 afterEach(cleanup);
 
 const show = (currentUser: () => Promise<unknown>) =>
-	render(() => (
-		<MemoryRouter>
-			<Route
-				path="/"
-				component={() => (
-					<SetupView
-						controller={{ currentUser: vi.fn(currentUser) } as unknown as AccountController}
-					/>
-				)}
-			/>
-		</MemoryRouter>
-	));
+	render(() =>
+		routed(() => (
+			<SetupView controller={{ currentUser: vi.fn(currentUser) } as unknown as AccountController} />
+		)),
+	);
 
 it("explains a failure to read who is signed in, instead of breaking the page", async () => {
 	const view = show(async () => {

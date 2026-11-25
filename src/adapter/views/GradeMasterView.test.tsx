@@ -1,8 +1,9 @@
 // @vitest-environment happy-dom
-import { MemoryRouter, Route } from "@solidjs/router";
+
 import { cleanup, fireEvent, render, waitFor } from "@solidjs/testing-library";
 import { afterEach, expect, it, vi } from "vitest";
 import type { GradeMaster } from "../../domain/entities/GradeMaster";
+import { routed } from "../../test/router";
 import { confirmAction, showToast } from "./feedback";
 import GradeMasterView from "./GradeMasterView";
 
@@ -34,11 +35,7 @@ const setup = () => {
 		saveGrade: vi.fn().mockResolvedValue({ success: true, id: 9, message: "保存しました" }),
 		deleteGrade: vi.fn().mockResolvedValue({ success: true, message: "削除しました" }),
 	};
-	const view = render(() => (
-		<MemoryRouter>
-			<Route path="/" component={() => <GradeMasterView controller={controller} />} />
-		</MemoryRouter>
-	));
+	const view = render(() => routed(() => <GradeMasterView controller={controller} />));
 	return { controller, view };
 };
 const nameInput = (view: ReturnType<typeof render>) =>
@@ -72,7 +69,8 @@ it("adds a grade", async () => {
 	expect(confirmAction).not.toHaveBeenCalled();
 	await waitFor(() => expect(showToast).toHaveBeenCalledWith("success", "保存しました"));
 	expect(controller.load).toHaveBeenCalledTimes(2);
-	expect(nameInput(view).value).toBe("");
+	// フォームは、読み直した一覧と一緒に空になる(古い一覧の横で先に空にならない)
+	await waitFor(() => expect(nameInput(view).value).toBe(""));
 });
 
 it("asks before moving a grade with sheets to other common goals, and says the sheets keep theirs", async () => {
@@ -136,16 +134,11 @@ it("shows why the master cannot be read and offers to retry", async () => {
 		.fn()
 		.mockRejectedValueOnce(new Error("等級と共通目標のマスタは Admin のみ利用できます。"))
 		.mockResolvedValueOnce(data);
-	const view = render(() => (
-		<MemoryRouter>
-			<Route
-				path="/"
-				component={() => (
-					<GradeMasterView controller={{ load, saveGrade: vi.fn(), deleteGrade: vi.fn() }} />
-				)}
-			/>
-		</MemoryRouter>
-	));
+	const view = render(() =>
+		routed(() => (
+			<GradeMasterView controller={{ load, saveGrade: vi.fn(), deleteGrade: vi.fn() }} />
+		)),
+	);
 	const alert = await view.findByRole("alert");
 	expect(alert.textContent).toContain("Admin のみ利用できます");
 	expect(view.queryByRole("table")).toBeNull();

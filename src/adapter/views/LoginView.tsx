@@ -1,5 +1,5 @@
 import { useNavigate } from "@solidjs/router";
-import { createMemo, createSignal, onMount, Show } from "solid-js";
+import { createMemo, createSignal, onSettled, Show } from "solid-js";
 import {
 	isValidAccountPassword,
 	ACCOUNT_PASSWORD_RULE as PASSWORD_RULE,
@@ -37,13 +37,17 @@ const LoginView = (props: LoginViewProps) => {
 	const [viewMode, setViewMode] = createSignal<ViewMode>("login");
 
 	// 会社ドメイン(ログイン用の内部アドレスに使う)。読めなければログインできないので、先に知らせる
-	onMount(async () => {
-		const suffix = await props.controller.requiredEmailSuffix().catch(() => "");
-		if (!suffix) {
-			setErrorMessage(
-				"会社ドメインの設定を読み込めませんでした。通信状況を確認して、アプリを開き直してください。",
-			);
-		}
+	onSettled(() => {
+		void props.controller
+			.requiredEmailSuffix()
+			.catch(() => "")
+			.then((suffix) => {
+				if (!suffix) {
+					setErrorMessage(
+						"会社ドメインの設定を読み込めませんでした。通信状況を確認して、アプリを開き直してください。",
+					);
+				}
+			});
 	});
 
 	const passwordMismatch = createMemo(
@@ -466,10 +470,10 @@ const LoginView = (props: LoginViewProps) => {
 								<input
 									id="otp"
 									type="text"
-									inputMode="numeric"
+									inputmode="numeric"
 									autocomplete="one-time-code"
 									placeholder="00000000"
-									maxLength={8}
+									maxlength={8}
 									value={otp()}
 									onInput={(e) => setOtp(e.currentTarget.value)}
 									disabled={emailVerified()}

@@ -1,5 +1,4 @@
-import ScrollText from "lucide-solid/icons/scroll-text";
-import { type Component, createMemo, createSignal, For, onMount, Show } from "solid-js";
+import { type Component, createMemo, createSignal, For, onSettled, Show } from "solid-js";
 import { messageOf } from "../../application/errorMessage";
 import type { AuditCategory } from "../../domain/entities/AuditEvent";
 import type {
@@ -8,6 +7,7 @@ import type {
 	AuditPersonOption,
 } from "../controllers/AuditLogController";
 import { type AuditEntryView, groupByDay } from "../viewmodels/auditLog";
+import { ScrollText } from "./components/icons";
 import SearchableEvaluatorSelect, {
 	type EvaluatorOption,
 } from "./components/SearchableEvaluatorSelect";
@@ -53,9 +53,8 @@ const Entry: Component<{ entry: AuditEntryView }> = (props) => {
 	const entry = () => props.entry;
 	return (
 		<li
-			class="audit-entry"
 			data-kind={entry().category}
-			classList={{ "audit-entry--sealed": entry().seal !== null }}
+			class={["audit-entry", { "audit-entry--sealed": entry().seal !== null }]}
 		>
 			<time class="audit-entry__time" datetime={entry().occurredAt}>
 				{entry().time}
@@ -167,13 +166,14 @@ const AuditLogView: Component<{ controller: AuditLogController }> = (props) => {
 
 	// 絞り込みを続けて変えたとき、前の条件の遅い応答で今の一覧を上書きしない
 	let generation = 0;
-	const reload = async () => {
+	/** 絞り込みは引数で受け取る(書いた絞り込みは次の flush まで読めないので、変えた直後でも新しい条件で読む)。 */
+	const reload = async (filter: AuditLogQuery = query()) => {
 		const current = ++generation;
 		setLoading(true);
 		setFailure("");
 		setMoreFailure("");
 		try {
-			const result = await props.controller.page(query(), null);
+			const result = await props.controller.page(filter, null);
 			if (current !== generation) {
 				return;
 			}
@@ -203,7 +203,7 @@ const AuditLogView: Component<{ controller: AuditLogController }> = (props) => {
 			if (current !== generation) {
 				return;
 			}
-			setEntries([...entries(), ...result.entries]);
+			setEntries((previous) => [...previous, ...result.entries]);
 			setNext(result.next);
 		} catch (error) {
 			if (current === generation) {
@@ -216,26 +216,26 @@ const AuditLogView: Component<{ controller: AuditLogController }> = (props) => {
 		}
 	};
 	const change = (patch: Partial<AuditLogQuery>) => {
-		setQuery({ ...query(), ...patch });
-		void reload();
+		const filter = { ...query(), ...patch };
+		setQuery(filter);
+		void reload(filter);
 	};
 
 	const clearFilters = () => {
 		setQuery(UNFILTERED);
-		void reload();
+		void reload(UNFILTERED);
 	};
 
-	onMount(async () => {
-		try {
-			const options = await props.controller.open();
-			setTargets(toOptions(options.targets));
-			setActors(toOptions(options.actors));
-			setOpened(true);
-		} catch (error) {
-			setRefused(messageOf(error, "監査ログを開けませんでした。"));
-			return;
-		}
-		await reload();
+	onSettled(() => {
+		void props.controller.open().then(
+			(options) => {
+				setTargets(toOptions(options.targets));
+				setActors(toOptions(options.actors));
+				setOpened(true);
+				return reload();
+			},
+			(error: unknown) => setRefused(messageOf(error, "監査ログを開けませんでした。")),
+		);
 	});
 
 	const pick = (key: "targetEmployeeId" | "actorEmployeeId") => async (value: string) => {
@@ -351,7 +351,7 @@ const AuditLogView: Component<{ controller: AuditLogController }> = (props) => {
 						</form>
 					</search>
 
-					<section class="audit-ledger" aria-label="記録" aria-busy={loading()}>
+					<section class="audit-ledger" aria-label="記録" aria-busy={loading() ? "true" : "false"}>
 						<Show when={failure()}>
 							<div class="audit-notice" role="alert">
 								<p>{failure()}</p>

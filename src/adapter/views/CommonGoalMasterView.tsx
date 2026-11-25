@@ -1,6 +1,5 @@
-import { A, useBeforeLeave } from "@solidjs/router";
-import ListChecks from "lucide-solid/icons/list-checks";
-import { type Component, createSignal, Index, onCleanup, onMount, Show } from "solid-js";
+import { useBeforeLeave } from "@solidjs/router";
+import { type Component, createSignal, For, flush, onSettled, Show } from "solid-js";
 import {
 	type CommonGoalDraft,
 	type CommonGoalSet,
@@ -8,6 +7,7 @@ import {
 	type GradeMaster,
 } from "../../domain/entities/GradeMaster";
 import type { GradeMasterController } from "../controllers/GradeMasterController";
+import { ListChecks } from "./components/icons";
 import { confirmAction, confirmDiscard, showToast, trackSaving, trackUnsaved } from "./feedback";
 
 type Controller = Pick<
@@ -35,16 +35,17 @@ const CommonGoalMasterView: Component<{ controller: Controller }> = (props) => {
 	/** 編集しているセット。null は新しいセット。 */
 	const [selectedId, setSelectedId] = createSignal<number | null>(null);
 	const [form, setForm] = createSignal<Form>(formOf(null));
+	/** 一部の欄だけを書き換える。値はハンドラーの中で先に読んで渡し、書き換えは前の書き込みに重ねる。 */
+	const patchForm = (fields: Partial<ReturnType<typeof form>>) =>
+		setForm((previous) => ({ ...previous, ...fields }));
 	const [busy, setBusy] = createSignal(false);
 	let mounted = true;
-	onCleanup(() => {
-		mounted = false;
-	});
 
 	const shown = () => master()?.itemSets.find((set) => set.id === selectedId()) ?? null;
-	const select = (id: number | null) => {
+	/** 書いた値は次の flush まで読めないので、選ぶセットは渡された一覧から探す(読み込んだ直後でも正しく選べる)。 */
+	const select = (id: number | null, sets = master()?.itemSets ?? []) => {
 		setSelectedId(id);
-		setForm(formOf(shown()));
+		setForm(formOf(sets.find((set) => set.id === id) ?? null));
 	};
 	const load = async (keep: number | null = selectedId()) => {
 		setError(null);
@@ -55,7 +56,7 @@ const CommonGoalMasterView: Component<{ controller: Controller }> = (props) => {
 			}
 			setMaster(loaded);
 			const exists = loaded.itemSets.some((set) => set.id === keep);
-			select(exists ? keep : (loaded.itemSets[0]?.id ?? null));
+			select(exists ? keep : (loaded.itemSets[0]?.id ?? null), loaded.itemSets);
 		} catch (cause) {
 			if (mounted) {
 				setMaster(null);
@@ -63,7 +64,12 @@ const CommonGoalMasterView: Component<{ controller: Controller }> = (props) => {
 			}
 		}
 	};
-	onMount(() => void load(null));
+	onSettled(() => {
+		void load(null);
+		return () => {
+			mounted = false;
+		};
+	});
 
 	const dirty = () => JSON.stringify(form()) !== JSON.stringify(formOf(shown()));
 	trackUnsaved("common-goal-master", () => !!master() && dirty());
@@ -81,10 +87,10 @@ const CommonGoalMasterView: Component<{ controller: Controller }> = (props) => {
 	const totalWeight = () =>
 		form().items.reduce((sum, item) => sum + (Number.isInteger(item.weight) ? item.weight : 0), 0);
 	const setItem = (index: number, patch: Partial<CommonGoalDraft>) =>
-		setForm({
-			...form(),
-			items: form().items.map((item, i) => (i === index ? { ...item, ...patch } : item)),
-		});
+		setForm((previous) => ({
+			...previous,
+			items: previous.items.map((item, i) => (i === index ? { ...item, ...patch } : item)),
+		}));
 
 	const choose = async (id: number | null, picker?: HTMLSelectElement) => {
 		if (busy() || !(await confirmDiscard(dirty()))) {
@@ -100,6 +106,8 @@ const CommonGoalMasterView: Component<{ controller: Controller }> = (props) => {
 			return;
 		}
 		setBusy(true);
+		// 2.0 では書いた値が次の flush まで読めない。続けて押されても、上の確認で止める
+		flush();
 		try {
 			await task();
 		} finally {
@@ -172,7 +180,7 @@ const CommonGoalMasterView: Component<{ controller: Controller }> = (props) => {
 						共通目標
 					</h1>
 					<p>
-						評価シートの共通評価に出す項目です。どの共通目標を使うかは<A href="/grades">等級</A>
+						評価シートの共通評価に出す項目です。どの共通目標を使うかは<a href="/grades">等級</a>
 						ごとに選びます。評価シートは作成時の共通目標を持ち続けるので、ここで直しても作成済みのシートは変わりません。
 					</p>
 				</div>
@@ -211,9 +219,9 @@ const CommonGoalMasterView: Component<{ controller: Controller }> = (props) => {
 									<Show when={selectedId() === null}>
 										<option value="">(新しい共通目標)</option>
 									</Show>
-									<Index each={loaded().itemSets}>
+									<For each={loaded().itemSets} keyed={false}>
 										{(set) => <option value={String(set().id)}>{set().name}</option>}
-									</Index>
+									</For>
 								</select>
 							</label>
 							<button
@@ -259,16 +267,16 @@ const CommonGoalMasterView: Component<{ controller: Controller }> = (props) => {
 								<input
 									type="text"
 									required
-									maxLength={GRADE_MASTER_LIMITS.name}
+									maxlength={GRADE_MASTER_LIMITS.name}
 									placeholder="例: 一般"
 									value={form().name}
 									disabled={busy()}
-									onInput={(event) => setForm({ ...form(), name: event.currentTarget.value })}
+									onInput={(event) => patchForm({ name: event.currentTarget.value })}
 								/>
 							</label>
 
 							<ol class="goal-master-items">
-								<Index each={form().items}>
+								<For each={form().items} keyed={false}>
 									{(item, index) => (
 										<li>
 											<span class="goal-master-row" aria-hidden="true">
@@ -277,7 +285,7 @@ const CommonGoalMasterView: Component<{ controller: Controller }> = (props) => {
 											<input
 												type="text"
 												required
-												maxLength={GRADE_MASTER_LIMITS.title}
+												maxlength={GRADE_MASTER_LIMITS.title}
 												aria-label={`${index + 1} 行目の項目名`}
 												placeholder="項目名"
 												value={item().title}
@@ -287,7 +295,7 @@ const CommonGoalMasterView: Component<{ controller: Controller }> = (props) => {
 											<textarea
 												aria-label={`${index + 1} 行目の説明`}
 												placeholder="説明"
-												maxLength={GRADE_MASTER_LIMITS.description}
+												maxlength={GRADE_MASTER_LIMITS.description}
 												rows={2}
 												value={item().description}
 												disabled={busy()}
@@ -318,21 +326,29 @@ const CommonGoalMasterView: Component<{ controller: Controller }> = (props) => {
 												aria-label={`${index + 1} 行目を削除`}
 												disabled={busy() || form().items.length <= 1}
 												onClick={() =>
-													setForm({ ...form(), items: form().items.filter((_, i) => i !== index) })
+													setForm((previous) => ({
+														...previous,
+														items: previous.items.filter((_, i) => i !== index),
+													}))
 												}
 											>
 												削除
 											</button>
 										</li>
 									)}
-								</Index>
+								</For>
 							</ol>
 							<div class="goal-master-footer">
 								<button
 									type="button"
 									class="secondary-action"
 									disabled={busy() || form().items.length >= GRADE_MASTER_LIMITS.items}
-									onClick={() => setForm({ ...form(), items: [...form().items, blankItem()] })}
+									onClick={() =>
+										setForm((previous) => ({
+											...previous,
+											items: [...previous.items, blankItem()],
+										}))
+									}
 								>
 									項目を追加
 								</button>

@@ -1,19 +1,7 @@
-import Bell from "lucide-solid/icons/bell";
-import ChevronDown from "lucide-solid/icons/chevron-down";
-import Mail from "lucide-solid/icons/mail";
-import X from "lucide-solid/icons/x";
-import ZoomIn from "lucide-solid/icons/zoom-in";
-import {
-	type Component,
-	createSignal,
-	For,
-	type JSX,
-	onCleanup,
-	onMount,
-	type ParentComponent,
-	Show,
-} from "solid-js";
+import type { JSX } from "@solidjs/web";
+import { type Component, createSignal, For, onSettled, type ParentComponent, Show } from "solid-js";
 import { EvaluationAllocation } from "../../domain/valueObjects/EvaluationAllocation";
+import { Bell, ChevronDown, Mail, X, ZoomIn } from "./components/icons";
 import {
 	CarryOverDiagram,
 	CorrectionDiagram,
@@ -135,8 +123,10 @@ const HelpScreenshot: Component<{ image: HelpImage; shot: ShotSource; onOpen: Op
 					onClick={() => props.onOpen(props.image)}
 				>
 					<div
-						class="guide-shot__preview"
-						classList={{ "guide-shot__preview--cropped": !!props.image.preview }}
+						class={[
+							"guide-shot__preview",
+							{ "guide-shot__preview--cropped": !!props.image.preview },
+						]}
 						style={previewStyle(props.image)}
 					>
 						<img
@@ -199,7 +189,7 @@ const Slide: ParentComponent<{
 }> = (props) => {
 	const chapter = chapterOf(props.chapter);
 	return (
-		<article class="slide" classList={{ "slide--aside": !!props.aside }}>
+		<article class={["slide", { "slide--aside": !!props.aside }]}>
 			<header class="slide__head">
 				<Show
 					when={props.first}
@@ -450,7 +440,7 @@ const HelpView: Component<{ shot?: ShotSource; settings?: () => Promise<HelpSett
 		<HelpScreenshot image={image} shot={shot} onOpen={openImage} />
 	);
 
-	onMount(() => {
+	onSettled(() => {
 		props
 			.settings?.()
 			.then(setSettings)
@@ -471,7 +461,7 @@ const HelpView: Component<{ shot?: ShotSource; settings?: () => Promise<HelpSett
 				observer.observe(element);
 			}
 		}
-		onCleanup(() => observer.disconnect());
+		return () => observer.disconnect();
 	});
 
 	return (

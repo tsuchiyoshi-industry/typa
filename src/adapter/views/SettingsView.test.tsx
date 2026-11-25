@@ -1,11 +1,12 @@
 // @vitest-environment happy-dom
-import { A, MemoryRouter, Route } from "@solidjs/router";
+
 import { cleanup, fireEvent, render, waitFor } from "@solidjs/testing-library";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { UpdateEvaluationAllocationInteractor } from "../../application/usecases/UpdateEvaluationAllocationInteractor";
 import { UpdateMaxChallengeGoalsInteractor } from "../../application/usecases/UpdateMaxChallengeGoalsInteractor";
 import { EvaluationAllocation } from "../../domain/valueObjects/EvaluationAllocation";
 import { masterRepository, profile } from "../../test/fixtures";
+import { routed } from "../../test/router";
 import { SettingsController } from "../controllers/SettingsController";
 import type { SmtpSettingsController } from "../controllers/SmtpSettingsController";
 import { confirmAction, confirmDiscard, showToast } from "./feedback";
@@ -50,36 +51,39 @@ const renderSettings = (
 		chooseChannel: vi.fn(),
 	},
 ) =>
-	render(() => (
-		<MemoryRouter
-			root={(props) => (
-				<>
-					<A href="/away">別の画面へ</A>
-					{props.children}
-				</>
-			)}
-		>
-			<Route
-				path="/"
-				component={() => (
-					<SettingsView
-						controller={controller}
-						periodController={{
-							load: vi.fn().mockResolvedValue([]),
-							save: vi.fn(),
-							remove: vi.fn(),
-							close: vi.fn(),
-							start: vi.fn(),
-							preview: vi.fn(),
-							divisions: [],
-						}}
-						smtpController={smtpController}
-					/>
-				)}
-			/>
-			<Route path="/away" component={() => <p>移動しました</p>} />
-		</MemoryRouter>
-	));
+	render(() =>
+		routed(
+			[
+				{
+					path: "/",
+					component: () => (
+						<SettingsView
+							controller={controller}
+							periodController={{
+								load: vi.fn().mockResolvedValue([]),
+								save: vi.fn(),
+								remove: vi.fn(),
+								close: vi.fn(),
+								start: vi.fn(),
+								preview: vi.fn(),
+								divisions: [],
+							}}
+							smtpController={smtpController}
+						/>
+					),
+				},
+				{ path: "/away", component: () => <p>移動しました</p> },
+			],
+			{
+				root: (props) => (
+					<>
+						<a href="/away">別の画面へ</a>
+						{props.children}
+					</>
+				),
+			},
+		),
+	);
 
 describe("settings", () => {
 	it("asks before leaving unsaved settings", async () => {
@@ -125,8 +129,11 @@ describe("settings", () => {
 		await waitFor(() =>
 			expect(settings.saveAllocation).toHaveBeenCalledWith(EvaluationAllocation.of(25, 75)),
 		);
+		await waitFor(() =>
+			expect(showToast).toHaveBeenCalledWith("success", expect.stringContaining("25 点")),
+		);
+		// 保存した配点が新しい基準になり、変えるまで保存できない
 		await waitFor(() => expect(save.disabled).toBe(true));
-		expect(showToast).toHaveBeenCalledWith("success", expect.stringContaining("25 点"));
 	});
 	it.each(["Reviewer", "Employee"])("is not available to %s", async (role) => {
 		const { settings, controller } = setup(role);

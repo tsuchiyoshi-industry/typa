@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
-import { MemoryRouter, Route } from "@solidjs/router";
+
 import { cleanup, fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
 import { afterEach, expect, it, vi } from "vitest";
+import { routed } from "../../test/router";
 import type { AccountController } from "../controllers/AccountController";
 import LoginView from "./LoginView";
 
@@ -15,19 +16,14 @@ function setup(onRegistrationLinked = vi.fn()) {
 		signOut: vi.fn().mockResolvedValue(undefined),
 		changeOwnPassword: vi.fn().mockResolvedValue("changed"),
 	};
-	render(() => (
-		<MemoryRouter>
-			<Route
-				path="/"
-				component={() => (
-					<LoginView
-						controller={controller as unknown as AccountController}
-						onRegistrationLinked={onRegistrationLinked}
-					/>
-				)}
+	render(() =>
+		routed(() => (
+			<LoginView
+				controller={controller as unknown as AccountController}
+				onRegistrationLinked={onRegistrationLinked}
 			/>
-		</MemoryRouter>
-	));
+		)),
+	);
 	return controller;
 }
 it.each([
@@ -158,7 +154,8 @@ it.each([
 	controller.changeOwnPassword.mockResolvedValue(status);
 	fillNewPassword("Mine1234");
 	fireEvent.click(changeButton());
-	await screen.findByText(message);
+	// 要件の文言は入力欄の説明にもあるので、断られた理由(alert)が出るまで待つ
+	await waitFor(() => expect(screen.getByRole("alert").textContent).toMatch(message));
 	expect(changeButton().disabled).toBe(false);
 	expect(controller.signOut).not.toHaveBeenCalled();
 });
@@ -170,11 +167,11 @@ it("returns to login, signing out, when the change cannot be confirmed or the em
 	fireEvent.click(changeButton());
 	await screen.findByText(/新しいパスワードでもう一度ログインしてください/);
 	expect(controller.signOut).toHaveBeenCalledOnce();
-	expect(screen.getByRole("button", { name: "ログイン" })).toBeTruthy();
+	expect(await screen.findByRole("button", { name: "ログイン" })).toBeTruthy();
 	cleanup();
 
 	controller = await signInWithTemporaryPassword();
 	fireEvent.click(screen.getByRole("button", { name: "ログアウトして戻る" }));
 	await waitFor(() => expect(controller.signOut).toHaveBeenCalledOnce());
-	expect(screen.getByRole("button", { name: "ログイン" })).toBeTruthy();
+	expect(await screen.findByRole("button", { name: "ログイン" })).toBeTruthy();
 });

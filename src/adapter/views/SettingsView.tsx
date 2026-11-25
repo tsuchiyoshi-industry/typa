@@ -1,12 +1,12 @@
 import { useBeforeLeave } from "@solidjs/router";
-import Settings from "lucide-solid/icons/settings";
-import { type Component, createSignal, onCleanup, onMount, Show } from "solid-js";
+import { type Component, createSignal, onSettled, Show } from "solid-js";
 import { EvaluationAllocation } from "../../domain/valueObjects/EvaluationAllocation";
 import { MAX_CHALLENGE_GOALS_RANGE } from "../../domain/valueObjects/MaxChallengeGoals";
 import type { EvaluationPeriodController } from "../controllers/EvaluationPeriodController";
 import type { SettingsController } from "../controllers/SettingsController";
 import type { SmtpSettingsController } from "../controllers/SmtpSettingsController";
 import EvaluationPeriodSettings from "./components/EvaluationPeriodSettings";
+import { Settings } from "./components/icons";
 import SmtpSettings from "./components/SmtpSettings";
 import { confirmAction, confirmDiscard, showToast, trackUnsaved } from "./feedback";
 
@@ -36,9 +36,6 @@ const SettingsView: Component<SettingsViewProps> = (props) => {
 	const [confirming, setConfirming] = createSignal(false);
 	const busy = () => saving() || confirming();
 	let mounted = true;
-	onCleanup(() => {
-		mounted = false;
-	});
 
 	const load = async () => {
 		setLoading(true);
@@ -65,7 +62,12 @@ const SettingsView: Component<SettingsViewProps> = (props) => {
 			}
 		}
 	};
-	onMount(() => void load());
+	onSettled(() => {
+		void load();
+		return () => {
+			mounted = false;
+		};
+	});
 
 	const valid = () =>
 		isAllocation(objective()) && isAllocation(common()) && objective() + common() === TOTAL;
@@ -254,9 +256,7 @@ const SettingsView: Component<SettingsViewProps> = (props) => {
 									点
 								</span>
 							</label>
-							<span class="allocation-total" classList={{ invalid: !valid() }}>
-								＝ {TOTAL} 点
-							</span>
+							<span class={["allocation-total", { invalid: !valid() }]}>＝ {TOTAL} 点</span>
 						</div>
 						<Show when={!valid()}>
 							<p class="field-error" role="alert">

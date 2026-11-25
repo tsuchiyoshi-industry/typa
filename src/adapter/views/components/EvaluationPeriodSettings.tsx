@@ -1,4 +1,14 @@
-import { type Component, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import {
+	type Component,
+	createMemo,
+	createSignal,
+	Errored,
+	For,
+	flush,
+	Loading,
+	refresh,
+	Show,
+} from "solid-js";
 import type { EvaluationPeriodDto } from "../../../application/dtos/EvaluationPeriodDto";
 import { messageOf } from "../../../application/errorMessage";
 import type { EvaluationPeriodController } from "../../controllers/EvaluationPeriodController";
@@ -50,38 +60,14 @@ const startingNotes = (next: string): string[] => [
 
 /** Admin が評価期間を追加・変更・削除し、実施中の期間を締め、準備中の期間を開始する。 */
 const EvaluationPeriodSettings: Component<EvaluationPeriodSettingsProps> = (props) => {
-	const [periods, setPeriods] = createSignal<EvaluationPeriodDto[]>([]);
-	const [loading, setLoading] = createSignal(true);
-	const [error, setError] = createSignal<string | null>(null);
+	// 読み込みは非同期の memo。待つ間は <Loading>、失敗は <Errored> が出す。操作の後は refresh で取り直す
+	const periods = createMemo(() => props.controller.load());
 	const [busy, setBusy] = createSignal(false);
 	const [editingId, setEditingId] = createSignal<number | null>(null);
 	const [form, setForm] = createSignal(EMPTY_FORM);
-	let mounted = true;
-	onCleanup(() => {
-		mounted = false;
-	});
-
-	const load = async () => {
-		setError(null);
-		try {
-			const loaded = await props.controller.load();
-			if (mounted) {
-				setPeriods(loaded);
-			}
-		} catch (reason) {
-			if (mounted) {
-				// 理由も出す(管理担当者に伝えられるように)。読めない間は、どの操作も出さない
-				const detail = messageOf(reason, "");
-				setError(`評価期間を読み込めませんでした。${detail ? `(${detail})` : ""}`);
-				setPeriods([]);
-			}
-		} finally {
-			if (mounted) {
-				setLoading(false);
-			}
-		}
-	};
-	onMount(() => void load());
+	/** 一部の欄だけを書き換える。値はハンドラーの中で先に読んで渡し、書き換えは前の書き込みに重ねる。 */
+	const patchForm = (fields: Partial<ReturnType<typeof form>>) =>
+		setForm((previous) => ({ ...previous, ...fields }));
 
 	/** 操作の間はボタンを止め、終わったら一覧を取り直す。 */
 	const run = async (operation: () => Promise<void>) => {
@@ -89,13 +75,13 @@ const EvaluationPeriodSettings: Component<EvaluationPeriodSettingsProps> = (prop
 			return;
 		}
 		setBusy(true);
+		// 2.0 では書いた値が次の flush まで読めない。続けて押されても、上の確認で止める
+		flush();
 		try {
 			await operation();
-			await load();
+			refresh(periods);
 		} finally {
-			if (mounted) {
-				setBusy(false);
-			}
+			setBusy(false);
 		}
 	};
 
@@ -140,7 +126,7 @@ const EvaluationPeriodSettings: Component<EvaluationPeriodSettingsProps> = (prop
 					: { ...fields, periodId: editingId() as number },
 			);
 			showToast(result.success ? "success" : "error", result.message);
-			if (result.success && mounted) {
+			if (result.success) {
 				resetForm();
 			}
 		});
@@ -236,109 +222,120 @@ const EvaluationPeriodSettings: Component<EvaluationPeriodSettingsProps> = (prop
 				評価期間は「締める」と「開始する」を分けて行います。締めると、次の評価期間は準備中になり、自動では始まりません。等級の変更などを済ませてから開始してください。未確定の評価シートが残っている間は締められません(期間ごとに、確定せずに締めることを認められます)。
 			</p>
 
-			<Show when={error()}>
-				<div class="inline-alert" role="alert">
-					<span>{error()}</span>
-					<button type="button" class="secondary-action" onClick={() => void load()}>
-						再読み込み
-					</button>
-				</div>
-			</Show>
-
-			<Show when={!loading()} fallback={<p class="page-note">評価期間を読み込んでいます...</p>}>
-				<Show
-					when={periods().length > 0}
-					fallback={
-						<Show when={!error()}>
-							<p class="page-note">評価期間はまだありません。下のフォームから追加してください。</p>
-						</Show>
-					}
-				>
-					<div class="table-scroll">
-						<table class="sheet-table period-table">
-							<thead>
-								<tr>
-									<th>期間名</th>
-									<th>開始日</th>
-									<th>終了日</th>
-									<th>状態</th>
-									<th>
-										<span class="visually-hidden">操作</span>
-									</th>
-								</tr>
-							</thead>
-							<tbody>
-								<For each={periods()}>
-									{(period) => (
-										<tr>
-											<td>{period.periodName}</td>
-											<td>{period.startDate}</td>
-											<td>{period.endDate}</td>
-											<td>
-												<Show
-													when={period.isActive}
-													fallback={<span class="period-state">{period.stateLabel}</span>}
-												>
-													<span class="period-badge">{period.stateLabel}</span>
-												</Show>
-												<Show when={period.allowUnfinalizedClose}>
-													<small class="period-note">未確定でも締める</small>
-												</Show>
-											</td>
-											<td>
-												<div class="period-actions">
-													<Show when={period.isActive}>
-														<button
-															type="button"
-															class="secondary-action"
-															disabled={busy()}
-															aria-label={`${period.periodName}を締める`}
-															onClick={() => void close(period)}
-														>
-															この期間を締める
-														</button>
-													</Show>
-													<Show when={period.state === "preparing"}>
-														<button
-															type="button"
-															class="secondary-action"
-															disabled={busy()}
-															aria-label={`${period.periodName}を開始する`}
-															onClick={() => void start(period)}
-														>
-															この期間を開始する
-														</button>
-													</Show>
-													<button
-														type="button"
-														class="secondary-action"
-														disabled={busy()}
-														aria-label={`${period.periodName}を編集`}
-														onClick={() => edit(period)}
-													>
-														編集
-													</button>
-													<Show when={!period.isActive}>
-														<button
-															type="button"
-															class="secondary-action"
-															disabled={busy()}
-															aria-label={`${period.periodName}を削除`}
-															onClick={() => void remove(period)}
-														>
-															削除
-														</button>
-													</Show>
-												</div>
-											</td>
-										</tr>
-									)}
-								</For>
-							</tbody>
-						</table>
+			<Errored
+				fallback={(reason, reset) => (
+					// 理由も出す(管理担当者に伝えられるように)。読めない間は、どの操作も出さない
+					<div class="inline-alert" role="alert">
+						<span>
+							評価期間を読み込めませんでした。
+							{messageOf(reason(), "") && `(${messageOf(reason(), "")})`}
+						</span>
+						<button
+							type="button"
+							class="secondary-action"
+							onClick={() => {
+								refresh(periods);
+								reset();
+							}}
+						>
+							再読み込み
+						</button>
 					</div>
-				</Show>
-			</Show>
+				)}
+			>
+				<Loading fallback={<p class="page-note">評価期間を読み込んでいます...</p>}>
+					<Show
+						when={periods().length > 0}
+						fallback={
+							<p class="page-note">評価期間はまだありません。下のフォームから追加してください。</p>
+						}
+					>
+						<div class="table-scroll">
+							<table class="sheet-table period-table">
+								<thead>
+									<tr>
+										<th>期間名</th>
+										<th>開始日</th>
+										<th>終了日</th>
+										<th>状態</th>
+										<th>
+											<span class="visually-hidden">操作</span>
+										</th>
+									</tr>
+								</thead>
+								<tbody>
+									<For each={periods()} keyed={(period) => period.id}>
+										{(period) => (
+											<tr>
+												<td>{period().periodName}</td>
+												<td>{period().startDate}</td>
+												<td>{period().endDate}</td>
+												<td>
+													<Show
+														when={period().isActive}
+														fallback={<span class="period-state">{period().stateLabel}</span>}
+													>
+														<span class="period-badge">{period().stateLabel}</span>
+													</Show>
+													<Show when={period().allowUnfinalizedClose}>
+														<small class="period-note">未確定でも締める</small>
+													</Show>
+												</td>
+												<td>
+													<div class="period-actions">
+														<Show when={period().isActive}>
+															<button
+																type="button"
+																class="secondary-action"
+																disabled={busy()}
+																aria-label={`${period().periodName}を締める`}
+																onClick={() => void close(period())}
+															>
+																この期間を締める
+															</button>
+														</Show>
+														<Show when={period().state === "preparing"}>
+															<button
+																type="button"
+																class="secondary-action"
+																disabled={busy()}
+																aria-label={`${period().periodName}を開始する`}
+																onClick={() => void start(period())}
+															>
+																この期間を開始する
+															</button>
+														</Show>
+														<button
+															type="button"
+															class="secondary-action"
+															disabled={busy()}
+															aria-label={`${period().periodName}を編集`}
+															onClick={() => edit(period())}
+														>
+															編集
+														</button>
+														<Show when={!period().isActive}>
+															<button
+																type="button"
+																class="secondary-action"
+																disabled={busy()}
+																aria-label={`${period().periodName}を削除`}
+																onClick={() => void remove(period())}
+															>
+																削除
+															</button>
+														</Show>
+													</div>
+												</td>
+											</tr>
+										)}
+									</For>
+								</tbody>
+							</table>
+						</div>
+					</Show>
+				</Loading>
+			</Errored>
 
 			<h3>{editingId() === null ? "評価期間を追加" : "評価期間を変更"}</h3>
 			<form class="allocation-form period-form" onSubmit={save}>
@@ -350,7 +347,7 @@ const EvaluationPeriodSettings: Component<EvaluationPeriodSettingsProps> = (prop
 						placeholder="例: 26期"
 						value={form().termName}
 						disabled={busy()}
-						onInput={(event) => setForm({ ...form(), termName: event.currentTarget.value })}
+						onInput={(event) => patchForm({ termName: event.currentTarget.value })}
 					/>
 				</label>
 				<label>
@@ -360,7 +357,7 @@ const EvaluationPeriodSettings: Component<EvaluationPeriodSettingsProps> = (prop
 						required
 						value={form().startDate}
 						disabled={busy()}
-						onInput={(event) => setForm({ ...form(), startDate: event.currentTarget.value })}
+						onInput={(event) => patchForm({ startDate: event.currentTarget.value })}
 					/>
 				</label>
 				<label>
@@ -371,7 +368,7 @@ const EvaluationPeriodSettings: Component<EvaluationPeriodSettingsProps> = (prop
 						value={form().endDate}
 						min={form().startDate}
 						disabled={busy()}
-						onInput={(event) => setForm({ ...form(), endDate: event.currentTarget.value })}
+						onInput={(event) => patchForm({ endDate: event.currentTarget.value })}
 					/>
 				</label>
 				<Show when={editingId() === null}>
@@ -385,7 +382,9 @@ const EvaluationPeriodSettings: Component<EvaluationPeriodSettingsProps> = (prop
 										name="period-division"
 										checked={form().division === division.value}
 										disabled={busy()}
-										onChange={() => setForm({ ...form(), division: division.value })}
+										onChange={() =>
+											setForm((previous) => ({ ...previous, division: division.value }))
+										}
 									/>
 									{division.label}
 								</label>
@@ -398,9 +397,7 @@ const EvaluationPeriodSettings: Component<EvaluationPeriodSettingsProps> = (prop
 						type="checkbox"
 						checked={form().allowUnfinalizedClose}
 						disabled={busy()}
-						onChange={(event) =>
-							setForm({ ...form(), allowUnfinalizedClose: event.currentTarget.checked })
-						}
+						onChange={(event) => patchForm({ allowUnfinalizedClose: event.currentTarget.checked })}
 					/>
 					評価が確定していなくても締められる
 				</label>
@@ -416,12 +413,12 @@ const EvaluationPeriodSettings: Component<EvaluationPeriodSettingsProps> = (prop
 			<Show when={previewPeriods()}>
 				{(planned) => (
 					<ul class="period-preview" aria-label="追加される評価期間">
-						<For each={planned()}>
+						<For each={planned()} keyed={false}>
 							{(part) => (
 								<li>
-									<span>{part.periodName}</span>
+									<span>{part().periodName}</span>
 									<span>
-										{part.startDate} 〜 {part.endDate}
+										{part().startDate} 〜 {part().endDate}
 									</span>
 								</li>
 							)}

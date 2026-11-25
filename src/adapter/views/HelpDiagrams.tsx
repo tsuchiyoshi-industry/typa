@@ -1,16 +1,5 @@
-import ArrowDown from "lucide-solid/icons/arrow-down";
-import ArrowRight from "lucide-solid/icons/arrow-right";
-import Bell from "lucide-solid/icons/bell";
-import BellOff from "lucide-solid/icons/bell-off";
-import FileText from "lucide-solid/icons/file-text";
-import KeyRound from "lucide-solid/icons/key-round";
-import Lock from "lucide-solid/icons/lock";
-import Mail from "lucide-solid/icons/mail";
-import RefreshCw from "lucide-solid/icons/refresh-cw";
-import Ticket from "lucide-solid/icons/ticket";
-import Undo2 from "lucide-solid/icons/undo-2";
-import UserRound from "lucide-solid/icons/user-round";
-import { type Component, For, type JSX, Show } from "solid-js";
+import type { JSX } from "@solidjs/web";
+import { type Component, createMemo, For, Repeat, Show } from "solid-js";
 import { EvaluationStatus, type SheetActor } from "../../domain/valueObjects/EvaluationStatus";
 import { GoalReturnReason } from "../../domain/valueObjects/GoalReturnReason";
 import { PeriodDivision } from "../../domain/valueObjects/PeriodDivision";
@@ -25,6 +14,20 @@ import {
 	scoreExample,
 	WRITABLE_ROWS,
 } from "../viewmodels/helpGuide";
+import {
+	ArrowDown,
+	ArrowRight,
+	Bell,
+	BellOff,
+	FileText,
+	KeyRound,
+	Lock,
+	Mail,
+	RefreshCw,
+	Ticket,
+	Undo2,
+	UserRound,
+} from "./components/icons";
 
 /*
  * ヘルプの図。どの図も、それだけで要点が伝わるようにする(説明の文は図に無いことだけを書く)。
@@ -65,14 +68,14 @@ export const TermDiagram: Component = () => {
 				26期<span>（例：{division.label}）</span>
 			</p>
 			<ol class="dg-term__parts" aria-label="評価期間">
-				<For each={Array.from({ length: division.parts }, (_, index) => index + 1)}>
-					{(part) => (
+				<Repeat count={division.parts}>
+					{(index) => (
 						<li>
-							<p class="dg-term__name">{division.partLabel(part)}</p>
+							<p class="dg-term__name">{division.partLabel(index + 1)}</p>
 							<ul class="dg-term__sheets" aria-label="評価シート">
 								<For each={[0, 1, 2, 3, 4]}>
 									{(index) => (
-										<li classList={{ "dg-term__sheet--you": index === 0 }}>
+										<li class={{ "dg-term__sheet--you": index === 0 }}>
 											<FileText size={26} aria-hidden="true" />
 											<span class="visually-hidden">{index === 0 ? "あなたの1枚" : "1人1枚"}</span>
 										</li>
@@ -82,7 +85,7 @@ export const TermDiagram: Component = () => {
 							<p class="dg-term__note">1人1枚。この期間の中で評価が完結</p>
 						</li>
 					)}
-				</For>
+				</Repeat>
 			</ol>
 		</div>
 	);
@@ -361,7 +364,7 @@ export const FlowDiagram: Component = () => {
 				</defs>
 				<For each={LANES}>
 					{(actor, index) => (
-						<g class="dg-flow__lane" classList={{ "dg-flow__lane--alt": index() % 2 === 1 }}>
+						<g class={["dg-flow__lane", { "dg-flow__lane--alt": index() % 2 === 1 }]}>
 							<rect x="0" y={index() * FLOW.lane} width={FLOW.width} height={FLOW.lane} />
 							<text x="20" y={laneY(actor) + 5}>
 								{ACTOR_LABEL[actor]}
@@ -500,7 +503,7 @@ export const WritableMatrix: Component = () => {
 				</colgroup>
 				<thead>
 					<tr>
-						<td colSpan={2} />
+						<td colspan={2} />
 						<For each={EvaluationStatus.ALL}>
 							{(status) => <th scope="col">{status.label()}</th>}
 						</For>
@@ -513,14 +516,14 @@ export const WritableMatrix: Component = () => {
 								{(row, index) => (
 									<tr>
 										<Show when={index() === 0}>
-											<th scope="rowgroup" rowSpan={group.rows.length} class="dg-matrix__actor">
+											<th scope="rowgroup" rowspan={group.rows.length} class="dg-matrix__actor">
 												{ACTOR_LABEL[group.actor]}
 											</th>
 										</Show>
 										<th scope="row">{row.label}</th>
 										<For each={EvaluationStatus.ALL}>
 											{(status) => (
-												<td classList={{ "dg-matrix__yes": row.allowed(status) }}>
+												<td class={{ "dg-matrix__yes": row.allowed(status) }}>
 													<span class="visually-hidden">
 														{row.allowed(status) ? "できる" : "できない"}
 													</span>
@@ -823,7 +826,7 @@ export const ScoreDiagram: Component<{
 									"flex-grow": band.upper - band.minimum,
 									"--dg-rank-mix": `${8 + index() * 6}%`,
 								}}
-								classList={{
+								class={{
 									"dg-ranks__band--hit":
 										example().total >= band.minimum &&
 										(example().total < band.upper || band.upper === 100),
@@ -968,11 +971,11 @@ export const DivisionDiagram: Component = () => (
 				<li>
 					<strong>{division.label}</strong>
 					<span class="dg-divisions__bar">
-						<For each={Array.from({ length: division.parts }, (_, index) => index + 1)}>
-							{(part) => (
-								<span class="dg-divisions__part">{division.partLabel(part) || "1年"}</span>
+						<Repeat count={division.parts}>
+							{(index) => (
+								<span class="dg-divisions__part">{division.partLabel(index + 1) || "1年"}</span>
 							)}
-						</For>
+						</Repeat>
 					</span>
 					<span class="dg-small">1つの期に {division.parts} 回評価</span>
 				</li>
@@ -1026,16 +1029,16 @@ export const CycleDiagram: Component<{
 			</svg>
 			<For each={props.steps}>
 				{(_, index) => {
-					// 次の手順へ向かう向きを、2つの手順の間に置く
-					const point = at(index() + 0.5);
+					// 次の手順へ向かう向きを、2つの手順の間に置く(並びが変われば置き直す)
+					const point = createMemo(() => at(index() + 0.5));
 					return (
 						<span
 							class="dg-cycle__tick"
 							aria-hidden="true"
 							style={{
-								left: `${point.x}%`,
-								top: `${point.y}%`,
-								rotate: `${point.angle + Math.PI / 2}rad`,
+								left: `${point().x}%`,
+								top: `${point().y}%`,
+								rotate: `${point().angle + Math.PI / 2}rad`,
 							}}
 						/>
 					);

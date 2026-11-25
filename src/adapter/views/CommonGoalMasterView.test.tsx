@@ -1,8 +1,9 @@
 // @vitest-environment happy-dom
-import { MemoryRouter, Route } from "@solidjs/router";
+
 import { cleanup, fireEvent, render, waitFor } from "@solidjs/testing-library";
 import { afterEach, expect, it, vi } from "vitest";
 import type { GradeMaster } from "../../domain/entities/GradeMaster";
+import { routed } from "../../test/router";
 import CommonGoalMasterView from "./CommonGoalMasterView";
 import { confirmAction, confirmDiscard, showToast } from "./feedback";
 
@@ -48,11 +49,7 @@ const setup = (makesNewVersion = false) => {
 		deleteCommonGoalSet: vi.fn().mockResolvedValue({ success: true, message: "削除しました" }),
 		makesNewVersion: vi.fn().mockReturnValue(makesNewVersion),
 	};
-	const view = render(() => (
-		<MemoryRouter>
-			<Route path="/" component={() => <CommonGoalMasterView controller={controller} />} />
-		</MemoryRouter>
-	));
+	const view = render(() => routed(() => <CommonGoalMasterView controller={controller} />));
 	return { controller, view };
 };
 type View = ReturnType<typeof render>;

@@ -1,11 +1,7 @@
-import { A } from "@solidjs/router";
-import FileUp from "lucide-solid/icons/file-up";
-import ListChecks from "lucide-solid/icons/list-checks";
-import PackageOpen from "lucide-solid/icons/package-open";
-import UserPlus from "lucide-solid/icons/user-plus";
-import { type Component, createResource, For, Show } from "solid-js";
+import { type Component, createMemo, Errored, For, Loading, Show } from "solid-js";
 import { messageOf } from "../../application/errorMessage";
 import type { AccountController } from "../controllers/AccountController";
+import { FileUp, ListChecks, PackageOpen, UserPlus } from "./components/icons";
 
 // ponytail: 導入チェックは名前だけ。中身ができたら href を付ける
 const TASKS = [
@@ -32,7 +28,7 @@ const TASKS = [
 
 /** システムを使い始めるときに一度だけ行う処理の入口。Admin だけが使える。 */
 const SetupView: Component<{ controller: AccountController }> = (props) => {
-	const [user] = createResource(() => props.controller.currentUser());
+	const user = createMemo(() => props.controller.currentUser());
 
 	return (
 		<div class="settings-page">
@@ -46,50 +42,50 @@ const SetupView: Component<{ controller: AccountController }> = (props) => {
 				</div>
 			</header>
 
-			<Show when={!user.loading} fallback={<p class="page-note">読み込んでいます...</p>}>
-				<Show
-					when={!user.error && user()?.canRunSetup}
-					fallback={
-						<p class="page-note">
-							{user.error
-								? `読み込めませんでした。(${messageOf(user.error, "")})`
-								: "導入処理は Admin のみ利用できます。"}
-						</p>
-					}
-				>
-					<ul class="setup-tasks">
-						<For each={TASKS}>
-							{(task) => (
-								<li>
-									<Show
-										when={task.href}
-										fallback={
-											<div class="info-card setup-task--pending">
-												<task.icon class="header-icon" aria-hidden="true" />
-												<div>
-													<h2>{task.title}</h2>
-													<p>{task.description}</p>
+			<Errored
+				fallback={(error) => (
+					<p class="page-note">読み込めませんでした。({messageOf(error(), "")})</p>
+				)}
+			>
+				<Loading fallback={<p class="page-note">読み込んでいます...</p>}>
+					<Show
+						when={user()?.canRunSetup}
+						fallback={<p class="page-note">導入処理は Admin のみ利用できます。</p>}
+					>
+						<ul class="setup-tasks">
+							<For each={TASKS}>
+								{(task) => (
+									<li>
+										<Show
+											when={task.href}
+											fallback={
+												<div class="info-card setup-task--pending">
+													<task.icon class="header-icon" aria-hidden="true" />
+													<div>
+														<h2>{task.title}</h2>
+														<p>{task.description}</p>
+													</div>
+													<span class="period-badge">開発中</span>
 												</div>
-												<span class="period-badge">開発中</span>
-											</div>
-										}
-									>
-										{(href) => (
-											<A href={href()} class="info-card setup-task-link">
-												<task.icon class="header-icon" aria-hidden="true" />
-												<div>
-													<h2>{task.title}</h2>
-													<p>{task.description}</p>
-												</div>
-											</A>
-										)}
-									</Show>
-								</li>
-							)}
-						</For>
-					</ul>
-				</Show>
-			</Show>
+											}
+										>
+											{(href) => (
+												<a href={href()} class="info-card setup-task-link">
+													<task.icon class="header-icon" aria-hidden="true" />
+													<div>
+														<h2>{task.title}</h2>
+														<p>{task.description}</p>
+													</div>
+												</a>
+											)}
+										</Show>
+									</li>
+								)}
+							</For>
+						</ul>
+					</Show>
+				</Loading>
+			</Errored>
 		</div>
 	);
 };

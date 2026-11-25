@@ -1,4 +1,3 @@
-import Award from "lucide-solid/icons/award";
 import { type Component, createMemo, For, Show } from "solid-js";
 import type {
 	EvaluationRankDto,
@@ -7,6 +6,7 @@ import type {
 import { EvaluationRank } from "../../../domain/valueObjects/EvaluationRank";
 import { EvaluationStatus } from "../../../domain/valueObjects/EvaluationStatus";
 import { commonEvaluationRadar } from "../../viewmodels/commonEvaluationRadar";
+import { Award } from "./icons";
 import RadarChart from "./RadarChart";
 
 interface EvaluationRankPanelProps {
@@ -52,14 +52,14 @@ const EvaluationRankPanel: Component<EvaluationRankPanelProps> = (props) => {
 					</div>
 				</div>
 				<dl class="rank-summary">
-					<For each={ranks()}>
+					<For each={ranks()} keyed={(item) => item.label}>
 						{(item) => (
-							<div class="rank-summary__item" classList={{ confirmed: item.rank.confirmed }}>
-								<dt>{item.label}</dt>
+							<div class={["rank-summary__item", { confirmed: item().rank.confirmed }]}>
+								<dt>{item().label}</dt>
 								<dd>
-									<strong>{item.rank.displayText}</strong>
-									<span>{item.rank.score} 点 / 100 点</span>
-									<small>{item.rank.confirmed ? "確定" : "確定前の見込み"}</small>
+									<strong>{item().rank.displayText}</strong>
+									<span>{item().rank.score} 点 / 100 点</span>
+									<small>{item().rank.confirmed ? "確定" : "確定前の見込み"}</small>
 								</dd>
 							</div>
 						)}

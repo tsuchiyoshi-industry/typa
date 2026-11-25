@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { flush } from "solid-js";
 import { expect, it, vi } from "vitest";
 import type { SheetEditorController } from "../controllers/SheetEditorController";
 import type { SheetEditorViewModel } from "../presenters/SheetEditorPresenter";
@@ -20,6 +21,7 @@ function setup(updateResults: boolean[] = []) {
 	/** 差し戻しのダイアログを開き、入っていた理由を返す。text を書いて、confirm なら実行する。 */
 	const open = async (text?: string, confirm = false) => {
 		const done = actions.returnGoals();
+		flush();
 		const request = pendingConfirm();
 		const initial = request?.text?.initial ?? "";
 		if (text !== undefined) {
@@ -27,6 +29,7 @@ function setup(updateResults: boolean[] = []) {
 		}
 		settleConfirm(confirm);
 		await done;
+		flush();
 		// 失敗したときの「変更できませんでした」を閉じる
 		if (pendingConfirm()) {
 			settleConfirm(true);

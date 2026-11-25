@@ -14,9 +14,8 @@ const EvaluationCompletionNotice: Component<EvaluationCompletionNoticeProps> = (
 	<Show when={props.items.length > 0}>
 		<div
 			ref={props.ref}
-			class="evaluation-completion"
-			classList={{ invalid: props.attempted }}
-			tabIndex={-1}
+			class={["evaluation-completion", { invalid: props.attempted }]}
+			tabindex={-1}
 			role={props.attempted ? "alert" : "status"}
 		>
 			<p>

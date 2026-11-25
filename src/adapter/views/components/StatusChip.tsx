@@ -1,13 +1,8 @@
-import BadgeCheck from "lucide-solid/icons/badge-check";
-import ClipboardCheck from "lucide-solid/icons/clipboard-check";
-import Hourglass from "lucide-solid/icons/hourglass";
-import Inbox from "lucide-solid/icons/inbox";
-import PencilLine from "lucide-solid/icons/pencil-line";
-import Send from "lucide-solid/icons/send";
+import { dynamic } from "@solidjs/web";
 import type { Component } from "solid-js";
-import { Dynamic } from "solid-js/web";
 import type { EvaluationStatusValue } from "../../../domain/valueObjects/EvaluationStatus";
 import { statusLabel } from "../format";
+import { BadgeCheck, ClipboardCheck, Hourglass, Inbox, PencilLine, Send } from "./icons";
 
 /**
  * 色だけに頼らず、形でも状態を見分けられるようにする。状態ごとに別の形にする。
@@ -23,11 +18,15 @@ const STATUS_ICONS: Record<EvaluationStatusValue, typeof PencilLine> = {
 	finalized: BadgeCheck,
 };
 
-const StatusChip: Component<{ status: EvaluationStatusValue }> = (props) => (
-	<span class={`status-chip ${props.status}`}>
-		<Dynamic component={STATUS_ICONS[props.status]} size={14} aria-hidden="true" />
-		{statusLabel(props.status)}
-	</span>
-);
+const StatusChip: Component<{ status: EvaluationStatusValue }> = (props) => {
+	// 状態が変わると、その状態の形に描き替える
+	const StatusIcon = dynamic(() => STATUS_ICONS[props.status]);
+	return (
+		<span class={["status-chip", props.status]}>
+			<StatusIcon size={14} />
+			{statusLabel(props.status)}
+		</span>
+	);
+};
 
 export default StatusChip;

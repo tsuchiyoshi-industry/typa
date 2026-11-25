@@ -1,9 +1,10 @@
 // @vitest-environment happy-dom
-import { MemoryRouter, Route } from "@solidjs/router";
+
 import { cleanup, fireEvent, render, screen, waitFor } from "@solidjs/testing-library";
 import { afterEach, expect, it, vi } from "vitest";
 import type { SheetImportPeriodDto } from "../../application/dtos/SheetImportPeriodDto";
 import type { SheetImportResult } from "../../domain/repositories/SheetImportRepository";
+import { routed } from "../../test/router";
 import type { SheetImportController, SheetImportRun } from "../controllers/SheetImportController";
 import { confirmAction, showToast } from "./feedback";
 import SheetImportView from "./SheetImportView";
@@ -50,16 +51,9 @@ function setup(
 			return request.apply ? { ...checked(name), applied: true } : checked(name);
 		}),
 	};
-	render(() => (
-		<MemoryRouter>
-			<Route
-				path="/"
-				component={() => (
-					<SheetImportView controller={controller as unknown as SheetImportController} />
-				)}
-			/>
-		</MemoryRouter>
-	));
+	render(() =>
+		routed(() => <SheetImportView controller={controller as unknown as SheetImportController} />),
+	);
 	return controller;
 }
 const pick = async (label: "目標" | "共通評価", name = "goals.csv") => {

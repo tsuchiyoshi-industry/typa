@@ -1,13 +1,10 @@
-import Check from "lucide-solid/icons/check";
-import FileCheck from "lucide-solid/icons/file-check";
-import ShieldCheck from "lucide-solid/icons/shield-check";
-import Undo2 from "lucide-solid/icons/undo-2";
 import { type Component, For, Show } from "solid-js";
 import {
 	EvaluationStatus,
 	type EvaluationStatusValue,
 } from "../../../domain/valueObjects/EvaluationStatus";
 import { statusHint, statusLabel } from "../format";
+import { Check, FileCheck, ShieldCheck, Undo2 } from "./icons";
 
 interface SheetStatusTrackProps {
 	status: EvaluationStatusValue;
@@ -51,11 +48,13 @@ const SheetStatusTrack: Component<SheetStatusTrackProps> = (props) => {
 				<For each={steps()}>
 					{(step, index) => (
 						<li
-							class="status-track__step"
-							classList={{
-								done: index() < currentRank(),
-								current: index() === currentRank(),
-							}}
+							class={[
+								"status-track__step",
+								{
+									done: index() < currentRank(),
+									current: index() === currentRank(),
+								},
+							]}
 							aria-current={index() === currentRank() ? "step" : undefined}
 						>
 							<span class="status-track__dot">

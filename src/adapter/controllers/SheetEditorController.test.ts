@@ -1,4 +1,4 @@
-import { createRoot } from "solid-js";
+import { createRoot, flush } from "solid-js";
 import { describe, expect, it, vi } from "vitest";
 import type { EvaluationPeriodDto } from "../../application/dtos/EvaluationPeriodDto";
 import { toEvaluationSheetDto } from "../../application/dtos/EvaluationSheetMapper";
@@ -12,6 +12,12 @@ import { EvaluationStatus } from "../../domain/valueObjects/EvaluationStatus";
 import { employeeRepository, sheet } from "../../test/fixtures";
 import { creatablePeriods, createSheetEditorPresenter } from "../presenters/SheetEditorPresenter";
 import { SheetEditorController } from "./SheetEditorController";
+
+/** Solid 2 は書き込みを次のマイクロタスクで反映する。presenter に書いたら、反映してから読む(画面に出てから押すのと同じ)。 */
+const settled = <T>(read: () => T): T => {
+	flush();
+	return read();
+};
 
 const response = (id: number) => ({
 	...toEvaluationSheetDto(sheet(), "技術1級", EvaluationSheetAccessPolicy.for(3, sheet())),
@@ -48,7 +54,7 @@ it("ignores a late sheet response after the reviewer has moved to another person
 	ports.get(101)?.present(response(101));
 	resolvers.get(101)?.();
 	await first;
-	expect(presenter.viewModel().sheet?.sheetId).toBe(102);
+	expect(settled(presenter.viewModel).sheet?.sheetId).toBe(102);
 });
 it("takes permissions from the sheet it shows, and drops them while another sheet loads", async () => {
 	let present: (() => void) | undefined;
@@ -68,8 +74,8 @@ it("takes permissions from the sheet it shows, and drops them while another shee
 	presenter.outputPort.sheet.present(
 		toEvaluationSheetDto(evaluated, "技術1級", EvaluationSheetAccessPolicy.for(3, evaluated)),
 	);
-	expect(presenter.viewModel().canEditSecond).toBe(true);
-	expect(presenter.viewModel().canFinalizeEvaluation).toBe(true);
+	expect(settled(presenter.viewModel).canEditSecond).toBe(true);
+	expect(settled(presenter.viewModel).canFinalizeEvaluation).toBe(true);
 	type Args = ConstructorParameters<typeof SheetEditorController>;
 	const controller = new SheetEditorController(
 		fetchCase,
@@ -83,19 +89,20 @@ it("takes permissions from the sheet it shows, and drops them while another shee
 	);
 	const pending = controller.loadSheet(102);
 	await Promise.resolve();
-	expect(presenter.viewModel().canEditSecond).toBe(false);
-	expect(presenter.viewModel().canFinalizeEvaluation).toBe(false);
+	expect(settled(presenter.viewModel).canEditSecond).toBe(false);
+	expect(settled(presenter.viewModel).canFinalizeEvaluation).toBe(false);
 	// 一次評価待ちのシートでは、二次評価者はまだ入力できない
 	present?.();
 	await pending;
-	expect(presenter.viewModel().sheet?.sheetId).toBe(102);
-	expect(presenter.viewModel().canEditSecond).toBe(false);
+	expect(settled(presenter.viewModel).sheet?.sheetId).toBe(102);
+	expect(settled(presenter.viewModel).canEditSecond).toBe(false);
 });
 
 describe("状態の変更", () => {
 	function setup(employeeId: number | null) {
 		const presenter = createRoot(() => createSheetEditorPresenter());
 		presenter.outputPort.sheet.present(response(101));
+		flush();
 		const repository = employeeRepository();
 		let signedIn!: () => void;
 		repository.findCurrentEmployeeId.mockReturnValue(
@@ -122,7 +129,7 @@ describe("状態の変更", () => {
 	it("counts as updating from the moment it starts, before the session is read", async () => {
 		const { presenter, controller, execute, signedIn } = setup(3);
 		const updating = controller.updateStatus(EvaluationStatus.GOALS_SUBMITTED);
-		expect(presenter.viewModel().updatingStatus).toBe(true);
+		expect(settled(presenter.viewModel).updatingStatus).toBe(true);
 		signedIn();
 		expect(await updating).toBe(true);
 		expect(execute).toHaveBeenCalledOnce();
@@ -133,8 +140,8 @@ describe("状態の変更", () => {
 		const updating = controller.updateStatus(EvaluationStatus.GOALS_SUBMITTED);
 		signedIn();
 		expect(await updating).toBe(false);
-		expect(presenter.viewModel().updatingStatus).toBe(false);
-		expect(presenter.viewModel().statusUpdateError).toBe("ログインが必要です。");
+		expect(settled(presenter.viewModel).updatingStatus).toBe(false);
+		expect(settled(presenter.viewModel).statusUpdateError).toBe("ログインが必要です。");
 		expect(execute).not.toHaveBeenCalled();
 	});
 });
@@ -159,6 +166,7 @@ describe("新規作成", () => {
 		const arrive = (periods: EvaluationPeriodDto[], mySheets: SheetSummaryDto[]) => {
 			presenter.outputPort.periods.present({ periods });
 			presenter.outputPort.accessibleSheets.present({ mySheets, subordinateSheets: [] });
+			flush();
 		};
 		return { presenter, controller, create, arrive };
 	}
@@ -166,23 +174,23 @@ describe("新規作成", () => {
 	it("offers only active periods that do not have my sheet yet", () => {
 		const { presenter, arrive } = setup();
 		arrive([period(25, false), period(26), period(27)], [mine(26)]);
-		expect(creatablePeriods(presenter.viewModel()).map((p) => p.id)).toEqual([27]);
-		expect(presenter.viewModel().selectedPeriodId).toBe(27);
+		expect(creatablePeriods(settled(presenter.viewModel)).map((p) => p.id)).toEqual([27]);
+		expect(settled(presenter.viewModel).selectedPeriodId).toBe(27);
 	});
 
 	it("moves the selection off a period once my sheet for it turns out to exist", () => {
 		const { presenter } = setup();
 		// 期間が先に届き、自分のシートが後から届く
 		presenter.outputPort.periods.present({ periods: [period(26), period(27)] });
-		expect(presenter.viewModel().selectedPeriodId).toBe(26);
+		expect(settled(presenter.viewModel).selectedPeriodId).toBe(26);
 		presenter.outputPort.accessibleSheets.present({ mySheets: [mine(26)], subordinateSheets: [] });
-		expect(presenter.viewModel().selectedPeriodId).toBe(27);
+		expect(settled(presenter.viewModel).selectedPeriodId).toBe(27);
 	});
 
 	it("selects nothing when every active period already has my sheet", async () => {
 		const { presenter, controller, create, arrive } = setup();
 		arrive([period(26)], [mine(26)]);
-		expect(presenter.viewModel().selectedPeriodId).toBeNull();
+		expect(settled(presenter.viewModel).selectedPeriodId).toBeNull();
 		expect(await controller.createSheet()).toBeNull();
 		expect(create).not.toHaveBeenCalled();
 	});
@@ -192,9 +200,12 @@ describe("新規作成", () => {
 		arrive([period(26), period(27)], [mine(26)]);
 		// 画面の状態が古いなどで、作成済みの期間が選ばれたまま押された
 		presenter.setSelectedPeriodId(26);
+		flush();
 		expect(await controller.createSheet()).toBeNull();
 		expect(create).not.toHaveBeenCalled();
-		expect(presenter.viewModel().createError).toBe("この評価期間の評価シートは作成済みです。");
+		expect(settled(presenter.viewModel).createError).toBe(
+			"この評価期間の評価シートは作成済みです。",
+		);
 	});
 
 	it("creates once even when pressed twice, and shows that it is working meanwhile", async () => {
@@ -211,12 +222,12 @@ describe("新規作成", () => {
 		const { presenter, controller, arrive } = setup(create);
 		arrive([period(27)], []);
 		const first = controller.createSheet();
-		await vi.waitFor(() => expect(presenter.viewModel().creating).toBe(true));
+		await vi.waitFor(() => expect(settled(presenter.viewModel).creating).toBe(true));
 		expect(await controller.createSheet()).toBeNull();
 		finish?.();
 		expect(await first).toBe(900);
 		expect(create).toHaveBeenCalledTimes(1);
-		expect(presenter.viewModel().creating).toBe(false);
+		expect(settled(presenter.viewModel).creating).toBe(false);
 	});
 
 	it("lets the user try again after creation fails", async () => {
@@ -226,8 +237,8 @@ describe("新規作成", () => {
 		const { presenter, controller, arrive } = setup(create);
 		arrive([period(27)], []);
 		expect(await controller.createSheet()).toBeNull();
-		expect(presenter.viewModel().creating).toBe(false);
-		expect(presenter.viewModel().createError).toBe(
+		expect(settled(presenter.viewModel).creating).toBe(false);
+		expect(settled(presenter.viewModel).createError).toBe(
 			"評価シートを作成できるのは、実施中の評価期間だけです。",
 		);
 	});

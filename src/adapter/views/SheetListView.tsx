@@ -1,14 +1,7 @@
-import { A, useNavigate } from "@solidjs/router";
+import { useNavigate } from "@solidjs/router";
+import type { JSX } from "@solidjs/web";
 import { isTauri } from "@tauri-apps/api/core";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
-import ArrowDown from "lucide-solid/icons/arrow-down";
-import ArrowUp from "lucide-solid/icons/arrow-up";
-import ChevronRight from "lucide-solid/icons/chevron-right";
-import ClipboardCheck from "lucide-solid/icons/clipboard-check";
-import Download from "lucide-solid/icons/download";
-import FilePlusCorner from "lucide-solid/icons/file-plus-corner";
-import Plus from "lucide-solid/icons/plus";
-import RotateCw from "lucide-solid/icons/rotate-cw";
 import {
 	type Component,
 	createEffect,
@@ -16,9 +9,7 @@ import {
 	createSignal,
 	createUniqueId,
 	For,
-	type JSX,
-	on,
-	onMount,
+	onSettled,
 	Show,
 } from "solid-js";
 import type { SheetOverviewDto, SheetSummaryDto } from "../../application/dtos/SheetListDto";
@@ -29,6 +20,16 @@ import {
 } from "../../domain/valueObjects/EvaluationStatus";
 import type { SheetListController } from "../controllers/SheetListController";
 import type { SheetListViewModel } from "../presenters/SheetListPresenter";
+import {
+	ArrowDown,
+	ArrowUp,
+	ChevronRight,
+	ClipboardCheck,
+	Download,
+	FilePlusCorner,
+	Plus,
+	RotateCw,
+} from "./components/icons";
 import StatusChip from "./components/StatusChip";
 import { showToast } from "./feedback";
 import { formatDateTime, statusLabel, statusRank } from "./format";
@@ -84,7 +85,7 @@ const SheetTable: Component<{
 
 	const toggleSort = (field: SortField) => {
 		if (sortField() === field) {
-			setSortOrder(sortOrder() === "asc" ? "desc" : "asc");
+			setSortOrder((previous) => (previous === "asc" ? "desc" : "asc"));
 		} else {
 			setSortField(field);
 			setSortOrder("asc");
@@ -97,8 +98,7 @@ const SheetTable: Component<{
 			<th aria-sort={isActive() ? (sortOrder() === "asc" ? "ascending" : "descending") : "none"}>
 				<button
 					type="button"
-					class="sort-header"
-					classList={{ active: isActive() }}
+					class={["sort-header", { active: isActive() }]}
 					onClick={() => toggleSort(headerProps.field)}
 				>
 					{headerProps.label}
@@ -112,8 +112,7 @@ const SheetTable: Component<{
 
 	return (
 		<section
-			class="sheet-section"
-			classList={{ "sheet-section--overview": props.overview }}
+			class={["sheet-section", { "sheet-section--overview": props.overview }]}
 			aria-labelledby={headingId}
 		>
 			<div class="sheet-section-header">
@@ -157,18 +156,17 @@ const SheetTable: Component<{
 								const closedOwnSheet = !props.showName && sheet.periodClosed === true;
 								// 行全体がクリックできるが、キーボード操作の入口として先頭の列にリンクも置く
 								const link = (label: string) => (
-									<A
+									<a
 										href={`/sheet/${sheet.id}`}
 										class="sheet-row__link"
 										onClick={(event) => event.stopPropagation()}
 									>
 										{label}
-									</A>
+									</a>
 								);
 								return (
 									<tr
-										class="sheet-row"
-										classList={{ "sheet-row--read-only": closedOwnSheet }}
+										class={["sheet-row", { "sheet-row--read-only": closedOwnSheet }]}
 										onClick={() => {
 											if (!closedOwnSheet) {
 												navigate(`/sheet/${sheet.id}`);
@@ -262,7 +260,7 @@ const StageSummary: Component<{
 						<button
 							type="button"
 							data-stage={stage}
-							aria-pressed={props.selected === stage}
+							aria-pressed={props.selected === stage ? "true" : "false"}
 							disabled={count(stage) === 0}
 							onClick={() => props.onSelect(props.selected === stage ? null : stage)}
 						>
@@ -281,43 +279,39 @@ const SheetListView: Component<SheetListViewProps> = (props) => {
 	const [exportingOverview, setExportingOverview] = createSignal(false);
 	const [overviewStage, setOverviewStage] = createSignal<EvaluationStatusValue | null>(null);
 
-	onMount(() => {
-		void props.controller.load();
-	});
+	onSettled(() => void props.controller.load());
 
 	// 出力の結果そのものが入れ替わったときだけ知らせる(無関係な変化で同じ通知を出し直さない)
 	const exportStatus = createMemo(() => props.viewModel().exportStatus);
 	createEffect(
-		on(
-			exportStatus,
-			(status) => {
-				if (!status.message) {
-					return;
-				}
-				if (status.success) {
-					const fileName = status.fileName;
-					// ブラウザはダウンロードフォルダに入れるだけで、フォルダは開けない
-					const desktop = isTauri();
-					showToast(
-						"success",
-						desktop ? "PDFを保存しました" : "PDFをダウンロードしました",
-						fileName ?? undefined,
-						fileName && desktop
-							? {
-									label: "フォルダを開く",
-									run: () =>
-										void revealItemInDir(fileName).catch(() =>
-											showToast("error", "フォルダを開けませんでした", fileName),
-										),
-								}
-							: undefined,
-					);
-				} else {
-					showToast("error", "PDFを出力できませんでした", status.message);
-				}
-			},
-			{ defer: true },
-		),
+		exportStatus,
+		(status) => {
+			if (!status.message) {
+				return;
+			}
+			if (status.success) {
+				const fileName = status.fileName;
+				// ブラウザはダウンロードフォルダに入れるだけで、フォルダは開けない
+				const desktop = isTauri();
+				showToast(
+					"success",
+					desktop ? "PDFを保存しました" : "PDFをダウンロードしました",
+					fileName ?? undefined,
+					fileName && desktop
+						? {
+								label: "フォルダを開く",
+								run: () =>
+									void revealItemInDir(fileName).catch(() =>
+										showToast("error", "フォルダを開けませんでした", fileName),
+									),
+							}
+						: undefined,
+				);
+			} else {
+				showToast("error", "PDFを出力できませんでした", status.message);
+			}
+		},
+		{ defer: true },
 	);
 
 	// シートのある評価期間。新しい期間が先。件数は、下に並ぶシートの枚数
@@ -379,11 +373,12 @@ const SheetListView: Component<SheetListViewProps> = (props) => {
 	// 読んだ結果もビューモデルに入るので、ビューモデル全体ではなく、この2つが変わったときだけ読む
 	const admin = createMemo(() => props.viewModel().overviewIndex !== null);
 	createEffect(
-		on([admin, periodId], ([admin, id]) => {
-			if (admin && id !== undefined) {
+		() => (admin() ? periodId() : undefined),
+		(id) => {
+			if (id !== undefined) {
 				void props.controller.loadOverview(id);
 			}
-		}),
+		},
 	);
 	/** 絞り込んだ段。期間を替えてその段のシートが無くなったら、絞り込みを外す。 */
 	const stage = createMemo(() =>
@@ -455,10 +450,10 @@ const SheetListView: Component<SheetListViewProps> = (props) => {
 						</div>
 					}
 				>
-					<A href="/sheet/new" class="create-sheet-button">
+					<a href="/sheet/new" class="create-sheet-button">
 						<Plus size={20} />
 						<span>新規作成</span>
-					</A>
+					</a>
 				</Show>
 			</header>
 			{/* 自分のシートも部下のシートも、選んだ評価期間のものだけを下に出す。
@@ -469,7 +464,7 @@ const SheetListView: Component<SheetListViewProps> = (props) => {
 						{(period) => (
 							<button
 								type="button"
-								aria-pressed={period.id === periodId()}
+								aria-pressed={period.id === periodId() ? "true" : "false"}
 								onClick={() => setSelectedPeriod(period.id)}
 							>
 								{period.name}
@@ -524,14 +519,14 @@ const SheetListView: Component<SheetListViewProps> = (props) => {
 						exportingId={exportingId()}
 						onExport={(sheet) => void handleExport(sheet)}
 						action={
-							<A
+							<a
 								href="/review"
 								class="section-nav-link"
 								title="部下全員の進み具合を見て、自分の番から評価を進めます"
 							>
 								<ClipboardCheck size={16} />
 								部下の評価へ
-							</A>
+							</a>
 						}
 					/>
 				</Show>

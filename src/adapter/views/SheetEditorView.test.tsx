@@ -1,10 +1,11 @@
 // @vitest-environment happy-dom
-import { createMemoryHistory, MemoryRouter, Route } from "@solidjs/router";
+import { memoryHistory } from "@solidjs/router";
 import { cleanup, fireEvent, render, waitFor } from "@solidjs/testing-library";
 import { createRoot } from "solid-js";
 import { afterEach, expect, it, vi } from "vitest";
 import type { EvaluationPeriodDto } from "../../application/dtos/EvaluationPeriodDto";
 import type { SheetSummaryDto } from "../../application/dtos/SheetListDto";
+import { routed } from "../../test/router";
 import type { SheetEditorController } from "../controllers/SheetEditorController";
 import { createSheetEditorPresenter } from "../presenters/SheetEditorPresenter";
 import { showToast } from "./feedback";
@@ -40,25 +41,28 @@ function setup(
 		// 作成後に開くシート。ここでは中身を確かめない
 		loadSheet: vi.fn(),
 	};
-	const history = createMemoryHistory();
+	const history = memoryHistory("/");
 	history.set({ value: "/sheet/new", replace: true, scroll: false });
-	const view = render(() => (
-		<MemoryRouter history={history}>
-			<Route
-				path="/sheet/:id"
-				component={() => (
-					<SheetEditorView
-						controller={controller as unknown as SheetEditorController}
-						viewModel={presenter.viewModel}
-						commonEvaluationController={{} as never}
-						commonEvaluationViewModel={() => ({}) as never}
-						challengeEvaluationController={{} as never}
-						challengeEvaluationViewModel={() => ({}) as never}
-					/>
-				)}
-			/>
-		</MemoryRouter>
-	));
+	const view = render(() =>
+		routed(
+			[
+				{
+					path: "/sheet/:id",
+					component: () => (
+						<SheetEditorView
+							controller={controller as unknown as SheetEditorController}
+							viewModel={presenter.viewModel}
+							commonEvaluationController={{} as never}
+							commonEvaluationViewModel={() => ({}) as never}
+							challengeEvaluationController={{} as never}
+							challengeEvaluationViewModel={() => ({}) as never}
+						/>
+					),
+				},
+			],
+			{ history: history },
+		),
+	);
 	const create = () => view.getByRole("button", { name: "評価シートを作成" }) as HTMLButtonElement;
 	return { ...view, controller, history, create };
 }

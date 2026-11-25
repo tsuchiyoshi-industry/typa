@@ -1,8 +1,6 @@
-import CalendarDays from "lucide-solid/icons/calendar-days";
-import User from "lucide-solid/icons/user";
-import Users from "lucide-solid/icons/users";
 import type { Component } from "solid-js";
 import type { EvaluationSheetDto } from "../../../application/dtos/EvaluationSheetDto";
+import { CalendarDays, User, Users } from "./icons";
 
 /** 評価対象者・評価期間・評価者。 */
 const SheetProfileCard: Component<{ sheet: EvaluationSheetDto }> = (props) => (

@@ -77,7 +77,6 @@ function setup(
 			controller={controller as unknown as ChallengeEvaluationController}
 			challengeViewModel={() => ({ updating: false, updateError: null, updatedMilestoneId: null })}
 			onUpdated={onUpdated}
-			onSavingChange={() => {}}
 		/>
 	));
 	const panel = (name: GoalTerm) =>

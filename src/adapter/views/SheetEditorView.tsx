@@ -1,15 +1,5 @@
-import { A, useBeforeLeave, useNavigate, useParams } from "@solidjs/router";
-import FileText from "lucide-solid/icons/file-text";
-import Users from "lucide-solid/icons/users";
-import {
-	type Component,
-	createEffect,
-	createMemo,
-	createSignal,
-	on,
-	onCleanup,
-	Show,
-} from "solid-js";
+import { useBeforeLeave, useNavigate, useParams } from "@solidjs/router";
+import { type Component, createEffect, createMemo, createSignal, Show, untrack } from "solid-js";
 import type { PendingEvaluationItemDto } from "../../application/dtos/EvaluationSheetDto";
 import { messageOf } from "../../application/errorMessage";
 import { EvaluationStatus } from "../../domain/valueObjects/EvaluationStatus";
@@ -23,6 +13,7 @@ import CommonEvaluationView from "./components/CommonEvaluationView";
 import EvaluationCompletionNotice from "./components/EvaluationCompletionNotice";
 import EvaluationRankPanel from "./components/EvaluationRankPanel";
 import GoalTerms, { type GoalTerm } from "./components/GoalTerms";
+import { FileText, Users } from "./components/icons";
 import NewSheetSetup from "./components/NewSheetSetup";
 import OverallCommentSection, {
 	type OverallCommentTarget,
@@ -40,6 +31,7 @@ import {
 	trackSaving,
 	trackUnsaved,
 } from "./feedback";
+import { type ConnectSaving, createSavingSource, provideSaving } from "./savingSource";
 import { createSheetStatusActions } from "./sheetStatusActions";
 
 export interface SheetEditorViewProps {
@@ -47,7 +39,8 @@ export interface SheetEditorViewProps {
 	embedded?: boolean;
 	selectedSheetId?: number;
 	onUpdated?: () => void;
-	onSavingChange?: (saving: boolean) => void;
+	/** 「保存中か」を親に渡す口(描き終えたときに一度だけ accessor を渡す)。 */
+	connectSaving?: ConnectSaving;
 	/** 一次評価の確定・評価の確定が済んだとき。受け持ち画面が次の対象者へ進むのに使う。 */
 	onStageCompleted?: () => void;
 	/** 確定の後に進む「次の対象者」の名前。確定の確認で案内するときに呼ぶ。いなければ undefined。 */
@@ -77,22 +70,25 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 	});
 	const pendingEvaluationItems = createMemo(() => sheet()?.pendingEvaluationItems ?? []);
 
-	createEffect(() => {
-		if (isNew()) {
-			props.controller.prepareNewSheet();
-			void props.controller.loadPeriods();
-			// 作成済みの期間を選べないよう、自分のシートも読む
-			void props.controller.loadAccessibleSheets();
-			return;
-		}
-		const routeSheetId = Number(idParam());
-		if (!Number.isNaN(routeSheetId)) {
-			if (!props.embedded) {
+	// 開いた経路は計算の側で読み、読み込みは副作用の側で頼む
+	createEffect(
+		() => ({ isNew: isNew(), sheetId: Number(idParam()), embedded: !!props.embedded }),
+		(route) => {
+			if (route.isNew) {
+				props.controller.prepareNewSheet();
+				void props.controller.loadPeriods();
+				// 作成済みの期間を選べないよう、自分のシートも読む
 				void props.controller.loadAccessibleSheets();
+				return;
 			}
-			void props.controller.loadSheet(routeSheetId);
-		}
-	});
+			if (!Number.isNaN(route.sheetId)) {
+				if (!route.embedded) {
+					void props.controller.loadAccessibleSheets();
+				}
+				void props.controller.loadSheet(route.sheetId);
+			}
+		},
+	);
 
 	/** 保存後の再取得。画面を消さずに裏で読み直す。 */
 	const reloadSheet = () => {
@@ -104,23 +100,32 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 		return props.controller.loadSheet(id, true);
 	};
 
-	// 別のシートを開いたら、当期の目標から見せる
-	const [term, setTerm] = createSignal<GoalTerm>("current");
-	createEffect(on(sheetId, () => setTerm("current")));
+	// 別のシートを開いたら、当期の目標から見せる(sheetId から作る書き込める値なので、替わると戻る)
+	const [term, setTerm] = createSignal<GoalTerm>((): GoalTerm => {
+		sheetId();
+		return "current";
+	});
 
 	// --- 総評の下書き ---
 	// 「別のシートを開いたとき」だけサーバーの値で初期化する。
 	// 他の欄の保存(再取得)で書きかけの総評を消さないため、sheet() 全体は購読しない。
-	const [firstOverallDraft, setFirstOverallDraft] = createSignal("");
-	const [secondOverallDraft, setSecondOverallDraft] = createSignal("");
+	// 下書きは sheetId から作る書き込める値。総評は開いたときの値を一度だけ読み、後の再取得では追わない
+	const overallDraft = (pick: (current: NonNullable<ReturnType<typeof sheet>>) => string) =>
+		createSignal(() => {
+			sheetId();
+			return untrack(() => {
+				const current = sheet();
+				return current ? pick(current) : "";
+			});
+		});
+	const [firstOverallDraft, setFirstOverallDraft] = overallDraft(
+		(current) => current.firstOverallComment ?? "",
+	);
+	const [secondOverallDraft, setSecondOverallDraft] = overallDraft(
+		(current) => current.secondOverallComment ?? "",
+	);
 	const [savingOverallTarget, setSavingOverallTarget] = createSignal<OverallCommentTarget | null>(
 		null,
-	);
-	createEffect(
-		on(sheetId, () => {
-			setFirstOverallDraft(sheet()?.firstOverallComment ?? "");
-			setSecondOverallDraft(sheet()?.secondOverallComment ?? "");
-		}),
 	);
 	const firstOverallDirty = () =>
 		viewModel().canEditFirst && firstOverallDraft() !== (sheet()?.firstOverallComment ?? "");
@@ -148,15 +153,15 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 	};
 
 	// --- 保存中 ---
-	const [savingChallenge, setSavingChallenge] = createSignal(false);
-	const [savingCommon, setSavingCommon] = createSignal(false);
+	// 目標・共通評価の保存中は、子が作った accessor をそのまま読む(effect で中継しない)
+	const challengeSaving = createSavingSource();
+	const commonSaving = createSavingSource();
 	const saving = () =>
-		savingChallenge() ||
-		savingCommon() ||
+		challengeSaving.saving() ||
+		commonSaving.saving() ||
 		savingOverallTarget() !== null ||
 		viewModel().updatingStatus;
-	createEffect(() => props.onSavingChange?.(saving()));
-	onCleanup(() => props.onSavingChange?.(false));
+	provideSaving(() => props.connectSaving, saving);
 	trackSaving("sheet-editor", saving);
 
 	// 未保存の入力があるままページを離れようとしたら確認する
@@ -179,13 +184,12 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 	});
 
 	// --- 確定前の未設定項目 ---
-	const [attemptedConfirmation, setAttemptedConfirmation] = createSignal(false);
-	createEffect(
-		on(
-			() => [sheetId(), sheet()?.status],
-			() => setAttemptedConfirmation(false),
-		),
-	);
+	// 別のシートを開いたとき・状態が進んだ(戻った)ときは、未設定の案内を閉じる
+	const [attemptedConfirmation, setAttemptedConfirmation] = createSignal(() => {
+		sheetId();
+		sheet()?.status;
+		return false;
+	});
 	let completionNotice: HTMLDivElement | undefined;
 	const ensureEvaluationComplete = () => {
 		if (pendingEvaluationItems().length === 0) {
@@ -251,7 +255,7 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 	};
 
 	return (
-		<div class="dashboard-page" classList={{ "review-editor": props.embedded }}>
+		<div class={["dashboard-page", { "review-editor": props.embedded }]}>
 			<Show
 				when={
 					!props.embedded &&
@@ -262,10 +266,10 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 					!!sheet()?.evaluationPeriod?.isActive
 				}
 			>
-				<A class="review-editor-entry" href={`/review?sheet=${sheetId()}`}>
+				<a class="review-editor-entry" href={`/review?sheet=${sheetId()}`}>
 					<Users size={16} />
 					部下の一覧を見ながら評価する
-				</A>
+				</a>
 			</Show>
 			<header class="sheet-header">
 				<div class="sheet-header__main">
@@ -386,7 +390,7 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 										controller={props.challengeEvaluationController}
 										challengeViewModel={props.challengeEvaluationViewModel}
 										onUpdated={reloadSheet}
-										onSavingChange={setSavingChallenge}
+										connectSaving={challengeSaving.connect}
 									/>
 									<Show when={viewModel().canViewCommonEvaluation}>
 										<CommonEvaluationView
@@ -398,7 +402,7 @@ const SheetEditorView: Component<SheetEditorViewProps> = (props) => {
 											controller={props.commonEvaluationController}
 											viewModel={props.commonEvaluationViewModel}
 											onUpdated={reloadSheet}
-											onSavingChange={setSavingCommon}
+											connectSaving={commonSaving.connect}
 										/>
 									</Show>
 									<OverallCommentSection

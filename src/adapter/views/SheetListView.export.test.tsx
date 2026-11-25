@@ -1,8 +1,9 @@
 // @vitest-environment happy-dom
-import { MemoryRouter, Route } from "@solidjs/router";
+
 import { cleanup, render } from "@solidjs/testing-library";
-import { createSignal } from "solid-js";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { routed } from "../../test/router";
+import { testSignal } from "../../test/signal";
 import type { SheetListController } from "../controllers/SheetListController";
 import type { SheetListViewModel } from "../presenters/SheetListPresenter";
 
@@ -19,7 +20,7 @@ afterEach(cleanup);
 beforeEach(() => mocks.showToast.mockClear());
 
 const exportPdf = () => {
-	const [viewModel, setViewModel] = createSignal<SheetListViewModel>({
+	const [viewModel, setViewModel] = testSignal<SheetListViewModel>({
 		loading: false,
 		activePeriodIds: [],
 		mySheets: [],
@@ -30,19 +31,14 @@ const exportPdf = () => {
 		exportStatus: { isExporting: false, message: null, success: null, fileName: null },
 	});
 	const controller = { load: vi.fn(), exportSheet: vi.fn(), exportOverview: vi.fn() };
-	render(() => (
-		<MemoryRouter>
-			<Route
-				path="/"
-				component={() => (
-					<SheetListView
-						controller={controller as unknown as SheetListController}
-						viewModel={viewModel}
-					/>
-				)}
+	render(() =>
+		routed(() => (
+			<SheetListView
+				controller={controller as unknown as SheetListController}
+				viewModel={viewModel}
 			/>
-		</MemoryRouter>
-	));
+		)),
+	);
 	setViewModel((current) => ({
 		...current,
 		exportStatus: {

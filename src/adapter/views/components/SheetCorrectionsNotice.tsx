@@ -26,7 +26,7 @@ const SheetCorrectionsNotice: Component<{ corrections: SheetCorrectionDto[]; hea
 								</span>
 							</p>
 							<p class="correction-notice__why">
-								<time dateTime={correction.correctedAt}>
+								<time datetime={correction.correctedAt}>
 									{formatDateTime(correction.correctedAt)}
 								</time>
 								<span>理由: {correction.reason}</span>

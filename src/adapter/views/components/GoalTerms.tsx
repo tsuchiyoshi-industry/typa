@@ -1,14 +1,16 @@
-import { type Component, createResource, createSignal, Show } from "solid-js";
+import { type Component, createEffect, createMemo, createSignal, Show } from "solid-js";
 import type { EmployeeDto } from "../../../application/dtos/EmployeeDto";
 import type { EvaluationSheetDto } from "../../../application/dtos/EvaluationSheetDto";
 import type { ChallengeEvaluationController } from "../../controllers/ChallengeEvaluationController";
 import type { ChallengeEvaluationViewModel } from "../../presenters/ChallengeEvaluationPresenter";
 import type { SheetEditorViewModel } from "../../presenters/SheetEditorPresenter";
 import { ensureNothingUnsaved, showToast } from "../feedback";
+import type { ConnectSaving } from "../savingSource";
 import ChallengeEvaluationView, { type GoalFocus } from "./ChallengeEvaluationView";
 import PreviousGoalsView, { type CarryMode } from "./PreviousGoalsView";
 
 export type GoalTerm = "current" | "previous";
+type PreviousGoals = Awaited<ReturnType<ChallengeEvaluationController["loadPreviousGoals"]>>;
 
 interface GoalTermsProps {
 	sheet: EvaluationSheetDto;
@@ -21,7 +23,8 @@ interface GoalTermsProps {
 	challengeViewModel: () => ChallengeEvaluationViewModel;
 	/** 保存後にシートを読み直す。 */
 	onUpdated: () => unknown;
-	onSavingChange: (saving: boolean) => void;
+	/** 「保存中か」を親に渡す口(描き終えたときに一度だけ accessor を渡す)。 */
+	connectSaving?: ConnectSaving;
 }
 
 /**
@@ -30,13 +33,28 @@ interface GoalTermsProps {
  * 当期の入力を消さないよう、タブを切り替えても当期の画面は隠すだけで残す。
  */
 const GoalTerms: Component<GoalTermsProps> = (props) => {
-	// 今期の目標が増減するたびに読み直す(引き継いだ目標を消すと、また選べる)
-	const [previousGoals] = createResource(
-		() => ({
-			id: props.sheet.sheetId,
-			revision: props.sheet.objectives.map((goal) => `${goal.id}:${goal.goalNumber}`).join(","),
-		}),
-		({ id }) => props.controller.loadPreviousGoals(id),
+	// 今期の目標が増減するたびに読み直す(引き継いだ目標を消すと、また選べる)。
+	// 前期は後から出てよい補助なので、読む間も今期の目標は待たせない(届いたら差し込み、古い結果は捨てる)
+	const [previousGoals, setPreviousGoals] = createSignal<PreviousGoals>();
+	const revision = createMemo(
+		() =>
+			`${props.sheet.sheetId}/${props.sheet.objectives.map((goal) => `${goal.id}:${goal.goalNumber}`).join(",")}`,
+	);
+	createEffect(
+		() => {
+			revision();
+			return props.sheet.sheetId;
+		},
+		(sheetId) => {
+			let current = true;
+			props.controller
+				.loadPreviousGoals(sheetId)
+				.then((loaded) => current && setPreviousGoals(loaded))
+				.catch((error: unknown) => console.error("Error loading the previous goals:", error));
+			return () => {
+				current = false;
+			};
+		},
 	);
 	const previous = () => (previousGoals()?.goals.length ? previousGoals() : null);
 	const showing = (term: GoalTerm) => (previous() ? props.term === term : term === "current");
@@ -88,7 +106,7 @@ const GoalTerms: Component<GoalTermsProps> = (props) => {
 			role="tab"
 			id={`goal-term-${tab.term}`}
 			aria-controls={`goal-term-panel-${tab.term}`}
-			aria-selected={props.term === tab.term}
+			aria-selected={props.term === tab.term ? "true" : "false"}
 			class="term-tab"
 			onClick={() => props.onTermChange(tab.term)}
 		>
@@ -129,7 +147,7 @@ const GoalTerms: Component<GoalTermsProps> = (props) => {
 					controller={props.controller}
 					viewModel={props.challengeViewModel}
 					onUpdated={props.onUpdated}
-					onSavingChange={props.onSavingChange}
+					connectSaving={props.connectSaving}
 				/>
 			</div>
 			<Show when={previous()}>

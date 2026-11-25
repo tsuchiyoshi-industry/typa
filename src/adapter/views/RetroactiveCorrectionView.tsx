@@ -1,12 +1,12 @@
-import Search from "lucide-solid/icons/search";
-import ShieldAlert from "lucide-solid/icons/shield-exclamation-point";
 import {
 	type Component,
 	createMemo,
-	createResource,
 	createSignal,
+	Errored,
 	For,
+	Loading,
 	Match,
+	refresh,
 	Show,
 	Switch,
 } from "solid-js";
@@ -24,6 +24,7 @@ import type {
 	MaintainedSheetRow,
 	RetroactiveCorrectionController,
 } from "../controllers/RetroactiveCorrectionController";
+import { Search, ShieldAlert } from "./components/icons";
 import { PeriodGoalsEditor } from "./components/PeriodGoals";
 import SheetCorrectionsNotice from "./components/SheetCorrectionsNotice";
 import { confirmAction, confirmDiscard, showToast, trackUnsaved } from "./feedback";
@@ -83,64 +84,63 @@ const MODES: { value: Mode; label: string }[] = [
 const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionController }> = (
 	props,
 ) => {
-	const [periods] = createResource(() => props.controller.periods());
+	// 読み込みはどれも非同期の memo。待つ間は <Loading>、失敗は <Errored> が、それぞれの場所に出す
+	const periods = createMemo(() => props.controller.periods());
 	const [periodId, setPeriodId] = createSignal<number | null>(null);
-	// 読み込みに失敗したリソースの値を読むと例外になるので、失敗したら空として扱う(理由は別に出す)
-	const periodList = () => (periods.error ? [] : (periods() ?? []));
 	const selectedPeriod = () =>
-		periodId() ?? periodList().find((entry) => entry.isActive)?.id ?? periodList()[0]?.id ?? null;
-	const period = () => periodList().find((entry) => entry.id === selectedPeriod());
+		periodId() ?? periods().find((entry) => entry.isActive)?.id ?? periods()[0]?.id ?? null;
+	const period = () => periods().find((entry) => entry.id === selectedPeriod());
 	const periodClosed = () => period()?.state === "closed";
-	const [sheets, { refetch: refetchSheets }] = createResource(selectedPeriod, (id) =>
-		props.controller.sheets(id),
-	);
-	// 操作の後に読み直す間も、一覧と選んだシートを出したままにする
-	const sheetList = () => (sheets.error ? [] : (sheets.latest ?? []));
+	// 操作の後は refresh で読み直す。読み直す間も、一覧と選んだシートを出したままにする
+	const sheets = createMemo(() => {
+		const id = selectedPeriod();
+		return id === null ? [] : props.controller.sheets(id);
+	});
 	const [sheetId, setSheetId] = createSignal<number | null>(null);
-	const row = createMemo(() => sheetList().find((entry) => entry.sheetId === sheetId()));
+	const row = createMemo(() => sheets().find((entry) => entry.sheetId === sheetId()));
 	// 中身は値を直すときだけ要る。締めていない期間のシートは読みにいかない(DB も断る)
-	const [sheet, { refetch }] = createResource(
-		() => (periodClosed() && sheetId()) || false,
-		(id) => props.controller.load(id),
-	);
+	const sheet = createMemo(() => {
+		const id = periodClosed() && sheetId();
+		return id ? props.controller.load(id) : null;
+	});
 	const [mode, setMode] = createSignal<Mode>("values");
 	const [nextStatus, setNextStatus] = createSignal<EvaluationStatusValue | null>(null);
 	const [nextGrade, setNextGrade] = createSignal<number | null>(null);
 	// 等級の一覧は、等級を変えるときだけ一度読む
 	const [gradesWanted, setGradesWanted] = createSignal(false);
-	const [grades] = createResource(gradesWanted, () => props.controller.grades());
-	const gradeList = () => (grades.error ? [] : (grades() ?? []));
+	const grades = createMemo(() => (gradesWanted() ? props.controller.grades() : []));
 	const canChangeGrade = () => {
 		const target = row();
 		const state = period()?.state;
 		return !!target && !!state && canChangeSheetGrade(EvaluationStatus.from(target.status), state);
 	};
 	const gradeName = (id: number | null) =>
-		gradeList().find((grade) => grade.id === id)?.name ?? "未設定";
+		grades().find((grade) => grade.id === id)?.name ?? "未設定";
 	const [drafts, setDrafts] = createSignal(new Map<string, string>());
 	const [reason, setReason] = createSignal("");
 	const [busy, setBusy] = createSignal(false);
 	const [query, setQuery] = createSignal("");
 
-	const original = () =>
-		!sheet.error && sheet()
-			? originalValues(sheet() as CorrectableSheetDto)
-			: new Map<string, string>();
+	const original = createMemo(() => {
+		const loaded = sheet();
+		return loaded ? originalValues(loaded) : new Map<string, string>();
+	});
 	const draftValue = (field: Field) =>
 		drafts().get(keyOf(field)) ?? original().get(keyOf(field)) ?? "";
 	const changed = (field: Field) => draftValue(field) !== (original().get(keyOf(field)) ?? "");
-	const edit = (field: Field, value: string) => {
-		const next = new Map(drafts());
-		next.set(keyOf(field), value);
-		setDrafts(next);
-	};
+	// 1回の変更で続けて呼ばれることがある(期中目標と達成状況)。前の書き込みに重ねる
+	const edit = (field: Field, value: string) =>
+		setDrafts((previous) => new Map(previous).set(keyOf(field), value));
+	// 直しかけが無ければ、シートの中身は読まない(開いた直後の読み込み中に、未保存の確認を待たせない)
 	const changes = (): RequestedChange[] =>
-		[...drafts().entries()]
-			.filter(([key, value]) => original().get(key) !== value)
-			.map(([key, value]) => {
-				const [target, targetId, field] = key.split(":");
-				return { target, targetId: targetId ? Number(targetId) : null, field, value };
-			});
+		drafts().size === 0
+			? []
+			: [...drafts().entries()]
+					.filter(([key, value]) => original().get(key) !== value)
+					.map(([key, value]) => {
+						const [target, targetId, field] = key.split(":");
+						return { target, targetId: targetId ? Number(targetId) : null, field, value };
+					});
 
 	const clearInput = () => {
 		setDrafts(new Map());
@@ -165,12 +165,18 @@ const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionCo
 			setMode(periodClosed() ? "values" : "status");
 		}
 	};
+	/** 移ったら true。書きかけを残すと決めたら false(選択欄は呼び出し側が元に戻す)。 */
 	const choosePeriod = async (id: number) => {
-		if (id !== selectedPeriod() && (await discardInput())) {
-			setPeriodId(id);
-			setSheetId(null);
-			setQuery("");
+		if (id === selectedPeriod()) {
+			return true;
 		}
+		if (!(await discardInput())) {
+			return false;
+		}
+		setPeriodId(id);
+		setSheetId(null);
+		setQuery("");
+		return true;
 	};
 	// 理由は操作をまたいで残す。直しかけの値だけは、別の操作へ移る前に確かめる
 	const chooseMode = async (next: Mode) => {
@@ -188,10 +194,10 @@ const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionCo
 	const visibleSheets = () => {
 		const term = normalize(query().trim());
 		return term
-			? sheetList().filter((entry) =>
+			? sheets().filter((entry) =>
 					normalize(`${entry.employeeNo} ${entry.employeeName}`).includes(term),
 				)
-			: sheetList();
+			: sheets();
 	};
 
 	const correctValues = async (id: number) => {
@@ -222,7 +228,7 @@ const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionCo
 		if (result.status === "corrected") {
 			showToast("success", result.message);
 			clearInput();
-			await refetch();
+			refresh(sheet);
 		} else {
 			// 失敗しても、入力した内容は残す
 			showToast(
@@ -281,9 +287,9 @@ const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionCo
 		if (deleting) {
 			setSheetId(null);
 		} else if (periodClosed()) {
-			await refetch();
+			refresh(sheet);
 		}
-		await refetchSheets();
+		refresh(sheets);
 	};
 
 	const changeGrade = async (target: MaintainedSheetRow) => {
@@ -319,7 +325,7 @@ const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionCo
 		}
 		showToast("success", result.message);
 		clearInput();
-		await refetchSheets();
+		refresh(sheets);
 	};
 
 	const canSubmit = () =>
@@ -365,7 +371,7 @@ const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionCo
 	};
 
 	const scoreSelect = (field: Field, label: string) => (
-		<label class="correction-field" classList={{ "correction-field--changed": changed(field) }}>
+		<label class={["correction-field", { "correction-field--changed": changed(field) }]}>
 			<span>{label}</span>
 			<select
 				value={draftValue(field)}
@@ -382,7 +388,7 @@ const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionCo
 		</label>
 	);
 	const textArea = (field: Field, label: string) => (
-		<label class="correction-field" classList={{ "correction-field--changed": changed(field) }}>
+		<label class={["correction-field", { "correction-field--changed": changed(field) }]}>
 			<span>{label}</span>
 			<textarea
 				rows={2}
@@ -393,6 +399,8 @@ const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionCo
 		</label>
 	);
 
+	// 値の修正後はシート全体を読み直す。目標と共通評価はオブジェクト単位で行を作り直し、
+	// 行の先頭で Field を組み立てられるようにする(ID 指定の For は値を accessor で渡す)。
 	const valuesPane = (loaded: () => CorrectableSheetDto) => (
 		<>
 			<p class="correction-pane__hint">
@@ -402,7 +410,11 @@ const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionCo
 			<For each={loaded().goals}>
 				{(goal) => {
 					const tasks: Field = { target: "goal", targetId: goal.id, field: "period_goals" };
-					const achievement: Field = { target: "goal", targetId: goal.id, field: "achievement" };
+					const achievement: Field = {
+						target: "goal",
+						targetId: goal.id,
+						field: "achievement",
+					};
 					return (
 						<fieldset class="correction-group">
 							<legend>チャレンジ目標 {goal.goalNumber}</legend>
@@ -410,12 +422,12 @@ const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionCo
 								{ target: "goal", targetId: goal.id, field: "challenge_goal" },
 								"チャレンジ目標",
 							)}
-							<div classList={{ "correction-field--changed": changed(tasks) }}>
+							<div class={{ "correction-field--changed": changed(tasks) }}>
 								<PeriodGoalsEditor
 									goals={parsePeriodGoals(draftValue(tasks)) ?? []}
 									achievement={draftValue(achievement)}
 									disabled={busy()}
-									achievementClassList={{
+									achievementClass={{
 										"correction-field": true,
 										"correction-field--changed": changed(achievement),
 									}}
@@ -494,10 +506,7 @@ const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionCo
 				<For each={EVALUATION_STATUS_VALUES}>
 					{(value) => (
 						<li>
-							<label
-								class="correction-status__option"
-								classList={{ "is-current": value === current }}
-							>
+							<label class={["correction-status__option", { "is-current": value === current }]}>
 								<input
 									type="radio"
 									name="next-status"
@@ -524,24 +533,29 @@ const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionCo
 				<dt>今の等級</dt>
 				<dd>{target.gradeName || "未設定"}</dd>
 			</dl>
-			<label class="correction-field">
-				<span>変更後の等級</span>
-				<select
-					value={String(nextGrade() ?? "")}
-					disabled={busy() || grades.loading || !!grades.error}
-					onChange={(event) => setNextGrade(Number(event.currentTarget.value) || null)}
-				>
-					<option value="">選んでください</option>
-					<For each={gradeList().filter((grade) => grade.id !== target.gradeId)}>
-						{(grade) => <option value={grade.id}>{grade.name}</option>}
-					</For>
-				</select>
-			</label>
-			<Show when={grades.error}>
-				<p class="field-error" role="alert">
-					等級の一覧を読み込めませんでした。({messageOf(grades.error, "")})
-				</p>
-			</Show>
+			<Errored
+				fallback={(error) => (
+					<p class="field-error" role="alert">
+						等級の一覧を読み込めませんでした。({messageOf(error(), "")})
+					</p>
+				)}
+			>
+				<Loading fallback={<p class="page-note">等級の一覧を読み込んでいます...</p>}>
+					<label class="correction-field">
+						<span>変更後の等級</span>
+						<select
+							value={String(nextGrade() ?? "")}
+							disabled={busy()}
+							onChange={(event) => setNextGrade(Number(event.currentTarget.value) || null)}
+						>
+							<option value="">選んでください</option>
+							<For each={grades().filter((grade) => grade.id !== target.gradeId)}>
+								{(grade) => <option value={grade.id}>{grade.name}</option>}
+							</For>
+						</select>
+					</label>
+				</Loading>
+			</Errored>
 			<div class="correction-danger">
 				<p>共通評価で入力済みの点数とコメントは、すべて削除されます。この操作は取り消せません。</p>
 				<p class="correction-pane__hint">
@@ -574,13 +588,14 @@ const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionCo
 				</div>
 			</header>
 
-			<Show when={!periods.loading} fallback={<p class="page-note">読み込んでいます...</p>}>
-				<Show
-					when={!periods.error}
-					fallback={<p class="page-note">{messageOf(periods.error, "読み込めませんでした。")}</p>}
-				>
+			<Errored
+				fallback={(error) => (
+					<p class="page-note">{messageOf(error(), "読み込めませんでした。")}</p>
+				)}
+			>
+				<Loading fallback={<p class="page-note">読み込んでいます...</p>}>
 					<Show
-						when={periodList().length > 0}
+						when={periods().length > 0}
 						fallback={<p class="page-note">評価期間はまだありません。</p>}
 					>
 						<div class="correction-layout">
@@ -589,20 +604,23 @@ const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionCo
 								<label class="correction-picker__field">
 									<span>評価期間</span>
 									<select
-										value={selectedPeriod() ?? ""}
+										value={String(selectedPeriod() ?? "")}
 										disabled={busy()}
 										onChange={(event) => {
 											const select = event.currentTarget;
-											// 確認で取りやめたら、選択を元の期間に戻す
-											void choosePeriod(Number(select.value)).then(() => {
-												select.value = String(selectedPeriod() ?? "");
+											const current = String(selectedPeriod() ?? "");
+											// 確認で取りやめたら、選択を元の期間に戻す(移るときは、読み終えた一覧と一緒に変わる)
+											void choosePeriod(Number(select.value)).then((moved) => {
+												if (!moved) {
+													select.value = current;
+												}
 											});
 										}}
 									>
-										<For each={periodList()}>
+										<For each={periods()} keyed={(entry) => entry.id}>
 											{(entry) => (
-												<option value={entry.id}>
-													{entry.periodName}({entry.stateLabel})
+												<option value={entry().id}>
+													{entry().periodName}({entry().stateLabel})
 												</option>
 											)}
 										</For>
@@ -618,53 +636,55 @@ const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionCo
 										onInput={(event) => setQuery(event.currentTarget.value)}
 									/>
 								</label>
-								<Show when={sheets.error}>
-									<p class="field-error" role="alert">
-										{messageOf(sheets.error, "シートを読み込めませんでした。")}
-									</p>
-								</Show>
-								<Show
-									when={sheets.state !== "pending"}
-									fallback={<p class="page-note">読み込んでいます...</p>}
+								<Errored
+									fallback={(error) => (
+										<p class="field-error" role="alert">
+											{messageOf(error(), "シートを読み込めませんでした。")}
+										</p>
+									)}
 								>
-									<p class="correction-picker__count" role="status">
-										{query().trim()
-											? `${visibleSheets().length} / ${sheetList().length} 件`
-											: `${sheetList().length} 件`}
-									</p>
-									<Show
-										when={visibleSheets().length > 0}
-										fallback={
-											<p class="page-note">
-												{sheetList().length
-													? "該当するシートはありません。"
-													: "この評価期間のシートはありません。"}
-											</p>
-										}
-									>
-										<ul class="correction-sheet-list">
-											<For each={visibleSheets()}>
-												{(entry) => (
-													<li>
-														<button
-															type="button"
-															aria-label={`${entry.employeeName}さんのシートを選ぶ`}
-															aria-current={entry.sheetId === sheetId() ? "true" : undefined}
-															disabled={busy()}
-															onClick={() => void open(entry.sheetId)}
-														>
-															<span class="correction-sheet-list__no">{entry.employeeNo}</span>
-															<span class="correction-sheet-list__name">{entry.employeeName}</span>
-															<span class="correction-sheet-list__status">
-																{statusLabel(entry.status)}
-															</span>
-														</button>
-													</li>
-												)}
-											</For>
-										</ul>
-									</Show>
-								</Show>
+									<Loading fallback={<p class="page-note">読み込んでいます...</p>}>
+										<p class="correction-picker__count" role="status">
+											{query().trim()
+												? `${visibleSheets().length} / ${sheets().length} 件`
+												: `${sheets().length} 件`}
+										</p>
+										<Show
+											when={visibleSheets().length > 0}
+											fallback={
+												<p class="page-note">
+													{sheets().length
+														? "該当するシートはありません。"
+														: "この評価期間のシートはありません。"}
+												</p>
+											}
+										>
+											<ul class="correction-sheet-list">
+												<For each={visibleSheets()} keyed={(entry) => entry.sheetId}>
+													{(entry) => (
+														<li>
+															<button
+																type="button"
+																aria-label={`${entry().employeeName}さんのシートを選ぶ`}
+																aria-current={entry().sheetId === sheetId() ? "true" : undefined}
+																disabled={busy()}
+																onClick={() => void open(entry().sheetId)}
+															>
+																<span class="correction-sheet-list__no">{entry().employeeNo}</span>
+																<span class="correction-sheet-list__name">
+																	{entry().employeeName}
+																</span>
+																<span class="correction-sheet-list__status">
+																	{statusLabel(entry().status)}
+																</span>
+															</button>
+														</li>
+													)}
+												</For>
+											</ul>
+										</Show>
+									</Loading>
+								</Errored>
 							</section>
 
 							<div class="correction-workspace">
@@ -694,9 +714,9 @@ const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionCo
 															type="button"
 															role="tab"
 															id={`correction-mode-${entry.value}`}
-															aria-selected={mode() === entry.value}
+															aria-selected={mode() === entry.value ? "true" : "false"}
 															aria-controls="correction-mode-panel"
-															classList={{ "is-danger": entry.value === "delete" }}
+															class={{ "is-danger": entry.value === "delete" }}
 															disabled={
 																busy() ||
 																(entry.value === "values" && !periodClosed()) ||
@@ -732,23 +752,21 @@ const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionCo
 											>
 												<Switch>
 													<Match when={mode() === "values"}>
-														<Show when={sheet.error}>
-															<div class="inline-alert" role="alert">
-																<span>
-																	{messageOf(sheet.error, "シートを読み込めませんでした。")}
-																</span>
-															</div>
-														</Show>
-														<Show
-															when={!sheet.error && sheet()}
-															fallback={
-																<Show when={!sheet.error}>
-																	<p class="page-note">シートを読み込んでいます...</p>
-																</Show>
-															}
+														<Errored
+															fallback={(error) => (
+																<div class="inline-alert" role="alert">
+																	<span>
+																		{messageOf(error(), "シートを読み込めませんでした。")}
+																	</span>
+																</div>
+															)}
 														>
-															{(loaded) => valuesPane(loaded)}
-														</Show>
+															<Loading
+																fallback={<p class="page-note">シートを読み込んでいます...</p>}
+															>
+																<Show when={sheet()}>{(loaded) => valuesPane(loaded)}</Show>
+															</Loading>
+														</Errored>
 													</Match>
 													<Match when={mode() === "status"}>{statusPane(target().status)}</Match>
 													<Match when={mode() === "grade"}>{gradePane(target())}</Match>
@@ -762,7 +780,7 @@ const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionCo
 													<span>理由(必須・500 文字まで)</span>
 													<textarea
 														rows={2}
-														maxLength={500}
+														maxlength={500}
 														value={reason()}
 														disabled={busy()}
 														onInput={(event) => setReason(event.currentTarget.value)}
@@ -770,8 +788,10 @@ const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionCo
 												</label>
 												<button
 													type="button"
-													class="primary-action"
-													classList={{ danger: mode() === "delete" || mode() === "grade" }}
+													class={[
+														"primary-action",
+														{ danger: mode() === "delete" || mode() === "grade" },
+													]}
 													disabled={!canSubmit()}
 													onClick={() => void submit()}
 												>
@@ -784,8 +804,8 @@ const RetroactiveCorrectionView: Component<{ controller: RetroactiveCorrectionCo
 							</div>
 						</div>
 					</Show>
-				</Show>
-			</Show>
+				</Loading>
+			</Errored>
 		</div>
 	);
 };

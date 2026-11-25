@@ -1,7 +1,6 @@
-import { A } from "@solidjs/router";
-import CalendarDays from "lucide-solid/icons/calendar-days";
 import { type Component, createMemo, For, Show } from "solid-js";
 import { creatablePeriods, type SheetEditorViewModel } from "../../presenters/SheetEditorPresenter";
+import { CalendarDays } from "./icons";
 
 interface NewSheetSetupProps {
 	viewModel: SheetEditorViewModel;
@@ -32,7 +31,7 @@ const NewSheetSetup: Component<NewSheetSetupProps> = (props) => {
 				{(existing) => (
 					<p class="page-note" role="status">
 						実施中の評価期間の評価シートは作成済みです。
-						<A href={`/sheet/${existing().id}`}>作成済みのシートを開く</A>
+						<a href={`/sheet/${existing().id}`}>作成済みのシートを開く</a>
 					</p>
 				)}
 			</Show>
@@ -43,7 +42,7 @@ const NewSheetSetup: Component<NewSheetSetupProps> = (props) => {
 				</label>
 				<select
 					id="period-select"
-					value={props.viewModel.selectedPeriodId ?? ""}
+					value={String(props.viewModel.selectedPeriodId ?? "")}
 					onChange={(e) => props.onSelectPeriod(Number(e.currentTarget.value) || null)}
 				>
 					<option value="" disabled>

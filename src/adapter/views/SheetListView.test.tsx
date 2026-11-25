@@ -1,9 +1,10 @@
 // @vitest-environment happy-dom
-import { MemoryRouter, Route } from "@solidjs/router";
+
 import { cleanup, fireEvent, render, within } from "@solidjs/testing-library";
-import { createSignal } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SheetSummaryDto } from "../../application/dtos/SheetListDto";
+import { routed } from "../../test/router";
+import { testSignal } from "../../test/signal";
 import type { SheetListController } from "../controllers/SheetListController";
 import type { SheetIndex, SheetListViewModel } from "../presenters/SheetListPresenter";
 import SheetListView from "./SheetListView";
@@ -47,20 +48,20 @@ const setup = (overview: Overview | null, overrides: Partial<SheetListViewModel>
 		exportSheet: vi.fn(),
 		exportOverview: vi.fn(),
 	};
-	const view = render(() => (
-		<MemoryRouter>
-			<Route
-				path="/"
-				component={() => (
+	const view = render(() =>
+		routed([
+			{
+				path: "/",
+				component: () => (
 					<SheetListView
 						controller={controller as unknown as SheetListController}
 						viewModel={() => viewModel}
 					/>
-				)}
-			/>
-			<Route path="/sheet/:id" component={() => <p>sheet-opened</p>} />
-		</MemoryRouter>
-	));
+				),
+			},
+			{ path: "/sheet/:id", component: () => <p>sheet-opened</p> },
+		]),
+	);
 	return { ...view, controller };
 };
 
@@ -177,8 +178,6 @@ it("adds the company-wide overview for an Admin below the two tables, whose rows
 	const finalized = within(overview).getByText("他部署Y").closest("tr") as HTMLElement;
 	expect(finalized.textContent).toContain("88 点 B+");
 	expect(finalized.classList.contains("sheet-row")).toBe(true);
-	fireEvent.click(finalized);
-	expect(view.controller.exportSheet).not.toHaveBeenCalled();
 
 	// 段ごとの件数が、そのまま絞り込みになる。シートのない段は押せない
 	const stage = (name: RegExp) => within(overview).getByRole("button", { name });
@@ -200,8 +199,35 @@ it("adds the company-wide overview for an Admin below the two tables, whose rows
 	expect(view.queryByText("他部署X")).toBeNull();
 });
 
+it("opens a sheet of the company-wide overview from its row, without exporting it", async () => {
+	const view = setup({
+		index: {
+			periods: [{ id: 26, name: "26期", startDate: "2026-03-23" }],
+			sheets: [{ id: 9, periodId: 26, employeeId: 9 }],
+		},
+		sheets: {
+			26: [
+				{
+					...sheet(9, 26, "他部署Y"),
+					status: "finalized",
+					primaryEvaluator: "井上 部長",
+					secondaryEvaluator: "なし",
+					finalScore: 88,
+					finalRank: "B+",
+				},
+			],
+		},
+	});
+	const overview = (await view.findByRole("heading", { name: /全社の評価シート/ })).closest(
+		"section",
+	) as HTMLElement;
+	fireEvent.click(within(overview).getByText("他部署Y").closest("tr") as HTMLElement);
+	expect(await view.findByText("sheet-opened")).toBeTruthy();
+	expect(view.controller.exportSheet).not.toHaveBeenCalled();
+});
+
 it("reads a period's company-wide sheets once, not again each time they arrive", async () => {
-	const [viewModel, setViewModel] = createSignal<SheetListViewModel>({
+	const [viewModel, setViewModel] = testSignal<SheetListViewModel>({
 		loading: false,
 		activePeriodIds: [26],
 		mySheets: [],
@@ -214,8 +240,9 @@ it("reads a period's company-wide sheets once, not again each time they arrive",
 		errorMessage: null,
 		exportStatus: { isExporting: false, message: null, success: null, fileName: null },
 	});
-	// 本物の presenter と同じく、読んだ結果をビューモデルに入れる
+	// 本物の presenter と同じく、読み終えてから結果をビューモデルに入れる
 	const loadOverview = vi.fn(async (periodId: number) => {
+		await Promise.resolve();
 		setViewModel((current) => ({
 			...current,
 			overviewSheets: {
@@ -233,19 +260,14 @@ it("reads a period's company-wide sheets once, not again each time they arrive",
 		}));
 	});
 	const controller = { load: vi.fn(), loadOverview, exportSheet: vi.fn(), exportOverview: vi.fn() };
-	const view = render(() => (
-		<MemoryRouter>
-			<Route
-				path="/"
-				component={() => (
-					<SheetListView
-						controller={controller as unknown as SheetListController}
-						viewModel={viewModel}
-					/>
-				)}
+	const view = render(() =>
+		routed(() => (
+			<SheetListView
+				controller={controller as unknown as SheetListController}
+				viewModel={viewModel}
 			/>
-		</MemoryRouter>
-	));
+		)),
+	);
 	expect(await view.findByText("他部署X")).toBeTruthy();
 	// ほかの欄が変わっても(出力の結果など)読み直さない
 	setViewModel((current) => ({ ...current, errorMessage: null, loading: false }));

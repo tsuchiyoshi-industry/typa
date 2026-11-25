@@ -8,6 +8,7 @@ import type { EmployeeMasterRepository } from "../../domain/repositories/Employe
 import type { EvaluationPeriodRepository } from "../../domain/repositories/EvaluationPeriodRepository";
 import type { EvaluationSheetRepository } from "../../domain/repositories/EvaluationSheetRepository";
 import { canViewAuditLog } from "../../domain/services/EmployeeMasterAccessService";
+import { sortedCopy } from "../../domain/sortedCopy";
 import {
 	type AuditDirectory,
 	type AuditEntryView,
@@ -103,9 +104,9 @@ export class AuditLogController {
 				sheet.id,
 			]);
 		}
-		const options = [...people]
-			.sort((a, b) => a.employeeNo.localeCompare(b.employeeNo))
-			.map(({ id, name, employeeNo, userId }) => ({ option: { id, name, employeeNo }, userId }));
+		const options = sortedCopy(people, (a, b) => a.employeeNo.localeCompare(b.employeeNo)).map(
+			({ id, name, employeeNo, userId }) => ({ option: { id, name, employeeNo }, userId }),
+		);
 		return {
 			targets: options.map(({ option }) => option),
 			// アカウントのない社員(未登録・登録の取り消し後)は、操作した人として探せない

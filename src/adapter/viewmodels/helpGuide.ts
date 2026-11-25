@@ -114,7 +114,8 @@ export const scoreExample = (allocation: { objective: number; common: number }) 
 
 /** 0〜100 点の帯。低いランクから、区切りの下限と上限を持つ。 */
 export const rankBands = () => {
-	const bands = [...EvaluationRank.bands()].reverse();
+	const descending = EvaluationRank.bands();
+	const bands = descending.toReversed ? descending.toReversed() : descending.slice().reverse();
 	return bands.map((band, index) => ({
 		rank: band.rank.toDisplayText(),
 		minimum: band.minimum,

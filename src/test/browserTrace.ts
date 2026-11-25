@@ -1,3 +1,4 @@
+import { sortedCopy } from "../domain/sortedCopy";
 export interface TraceEvent {
 	name: string;
 	ph: string;
@@ -13,7 +14,7 @@ type Interval = [number, number];
 function covered(intervals: Interval[]): number {
 	let total = 0;
 	let end = -Infinity;
-	for (const [from, to] of [...intervals].sort((a, b) => a[0] - b[0])) {
+	for (const [from, to] of sortedCopy(intervals, (a, b) => a[0] - b[0])) {
 		total += Math.max(0, to - Math.max(end, from));
 		end = Math.max(end, to);
 	}

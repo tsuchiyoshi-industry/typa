@@ -88,6 +88,9 @@ export function reviewStats(rows: ReviewerRowDto[]): [ReviewFilter, string, numb
 
 /** 比較表は等級ごとに分ける(等級が違うと共通評価の項目が違う)。並びは元の一覧の順。 */
 export function groupByGrade(rows: ReviewerRowDto[]): ReviewerRowDto[][] {
+	if (Map.groupBy) {
+		return [...Map.groupBy(rows, gradeKey).values()];
+	}
 	const grouped = new Map<string, ReviewerRowDto[]>();
 	for (const row of rows) {
 		const key = gradeKey(row);

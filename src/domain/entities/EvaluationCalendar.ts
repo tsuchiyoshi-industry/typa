@@ -24,12 +24,17 @@ export class EvaluationCalendar {
 	private readonly periods: readonly EvaluationPeriod[];
 
 	constructor(periods: readonly EvaluationPeriod[]) {
-		const waiting = periods.filter(
-			(period) => period.state === PeriodState.NOT_STARTED || period.isPreparing,
-		);
 		const next = periods.some((period) => period.isActive)
 			? undefined
-			: [...waiting].sort(earliestStartFirst)[0];
+			: periods.reduce<EvaluationPeriod | undefined>((first, period) => {
+					if (
+						(period.state === PeriodState.NOT_STARTED || period.isPreparing) &&
+						(!first || earliestStartFirst(period, first) < 0)
+					) {
+						return period;
+					}
+					return first;
+				}, undefined);
 		// 準備中は保存しないので、渡された状態によらず、ここで1つに決め直す
 		this.periods = periods
 			.map((period) =>

@@ -13,6 +13,7 @@ import {
 	Show,
 } from "solid-js";
 import type { SheetOverviewDto, SheetSummaryDto } from "../../application/dtos/SheetListDto";
+import { sortedCopy } from "../../domain/sortedCopy";
 import {
 	EVALUATION_STATUS_VALUES,
 	EvaluationStatus,
@@ -76,7 +77,7 @@ const SheetTable: Component<{
 
 	const sorted = createMemo(() => {
 		const direction = sortOrder() === "asc" ? 1 : -1;
-		return [...props.sheets].sort((a, b) => {
+		return sortedCopy(props.sheets, (a, b) => {
 			const valueA = sortValue(a, sortField());
 			const valueB = sortValue(b, sortField());
 			return valueA < valueB ? -direction : valueA > valueB ? direction : 0;

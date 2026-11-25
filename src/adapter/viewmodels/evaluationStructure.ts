@@ -1,4 +1,5 @@
 import type { ApprovalRelationDto } from "../../application/dtos/EmployeeMasterDto";
+import { sortedCopy } from "../../domain/sortedCopy";
 
 /** ひとりの一次評価者と、その人が一次評価をする社員。 */
 export interface StructurePrimary {
@@ -77,7 +78,7 @@ export function buildEvaluationStructure(relations: ApprovalRelationDto[]): Stru
 			primaries: final.primaries
 				.map((primary) => ({
 					...primary,
-					members: [...primary.members].sort((a, b) =>
+					members: sortedCopy(primary.members, (a, b) =>
 						a.employeeNo.localeCompare(b.employeeNo, "ja"),
 					),
 				}))

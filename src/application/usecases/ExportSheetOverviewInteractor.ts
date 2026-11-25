@@ -1,5 +1,6 @@
 import type { EmployeeMasterRepository } from "../../domain/repositories/EmployeeMasterRepository";
 import type { EvaluationSheetRepository } from "../../domain/repositories/EvaluationSheetRepository";
+import { sortedCopy } from "../../domain/sortedCopy";
 import { messageOf } from "../errorMessage";
 import type { SheetPdfGateway } from "../ports/SheetPdfGateway";
 import type { UseCase } from "../ports/UseCase";
@@ -55,7 +56,7 @@ export class ExportSheetOverviewInteractor
 				});
 				return;
 			}
-			const rows = [...overview.rows].sort((a, b) => a.employeeNo.localeCompare(b.employeeNo));
+			const rows = sortedCopy(overview.rows, (a, b) => a.employeeNo.localeCompare(b.employeeNo));
 			const period = rows[0];
 			if (!period) {
 				presenter.present({ success: false, message: "この評価期間の評価シートはありません。" });

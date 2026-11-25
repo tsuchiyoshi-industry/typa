@@ -6,7 +6,7 @@
 
 | 担当         | 技術                                 |
 | ------------ | ------------------------------------ |
-| 画面         | Solid、Solid Router、lucide-solid    |
+| 画面         | Solid 2、Solid Router 2、lucide      |
 | デスクトップ | Tauri 2                              |
 | Web          | Cloudflare Pages（PDF は WASM）      |
 | ビルド       | Vite、Bun                            |
@@ -76,7 +76,7 @@ docker exec -i supabase_db_typa psql -U postgres -d postgres -v ON_ERROR_STOP=1 
 
 ベンチマークは `*.bench.ts(x)` に `test("名前", async ({ bench }) => { ... })` の形式で追加します。`bench(...).run()` と `bench.compare(...)` を使い、ウォームアップ・サンプル集計は Vitest 5 に任せます。表示の計測では後片付けを `bench` の `afterEach` フックに置き、時間から外します。
 
-画面は Node.js 上の happy-dom で DOM の構築・更新を測ります。ブラウザのレイアウト・描画は含みません。平均・p99・RME・サンプル数を確認し、性能比較は同じ実行環境で行ってください。ソースを直接読み込むため、ViewModel の測定には Vitest のモジュール変換による getter のコストも含まれ、警告が出る場合があります。JSON は `.vitest/bench/results.json`（git 管理対象外）、CI では `benchmark-results` アーティファクトに保存します。
+画面は Node.js 上の jsdom と本番版の Solid で DOM の構築・更新を測ります。イベントごとに `flush()` で更新を反映し、再読込の計測も `flush()` までを含めます。happy-dom は数値の `textContent = 0` を空にしてしまい、Solid 2 の数値表示の更新で失敗するため、画面のベンチマークでは使いません。以前の happy-dom の結果とは直接比較せず、同じ実行環境で平均・p99・RME・サンプル数を確認してください。ブラウザのレイアウト・描画は含みません。ソースを直接読み込むため、Solid のランタイムや ViewModel の測定には Vitest のモジュール変換による getter のコストも含まれ、警告が出る場合があります。JSON は `.vitest/bench/results.json`（git 管理対象外）、CI では `benchmark-results` アーティファクトに保存します。
 
 ### ChromiumでのUI計測
 

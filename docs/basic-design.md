@@ -77,7 +77,7 @@ flowchart LR
 
 | 要素         | 技術                                          | 役割                                                                                                            |
 | ------------ | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| 画面         | Solid 1.9、@solidjs/router、lucide-solid      | 画面表示と操作                                                                                                  |
+| 画面         | Solid 2、@solidjs/router 2、lucide            | 画面表示と操作                                                                                                  |
 | デスクトップ | Tauri 2（Rust）                               | ウィンドウ、保存ダイアログ、自動更新、PDF 生成                                                                  |
 | Web          | Cloudflare Pages、WebAssembly                 | ブラウザ版の配信。PDF はデスクトップと同じ Rust のコード（`src-tauri/pdf`）を WASM にして組み、ダウンロードする |
 | データ・認証 | Supabase（Auth、PostgreSQL、RPC）             | 社員・評価データの保存、ログイン                                                                                |

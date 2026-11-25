@@ -3,11 +3,9 @@ import { Portal } from "@solidjs/web";
 import { type Component, createEffect, onSettled } from "solid-js";
 import { X } from "./icons";
 
-/**
- * いまの画面の上に浮かべる窓。後ろの画面は見えたまま、操作だけできなくする。
- * 通知と確認ダイアログを窓の上に出せるよう、<dialog> の showModal は使わない
- * (最上位レイヤーに載せると、その外にある通知が窓の下に隠れて押せなくなる)。
- */
+import { setSheetNotificationMount } from "./sheetNotificationMount";
+
+/** 評価シートと比較表を開くモーダル。閉じてよいかは未保存の編集を持つ呼び出し元が決める。 */
 const SheetWindow: Component<{
 	/** 読み上げ用の窓の名前。 */
 	label: string;
@@ -19,7 +17,8 @@ const SheetWindow: Component<{
 	contentKey?: unknown;
 	children: JSX.Element;
 }> = (props) => {
-	let panel: HTMLDivElement | undefined;
+	let dialog!: HTMLDialogElement;
+	let pressedBackdrop = false;
 	let body: HTMLDivElement | undefined;
 
 	createEffect(
@@ -33,14 +32,13 @@ const SheetWindow: Component<{
 	);
 
 	onSettled(() => {
-		// 通知と確認ダイアログは .app-frame の外にあるので、窓を開いている間も使える
-		const behind = document.querySelector<HTMLElement>(".app-frame");
 		const opener = document.activeElement;
-		behind?.setAttribute("inert", "");
-		panel?.focus();
+		dialog.showModal();
+		setSheetNotificationMount(dialog);
 		return () => {
-			behind?.removeAttribute("inert");
-			if (opener instanceof HTMLElement) {
+			setSheetNotificationMount(null);
+			dialog.close();
+			if (opener instanceof HTMLElement && opener.isConnected) {
 				opener.focus();
 			}
 		};
@@ -48,25 +46,31 @@ const SheetWindow: Component<{
 
 	return (
 		<Portal>
-			{/* biome-ignore lint/a11y/noStaticElementInteractions: 窓の外を押して閉じるのは補助。キーボードには Esc と × がある */}
-			<div
+			<dialog
+				ref={dialog}
 				class="sheet-window-backdrop"
-				onClick={(event) => event.target === event.currentTarget && props.onClose()}
-				onKeyDown={(event) => event.key === "Escape" && props.onClose()}
+				aria-label={props.label}
+				onCancel={(event) => {
+					event.preventDefault();
+					props.onClose();
+				}}
+				onPointerDown={(event) => {
+					pressedBackdrop = event.button === 0 && event.target === event.currentTarget;
+				}}
+				onPointerUp={(event) => {
+					if (pressedBackdrop && event.target === event.currentTarget) {
+						props.onClose();
+					}
+					pressedBackdrop = false;
+				}}
 			>
-				<div
-					ref={panel}
-					class="sheet-window"
-					role="dialog"
-					aria-modal="true"
-					aria-label={props.label}
-					tabindex={-1}
-				>
+				<div class="sheet-window">
 					<header class="sheet-window__bar">
 						{props.heading}
 						<button
 							type="button"
 							class="review-icon-button"
+							autofocus
 							aria-label="閉じる"
 							title="閉じる（Esc）"
 							onClick={() => props.onClose()}
@@ -78,7 +82,7 @@ const SheetWindow: Component<{
 						{props.children}
 					</div>
 				</div>
-			</div>
+			</dialog>
 		</Portal>
 	);
 };

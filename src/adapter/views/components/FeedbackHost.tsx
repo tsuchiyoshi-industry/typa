@@ -1,6 +1,8 @@
-import { type Component, createEffect, createSignal, For, Show } from "solid-js";
-import { dismissToast, leavingToasts, pendingConfirm, settleConfirm, toasts } from "../feedback";
+import { type JSX, Portal } from "@solidjs/web";
+import { type Component, createEffect, createSignal, For, onCleanup, Show } from "solid-js";
+import { dismissToast, onToastExit, pendingConfirm, settleConfirm, toasts } from "../feedback";
 import { ArrowRight, CircleAlert, CircleCheck, Eye, Info, X } from "./icons";
+import { sheetNotificationMount } from "./sheetNotificationMount";
 
 const ConfirmDialog: Component = () => {
 	let dialogRef: HTMLDialogElement | undefined;
@@ -156,59 +158,69 @@ const ConfirmDialog: Component = () => {
 const ToastStack: Component = () => (
 	<div class="toast-stack" aria-live="polite">
 		<For each={toasts()}>
-			{(toast) => (
-				<div
-					class={{
-						toast: true,
-						[toast.kind]: true,
-						leaving: leavingToasts().has(toast.id),
-					}}
-					role={toast.kind === "error" ? "alert" : "status"}
-				>
-					{toast.kind === "success" ? (
-						<CircleCheck class="toast__icon" />
-					) : toast.kind === "error" ? (
-						<CircleAlert class="toast__icon" />
-					) : (
-						<Info class="toast__icon" />
-					)}
-					<div class="toast__copy">
-						<strong>{toast.message}</strong>
-						<Show when={toast.detail}>
-							<span>{toast.detail}</span>
-						</Show>
-						<Show when={toast.action}>
-							{(action) => (
-								<button
-									type="button"
-									class="toast__action"
-									onClick={() => {
-										action().run();
-										dismissToast(toast.id);
-									}}
-								>
-									{action().label}
-								</button>
-							)}
-						</Show>
-					</div>
-					<button
-						type="button"
-						class="toast__close"
-						aria-label="通知を閉じる"
-						onClick={() => dismissToast(toast.id)}
+			{(toast) => {
+				let element!: HTMLDivElement;
+				onCleanup(
+					onToastExit(toast.id, () => {
+						element.classList.add("leaving");
+						const animations = element.getAnimations?.() ?? [];
+						return Promise.allSettled(animations.map((animation) => animation.finished));
+					}),
+				);
+				return (
+					<div
+						ref={element}
+						class={`toast ${toast.kind}`}
+						role={toast.kind === "error" ? "alert" : "status"}
 					>
-						<X size={14} />
-					</button>
-				</div>
-			)}
+						{toast.kind === "success" ? (
+							<CircleCheck class="toast__icon" />
+						) : toast.kind === "error" ? (
+							<CircleAlert class="toast__icon" />
+						) : (
+							<Info class="toast__icon" />
+						)}
+						<div class="toast__copy">
+							<strong>{toast.message}</strong>
+							<Show when={toast.detail}>
+								<span>{toast.detail}</span>
+							</Show>
+							<Show when={toast.action}>
+								{(action) => (
+									<button
+										type="button"
+										class="toast__action"
+										onClick={() => {
+											action().run();
+											dismissToast(toast.id);
+										}}
+									>
+										{action().label}
+									</button>
+								)}
+							</Show>
+						</div>
+						<button
+							type="button"
+							class="toast__close"
+							aria-label="通知を閉じる"
+							onClick={() => dismissToast(toast.id)}
+						>
+							<X size={14} />
+						</button>
+					</div>
+				);
+			}}
 		</For>
 	</div>
 );
 
-const FeedbackHost: Component = () => (
+const FeedbackHost: Component<{ children?: JSX.Element }> = (props) => (
 	<>
-		<ToastStack />
+		<Portal mount={sheetNotificationMount() ?? document.body}>
+			{props.children}
+			<ToastStack />
+		</Portal>
 		<ConfirmDialog />
 	</>
 );

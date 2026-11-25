@@ -1,6 +1,7 @@
 import { memoryHistory } from "@solidjs/router";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@solidjs/testing-library";
 import { afterEach, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 import type { ReviewerRowDto } from "../../application/dtos/ReviewerWorkspaceDto";
 import { EvaluationStatus } from "../../domain/valueObjects/EvaluationStatus";
 import { reviewerEditorFixture } from "../../test/reviewerEditorFixture";
@@ -11,7 +12,7 @@ import {
 	type ReviewerWorkspaceController,
 } from "../controllers/ReviewerWorkspaceController";
 import FeedbackHost from "./components/FeedbackHost";
-import { clearToasts, clearUnsavedChanges, settleConfirm } from "./feedback";
+import { clearToasts, clearUnsavedChanges, settleConfirm, showToast } from "./feedback";
 import ReviewerWorkspaceView from "./ReviewerWorkspaceView";
 
 afterEach(() => {
@@ -72,6 +73,22 @@ function setup(
 }
 
 const submittedToPrimary = { status: "submitted", isPrimary: true, firstRank: null } as const;
+
+it("keeps toast actions reachable in a modal sheet and restores focus to its opener", async () => {
+	const view = setup([reviewerRow(1)]);
+	const opener = await view.findByRole("button", { name: /社員1.*E001/ });
+	opener.focus();
+	await userEvent.click(opener);
+	const dialog = await screen.findByRole("dialog", { name: "社員1 さんの評価シート" });
+	expect(dialog.matches(":modal")).toBe(true);
+	const run = vi.fn();
+	showToast("info", "出力しました", undefined, { label: "出力先を開く", run });
+	await userEvent.click(await within(dialog).findByRole("button", { name: "出力先を開く" }));
+	expect(run).toHaveBeenCalledOnce();
+	await userEvent.keyboard("{Escape}");
+	await waitFor(() => expect(dialog.isConnected).toBe(false));
+	expect(document.activeElement).toBe(opener);
+});
 
 it("searches the caseload and filters by whose turn it is", async () => {
 	const view = setup([
@@ -136,7 +153,7 @@ it("floats the sheet over the list, keeps the list behind it, and closes back to
 	fireEvent.input(within(sheetWindow).getByRole("textbox", { name: "二次評価者の総評" }), {
 		target: { value: "書きかけ" },
 	});
-	fireEvent.keyDown(sheetWindow, { key: "Escape" });
+	await userEvent.keyboard("{Escape}");
 	const confirm = await screen.findByRole("dialog", { name: "保存していない変更があります" });
 	fireEvent.click(within(confirm).getByRole("button", { name: "編集を続ける" }));
 	expect(screen.getByRole("dialog", { name: "社員1 さんの評価シート" })).toBeTruthy();

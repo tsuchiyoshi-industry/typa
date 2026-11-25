@@ -19,27 +19,35 @@ export interface ToastAction {
 }
 
 const [toasts, setToasts] = createSignal<Toast[]>([]);
-/** 消える途中のトースト。退場の動きが終わるまで画面に残す。 */
-const [leavingToasts, setLeavingToasts] = createSignal<ReadonlySet<number>>(new Set());
+const exits = new Map<number, () => Promise<unknown>>();
+const timers = new Map<number, ReturnType<typeof setTimeout>>();
 let nextToastId = 1;
 
-export { leavingToasts, toasts };
+export { toasts };
+
+export function onToastExit(id: number, animate: () => Promise<unknown>) {
+	exits.set(id, animate);
+	return () => {
+		exits.delete(id);
+	};
+}
 
 // トーストは画面と無関係な信号だけで持つので、window ではなく globalThis のタイマーを使う。
 // テストでは画面(happy-dom)を片付けた後にタイマーが発火しても落ちない
-export function dismissToast(id: number): void {
-	setLeavingToasts((leaving) => new Set(leaving).add(id));
-	// global.css の toastOut と同じ長さ
-	setTimeout(() => {
-		setToasts((list) => list.filter((toast) => toast.id !== id));
-		setLeavingToasts((leaving) => new Set([...leaving].filter((other) => other !== id)));
-	}, 160);
+export async function dismissToast(id: number): Promise<void> {
+	clearTimeout(timers.get(id));
+	timers.delete(id);
+	await exits.get(id)?.();
+	setToasts((list) => list.filter((toast) => toast.id !== id));
 }
 
 /** 出ているトーストをすべて消す。ログアウトのとき、次にログインする人(共有PC)に前の人の通知を残さない。 */
 export function clearToasts(): void {
 	setToasts([]);
-	setLeavingToasts(new Set<number>());
+	for (const timer of timers.values()) {
+		clearTimeout(timer);
+	}
+	timers.clear();
 }
 
 /** エラーは読み落とさないよう、閉じるまで残す。それ以外は数秒で消える(ボタン付きは押す間を長めにとる)。 */
@@ -52,7 +60,10 @@ export function showToast(
 	const id = nextToastId++;
 	setToasts((list) => [...list, { id, kind, message, detail, action }]);
 	if (kind !== "error") {
-		setTimeout(() => dismissToast(id), action ? 8000 : 4500);
+		timers.set(
+			id,
+			setTimeout(() => void dismissToast(id), action ? 8000 : 4500),
+		);
 	}
 }
 

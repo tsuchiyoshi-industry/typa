@@ -344,8 +344,9 @@ const employeeMasterController = new EmployeeMasterController(
 const AppLayout: Component<{ children?: JSX.Element }> = (props) => (
 	<div class="app-shell">
 		<div class="app-frame">{props.children}</div>
-		<AutoUpdateNotification />
-		<FeedbackHost />
+		<FeedbackHost>
+			<AutoUpdateNotification />
+		</FeedbackHost>
 		<ExitConfirmDialog />
 	</div>
 );

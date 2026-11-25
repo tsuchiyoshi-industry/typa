@@ -4,8 +4,8 @@ import "../adapter/views/styles/master.css";
 import "../adapter/views/styles/review.css";
 import "../adapter/views/styles/pages.css";
 import { render } from "@solidjs/testing-library";
+import type { JSX } from "@solidjs/web";
 import type {} from "@vitest/browser-playwright";
-import type { JSX } from "solid-js";
 import { cdp, server } from "vitest/browser";
 import { summarizeTrace, type TraceEvent } from "./browserTrace";
 

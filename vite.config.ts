@@ -1,5 +1,5 @@
+import solid from "@solidjs/vite-plugin";
 import { defineConfig, loadEnv, type ResolvedConfig } from "vite";
-import solid from "vite-plugin-solid";
 import { assertPublicBuildEnvironment } from "./scripts/releaseEnvironment.ts";
 import tauriConfig from "./src-tauri/tauri.conf.json" with { type: "json" };
 

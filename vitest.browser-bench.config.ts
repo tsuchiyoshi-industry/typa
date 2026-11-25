@@ -1,22 +1,22 @@
+import solid from "@solidjs/vite-plugin";
 import { playwright } from "@vitest/browser-playwright";
-import solid from "vite-plugin-solid";
 import { defineConfig } from "vitest/config";
 
 const benchFiles = ["src/**/*.browser.bench.tsx"];
 
 export default defineConfig({
-	plugins: [solid({ hot: false, dev: false })],
+	// 配布物と同じ本番版の Solid で測る(開発版は診断と記録のぶん遅い)。テストではプラグインが開発版を選ぶので、条件で指定する
+	plugins: [solid({ refresh: false, dev: false })],
 	resolve: { conditions: ["production", "browser"] },
 	optimizeDeps: {
 		// Scan only browser benchmarks, never Node tests or Edge Function transports.
 		entries: benchFiles,
 		// Keep the initial runtime bundle stable before the first test is imported.
-		include: ["@solidjs/testing-library", "solid-js", "solid-js/web"],
+		include: ["@solidjs/testing-library", "solid-js", "@solidjs/web"],
 	},
 	test: {
 		name: "chromium-performance",
-		// 実行は下の Chromium。Solid プラグインによる jsdom の自動設定を防ぐ。
-		environment: "node",
+		// 実行は下の Chromium。environment を "node" と書くと Solid のプラグインがサーバー向けに変換するので書かない
 		include: benchFiles,
 		testTimeout: 120_000,
 		fileParallelism: false,

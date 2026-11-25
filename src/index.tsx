@@ -1,5 +1,5 @@
 /* @refresh reload */
-import { render } from "solid-js/web";
+import { render } from "@solidjs/web";
 import App from "./App";
 import "./adapter/views/styles/global.css";
 import "./adapter/views/styles/dashboard.css";

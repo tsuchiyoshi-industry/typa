@@ -16,7 +16,7 @@
 		"test": "vitest run",
 		"test:security": "vitest run src/test/security",
 		"test:watch": "vitest",
-		"bench": "vitest bench --run -c vitest.bench.config.ts",
+		"bench": "vitest bench --run --mode production -c vitest.bench.config.ts",
 		"bench:browser": "vitest bench --run -c vitest.browser-bench.config.ts",
 		"bench:db": "bun scripts/prepareReleaseDb.ts typa_bench --replace && bun scripts/benchDb.ts typa_bench",
 		"test:coverage": "vitest run --coverage",
@@ -30,13 +30,14 @@
 	"packageManager": "bun@1.4.5",
 	"dependencies": {
 		"@solidjs/router": "^2.0.1",
+		"@solidjs/web": "^2.0.4",
 		"@supabase/supabase-js": "^2.119.2",
 		"@tauri-apps/api": "~2.12.5",
 		"@tauri-apps/plugin-dialog": "~2.8.4",
 		"@tauri-apps/plugin-opener": "~2.7.3",
 		"@tauri-apps/plugin-process": "^2.4.0",
 		"@tauri-apps/plugin-updater": "~2.14.1",
-		"lucide-solid": "^1.79.0",
+		"lucide": "^1.79.0",
 		"solid-js": "^2.0.4"
 	},
 	"overrides": {
@@ -53,16 +54,18 @@
 		"@faker-js/faker": "10.6.0",
 		"@fast-check/vitest": "0.5.0",
 		"@playwright/test": "^1.65.1",
-		"@solidjs/testing-library": "^0.8.10",
+		"@solidjs/diagnostics": "^2.0.4",
+		"@solidjs/testing-library": "1.0.0-rc.2",
+		"@solidjs/vite-plugin": "^3.0.1",
 		"@tauri-apps/cli": "^2.12.6",
 		"@types/node": "^26.6.7",
 		"@vitest/browser-playwright": "5.1.1",
 		"@vitest/coverage-v8": "5.1.1",
 		"fast-check": "4.11.0",
 		"happy-dom": "^21.0.4",
+		"jsdom": "^31.0.1",
 		"typescript": "~7.0.2",
 		"vite": "^8.3.8",
-		"vite-plugin-solid": "^2.11.17",
 		"vitest": "^5.1.1"
 	}
 }

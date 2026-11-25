@@ -1,12 +1,12 @@
+import solid from "@solidjs/vite-plugin";
 import { playwright } from "@vitest/browser-playwright";
-import solid from "vite-plugin-solid";
 import { defineConfig } from "vitest/config";
 
 // 画面のテストは既定で happy-dom。<dialog> やフォーカス移動など本物のブラウザでないと
 // 確かめられないものは *.browser.test.tsx に分け、Chromium で動かす。
 export default defineConfig({
-	plugins: [solid({ hot: false })],
-	resolve: { conditions: ["development", "browser"] },
+	// テストは Solid の開発版(診断つき)を、ブラウザ向けの変換で動かす
+	plugins: [solid({ refresh: false })],
 	test: {
 		// PGlite の WASM と happy-dom を、ファイルごとにプロセスごと破棄する。
 		// threads は Windows/Node で初期化・終了が滞り、次の worker の起動までタイムアウトした。
@@ -14,6 +14,7 @@ export default defineConfig({
 		maxWorkers: 2,
 		clearMocks: true,
 		restoreMocks: true,
+		setupFiles: ["src/test/setupSolid.ts"],
 		// 何も確かめないテストは失敗にする
 		expect: { requireAssertions: true },
 		// テストを毎回ちがう順に流し、前のテストが残した状態に寄りかかるテストを見つける。
@@ -25,7 +26,8 @@ export default defineConfig({
 				extends: true,
 				test: {
 					name: "unit",
-					environment: "node",
+					// environment を "node" と書くと、Solid のプラグインがサーバー向けの変換に切り替える。
+					// 書かずに Vitest の既定(node)で動かし、画面のテストはファイルの先頭で happy-dom にする
 					include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
 					exclude: ["src/**/*.browser.test.tsx"],
 				},

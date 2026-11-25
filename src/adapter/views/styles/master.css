@@ -394,13 +394,6 @@
 	border-block: 1px solid var(--hr-border);
 	white-space: nowrap;
 }
-.master-table thead th:first-child {
-	width: 23%;
-	padding-left: 24px;
-}
-.master-table thead th:nth-child(2) {
-	width: 12%;
-}
 .master-table tbody th,
 .master-table td {
 	border-bottom: 1px solid var(--hr-border);
@@ -416,6 +409,13 @@
 	padding: 20px 16px 20px 24px;
 	text-align: left;
 	font-weight: 400;
+}
+.master-table thead th:nth-child(2) {
+	width: 12%;
+}
+.master-table thead th:first-child {
+	width: 23%;
+	padding-left: 24px;
 }
 .master-table :where(tbody th) span {
 	display: block;
@@ -451,17 +451,6 @@
 	border-radius: 6px;
 	color: var(--hr-text-muted);
 	font-size: 0.8125rem;
-}
-.row-action:hover:not(:disabled),
-.row-action:focus-visible {
-	color: var(--hr-text);
-	border-color: var(--hr-border-strong);
-	background: var(--hr-bg);
-}
-/* 赤くなるのは、取り消し・停止のように相手のログインを奪う操作だけ */
-.row-action--danger:hover:not(:disabled),
-.row-action--danger:focus-visible {
-	color: var(--hr-danger-text);
 }
 .row-action:disabled {
 	opacity: 0.5;
@@ -707,6 +696,17 @@
 }
 .registration-actions .row-action {
 	padding: 4px 6px;
+}
+.row-action:focus-visible,
+.row-action:hover:not(:disabled) {
+	color: var(--hr-text);
+	border-color: var(--hr-border-strong);
+	background: var(--hr-bg);
+}
+/* 赤くなるのは、取り消し・停止のように相手のログインを奪う操作だけ */
+.row-action--danger:focus-visible,
+.row-action--danger:hover:not(:disabled) {
+	color: var(--hr-danger-text);
 }
 .master-invitation {
 	margin-bottom: 1rem;

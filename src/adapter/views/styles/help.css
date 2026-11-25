@@ -1477,12 +1477,6 @@ html:has(.guide) {
 	top: 0;
 	transform: translateX(-50%);
 }
-.dg-ranks__ticks span:first-child {
-	transform: none;
-}
-.dg-ranks__ticks span:last-child {
-	transform: translateX(-100%);
-}
 
 /* 7. 通知 */
 .dg-notice__list {
@@ -1713,6 +1707,12 @@ html:has(.guide) {
 	font-family: var(--guide-mincho);
 	font-size: 1.125rem;
 	font-weight: 600;
+}
+.dg-ranks__ticks span:first-child {
+	transform: none;
+}
+.dg-ranks__ticks span:last-child {
+	transform: translateX(-100%);
 }
 .dg-cycle__steps > li {
 	position: absolute;

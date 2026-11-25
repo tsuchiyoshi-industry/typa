@@ -260,9 +260,6 @@
 .review-row:not(.openable) {
 	color: var(--hr-text-muted);
 }
-.review-row.mine td:first-child {
-	box-shadow: inset 3px 0 0 var(--hr-accent-hover);
-}
 /* 窓で開いている行。窓の後ろに透けて見え、閉じたときにどこを見ていたかが分かる */
 .review-table tbody tr.current {
 	background: var(--hr-accent-muted);
@@ -664,15 +661,15 @@
 	width: 240px;
 	max-width: 240px;
 }
+.review-matrix thead th {
+	font-size: 0.8125rem;
+}
 .review-matrix th:first-child {
 	position: sticky;
 	left: 0;
 	z-index: 1;
 	width: 170px;
 	max-width: 170px;
-}
-.review-matrix thead th {
-	font-size: 0.8125rem;
 }
 .review-matrix thead .review-stage {
 	margin-top: 0.6rem;
@@ -719,6 +716,9 @@
 .review-matrix tbody tr:last-child > * {
 	border-bottom: none;
 }
+.review-row.mine td:first-child {
+	box-shadow: inset 3px 0 0 var(--hr-accent-hover);
+}
 @media (prefers-reduced-motion: no-preference) {
 	.review-spinning {
 		animation: review-spin 1.2s linear infinite;
@@ -762,10 +762,6 @@
 	}
 	.review-sync {
 		display: none;
-	}
-	.review-filters > label:not(.review-search) {
-		flex: 1;
-		min-width: 120px;
 	}
 	.review-filters select {
 		width: 100%;
@@ -812,6 +808,10 @@
 	.review-filters > label,
 	.review-search {
 		min-width: 0;
+	}
+	.review-filters > label:not(.review-search) {
+		flex: 1;
+		min-width: 120px;
 	}
 	.review-overview {
 		grid-template-columns: repeat(2, minmax(0, 1fr));

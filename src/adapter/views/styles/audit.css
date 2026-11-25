@@ -195,14 +195,6 @@
 		background-color 0.15s ease;
 }
 
-.audit-clear:hover,
-.audit-retry:hover,
-.audit-more__button:hover:not(:disabled) {
-	color: var(--hr-link);
-	background: var(--hr-accent-muted);
-	border-color: var(--hr-accent);
-}
-
 .audit-more__button:disabled {
 	opacity: 0.55;
 	cursor: progress;
@@ -591,6 +583,14 @@
 .audit-more .audit-more__button {
 	justify-self: center;
 	min-width: 16rem;
+}
+
+.audit-clear:hover,
+.audit-retry:hover,
+.audit-more__button:hover:not(:disabled) {
+	color: var(--hr-link);
+	background: var(--hr-accent-muted);
+	border-color: var(--hr-accent);
 }
 
 /* ----- 狭い幅(帳簿の幅で決める。画面の幅ではない) ----- */

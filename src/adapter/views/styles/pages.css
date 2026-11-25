@@ -106,11 +106,6 @@
 	font-variant-numeric: tabular-nums;
 	text-align: right;
 }
-.allocation-input input:focus {
-	outline: none;
-	border-color: var(--hr-accent);
-	box-shadow: 0 0 0 3px var(--hr-accent-muted);
-}
 .allocation-plus,
 .allocation-total {
 	padding-bottom: 0.55rem;
@@ -173,49 +168,12 @@
 	justify-content: flex-end;
 	gap: 0.4rem;
 }
-.period-form input:not([type="radio"], [type="checkbox"]),
-.smtp-test-form select {
-	min-height: 2.5rem;
-	padding: 0.4rem 0.6rem;
-	border: 1px solid var(--hr-border-input);
-	border-radius: var(--hr-radius-sm);
-	background: var(--hr-bg-elevated);
-	color: var(--hr-text);
-	font-size: 0.9rem;
-}
-.period-form input:not([type="radio"], [type="checkbox"]):focus,
-.smtp-test-form select:focus {
-	outline: none;
-	border-color: var(--hr-accent);
-	box-shadow: 0 0 0 3px var(--hr-accent-muted);
-}
 
 /* 等級の一覧と、共通目標の編集 */
 .grade-master-table .numeric {
 	font-variant-numeric: tabular-nums;
 	text-align: right;
 	white-space: nowrap;
-}
-.grade-master-select,
-.goal-master-toolbar select,
-.goal-master-editor input:not([type="checkbox"]),
-.goal-master-editor textarea {
-	min-height: 2.5rem;
-	padding: 0.4rem 0.6rem;
-	border: 1px solid var(--hr-border-input);
-	border-radius: var(--hr-radius-sm);
-	background: var(--hr-bg-elevated);
-	color: var(--hr-text);
-	font: inherit;
-	font-size: 0.9rem;
-}
-.grade-master-select:focus,
-.goal-master-toolbar select:focus,
-.goal-master-editor input:focus,
-.goal-master-editor textarea:focus {
-	outline: none;
-	border-color: var(--hr-accent);
-	box-shadow: 0 0 0 3px var(--hr-accent-muted);
 }
 .goal-master-toolbar {
 	display: flex;
@@ -316,9 +274,6 @@
 .notification-channel input {
 	accent-color: var(--hr-accent);
 }
-.notification-channel label:has(input:disabled) {
-	color: var(--hr-text-muted);
-}
 .smtp-test-form {
 	display: grid;
 	grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
@@ -367,6 +322,9 @@
 	font-size: 0.875rem;
 	color: var(--hr-text);
 }
+.notification-channel label:has(input:disabled) {
+	color: var(--hr-text-muted);
+}
 /* 未開始・締め済み(実施中だけをバッジで目立たせる) */
 .period-state {
 	color: var(--hr-text-muted);
@@ -396,10 +354,6 @@
 	justify-content: space-between;
 	gap: 0 1.5rem;
 }
-.period-preview li span:last-child {
-	color: var(--hr-text-muted);
-	font-variant-numeric: tabular-nums;
-}
 
 /* ヘルプ */
 .help-toc {
@@ -414,10 +368,6 @@
 	background: var(--hr-surface);
 	font-size: 0.8125rem;
 	color: var(--hr-text);
-}
-.help-toc a:hover {
-	border-color: var(--hr-accent);
-	background: var(--hr-accent-muted);
 }
 .help-stages {
 	display: grid;
@@ -578,6 +528,10 @@ a.setup-task-link:hover {
 }
 .master-header p a {
 	color: var(--hr-link);
+}
+.help-toc a:hover {
+	border-color: var(--hr-accent);
+	background: var(--hr-accent-muted);
 }
 
 /* データ取込 */
@@ -854,13 +808,6 @@ a.setup-task-link:hover {
 	color: var(--hr-text);
 	text-align: left;
 }
-.correction-sheet-list button:hover {
-	background: var(--hr-surface-hover);
-}
-/* 選んでいるシートは面で示す */
-.correction-sheet-list button[aria-current="true"] {
-	background: var(--hr-accent-muted);
-}
 .correction-sheet-list__no {
 	grid-column: 1;
 	font-size: 0.75rem;
@@ -937,20 +884,27 @@ a.setup-task-link:hover {
 	font-weight: 600;
 	color: var(--hr-text-muted);
 }
-.correction-modes button:hover:not(:disabled) {
-	color: var(--hr-text);
+.correction-sheet-list button:hover {
+	background: var(--hr-surface-hover);
+}
+/* 選んでいるシートは面で示す */
+.correction-sheet-list button[aria-current="true"] {
+	background: var(--hr-accent-muted);
 }
 .correction-modes button[aria-selected="true"] {
 	background: var(--hr-surface);
 	color: var(--hr-text);
 	box-shadow: var(--hr-shadow);
 }
-.correction-modes button.is-danger[aria-selected="true"] {
-	color: var(--hr-danger-text);
-}
 .correction-modes button:disabled {
 	cursor: not-allowed;
 	opacity: 0.45;
+}
+.correction-modes button:hover:not(:disabled) {
+	color: var(--hr-text);
+}
+.correction-modes button.is-danger[aria-selected="true"] {
+	color: var(--hr-danger-text);
 }
 .correction-pane {
 	margin-top: 0.5rem;
@@ -1017,6 +971,34 @@ a.setup-task-link:hover {
 .correction-status__steps input {
 	margin: 0;
 	accent-color: var(--hr-accent);
+}
+.grade-master-select,
+.goal-master-toolbar select,
+.goal-master-editor input:not([type="checkbox"]),
+.goal-master-editor textarea {
+	min-height: 2.5rem;
+	padding: 0.4rem 0.6rem;
+	border: 1px solid var(--hr-border-input);
+	border-radius: var(--hr-radius-sm);
+	background: var(--hr-bg-elevated);
+	color: var(--hr-text);
+	font: inherit;
+	font-size: 0.9rem;
+}
+.period-form input:not([type="radio"], [type="checkbox"]),
+.smtp-test-form select {
+	min-height: 2.5rem;
+	padding: 0.4rem 0.6rem;
+	border: 1px solid var(--hr-border-input);
+	border-radius: var(--hr-radius-sm);
+	background: var(--hr-bg-elevated);
+	color: var(--hr-text);
+	font-size: 0.9rem;
+}
+.allocation-input input:focus {
+	outline: none;
+	border-color: var(--hr-accent);
+	box-shadow: 0 0 0 3px var(--hr-accent-muted);
 }
 .correction-status__steps small {
 	margin-left: auto;
@@ -1145,10 +1127,28 @@ a.setup-task-link:hover {
 	color: var(--hr-danger-text);
 	font-weight: 600;
 }
+.period-preview li span:last-child {
+	color: var(--hr-text-muted);
+	font-variant-numeric: tabular-nums;
+}
 .correction-field--changed textarea,
 .correction-field--changed select {
 	border-color: var(--hr-danger);
 	color: var(--hr-danger-text);
+}
+.grade-master-select:focus,
+.goal-master-toolbar select:focus,
+.goal-master-editor input:focus,
+.goal-master-editor textarea:focus {
+	outline: none;
+	border-color: var(--hr-accent);
+	box-shadow: 0 0 0 3px var(--hr-accent-muted);
+}
+.period-form input:not([type="radio"], [type="checkbox"]):focus,
+.smtp-test-form select:focus {
+	outline: none;
+	border-color: var(--hr-accent);
+	box-shadow: 0 0 0 3px var(--hr-accent-muted);
 }
 .correction-editor .correction-notice {
 	margin-top: 1.75rem;

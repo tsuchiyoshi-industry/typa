@@ -299,13 +299,13 @@ a:hover {
 	color: var(--hr-link);
 }
 
-.link-button:hover:not(:disabled) {
-	text-decoration: underline;
-}
-
 .link-button:disabled {
 	opacity: 0.55;
 	cursor: not-allowed;
+}
+
+.link-button:hover:not(:disabled) {
+	text-decoration: underline;
 }
 
 .auth-toggle {
@@ -381,12 +381,6 @@ a:hover {
 	opacity: 0.7;
 }
 
-.login-fieldset input:focus {
-	outline: none;
-	border-color: var(--hr-accent);
-	box-shadow: 0 0 0 3px var(--hr-accent-muted);
-}
-
 .login-form button[type="submit"] {
 	margin-top: 0.5rem;
 	padding: 0.75rem 1rem;
@@ -401,13 +395,13 @@ a:hover {
 		opacity 0.15s ease;
 }
 
-.login-form button[type="submit"]:hover:not(:disabled) {
-	background: var(--hr-accent-hover);
-}
-
 .login-form button[type="submit"]:disabled {
 	opacity: 0.55;
 	cursor: not-allowed;
+}
+
+.login-form button[type="submit"]:hover:not(:disabled) {
+	background: var(--hr-accent-hover);
 }
 
 /* 共通エラー・ヒント */
@@ -687,6 +681,12 @@ a:hover {
 	flex-shrink: 0;
 	margin: 0.25rem 0 0;
 	accent-color: var(--hr-accent);
+}
+
+.login-fieldset input:focus {
+	outline: none;
+	border-color: var(--hr-accent);
+	box-shadow: 0 0 0 3px var(--hr-accent-muted);
 }
 
 .confirm-dialog__radio small {

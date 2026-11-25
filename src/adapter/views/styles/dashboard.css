@@ -384,15 +384,6 @@
 	border-radius: var(--hr-radius-sm);
 }
 
-.user-menu-font-size button:hover:not(:disabled) {
-	background: var(--hr-surface-hover);
-}
-
-.user-menu-font-size button:disabled {
-	opacity: 0.45;
-	cursor: default;
-}
-
 .user-menu-font-size output {
 	min-width: 2.5rem;
 	text-align: center;
@@ -724,10 +715,6 @@
 	border-bottom: 2px solid transparent;
 }
 
-.period-tabs button:hover {
-	color: var(--hr-text);
-}
-
 .period-tabs button[aria-pressed="true"] {
 	color: var(--hr-text);
 	border-bottom-color: var(--hr-accent-hover);
@@ -935,19 +922,10 @@
 	color: var(--hr-text);
 }
 
-.stage-legend button:hover:not(:disabled) {
-	background: var(--hr-surface-hover);
-}
-
 .stage-legend button[aria-pressed="true"] {
 	color: var(--hr-text);
 	background: var(--hr-bg-elevated);
 	border-color: var(--hr-border-strong);
-}
-
-.stage-legend button:disabled {
-	opacity: 0.55;
-	cursor: default;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -998,10 +976,6 @@
 	border-bottom: 1px solid var(--hr-border);
 	color: var(--hr-text);
 	vertical-align: middle;
-}
-
-.sheet-table tbody tr:hover {
-	background: var(--hr-surface-hover);
 }
 
 .sheet-table :where(tbody tr:last-child) td {
@@ -1102,12 +1076,6 @@
 		background 0.15s ease;
 }
 
-.export-button:hover:not(:disabled) {
-	color: var(--hr-link);
-	border-color: var(--hr-accent);
-	background: var(--hr-accent-muted);
-}
-
 /* 別のシートを出力している間 */
 .export-button:disabled {
 	opacity: 0.5;
@@ -1118,6 +1086,12 @@
 .action-buttons .export-hint {
 	margin-right: 0.5rem;
 	vertical-align: middle;
+}
+
+.export-button:hover:not(:disabled) {
+	color: var(--hr-link);
+	border-color: var(--hr-accent);
+	background: var(--hr-accent-muted);
 }
 
 .inline-alert {
@@ -1800,18 +1774,6 @@
 		background 0.15s ease;
 }
 
-.challenge-tab:hover {
-	color: var(--hr-text);
-	border-color: var(--hr-border-strong);
-}
-
-.challenge-tab.active {
-	color: var(--hr-text);
-	background: var(--hr-accent-muted);
-	border-color: var(--hr-accent);
-	font-weight: 600;
-}
-
 .challenge-card > p {
 	margin: 0;
 	padding: 1rem 1.25rem;
@@ -1925,11 +1887,6 @@
 	border-left: none;
 }
 
-.score-scale__step:hover:not(:disabled) {
-	color: var(--hr-text);
-	background: var(--hr-surface-hover);
-}
-
 .score-scale__step.filled {
 	color: var(--hr-text);
 	background: var(--hr-accent-muted);
@@ -1943,6 +1900,11 @@
 
 .score-scale__step:focus-visible {
 	outline-offset: -2px;
+}
+
+.score-scale__step:hover:not(:disabled) {
+	color: var(--hr-text);
+	background: var(--hr-surface-hover);
 }
 
 .score-scale:disabled {
@@ -1995,20 +1957,10 @@
 	color: var(--hr-on-accent);
 }
 
-.primary-action:hover:not(:disabled) {
-	background: var(--hr-accent-hover);
-}
-
 .secondary-action {
 	background: transparent;
 	color: var(--hr-text);
 	border: 1px solid var(--hr-border-input);
-}
-
-.secondary-action:hover:not(:disabled) {
-	color: var(--hr-text);
-	border-color: var(--hr-border-strong);
-	background: var(--hr-surface-hover);
 }
 
 /* 取り消せない操作 */
@@ -2031,9 +1983,19 @@
 	cursor: not-allowed;
 }
 
+.primary-action:hover:not(:disabled) {
+	background: var(--hr-accent-hover);
+}
+
 .inline-alert .secondary-action {
 	flex-shrink: 0;
 	color: inherit;
+}
+
+.secondary-action:hover:not(:disabled) {
+	color: var(--hr-text);
+	border-color: var(--hr-border-strong);
+	background: var(--hr-surface-hover);
 }
 
 .action-icon,
@@ -2098,12 +2060,6 @@
 	background: var(--hr-bg-elevated);
 	color: var(--hr-text);
 	resize: vertical;
-}
-
-.objective-fields textarea:focus {
-	outline: none;
-	border-color: var(--hr-accent);
-	box-shadow: 0 0 0 3px var(--hr-accent-muted);
 }
 
 .objective-field {
@@ -2261,10 +2217,6 @@
 	vertical-align: top;
 }
 
-.evaluation-table:not(.editing) tbody tr:hover {
-	background: var(--hr-surface-hover);
-}
-
 .evaluation-table .col-item {
 	width: 14%;
 	min-width: 7.5rem;
@@ -2319,12 +2271,6 @@
 	color: var(--hr-text);
 	font-size: var(--hr-input-font-size);
 	resize: vertical;
-}
-
-.evaluation-table textarea:focus {
-	outline: none;
-	border-color: var(--hr-accent);
-	box-shadow: 0 0 0 3px var(--hr-accent-muted);
 }
 
 /* ----- 総評 ----- */
@@ -2409,12 +2355,6 @@
 	resize: vertical;
 }
 
-.overall-comment-field textarea:focus {
-	outline: none;
-	border-color: var(--hr-accent);
-	box-shadow: 0 0 0 3px var(--hr-accent-muted);
-}
-
 .overall-comment-card > .error-message {
 	margin: 0 1.25rem 1.25rem;
 }
@@ -2451,14 +2391,34 @@
 	outline: 2px solid var(--hr-accent);
 	outline-offset: 3px;
 }
+.evaluation-table tr,
+.challenge-tab {
+	scroll-margin-block: 5rem;
+}
 /* 「未設定の項目」から送られた先。どの行かが分かるようにする */
 .evaluation-table tr:focus {
 	outline: 2px solid var(--hr-accent);
 	outline-offset: -2px;
 }
-.evaluation-table tr,
-.challenge-tab {
-	scroll-margin-block: 5rem;
+
+.sheet-table tbody tr:hover {
+	background: var(--hr-surface-hover);
+}
+
+.evaluation-table:not(.editing) tbody tr:hover {
+	background: var(--hr-surface-hover);
+}
+
+.challenge-tab:hover {
+	color: var(--hr-text);
+	border-color: var(--hr-border-strong);
+}
+
+.challenge-tab.active {
+	color: var(--hr-text);
+	background: var(--hr-accent-muted);
+	border-color: var(--hr-accent);
+	font-weight: 600;
 }
 .status-track__notice {
 	white-space: pre-line;
@@ -2485,9 +2445,6 @@
 	gap: 0.75rem;
 	padding: 0.75rem 0;
 	border-bottom: 1px solid var(--hr-border);
-}
-.previous-goals__list > li:last-child {
-	border-bottom: 0;
 }
 .previous-goals__number {
 	display: inline-grid;
@@ -2530,6 +2487,9 @@
 	grid-template-columns: 1.6rem minmax(0, 1fr);
 	gap: 0.75rem;
 	align-items: start;
+}
+.previous-goals__list > li:last-child {
+	border-bottom: 0;
 }
 .period-goals li p {
 	margin: 0;
@@ -2654,6 +2614,24 @@
 	min-height: 72px;
 	box-sizing: border-box;
 }
+
+.overall-comment-field textarea:focus {
+	outline: none;
+	border-color: var(--hr-accent);
+	box-shadow: 0 0 0 3px var(--hr-accent-muted);
+}
+
+.evaluation-table textarea:focus {
+	outline: none;
+	border-color: var(--hr-accent);
+	box-shadow: 0 0 0 3px var(--hr-accent-muted);
+}
+
+.objective-fields textarea:focus {
+	outline: none;
+	border-color: var(--hr-accent);
+	box-shadow: 0 0 0 3px var(--hr-accent-muted);
+}
 @media (max-width: 720px) {
 	.period-goal-card {
 		grid-template-columns: 1.6rem minmax(0, 1fr);
@@ -2731,9 +2709,19 @@
 .continuity-choice > button + button {
 	border-left: 1px solid var(--hr-border-input);
 }
-.continuity-choice > button:hover:not(:disabled) {
-	background: var(--hr-accent-muted);
-	color: var(--hr-accent-hover);
+
+.stage-legend button:disabled {
+	opacity: 0.55;
+	cursor: default;
+}
+
+.user-menu-font-size button:disabled {
+	opacity: 0.45;
+	cursor: default;
+}
+
+.period-tabs button:hover {
+	color: var(--hr-text);
 }
 .continuity-choice > button:focus-visible {
 	outline: 2px solid var(--hr-accent);
@@ -2742,6 +2730,18 @@
 .continuity-choice > button:disabled {
 	opacity: 0.5;
 	cursor: not-allowed;
+}
+.continuity-choice > button:hover:not(:disabled) {
+	background: var(--hr-accent-muted);
+	color: var(--hr-accent-hover);
+}
+
+.stage-legend button:hover:not(:disabled) {
+	background: var(--hr-surface-hover);
+}
+
+.user-menu-font-size button:hover:not(:disabled) {
+	background: var(--hr-surface-hover);
 }
 
 /* 前期とのつながりの札。据え置きは淡い墨の面、更新は線だけ */
